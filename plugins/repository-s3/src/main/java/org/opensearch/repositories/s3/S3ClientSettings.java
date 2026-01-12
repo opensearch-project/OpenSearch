@@ -52,8 +52,10 @@ import org.opensearch.repositories.s3.utils.Protocol;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -723,6 +725,40 @@ public final class S3ClientSettings {
      * Class to store IAM Roles for Service Accounts (IRSA) credentials
      * See please: https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html
      */
+
+    static Collection<Setting<?>> getAllClientSettings() {
+        return List.of(
+            ACCESS_KEY_SETTING,
+            SECRET_KEY_SETTING,
+            SESSION_TOKEN_SETTING,
+            ENDPOINT_SETTING,
+            PROTOCOL_SETTING,
+            PROXY_TYPE_SETTING,
+            PROXY_HOST_SETTING,
+            PROXY_PORT_SETTING,
+            PROXY_USERNAME_SETTING,
+            PROXY_PASSWORD_SETTING,
+            READ_TIMEOUT_SETTING,
+            REQUEST_TIMEOUT_SETTING,
+            CONNECTION_TIMEOUT_SETTING,
+            CONNECTION_TTL_SETTING,
+            MAX_CONNECTIONS_SETTING,
+            MAX_SYNC_CONNECTIONS_SETTING,
+            CONNECTION_ACQUISITION_TIMEOUT,
+            MAX_PENDING_CONNECTION_ACQUIRES,
+            MAX_RETRIES_SETTING,
+            USE_THROTTLE_RETRIES_SETTING,
+            USE_PATH_STYLE_ACCESS,
+            SIGNER_OVERRIDE,
+            REGION,
+            ROLE_ARN_SETTING,
+            IDENTITY_TOKEN_FILE_SETTING,
+            ROLE_SESSION_NAME_SETTING,
+            LEGACY_MD5_CHECKSUM_CALCULATION,
+            DISABLE_CHUNKED_ENCODING
+        );
+    }
+
     static class IrsaCredentials {
         private final String identityTokenFile;
         private final String roleArn;

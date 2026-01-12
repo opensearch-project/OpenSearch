@@ -41,17 +41,23 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import org.opensearch.common.settings.MockSecureSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
 import org.opensearch.secure_sm.AccessController;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.contains;
@@ -91,6 +97,18 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(10));
+    }
+
+    public void testGetAllClientSettings() throws IllegalAccessException {
+        List<Setting<?>> reflectedSettings = new ArrayList<>();
+
+        for (Field field : S3ClientSettings.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && Setting.class.isAssignableFrom(field.getType())) {
+                reflectedSettings.add((Setting<?>) field.get(null));
+            }
+        }
+
+        assertEquals(Set.copyOf(reflectedSettings), Set.copyOf(S3ClientSettings.getAllClientSettings()));
     }
 
     public void testLegacyMd5ChecksumCalculationCanBeSet() {

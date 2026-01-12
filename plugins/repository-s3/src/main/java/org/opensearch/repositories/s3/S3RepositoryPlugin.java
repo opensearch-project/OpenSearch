@@ -68,7 +68,6 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -344,38 +343,27 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(
-            // named s3 client configuration settings
-            S3ClientSettings.ACCESS_KEY_SETTING,
-            S3ClientSettings.SECRET_KEY_SETTING,
-            S3ClientSettings.SESSION_TOKEN_SETTING,
-            S3ClientSettings.ENDPOINT_SETTING,
-            S3ClientSettings.PROTOCOL_SETTING,
-            S3ClientSettings.PROXY_TYPE_SETTING,
-            S3ClientSettings.PROXY_HOST_SETTING,
-            S3ClientSettings.PROXY_PORT_SETTING,
-            S3ClientSettings.PROXY_USERNAME_SETTING,
-            S3ClientSettings.PROXY_PASSWORD_SETTING,
-            S3ClientSettings.READ_TIMEOUT_SETTING,
-            S3ClientSettings.MAX_RETRIES_SETTING,
-            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
-            S3ClientSettings.USE_PATH_STYLE_ACCESS,
-            S3Repository.ACCESS_KEY_SETTING,
-            S3Repository.SECRET_KEY_SETTING,
-            S3ClientSettings.SIGNER_OVERRIDE,
-            S3ClientSettings.REGION,
-            S3ClientSettings.ROLE_ARN_SETTING,
-            S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
-            S3ClientSettings.ROLE_SESSION_NAME_SETTING,
-            S3ClientSettings.LEGACY_MD5_CHECKSUM_CALCULATION,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
-            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
-            S3Repository.REDIRECT_LARGE_S3_UPLOAD,
-            S3Repository.UPLOAD_RETRY_ENABLED,
-            S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
-            S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
-            S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
+        List<Setting<?>> settings = new ArrayList<>();
+
+        // All S3 client settings (single source of truth)
+        settings.addAll(S3ClientSettings.getAllClientSettings());
+
+        // Repository-level settings
+        settings.addAll(
+            List.of(
+                S3Repository.ACCESS_KEY_SETTING,
+                S3Repository.SECRET_KEY_SETTING,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING,
+                S3Repository.REDIRECT_LARGE_S3_UPLOAD,
+                S3Repository.UPLOAD_RETRY_ENABLED,
+                S3Repository.S3_PRIORITY_PERMIT_ALLOCATION_PERCENT,
+                S3Repository.PERMIT_BACKED_TRANSFER_ENABLED,
+                S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE
+            )
         );
+
+        return settings;
     }
 
     @Override
