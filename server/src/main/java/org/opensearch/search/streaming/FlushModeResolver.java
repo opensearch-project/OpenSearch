@@ -135,12 +135,13 @@ public final class FlushModeResolver {
         }
 
         // Always recurse into children (handles MultiCollector/MultiBucketCollector/ProfilingAggregator cases)
+        // If ANY child is non-streamable, the entire tree must be non-streamable
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
             StreamingCostMetrics childResult = collectMetrics(child);
-            // Be tolerant of non-streamable children: skip them and rely on streamable parents/siblings
+            // If any child is non-streamable, the entire tree is non-streamable
             if (!childResult.isStreamable()) {
-                continue;
+                return StreamingCostMetrics.nonStreamable();
             }
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
