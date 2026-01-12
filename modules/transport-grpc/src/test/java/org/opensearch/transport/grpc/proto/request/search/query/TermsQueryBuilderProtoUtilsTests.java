@@ -24,7 +24,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("v").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
         TermsQueryBuilder termsQueryBuilder = TermsQueryBuilderProtoUtils.fromProto(
             "field",
             termsQueryField,
@@ -82,7 +82,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("x").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         TermsQueryBuilder result = TermsQueryBuilderProtoUtils.fromProto(
             "field",
@@ -105,7 +105,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQueryValueType vt = org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT;
@@ -183,7 +183,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("AQI=").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         TermsQueryBuilder builder = TermsQueryBuilderProtoUtils.fromProto(
@@ -208,7 +208,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .addFieldValueArray(fv2)
             .build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         assertThrows(
@@ -253,7 +253,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
@@ -297,8 +297,8 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
-            .putTerms("field1", org.opensearch.protobufs.TermsQueryField.newBuilder().setFieldValueArray(fva1).build())
-            .putTerms("field2", org.opensearch.protobufs.TermsQueryField.newBuilder().setFieldValueArray(fva2).build())
+            .putTerms("field1", org.opensearch.protobufs.TermsQueryField.newBuilder().setValue(fva1).build())
+            .putTerms("field2", org.opensearch.protobufs.TermsQueryField.newBuilder().setValue(fva2).build())
             .build();
 
         assertThrows(IllegalArgumentException.class, () -> TermsQueryBuilderProtoUtils.fromProto(termsQuery));
@@ -341,7 +341,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("default_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
@@ -363,7 +363,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
                                                                                                                              // {1,2}
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
@@ -385,7 +385,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
@@ -403,7 +403,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.FieldValue fv = org.opensearch.protobufs.FieldValue.newBuilder().setString("test_value").build();
         org.opensearch.protobufs.FieldValueArray fva = org.opensearch.protobufs.FieldValueArray.newBuilder().addFieldValueArray(fv).build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         org.opensearch.protobufs.TermsQuery termsQuery = org.opensearch.protobufs.TermsQuery.newBuilder()
@@ -426,7 +426,7 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .addFieldValueArray(fv2)
             .build();
         org.opensearch.protobufs.TermsQueryField termsQueryField = org.opensearch.protobufs.TermsQueryField.newBuilder()
-            .setFieldValueArray(fva)
+            .setValue(fva)
             .build();
 
         assertThrows(
@@ -438,4 +438,5 @@ public class TermsQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             )
         );
     }
+
 }
