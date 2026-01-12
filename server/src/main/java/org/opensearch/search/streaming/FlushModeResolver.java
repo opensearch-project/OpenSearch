@@ -127,7 +127,6 @@ public final class FlushModeResolver {
      * @return combined metrics if all collectors support streaming, nonStreamable otherwise
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
-        // Fast reject for unknown collector types
         if (!(collector instanceof Streamable
             || collector instanceof MultiBucketCollector
             || collector instanceof MultiCollector
@@ -136,7 +135,6 @@ public final class FlushModeResolver {
             return StreamingCostMetrics.nonStreamable();
         }
 
-        // Compute metrics for the current node if it is streamable
         StreamingCostMetrics nodeMetrics = null;
         if (collector instanceof Streamable) {
             nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
@@ -145,23 +143,18 @@ public final class FlushModeResolver {
             }
         }
 
-        // Always recurse into children (handles MultiCollector/MultiBucketCollector/ProfilingAggregator cases)
-        // If ANY child is non-streamable, the entire tree must be non-streamable
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
             StreamingCostMetrics childResult = collectMetrics(child);
-            // If any child is non-streamable, the entire tree is non-streamable
             if (!childResult.isStreamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
         }
 
-        // If current node is not streamable, rely solely on children metrics
         if (nodeMetrics == null) {
             return childMetrics == null ? StreamingCostMetrics.nonStreamable() : childMetrics;
         }
-        // Combine current node metrics with children
         return childMetrics != null ? nodeMetrics.combineWithSubAggregation(childMetrics) : nodeMetrics;
     }
 
@@ -193,11 +186,22 @@ public final class FlushModeResolver {
         if (!metrics.streamable()) {
             return defaultMode;
         }
-        // Prevent coordinator overload with too many buckets
-        if (metrics.topNSize() <= maxBucketCount) {
-            return FlushMode.PER_SEGMENT;
+        if (metrics.estimatedBucketCount() > maxBucketCount) {
+            return defaultMode;
         }
-        return defaultMode;
+
+        if (metrics.estimatedBucketCount() < minBucketCount) {
+            return defaultMode;
+        }
+
+        if (metrics.estimatedDocCount() > 0) {
+            double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
+            if (cardinalityRatio < minCardinalityRatio) {
+                return defaultMode;
+            }
+        }
+
+        return FlushMode.PER_SEGMENT;
     }
 
     /**
