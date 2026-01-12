@@ -11,7 +11,6 @@ package org.opensearch.transport.grpc.proto.request.search.query;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.WildcardQueryBuilder;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.WildcardQuery;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -52,7 +51,7 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setBoost(2.0f)
             .setXName("test_query")
             .setCaseInsensitive(true)
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .build();
 
         // Convert to WildcardQueryBuilder
@@ -87,35 +86,23 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertEquals("Either value or wildcard field must be set in wildcardQueryProto", exception.getMessage());
     }
 
-    public void testFromProtoWithUnspecifiedRewrite() {
-        // Test that UNSPECIFIED rewrite method results in null rewrite
-        WildcardQuery proto = WildcardQuery.newBuilder()
-            .setField("test_field")
-            .setValue("test*value")
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED)
-            .build();
-
-        WildcardQueryBuilder builder = fromProto(proto);
-        assertNull("UNSPECIFIED rewrite should result in null", builder.rewrite());
-    }
-
     public void testFromProtoWithDifferentRewriteMethods() {
-        // Test all possible rewrite methods
-        MultiTermQueryRewrite[] rewriteMethods = {
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE_BOOLEAN,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_SCORING_BOOLEAN,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_N,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BLENDED_FREQS_N,
-            MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_TOP_TERMS_BOOST_N };
+        // Test all possible rewrite methods (rewrite is now a String in protobufs 1.0.0)
+        String[] rewriteMethods = {
+            "constant_score",
+            "constant_score_boolean",
+            "scoring_boolean",
+            "top_terms_10",
+            "top_terms_blended_freqs_10",
+            "top_terms_boost_10" };
 
         String[] expectedRewriteMethods = {
             "constant_score",
             "constant_score_boolean",
             "scoring_boolean",
-            "top_terms_n",
-            "top_terms_blended_freqs_n",
-            "top_terms_boost_n" };
+            "top_terms_10",
+            "top_terms_blended_freqs_10",
+            "top_terms_boost_10" };
 
         for (int i = 0; i < rewriteMethods.length; i++) {
             WildcardQuery proto = WildcardQuery.newBuilder()
@@ -154,7 +141,7 @@ public class WildcardQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setField("test_field")
             .setValue("test*value")
             .setCaseInsensitive(true)
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .setBoost(2.0f)
             .setXName("test_query")
             .build();

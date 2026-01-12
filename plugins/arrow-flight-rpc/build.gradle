@@ -35,7 +35,7 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // arrow flight dependencies.
@@ -57,7 +57,6 @@ dependencies {
   runtimeOnly "io.grpc:grpc-core:${versions.grpc}"
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-netty:${versions.grpc}"
-  implementation "com.google.errorprone:error_prone_annotations:2.31.0"
 
   runtimeOnly "com.google.code.findbugs:jsr305:3.0.2"
   annotationProcessor 'org.immutables:value:2.10.1'

@@ -121,7 +121,9 @@ public class OpenSearchNode implements TestClusterConfiguration {
         "path.repo",
         "discovery.seed_providers",
         "discovery.seed_hosts",
-        "indices.breaker.total.use_real_memory"
+        "indices.breaker.total.use_real_memory",
+        "cluster.initial_cluster_manager_nodes",
+        "cluster.initial_master_nodes"
     );
 
     private static final int TAIL_LOG_MESSAGES_COUNT = 40;

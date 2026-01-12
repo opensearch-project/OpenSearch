@@ -83,7 +83,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public String currentName() throws IOException {
-        return parser.getCurrentName();
+        return parser.currentName();
     }
 
     @Override
@@ -206,7 +206,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentLocation getTokenLocation() {
-        JsonLocation loc = parser.getTokenLocation();
+        JsonLocation loc = parser.currentTokenLocation();
         if (loc == null) {
             return null;
         }

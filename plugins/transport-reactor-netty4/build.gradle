@@ -35,6 +35,15 @@ dependencies {
 
   api libs.bundles.reactornetty
   api libs.netty.codec.http3
+  api libs.netty.codec.classes.quic
+  api libs.netty.codec.native.quic
+
+  // Bundle all supported OSes and Archs
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:windows-x86_64"
 
   testImplementation libs.log4jslf4jimpl
   javaRestTestImplementation libs.reactor.test
@@ -150,6 +159,7 @@ thirdPartyAudit {
     'io.netty.channel.epoll.EpollDatagramChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
     'io.netty.channel.epoll.EpollSocketChannel',
+    'io.netty.channel.epoll.SegmentedDatagramPacket',
     'io.netty.channel.kqueue.KQueue',
     'io.netty.channel.kqueue.KQueueDatagramChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
@@ -167,20 +177,6 @@ thirdPartyAudit {
     'io.netty.channel.uring.IoUringIoHandler',
     'io.netty.channel.uring.IoUringServerSocketChannel',
     'io.netty.channel.uring.IoUringSocketChannel',
-    'io.netty.handler.codec.quic.QuicChannel',
-    'io.netty.handler.codec.quic.QuicChannelBootstrap',
-    'io.netty.handler.codec.quic.QuicClientCodecBuilder',
-    'io.netty.handler.codec.quic.QuicCodecBuilder',
-    'io.netty.handler.codec.quic.QuicException',
-    'io.netty.handler.codec.quic.QuicServerCodecBuilder',
-    'io.netty.handler.codec.quic.QuicSslContext',
-    'io.netty.handler.codec.quic.QuicSslContextBuilder',
-    'io.netty.handler.codec.quic.QuicSslEngine',
-    'io.netty.handler.codec.quic.QuicStreamChannel',
-    'io.netty.handler.codec.quic.QuicStreamChannelBootstrap',
-    'io.netty.handler.codec.quic.QuicStreamFrame',
-    'io.netty.handler.codec.quic.QuicStreamType',
-    'io.netty.handler.codec.quic.QuicTokenHandler',
 
     'io.netty.pkitesting.CertificateBuilder',
     'io.netty.pkitesting.CertificateBuilder$Algorithm',

@@ -39,7 +39,7 @@ public class FuzzyQueryBuilderProtoConverterTests extends OpenSearchTestCase {
             .setPrefixLength(2)
             .setMaxExpansions(100)
             .setTranspositions(true)
-            .setRewrite(org.opensearch.protobufs.MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .build();
         QueryContainer queryContainer = QueryContainer.newBuilder().setFuzzy(fuzzyQuery).build();
 
