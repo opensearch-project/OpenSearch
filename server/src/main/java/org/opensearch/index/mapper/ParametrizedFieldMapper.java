@@ -80,6 +80,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
+     * Parameter name constant for bloom filter enable setting
+     */
+    public static final String BLOOM_FILTER_ENABLE_PARAM = "bloom_filter_enable";
+
+    /**
      * Creates a new ParametrizedFieldMapper
      */
     protected ParametrizedFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
@@ -594,6 +599,21 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
+        protected final Parameter<Boolean> bloomFilterEnabled = Parameter.boolParam(
+            BLOOM_FILTER_ENABLE_PARAM,
+            false,
+            m -> {
+                if (m instanceof ParametrizedFieldMapper) {
+                    ParametrizedFieldMapper pfm = (ParametrizedFieldMapper) m;
+                    if (pfm.fieldType() != null) {
+                        return pfm.fieldType().isBloomFilterEnabled();
+                    }
+                }
+                return false;
+            },
+            false
+        );
+
         /**
          * Creates a new Builder with a field name
          */
@@ -608,6 +628,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
+            // Initialize bloom filter parameter separately
+            bloomFilterEnabled.init(initializer);
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
             }
@@ -618,6 +640,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
+            // Merge bloom filter parameter separately
+            bloomFilterEnabled.merge(in, conflicts);
             for (Mapper newSubField : in.multiFields) {
                 multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
             }
@@ -629,6 +653,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
+            // Validate bloom filter parameter separately
+            bloomFilterEnabled.validate();
         }
 
         /**
@@ -647,12 +673,59 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * Gets the bloom filter enabled value for field type construction
+         */
+        protected final boolean getBloomFilterEnabled() {
+            return bloomFilterEnabled.getValue();
+        }
+
+        /**
+         * Gets a parameter value by name and type
+         */
+        public final <T> T getParameterValue(String parameterName, Class<T> parameterType) {
+            for (Parameter<?> param : getAllParametersForParsing()) {
+                if (param.name.equals(parameterName)) {
+                    Object value = param.getValue();
+                    if (parameterType.isInstance(value)) {
+                        return parameterType.cast(value);
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Gets a parameter default value by name and type
+         */
+        public final <T> T getParameterDefaultValue(String parameterName, Class<T> parameterType) {
+            for (Parameter<?> param : getAllParametersForParsing()) {
+                if (param.name.equals(parameterName)) {
+                    Object defaultValue = param.getDefaultValue();
+                    if (parameterType.isInstance(defaultValue)) {
+                        return parameterType.cast(defaultValue);
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
          * Writes the current builder parameter values as XContent
          */
         public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
+            bloomFilterEnabled.toXContent(builder, includeDefaults);
+        }
+
+        /**
+         * @return all parameters including bloom filter parameter
+         */
+        private List<Parameter<?>> getAllParametersForParsing() {
+            List<Parameter<?>> allParams = new ArrayList<>(getParameters());
+            allParams.add(bloomFilterEnabled);
+            return allParams;
         }
 
         /**
@@ -664,7 +737,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParametersForParsing()) {
                 paramsMap.put(param.name, param);
                 for (String deprecatedName : param.deprecatedNames) {
                     deprecatedParamsMap.put(deprecatedName, param);

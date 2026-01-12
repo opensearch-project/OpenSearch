@@ -2,7 +2,7 @@ use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
 use jni::objects::{JClass, JString, JObject};
-use jni::sys::{jint, jlong, jobject};
+use jni::sys::{jint, jlong, jboolean, jdouble};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
@@ -26,11 +26,30 @@ pub use vectorized_exec_spi::{log_info, log_error, log_debug};
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
+    static ref BLOOM_FILTER_CONFIGS: DashMap<String, DashMap<String, BloomFilterConfig>> = DashMap::new();
+}
+
+#[derive(Clone, Debug)]
+struct BloomFilterConfig {
+    enabled: bool,
+    fpp: f64,
+    ndv: u64,
 }
 
 struct NativeParquetWriter;
 
 impl NativeParquetWriter {
+
+    fn set_bloom_filter_config(filename: String, field_name: String, enabled: bool, fpp: f64, ndv: u64) -> Result<(), Box<dyn std::error::Error>> {
+        log_info!("[RUST] set_bloom_filter_config called for file: {}, field: {}, enabled: {}, fpp: {}, ndv: {}", filename, field_name, enabled, fpp, ndv);
+
+        let field_configs = BLOOM_FILTER_CONFIGS.entry(filename.clone()).or_insert_with(DashMap::new);
+        field_configs.insert(field_name.clone(), BloomFilterConfig { enabled, fpp, ndv });
+
+        Ok(())
+    }
+
+
 
     fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
@@ -57,12 +76,40 @@ impl NativeParquetWriter {
         let file = File::create(&filename)?;
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
-        let props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-            .build();
+
+        let props = Self::build_writer_properties(&filename, &schema)?;
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-        WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
+        WRITER_MANAGER.insert(filename.clone(), Arc::new(Mutex::new(writer)));
+
         Ok(())
+    }
+
+    fn build_writer_properties(filename: &str, schema: &Arc<arrow::datatypes::Schema>) -> Result<WriterProperties, Box<dyn std::error::Error>> {
+        let mut props_builder = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()));
+
+        if let Some(field_configs) = BLOOM_FILTER_CONFIGS.get(filename) {
+            log_debug!("[RUST] Found {} bloom filter configs for file: {}", field_configs.len(), filename);
+            for field in schema.fields().iter() {
+                if let Some(config) = field_configs.get(field.name()) {
+                    if config.enabled {
+                        log_debug!("[RUST] Adding bloom filter for field: {} (enabled via config)", field.name());
+                        props_builder = props_builder
+                            .set_column_bloom_filter_enabled(field.name().clone().into(), true)
+                            .set_column_bloom_filter_fpp(field.name().clone().into(), config.fpp)
+                            .set_column_bloom_filter_ndv(field.name().clone().into(), config.ndv);
+                    } else {
+                        log_debug!("[RUST] Skipping bloom filter for field: {} (disabled via config)", field.name());
+                    }
+                } else {
+                    log_debug!("[RUST] No bloom filter config found for field: {}", field.name());
+                }
+            }
+        } else {
+            log_debug!("[RUST] No bloom filter configurations found for file: {}", filename);
+        }
+
+        Ok(props_builder.build())
     }
 
     fn write_data(filename: String, array_address: i64, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
@@ -294,6 +341,27 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
         Err(_) => -1,
     }
 }
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_setBloomFilterConfig(
+    mut env: JNIEnv,
+    _class: JClass,
+    file: JString,
+    field_name: JString,
+    enabled: jboolean,
+    fpp: jdouble,
+    ndv: jlong
+) -> jint {
+    let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
+    let field_name_str: String = env.get_string(&field_name).expect("Couldn't get java string!").into();
+
+    match NativeParquetWriter::set_bloom_filter_config(filename, field_name_str, enabled != 0, fpp, ndv as u64) {
+        Ok(_) => 0,
+        Err(_) => -1
+    }
+}
+
+
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_write(

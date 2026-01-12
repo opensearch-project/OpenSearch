@@ -103,7 +103,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(
                 name,
-                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), getBloomFilterEnabled(), meta.getValue()),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -121,7 +121,11 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, isStored, hasDocValues, TextSearchInfo.NONE, meta);
+            this(name, isStored, hasDocValues, false, meta);
+        }
+
+        private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, boolean bloomFilterEnabled, Map<String, String> meta) {
+            super(name, false, isStored, hasDocValues, bloomFilterEnabled, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {

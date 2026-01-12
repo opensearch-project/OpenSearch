@@ -11,6 +11,7 @@ package com.parquet.parquetdataformat.vsr;
 import com.parquet.parquetdataformat.bridge.ArrowExport;
 import com.parquet.parquetdataformat.bridge.NativeParquetWriter;
 import com.parquet.parquetdataformat.bridge.ParquetFileMetadata;
+import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.writer.ParquetDocumentInput;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -20,6 +21,8 @@ import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -41,12 +44,18 @@ public class VSRManager implements AutoCloseable {
     private final Schema schema;
     private final String fileName;
     private final VSRPool vsrPool;
+    private final Map<String, Map<String, Boolean>> fieldConfigs;
     private NativeParquetWriter writer;
 
 
     public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
+        this(fileName, schema, arrowBufferPool, Collections.emptyMap());
+    }
+
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool, Map<String, Map<String, Boolean>> fieldConfigs) {
         this.fileName = fileName;
         this.schema = schema;
+        this.fieldConfigs = fieldConfigs;
 
         // Create VSR pool
         this.vsrPool = new VSRPool("pool-" + fileName, schema, arrowBufferPool);
@@ -61,10 +70,53 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         try {
             try (ArrowExport export = managedVSR.get().exportSchema()) {
+                int totalConfigs = fieldConfigs.values().stream().mapToInt(Map::size).sum();
+                logger.info("Initializing writer for file: {} with {} field configurations", fileName, totalConfigs);
+
+                applyFieldConfigurations();
+
+                logger.info("Creating native Parquet writer for file: {}", fileName);
                 writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+                logger.info("Successfully initialized Parquet writer for file: {}", fileName);
             }
         } catch (Exception e) {
+            logger.error("Failed to initialize Parquet writer for file {}: {}", fileName, e.getMessage(), e);
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Applies all field configurations to the Rust writer.
+     * This method processes different types of field configurations and sends them to the Rust layer.
+     */
+    private void applyFieldConfigurations() throws IOException {
+        applyBloomFilterConfigurations();
+    }
+
+    /**
+     * Applies bloom filter configurations for fields that have bloom_filter_enable set to true.
+     */
+    private void applyBloomFilterConfigurations() throws IOException {
+        Map<String, Boolean> bloomFilterConfigs = fieldConfigs.getOrDefault("bloom_filter_enable", Collections.emptyMap());
+        
+        if (bloomFilterConfigs.isEmpty()) {
+            logger.debug("No bloom filter configurations found for file: {}", fileName);
+            return;
+        }
+
+        logger.debug("Applying {} bloom filter configurations for file: {}", bloomFilterConfigs.size(), fileName);
+        
+        for (Map.Entry<String, Boolean> entry : bloomFilterConfigs.entrySet()) {
+            if (entry.getValue()) {
+                String fieldName = entry.getKey();
+                logger.debug("Configuring bloom filter for field: {} in file: {}", fieldName, fileName);
+                try {
+                    RustBridge.setBloomFilterConfig(fileName, fieldName, true, 0.1, 100000);
+                } catch (IOException e) {
+                    logger.error("Failed to configure bloom filter for field {}: {}", fieldName, e.getMessage(), e);
+                    throw new RuntimeException("Failed to configure bloom filter for field " + fieldName + ": " + e.getMessage(), e);
+                }
+            }
         }
     }
 

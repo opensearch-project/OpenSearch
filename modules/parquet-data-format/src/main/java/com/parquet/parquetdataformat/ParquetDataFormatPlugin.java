@@ -11,6 +11,9 @@ import com.parquet.parquetdataformat.engine.ParquetDataFormat;
 import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
@@ -28,6 +31,12 @@ import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
+import org.opensearch.index.mapper.ParametrizedFieldMapper;
+
+import static org.opensearch.index.mapper.ParametrizedFieldMapper.BLOOM_FILTER_ENABLE_PARAM;
+
+import java.util.HashMap;
+import java.util.Map;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatStoreDirectory;
 import org.opensearch.index.store.GenericStoreDirectory;
@@ -79,6 +88,7 @@ import java.util.function.Supplier;
  * </ul>
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
+    private static final Logger logger = LogManager.getLogger(ParquetDataFormatPlugin.class);
     private Settings settings;
 
     public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
@@ -93,8 +103,52 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     @Override
     @SuppressWarnings("unchecked")
     public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
-        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
+        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(
+            settings,
+            () -> ArrowSchemaBuilder.getSchema(mapperService),
+            shardPath,
+            () -> collectAllFieldConfigurations(mapperService)
+        );
     }
+
+    /**
+     * Collects all field configurations in a structured format.
+     * Returns a map where keys are parameter names and values are maps of field names to their values.
+     * 
+     * @param mapperService the mapper service to extract configurations from
+     * @return Map&lt;ParameterName, Map&lt;FieldName, ParameterValue&gt;&gt;
+     */
+    private Map<String, Map<String, Boolean>> collectAllFieldConfigurations(MapperService mapperService) {
+        logger.info("Starting comprehensive field configuration collection");
+
+        Map<String, Map<String, Boolean>> allConfigs = new HashMap<>();
+
+        Map<String, Boolean> bloomFilterConfig = mapperService.getFieldConfigurations(
+            BLOOM_FILTER_ENABLE_PARAM,
+            Boolean.class
+        );
+        if (!bloomFilterConfig.isEmpty()) {
+            allConfigs.put("bloom_filter_enable", bloomFilterConfig);
+        }
+
+        logger.debug("Collected configurations for {} parameters", allConfigs.size());
+        return allConfigs;
+    }
+
+    private Map<String, Boolean> collectBloomFilterConfig(MapperService mapperService) {
+        logger.info("Starting bloom filter configuration collection");
+
+        Map<String, Boolean> bloomFilterConfig = mapperService.getFieldConfigurations(
+            BLOOM_FILTER_ENABLE_PARAM,
+            Boolean.class
+        );
+
+        logger.debug("Collected bloom filter configurations for {} fields: {}",
+            bloomFilterConfig.size(), bloomFilterConfig.keySet());
+
+        return bloomFilterConfig;
+    }
+
 
     @Override
     public Collection<Object> createComponents(

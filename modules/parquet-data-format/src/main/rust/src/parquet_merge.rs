@@ -105,7 +105,7 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     log_info!("Schema read successfully: {:?}", schema);
 
     // Create writer
-    let mut writer = create_writer(output_path, schema.clone())?;
+    let mut writer = create_writer(output_path, schema.clone(), input_files)?;
 
     // Process files
     let stats = process_files(input_files, &schema, &mut writer)?;
@@ -149,11 +149,8 @@ fn read_schema_from_file(file_path: &str) -> Result<SchemaRef, Box<dyn Error>> {
 }
 
 // Writer creation
-fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
-    let props = WriterProperties::builder()
-        .set_write_batch_size(WRITER_BATCH_SIZE)
-        .set_compression(Compression::ZSTD(Default::default()))
-        .build();
+fn create_writer(output_path: &str, schema: SchemaRef, input_files: &[String]) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
+    let props = build_merge_writer_properties(output_path, &schema, input_files)?;
 
     let out_file = File::create(output_path)
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create output file: {}", e)))?;
@@ -163,6 +160,63 @@ fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<Rat
 
     ArrowWriter::try_new(throttled_writer, schema, Some(props))
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create writer: {}", e)).into())
+}
+
+// Writer properties configuration
+fn build_merge_writer_properties(output_path: &str, schema: &SchemaRef, input_files: &[String]) -> Result<WriterProperties, Box<dyn Error>> {
+    let mut props_builder = WriterProperties::builder()
+        .set_write_batch_size(WRITER_BATCH_SIZE)
+        .set_compression(Compression::ZSTD(Default::default()));
+
+    let mut found_configs = false;
+    for input_file in input_files {
+        if let Some(field_configs) = crate::BLOOM_FILTER_CONFIGS.get(input_file) {
+            log_info!("Inheriting {} bloom filter configs from source file: {} for merge output: {}", field_configs.len(), input_file, output_path);
+            
+            for field in schema.fields().iter() {
+                if let Some(config) = field_configs.get(field.name()) {
+                    if config.enabled {
+                        log_info!("Adding inherited bloom filter for field during merge: {} (from source: {})", field.name(), input_file);
+                        props_builder = props_builder
+                            .set_column_bloom_filter_enabled(field.name().clone().into(), true)
+                            .set_column_bloom_filter_fpp(field.name().clone().into(), config.fpp)
+                            .set_column_bloom_filter_ndv(field.name().clone().into(), config.ndv);
+                    } else {
+                        log_info!("Skipping bloom filter for field during merge: {} (disabled in source: {})", field.name(), input_file);
+                    }
+                } else {
+                    log_info!("No bloom filter config found for field during merge: {} (source: {})", field.name(), input_file);
+                }
+            }
+            found_configs = true;
+            break; // Use configs from first file that has them
+        }
+    }
+
+    if !found_configs {
+        if let Some(field_configs) = crate::BLOOM_FILTER_CONFIGS.get(output_path) {
+            log_info!("Found {} bloom filter configs for merge output file: {}", field_configs.len(), output_path);
+            for field in schema.fields().iter() {
+                if let Some(config) = field_configs.get(field.name()) {
+                    if config.enabled {
+                        log_info!("Adding bloom filter for field during merge: {} (enabled via config)", field.name());
+                        props_builder = props_builder
+                            .set_column_bloom_filter_enabled(field.name().clone().into(), true)
+                            .set_column_bloom_filter_fpp(field.name().clone().into(), config.fpp)
+                            .set_column_bloom_filter_ndv(field.name().clone().into(), config.ndv);
+                    } else {
+                        log_info!("Skipping bloom filter for field during merge: {} (disabled via config)", field.name());
+                    }
+                } else {
+                    log_info!("No bloom filter config found for field during merge: {}", field.name());
+                }
+            }
+        } else {
+            log_info!("No bloom filter configurations found for merge output file or source files: {}", output_path);
+        }
+    }
+
+    Ok(props_builder.build())
 }
 
 // File processing
