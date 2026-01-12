@@ -585,4 +585,65 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         ThreadPoolStats.Stats statsIn = new ThreadPoolStats.Stats(in);
         assertEquals(-1, statsIn.getParallelism());
     }
+
+    public void testMaxVirtualThreadsMultiplierWithDefaultSettings() {
+        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPool = new ThreadPool(settings);
+        int defaultMultiplier = ThreadPool.MAX_VIRTUAL_THREADS_MULTIPLIER.getDefault(settings);
+        int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+        // Verify search thread pool size
+        ThreadPool.Info searchInfo = threadPool.info(ThreadPool.Names.SEARCH);
+        int expectedSearchSize = defaultMultiplier * ThreadPool.searchThreadPoolSize(allocatedProcessors);
+        assertEquals(expectedSearchSize, searchInfo.getMax());
+
+        // Verify index_searcher thread pool size
+        ThreadPool.Info indexSearcherInfo = threadPool.info(ThreadPool.Names.INDEX_SEARCHER);
+        int expectedIndexSearcherSize = defaultMultiplier * ThreadPool.twiceAllocatedProcessors(allocatedProcessors);
+        assertEquals(expectedIndexSearcherSize, indexSearcherInfo.getMax());
+        terminate(threadPool);
+    }
+
+    public void testMaxVirtualThreadsMultiplierWithCustomSettings() {
+        int customMultiplier = 50;
+        Settings settings = Settings.builder()
+            .put("node.name", "testnode")
+            .put("thread_pool.search_threadpools.max_virtual_threads_multiplier", customMultiplier)
+            .build();
+        ThreadPool threadPool = new ThreadPool(settings);
+        int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+
+        // Verify search thread pool size with custom multiplier
+        ThreadPool.Info searchInfo = threadPool.info(ThreadPool.Names.SEARCH);
+        int expectedSearchSize = customMultiplier * ThreadPool.searchThreadPoolSize(allocatedProcessors);
+        assertEquals(expectedSearchSize, searchInfo.getMax());
+
+        // Verify index_searcher thread pool size with custom multiplier
+        ThreadPool.Info indexSearcherInfo = threadPool.info(ThreadPool.Names.INDEX_SEARCHER);
+        int expectedIndexSearcherSize = customMultiplier * ThreadPool.twiceAllocatedProcessors(allocatedProcessors);
+        assertEquals(expectedIndexSearcherSize, indexSearcherInfo.getMax());
+
+        terminate(threadPool);
+    }
+
+    public void testMaxVirtualThreadsMultiplierWithExplicitThreadPoolSize() {
+        int customMultiplier = 25;
+        int searchSize = 10;
+        int searcherSize = 5;
+        Settings settings = Settings.builder()
+            .put("node.name", "testnode")
+            .put("thread_pool.search_threadpools.max_virtual_threads_multiplier", customMultiplier)
+            .put("thread_pool.search.size", searchSize)
+            .put("thread_pool.index_searcher.size", searcherSize)
+            .build();
+        ThreadPool threadPool = new ThreadPool(settings);
+
+        // When the threadpool size is explicitly set, we should not multiply that value by the max_virtual_threads_multiplier setting
+        ThreadPool.Info searchInfo = threadPool.info(ThreadPool.Names.SEARCH);
+        assertEquals(searchSize, searchInfo.getMax());
+
+        ThreadPool.Info indexSearcherInfo = threadPool.info(ThreadPool.Names.INDEX_SEARCHER);
+        assertEquals(searcherSize, indexSearcherInfo.getMax());
+
+        terminate(threadPool);
+    }
 }

@@ -22,7 +22,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Base class for resizeable executor builders. 
+ * Base class for resizeable executor builders.
  */
 public abstract class AbstractResizableExecutorBuilder extends ExecutorBuilder<AbstractResizableExecutorBuilder.ResizableExecutorSettings> {
 

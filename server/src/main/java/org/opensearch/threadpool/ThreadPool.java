@@ -242,8 +242,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * If virtual threads are enabled for the search/searcher threadpools, the maximum number of threads in that threadpool
-     * will be multiplied by this setting value. Increasing this value should be safe, besides increasing memory usage
-     * from per-request ThreadLocals.
+     * will be multiplied by this setting value. If the size settings are explicitly set, this multiplier does NOT apply.
+     * Increasing this value should be safe, besides increasing memory usage from per-request ThreadLocals.
      */
     public static final Setting<Integer> MAX_VIRTUAL_THREADS_MULTIPLIER = Setting.intSetting(
         "thread_pool.search_threadpools.max_virtual_threads_multiplier",
