@@ -86,6 +86,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
  * mode (e.g. assign permissions and install security manager the same way)
  */
 @SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 public class BootstrapForTesting {
     private static final String[] TEST_RUNNER_PACKAGES = new String[] {
         // gradle worker
@@ -138,6 +139,7 @@ public class BootstrapForTesting {
         IfConfig.logIfNecessary();
         if (FipsMode.CHECK.isFipsEnabled()) {
             SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
         }
 
         // install security manager if requested

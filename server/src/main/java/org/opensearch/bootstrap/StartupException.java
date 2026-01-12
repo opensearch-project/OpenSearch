@@ -81,8 +81,8 @@ final class StartupException extends RuntimeException {
     private void printStackTrace(Consumer<String> consumer) {
         Throwable originalCause = getCause();
         Throwable cause = originalCause;
-        if (cause instanceof CreationException) {
-            cause = getFirstGuiceCause((CreationException) cause);
+        if (cause instanceof CreationException creationException) {
+            cause = getFirstGuiceCause(creationException);
         }
 
         if (cause != null) {

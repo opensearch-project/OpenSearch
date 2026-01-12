@@ -57,6 +57,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecSettings;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -115,6 +116,7 @@ public final class EngineConfig {
     private final Comparator<LeafReader> leafSorter;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final ClusterApplierService clusterApplierService;
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -150,8 +152,7 @@ public final class EngineConfig {
 
                 for (String codecName : Codec.availableCodecs()) {
                     Codec codec = Codec.forName(codecName);
-                    if (codec instanceof CodecAliases) {
-                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                    if (codec instanceof CodecAliases codecWithAlias) {
                         if (codecWithAlias.aliases().contains(s)) {
                             return s;
                         }
@@ -206,18 +207,17 @@ public final class EngineConfig {
             default:
                 if (Codec.availableCodecs().contains(codec)) {
                     Codec luceneCodec = Codec.forName(codec);
-                    if (luceneCodec instanceof CodecSettings
-                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                    if (luceneCodec instanceof CodecSettings codecSettings
+                        && codecSettings.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                         return;
                     }
                 }
                 for (String codecName : Codec.availableCodecs()) {
                     Codec availableCodec = Codec.forName(codecName);
-                    if (availableCodec instanceof CodecAliases) {
-                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                    if (availableCodec instanceof CodecAliases availableCodecWithAlias) {
                         if (availableCodecWithAlias.aliases().contains(codec)) {
-                            if (availableCodec instanceof CodecSettings
-                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                            if (availableCodec instanceof CodecSettings codecSettings
+                                && codecSettings.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                                 return;
                             }
                         }
@@ -306,6 +306,7 @@ public final class EngineConfig {
         this.documentMapperForTypeSupplier = builder.documentMapperForTypeSupplier;
         this.indexReaderWarmer = builder.indexReaderWarmer;
         this.clusterApplierService = builder.clusterApplierService;
+        this.mergedSegmentTransferTracker = builder.mergedSegmentTransferTracker;
     }
 
     /**
@@ -353,7 +354,8 @@ public final class EngineConfig {
             .leafSorter(this.leafSorter)
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
             .indexReaderWarmer(this.indexReaderWarmer)
-            .clusterApplierService(this.clusterApplierService);
+            .clusterApplierService(this.clusterApplierService)
+            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker);
     }
 
     /**
@@ -626,6 +628,13 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the MergedSegmentTransferTracker instance.
+     */
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return this.mergedSegmentTransferTracker;
+    }
+
+    /**
      * Builder for EngineConfig class
      *
      * @opensearch.api
@@ -662,6 +671,7 @@ public final class EngineConfig {
         Comparator<LeafReader> leafSorter;
         private IndexWriter.IndexReaderWarmer indexReaderWarmer;
         private ClusterApplierService clusterApplierService;
+        private MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
         public Builder shardId(ShardId shardId) {
             this.shardId = shardId;
@@ -810,6 +820,11 @@ public final class EngineConfig {
 
         public Builder clusterApplierService(ClusterApplierService clusterApplierService) {
             this.clusterApplierService = clusterApplierService;
+            return this;
+        }
+
+        public Builder mergedSegmentTransferTracker(MergedSegmentTransferTracker mergedSegmentTransferTracker) {
+            this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
             return this;
         }
 

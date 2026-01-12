@@ -305,8 +305,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         waitForSearchableDocs(1, primary, replica);
 
-        // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
-        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // index another doc but don't refresh, it should become searchable once the replica is promoted and refreshed there.
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+
+        // make sure doc 2 is on the replica realtime GET reads from translog, not search
+        assertBusy(() -> assertTrue(client(replica).prepareGet(INDEX_NAME, "2").setRealtime(true).get().isExists()));
 
         // stop the primary node - we only have one shard on here.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
@@ -319,8 +322,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // new primary should have at least the doc count from the first set of segments.
         assertTrue(response.getHits().getTotalHits().value() >= 1);
 
-        // assert we can index into the new primary.
-        client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // assert we can index into the new primary and refresh there, making doc2 searchable too.
+        client(replica).prepareIndex(INDEX_NAME)
+            .setId("3")
+            .setSource("bar", "baz")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
         // start another node, index another doc and replicate.

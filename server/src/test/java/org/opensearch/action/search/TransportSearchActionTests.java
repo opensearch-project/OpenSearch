@@ -40,42 +40,61 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.OriginalIndicesTests;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.GroupShardsIteratorTests;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -92,6 +111,7 @@ import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +134,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.awaitLatch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends OpenSearchTestCase {
 
@@ -1164,6 +1186,106 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(clusterState, searchRequest, indices, randomIntBetween(127, 10000))
             );
+        }
+    }
+
+    public void testResolveIndices() {
+        IndexMetadata.Builder indexA1 = IndexMetadata.builder("index_a1")
+            .putAlias(AliasMetadata.builder("alias_a").build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        IndexMetadata.Builder indexA2 = IndexMetadata.builder("index_a2")
+            .putAlias(AliasMetadata.builder("alias_a").build())
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexA1).put(indexA2))
+            .build();
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            Arrays.asList(
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, TermQueryBuilder.NAME, TermQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new),
+                new NamedWriteableRegistry.Entry(QueryBuilder.class, IdsQueryBuilder.NAME, IdsQueryBuilder::new)
+            )
+        );
+        int numClusters = 2;
+        DiscoveryNode[] nodes = new DiscoveryNode[numClusters];
+        Map<String, OriginalIndices> remoteIndicesByCluster = new HashMap<>();
+        Settings.Builder builder = Settings.builder();
+        MockTransportService[] mockTransportServices = startTransport(numClusters, nodes, remoteIndicesByCluster, builder);
+        Settings settings = builder.build();
+        try (
+            MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, NoopTracer.INSTANCE)
+        ) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+
+            SearchTransportService searchTransportService = mock(SearchTransportService.class);
+            when(searchTransportService.getRemoteClusterService()).thenReturn(remoteClusterService);
+
+            TransportSearchAction action = new TransportSearchAction(
+                mock(NodeClient.class),
+                threadPool,
+                mock(CircuitBreakerService.class),
+                mock(TransportService.class),
+                mock(SearchService.class),
+                searchTransportService,
+                new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
+                clusterService,
+                mock(ActionFilters.class),
+                indexNameExpressionResolver,
+                namedWriteableRegistry,
+                mock(SearchPipelineService.class),
+                mock(MetricsRegistry.class),
+                new SearchRequestOperationsCompositeListenerFactory(),
+                mock(Tracer.class),
+                mock(TaskResourceTrackingService.class),
+                mock(IndicesService.class)
+            );
+
+            // Actual test cases start here:
+
+            {
+                ResolvedIndices resolvedIndices = action.resolveIndices(new SearchRequest("index_*"));
+                assertEquals(ResolvedIndices.of("index_a1", "index_a2"), resolvedIndices);
+            }
+
+            {
+                ResolvedIndices resolvedIndices = action.resolveIndices(new SearchRequest("alias_a"));
+                assertEquals(ResolvedIndices.of("alias_a"), resolvedIndices);
+            }
+
+            {
+                // The generated pitId will contain the indices "idx" and "idy"
+                String pitId = PitTestsUtil.getPitId();
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+                searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(pitId));
+                ResolvedIndices resolvedIndices = action.resolveIndices(new SearchRequest().source(searchSourceBuilder));
+                assertEquals(ResolvedIndices.of("idx", "idy"), resolvedIndices);
+            }
+
+            {
+                ResolvedIndices resolvedIndices = action.resolveIndices(new SearchRequest("index_*", "remote1:remote_index"));
+                assertEquals(
+                    ResolvedIndices.of("index_a1", "index_a2")
+                        .withRemoteIndices(
+                            Map.of("remote1", new OriginalIndices(new String[] { "remote_index" }, IndicesOptions.LENIENT_EXPAND_OPEN))
+                        ),
+                    resolvedIndices
+                );
+            }
+
+        } finally {
+            for (MockTransportService mockTransportService : mockTransportServices) {
+                mockTransportService.close();
+            }
         }
     }
 }

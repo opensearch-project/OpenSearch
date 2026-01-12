@@ -91,6 +91,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.codec.CriteriaBasedCodec;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.NonPruningSortedSetOrdinalsIndexFieldData.NonPruningSortField;
 import org.opensearch.search.sort.SortedWiderNumericSortField;
@@ -196,7 +197,8 @@ public class Lucene {
      * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
      * the given segments file.
      */
-    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory, boolean isParentFieldEnabled)
+        throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
@@ -221,16 +223,15 @@ public class Lucene {
             }
         }
         final IndexCommit cp = getIndexCommit(si, directory);
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setIndexCommit(cp)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setIndexCommit(cp)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (isParentFieldEnabled) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
@@ -939,9 +940,22 @@ public class Lucene {
                     // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
                     // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
                     // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+
+                    // With CAS enabled segments, hard deletes can also be present, so correcting numDocs.
+                    // We are using attribute value here to identify whether segment has CAS enabled or not.
+                    int numDocs;
+                    if (isContextAwareEnabled(segmentReader)) {
+                        numDocs = popCount(hardLiveDocs);
+                    } else {
+                        numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                    }
+
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
                     return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                }
+
+                private boolean isContextAwareEnabled(SegmentReader reader) {
+                    return reader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME) != null;
                 }
             });
         }

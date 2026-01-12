@@ -149,10 +149,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // todo redesign this terrible unreliable hack; should NEVER rely on parsing a source file
         // for now, we hack the hack
         File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        File legacyVersionsFile = new File(root, DEFAULT_LEGACY_VERSION_JAVA_FILE_PATH);
-        try (FileInputStream fis = new FileInputStream(versionsFile); FileInputStream fis2 = new FileInputStream(legacyVersionsFile)) {
+        try (FileInputStream fis = new FileInputStream(versionsFile)) {
             List<String> versionLines = IOUtils.readLines(fis, "UTF-8");
-            versionLines.addAll(IOUtils.readLines(fis2, "UTF-8"));
             return new BwcVersions(versionLines);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve bwc versions from versionsFile.", e);

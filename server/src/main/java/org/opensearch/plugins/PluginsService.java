@@ -623,9 +623,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
-            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+            if (pluginTuple.v2() instanceof ExtensiblePlugin extensiblePlugin) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.v2(),
+                    extensiblePlugin,
                     extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), Collections.emptyList())
                 );
             }
@@ -728,8 +728,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
+                    logger.info(
+                        "Plugin [{}] extends multiple plugins/modules that share common dependencies: {}. "
+                            + "This is expected when extended plugins share common ancestors.",
+                        bundle.plugin.getName(),
+                        intersection
                     );
                 }
 

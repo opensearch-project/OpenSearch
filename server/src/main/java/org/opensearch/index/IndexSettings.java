@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -69,6 +70,8 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static org.opensearch.Version.V_2_7_0;
+import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG;
+import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING;
 import static org.opensearch.index.codec.fuzzy.FuzzySetParameters.DEFAULT_FALSE_POSITIVE_PROBABILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -191,6 +194,26 @@ public final class IndexSettings {
         Translog.Durability.REQUEST.name(),
         (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)),
         Property.Dynamic,
+        Property.IndexScope
+    );
+    /**
+     * Controls whether translog operations are read in forward order (oldest to newest) or backward order (newest to oldest).
+     * Default is false (backward reading), which is the traditional behavior that naturally handles sequence number collisions
+     * by prioritizing operations from newer generations.
+     * <p>
+     * <b>Note:</b> Enabling forward reading is safe for most use cases. However, in rare edge cases, it may replay stale
+     * translog operations. Stale operation trimming (via
+     * {@link org.opensearch.index.shard.IndexShard#trimOperationOfPreviousPrimaryTerms(long)}) occurs during the recovery
+     * finalization phase. If a replica fails before completing
+     * {@link org.opensearch.indices.recovery.RecoveryTarget#finalizeRecovery(long, long, org.opensearch.core.action.ActionListener)}
+     * and there are duplicates of the same translog operations with different primary terms in the translog
+     * (for example, during a primary failover with network isolation that leaves stale operations untrimmed)
+     * and no in-sync copies are available, we force-allocate this recovering replica as primary.
+     * In this scenario, forward reading could return outdated operations from previous primary terms.
+     */
+    public static final Setting<Boolean> INDEX_TRANSLOG_READ_FORWARD_SETTING = Setting.boolSetting(
+        "index.translog.read_forward",
+        false,
         Property.IndexScope
     );
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING = Setting.boolSetting(
@@ -380,6 +403,28 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    /**
+     * Periodic flush interval setting. By default, periodic flush is disabled (-1).
+     * For pull-based ingestion indices, this defaults to 10 minutes to ensure offsets are regularly committed.
+     */
+    public static final TimeValue DEFAULT_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
+    public static final TimeValue MINIMUM_PERIODIC_FLUSH_INTERVAL = TimeValue.MINUS_ONE;
+    public static final Setting<TimeValue> INDEX_PERIODIC_FLUSH_INTERVAL_SETTING = Setting.timeSetting(
+        "index.periodic_flush_interval",
+        (settings) -> {
+            // Default to 10 minutes for pull-based ingestion indices, disabled otherwise
+            String ingestionSourceType = IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.get(settings);
+            if (ingestionSourceType != null && !IndexMetadata.NONE_INGESTION_SOURCE_TYPE.equals(ingestionSourceType)) {
+                return TimeValue.timeValueMinutes(10);
+            }
+            return DEFAULT_PERIODIC_FLUSH_INTERVAL;
+        },
+        MINIMUM_PERIODIC_FLUSH_INTERVAL,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         new ByteSizeValue(512, ByteSizeUnit.MB),
@@ -447,6 +492,37 @@ public final class IndexSettings {
         true,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Specifies if the index should be context aware enabled
+     */
+    public static final Setting<Boolean> INDEX_CONTEXT_AWARE_ENABLED_SETTING = Setting.boolSetting(
+        "index.context_aware.enabled",
+        false,
+        value -> {
+            if (FeatureFlags.isEnabled(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG) == false && value == true) {
+                throw new IllegalArgumentException(
+                    "FeatureFlag " + CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG + " must be enabled to set this property to true"
+                );
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Maximum number of indexing request retries in case LookupMapLockAcquisitionException is encountered for
+     * context aware indexes.
+     *
+     */
+    public static final Setting<Integer> INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION = Setting.intSetting(
+        "index.context_aware.max_retry_on_lookup_map_acquisition_exception",
+        15,
+        5,
+        100,
+        Setting.Property.IndexScope,
+        Property.Dynamic
     );
 
     /**
@@ -836,9 +912,11 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
+    private final boolean translogReadForward;
     private volatile TimeValue syncInterval;
     private volatile TimeValue publishReferencedSegmentsInterval;
     private volatile TimeValue refreshInterval;
+    private volatile TimeValue periodicFlushInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
@@ -851,6 +929,8 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private final boolean contextAwareEnabled;
+    private int maxRetryOnLookupMapAcquisitionException;
     private volatile long softDeleteRetentionOperations;
 
     private volatile long retentionLeaseMillis;
@@ -1053,16 +1133,20 @@ public final class IndexSettings {
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        this.translogReadForward = INDEX_TRANSLOG_READ_FORWARD_SETTING.get(settings);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         publishReferencedSegmentsInterval = INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        periodicFlushInterval = scopedSettings.get(INDEX_PERIODIC_FLUSH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        contextAwareEnabled = scopedSettings.get(INDEX_CONTEXT_AWARE_ENABLED_SETTING);
+        maxRetryOnLookupMapAcquisitionException = scopedSettings.get(INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION);
         assert softDeleteEnabled || version.before(Version.V_2_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
@@ -1205,6 +1289,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_PERIODIC_FLUSH_INTERVAL_SETTING, this::setPeriodicFlushInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
@@ -1229,6 +1314,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_PIPELINE, this::setDefaultSearchPipeline);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAX_RETRY_ON_LOOKUP_MAP_LOCK_ACQUISITION_EXCEPTION,
+            this::setMaxRetryOnLookupMapAcquisitionException
+        );
         scopedSettings.addSettingsUpdateConsumer(
             INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
             this::setRemoteTranslogUploadBufferInterval
@@ -1302,6 +1391,10 @@ public final class IndexSettings {
         this.refreshInterval = timeValue;
     }
 
+    private void setPeriodicFlushInterval(TimeValue timeValue) {
+        this.periodicFlushInterval = timeValue;
+    }
+
     /**
      * Update the default maxMergesAtOnce
      * 1. sets the new default in {@code TieredMergePolicyProvider}
@@ -1312,6 +1405,27 @@ public final class IndexSettings {
         if (TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.exists(getSettings()) == false) {
             tieredMergePolicyProvider.setMaxMergesAtOnceToDefault();
         }
+    }
+
+    /**
+     * Update the cached defaults for {@code MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING} and
+     * {@code MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING}
+     */
+    void setDefaultMaxThreadAndMergeCount(int maxThreadCount, int maxMergeCount) {
+        // Upon updates to the cluster default settings, we always update the cached default values in
+        // the MergeSchedulerConfig, but we only update the actual values when an index level setting is not present
+        boolean overrideExistingConfigs = MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.exists(getSettings()) == false
+            && MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.exists(getSettings()) == false;
+        mergeSchedulerConfig.setDefaultMaxThreadAndMergeCount(maxThreadCount, maxMergeCount, overrideExistingConfigs);
+    }
+
+    void setDefaultAutoThrottleEnabled(boolean enabled) {
+        // Upon updates to the cluster default settings, we always update the cached default values in
+        // the MergeSchedulerConfig, but we only update the actual values when an index level setting is not present
+        mergeSchedulerConfig.setDefaultAutoThrottleEnabled(
+            enabled,
+            MergeSchedulerConfig.AUTO_THROTTLE_SETTING.exists(getSettings()) == false
+        );
     }
 
     /**
@@ -1621,6 +1735,13 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Returns the interval at which a periodic flush should be executed. {@code -1} means periodic flush is disabled.
+     */
+    public TimeValue getPeriodicFlushInterval() {
+        return periodicFlushInterval;
     }
 
     /**
@@ -1977,6 +2098,25 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    /**
+     * Returns <code>true</code> if translog read-forward is enabled.
+     */
+    public boolean isTranslogReadForward() {
+        return translogReadForward;
+    }
+
+    public boolean isContextAwareEnabled() {
+        return contextAwareEnabled && FeatureFlags.isEnabled(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING);
+    }
+
+    private void setMaxRetryOnLookupMapAcquisitionException(int maxRetryOnLookupMapAcquisitionException) {
+        this.maxRetryOnLookupMapAcquisitionException = maxRetryOnLookupMapAcquisitionException;
+    }
+
+    public int getMaxRetryOnLookupMapAcquisitionException() {
+        return maxRetryOnLookupMapAcquisitionException;
     }
 
     private void setSoftDeleteRetentionOperations(long ops) {

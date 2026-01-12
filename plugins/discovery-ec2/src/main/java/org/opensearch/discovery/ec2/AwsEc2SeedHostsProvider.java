@@ -50,6 +50,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.discovery.SeedHostsProvider;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -142,7 +143,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             // 1. differences in VPCs require different parameters during query (ID vs Name)
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
             DescribeInstancesRequest instancesRequest = buildDescribeInstancesRequest();
-            descInstances = SocketAccess.doPrivileged(() -> clientReference.get().describeInstances(instancesRequest));
+            descInstances = AccessController.doPrivileged(() -> clientReference.get().describeInstances(instancesRequest));
         } catch (final SdkException e) {
             logger.warn("error retrieving instance list from IMDS", e);
             return dynamicHosts;

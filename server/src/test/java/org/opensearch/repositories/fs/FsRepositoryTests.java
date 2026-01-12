@@ -40,6 +40,7 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
@@ -96,7 +97,20 @@ import static org.hamcrest.Matchers.is;
 
 public class FsRepositoryTests extends OpenSearchTestCase {
 
-    public void testSnapshotAndRestore() throws IOException, InterruptedException {
+    public void testSnapshotAndRestoreWithIndexSort() throws IOException, InterruptedException {
+        final Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID")
+            .put("index.sort.field", "foo1")
+            .build();
+        testSnapshotAndRestore(true, indexSettings);
+    }
+
+    public void testSnapshotAndRestoreWithoutIndexSort() throws IOException, InterruptedException {
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
+        testSnapshotAndRestore(false, indexSettings);
+    }
+
+    public void testSnapshotAndRestore(boolean isParentFieldEnabled, Settings indexSettings) throws IOException, InterruptedException {
         ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
         try (Directory directory = newDirectory()) {
             Path repo = createTempDir();
@@ -110,7 +124,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 .put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path")
                 .build();
 
-            int numDocs = indexDocs(directory);
+            int numDocs = indexDocs(directory, isParentFieldEnabled);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
             FsRepository repository = new FsRepository(
                 metadata,
@@ -120,7 +134,6 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
             repository.start();
-            final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
             ShardId shardId = new ShardId(idxSettings.getIndex(), 1);
             Store store = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
@@ -166,7 +179,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             assertEquals(0, state.getIndex().reusedFileCount());
             assertEquals(indexCommit.getFileNames().size(), state.getIndex().recoveredFileCount());
             assertEquals(numDocs, Lucene.readSegmentInfos(directory).totalMaxDoc());
-            deleteRandomDoc(store.directory());
+            deleteRandomDoc(store.directory(), isParentFieldEnabled);
             SnapshotId incSnapshotId = new SnapshotId("test1", "test1");
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
@@ -258,20 +271,19 @@ public class FsRepositoryTests extends OpenSearchTestCase {
         latch.await();
     }
 
-    private void deleteRandomDoc(Directory directory) throws IOException {
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
-                    .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-                        @Override
-                        public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
-                            return true;
-                        }
+    private void deleteRandomDoc(Directory directory, boolean isParentFieldEnabled) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
+            .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                @Override
+                public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
+                    return true;
+                }
+            });
+        if (isParentFieldEnabled) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
 
-                    })
-            )
-        ) {
+        try (IndexWriter writer = new IndexWriter(directory, iwc);) {
             final int numDocs = writer.getDocStats().numDocs;
             writer.deleteDocuments(new Term("id", "" + randomIntBetween(0, writer.getDocStats().numDocs - 1)));
             writer.commit();
@@ -279,13 +291,12 @@ public class FsRepositoryTests extends OpenSearchTestCase {
         }
     }
 
-    private int indexDocs(Directory directory) throws IOException {
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
-            )
-        ) {
+    private int indexDocs(Directory directory, boolean isParentFieldEnabled) throws IOException {
+        IndexWriterConfig iwc = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
+        if (isParentFieldEnabled) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             int docs = 1 + random().nextInt(100);
             for (int i = 0; i < docs; i++) {
                 Document doc = new Document();

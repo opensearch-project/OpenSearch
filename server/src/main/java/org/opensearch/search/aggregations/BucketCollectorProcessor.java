@@ -65,27 +65,26 @@ public class BucketCollectorProcessor {
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
-            if (currentCollector instanceof InternalProfileCollector) {
-                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MinimumScoreCollector) {
-                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MultiCollector) {
-                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                collectors.offer(internalProfileCollector.getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
+                collectors.offer(minimumScoreCollector.getCollector());
+            } else if (currentCollector instanceof MultiCollector multiCollector) {
+                for (Collector innerCollector : multiCollector.getCollectors()) {
                     collectors.offer(innerCollector);
                 }
-            } else if (currentCollector instanceof BucketCollector) {
+            } else if (currentCollector instanceof BucketCollector bucketCollector) {
                 // Perform build aggregation during post collection
-                if (currentCollector instanceof Aggregator) {
+                if (currentCollector instanceof Aggregator aggregator) {
                     // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
-                    Aggregator agg = (Aggregator) currentCollector;
-                    ((BucketCollector) currentCollector).postCollection();
+                    bucketCollector.postCollection();
                     // Only call buildTopLevel() if it hasn't been called yet (e.g., in streaming mode,
                     // buildAggBatch() may have already called it via toInternalAggregations())
-                    if (agg.getPostCollectionAggregation() == null) {
-                        agg.buildTopLevel();
+                    if (aggregator.getPostCollectionAggregation() == null) {
+                        aggregator.buildTopLevel();
                     }
-                } else if (currentCollector instanceof MultiBucketCollector) {
-                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                    for (Collector innerCollector : multiBucketCollector.getCollectors()) {
                         collectors.offer(innerCollector);
                     }
                 }
@@ -106,27 +105,28 @@ public class BucketCollectorProcessor {
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
-            if (currentCollector instanceof InternalProfileCollector) {
-                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MinimumScoreCollector) {
-                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MultiCollector) {
-                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                collectors.offer(internalProfileCollector.getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
+                collectors.offer(minimumScoreCollector.getCollector());
+            } else if (currentCollector instanceof MultiCollector multiCollector) {
+                for (Collector innerCollector : multiCollector.getCollectors()) {
                     collectors.offer(innerCollector);
                 }
-            } else if (currentCollector instanceof BucketCollector) {
-                if (currentCollector instanceof Aggregator) {
-                    Aggregator agg = (Aggregator) currentCollector;
-                    // Call postCollection() to finalize collection for this segment
-                    ((BucketCollector) currentCollector).postCollection();
+            } else if (currentCollector instanceof BucketCollector bucketCollector) {
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator aggregator) {
+                    // Call postCollection() before building to ensure collectors finalize their data
+                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
+                    bucketCollector.postCollection();
                     // Call buildTopLevelBatch() which builds the aggregation and resets state
                     // This allows the aggregator to be reused for the next segment
-                    InternalAggregation batch = agg.buildTopLevelBatch();
+                    InternalAggregation batch = aggregator.buildTopLevelBatch();
                     if (batch != null) {
                         internalAggregations.add(batch);
                     }
-                } else if (currentCollector instanceof MultiBucketCollector) {
-                    for (Collector innerCollector : ((MultiBucketCollector) currentCollector).getCollectors()) {
+                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                    for (Collector innerCollector : multiBucketCollector.getCollectors()) {
                         collectors.offer(innerCollector);
                     }
                 }
@@ -149,31 +149,16 @@ public class BucketCollectorProcessor {
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
             final Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof Aggregator) {
-                aggregators.add((Aggregator) currentCollector);
-            } else if (currentCollector instanceof InternalProfileCollector) {
-                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
-                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
-                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
-                    Collector[] subCollectors = ((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector())
-                        .getCollectors();
-                    if (subCollectors != null) {
-                        for (Collector subCollector : subCollectors) {
-                            if (subCollector != null) {
-                                allCollectors.add(subCollector);
-                            }
-                        }
-                    }
+            if (currentCollector instanceof Aggregator aggregator) {
+                aggregators.add(aggregator);
+            } else if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                if (internalProfileCollector.getCollector() instanceof Aggregator aggregator) {
+                    aggregators.add(aggregator);
+                } else if (internalProfileCollector.getCollector() instanceof MultiBucketCollector multiBucketCollector) {
+                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
                 }
-            } else if (currentCollector instanceof MultiBucketCollector) {
-                Collector[] subCollectors = ((MultiBucketCollector) currentCollector).getCollectors();
-                if (subCollectors != null) {
-                    for (Collector subCollector : subCollectors) {
-                        if (subCollector != null) {
-                            allCollectors.add(subCollector);
-                        }
-                    }
-                }
+            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
             }
         }
         return aggregators;
@@ -204,8 +189,8 @@ public class BucketCollectorProcessor {
             }
 
             // Unwrap profiling collectors
-            while (currentCollector instanceof InternalProfileCollector) {
-                currentCollector = ((InternalProfileCollector) currentCollector).getCollector();
+            while (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                currentCollector = internalProfileCollector.getCollector();
                 if (currentCollector == null) {
                     break;
                 }
@@ -215,24 +200,16 @@ public class BucketCollectorProcessor {
                 continue;
             }
 
-            if (currentCollector instanceof Aggregator) {
-                Aggregator agg = (Aggregator) currentCollector;
+            if (currentCollector instanceof Aggregator aggregator) {
                 // Include all aggregators in final reduction - no more skipping streaming aggregators
                 // Note: aggregators should already be finalized via processPostCollection() before
                 // toInternalAggregations() is called. This method only unwraps and reads the results.
-                InternalAggregation ia = agg.getPostCollectionAggregation();
+                InternalAggregation ia = aggregator.getPostCollectionAggregation();
                 if (ia != null) {
                     internalAggregations.add(ia);
                 }
-            } else if (currentCollector instanceof MultiBucketCollector) {
-                Collector[] subCollectors = ((MultiBucketCollector) currentCollector).getCollectors();
-                if (subCollectors != null) {
-                    for (Collector subCollector : subCollectors) {
-                        if (subCollector != null) {
-                            allCollectors.add(subCollector);
-                        }
-                    }
-                }
+            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
             }
         }
         return internalAggregations;

@@ -158,6 +158,8 @@ class ReactorNetty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else if (protocol.equals("HTTP/2.0")) {
             return HttpRequest.HttpVersion.HTTP_2_0;
+        } else if (protocol.equals("HTTP/3.0")) {
+            return HttpRequest.HttpVersion.HTTP_3_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + protocol);
         }
@@ -224,7 +226,7 @@ class ReactorNetty4HttpRequest implements HttpRequest {
 
         @Override
         public boolean containsKey(Object key) {
-            return key instanceof String && httpHeaders.contains((String) key);
+            return key instanceof String s && httpHeaders.contains(s);
         }
 
         @Override
@@ -234,7 +236,7 @@ class ReactorNetty4HttpRequest implements HttpRequest {
 
         @Override
         public List<String> get(Object key) {
-            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+            return key instanceof String s ? httpHeaders.getAll(s) : null;
         }
 
         @Override

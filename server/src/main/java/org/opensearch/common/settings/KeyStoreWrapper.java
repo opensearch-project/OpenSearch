@@ -84,6 +84,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -448,6 +449,10 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
+        if (inFipsMode.get()) {
+            throw new SecurityException("Legacy KeyStore formats v1 & v2 are not supported in FIPS JVM");
+        }
+
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
         KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();
@@ -574,6 +579,17 @@ public class KeyStoreWrapper implements SecureSettings {
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
+
+    private static final Supplier<Boolean> inFipsMode = () -> {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    };
 
     /**
      * It is possible to retrieve the setting names even if the keystore is closed.

@@ -591,13 +591,12 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         final List<TranslogStats> statsList = new ArrayList<>(n);
         long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {
-            final TranslogStats stats = new TranslogStats(
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 4096),
-                randomIntBetween(1, 1 << 20)
-            );
+            final TranslogStats stats = new TranslogStats.Builder().numberOfOperations(randomIntBetween(1, 4096))
+                .translogSizeInBytes(randomIntBetween(1, 1 << 20))
+                .uncommittedOperations(randomIntBetween(1, 1 << 20))
+                .uncommittedSizeInBytes(randomIntBetween(1, 4096))
+                .earliestLastModifiedAge(randomIntBetween(1, 1 << 20))
+                .build();
             statsList.add(stats);
             total.add(stats);
             if (earliestLastModifiedAge > stats.getEarliestLastModifiedAge()) {
@@ -619,21 +618,61 @@ public class LocalTranslogTests extends OpenSearchTestCase {
     }
 
     public void testNegativeNumberOfOperations() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(-1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(-1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedOperations must be >= 0")));
     }
 
     public void testNegativeSizeInBytes() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(-1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1, 1));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(-1)
+                .earliestLastModifiedAge(1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("uncommittedSizeInBytes must be >= 0")));
     }
 
     public void testOldestEntryInSeconds() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, 1, -1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TranslogStats.Builder().numberOfOperations(1)
+                .translogSizeInBytes(1)
+                .uncommittedOperations(1)
+                .uncommittedSizeInBytes(1)
+                .earliestLastModifiedAge(-1)
+                .build()
+        );
         assertThat(e, hasToString(containsString("earliestLastModifiedAge must be >= 0")));
     }
 
@@ -3831,6 +3870,66 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 expectedSeqNo.addAll(views.pop());
             }
             assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));
+        }
+    }
+
+    public void testSnapshotReadOperationForward() throws Exception {
+        Path tempDir = createTempDir();
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+            .put(IndexSettings.INDEX_TRANSLOG_READ_FORWARD_SETTING.getKey(), true)
+            .build();
+        final TranslogConfig forwardConfig = getTranslogConfig(tempDir, settings);
+
+        final String translogUUID = Translog.createEmptyTranslog(
+            forwardConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+
+        // Create a separate translog instance with forward reading enabled
+        try (
+            Translog forwardTranslog = new LocalTranslog(
+                forwardConfig,
+                translogUUID,
+                createTranslogDeletionPolicy(forwardConfig.getIndexSettings()),
+                () -> globalCheckpoint.get(),
+                primaryTerm::get,
+                getPersistedSeqNoConsumer(),
+                TranslogOperationHelper.DEFAULT,
+                null
+            )
+        ) {
+            final List<List<Translog.Operation>> views = new ArrayList<>();
+            views.add(new ArrayList<>());
+            final AtomicLong seqNo = new AtomicLong();
+
+            final int generations = randomIntBetween(2, 20);
+            for (int gen = 0; gen < generations; gen++) {
+                final int operations = randomIntBetween(1, 100);
+                for (int i = 0; i < operations; i++) {
+                    Translog.Index op = new Translog.Index(
+                        randomAlphaOfLength(10),
+                        seqNo.getAndIncrement(),
+                        primaryTerm.get(),
+                        new byte[] { 1 }
+                    );
+                    forwardTranslog.add(op);
+                    views.get(views.size() - 1).add(op);
+                }
+                if (frequently()) {
+                    forwardTranslog.rollGeneration();
+                    views.add(new ArrayList<>());
+                }
+            }
+            try (Translog.Snapshot snapshot = forwardTranslog.newSnapshot()) {
+                final List<Translog.Operation> expectedSeqNo = new ArrayList<>();
+                for (List<Translog.Operation> view : views) {
+                    expectedSeqNo.addAll(view);
+                }
+                assertThat(snapshot, SnapshotMatchers.equalsTo(expectedSeqNo));
+            }
         }
     }
 

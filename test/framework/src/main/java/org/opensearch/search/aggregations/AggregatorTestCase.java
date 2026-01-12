@@ -547,6 +547,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
         when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
+        when(searchContext.cardinalityAggregationContext()).thenReturn(
+            new org.opensearch.search.aggregations.metrics.CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100)
+        );
         registerFieldTypes(searchContext, mapperService, fieldNameToType);
         doAnswer(invocation -> {
             /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't

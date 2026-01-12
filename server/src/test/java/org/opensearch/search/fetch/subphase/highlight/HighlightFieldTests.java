@@ -108,7 +108,13 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", builder.toString());
+        assertEquals("""
+            {
+              "foo" : [
+                "bar",
+                "baz"
+              ]
+            }""", builder.toString());
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -116,7 +122,10 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : null\n" + "}", builder.toString());
+        assertEquals("""
+            {
+              "foo" : null
+            }""", builder.toString());
     }
 
     /**

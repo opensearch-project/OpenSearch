@@ -57,11 +57,9 @@ public class MustNotToShouldRewriter implements QueryRewriter {
 
     @Override
     public QueryBuilder rewrite(QueryBuilder query, QueryShardContext context) {
-        if (!(query instanceof BoolQueryBuilder)) {
+        if (!(query instanceof BoolQueryBuilder boolQuery)) {
             return query;
         }
-
-        BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
 
         // We need LeafReaderContexts to verify single-valued fields (only for must_not rewriting)
         List<LeafReaderContext> leafReaderContexts = null;
@@ -75,16 +73,14 @@ public class MustNotToShouldRewriter implements QueryRewriter {
 
                 // Find complement-aware queries that can be rewritten
                 for (QueryBuilder clause : boolQuery.mustNot()) {
-                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName) {
-                        WithFieldName wfn = (WithFieldName) clause;
+                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
                         fieldCounts.merge(wfn.fieldName(), 1, Integer::sum);
                     }
                 }
 
                 // For now, only handle the case where there's exactly 1 complement-aware query per field
                 for (QueryBuilder clause : boolQuery.mustNot()) {
-                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName) {
-                        WithFieldName wfn = (WithFieldName) clause;
+                    if (clause instanceof ComplementAwareQueryBuilder && clause instanceof WithFieldName wfn) {
                         String fieldName = wfn.fieldName();
 
                         if (fieldCounts.getOrDefault(fieldName, 0) == 1) {

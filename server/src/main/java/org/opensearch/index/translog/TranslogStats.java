@@ -67,6 +67,20 @@ public class TranslogStats implements Writeable, ToXContentFragment {
         remoteTranslogStats = new RemoteTranslogStats();
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new TranslogStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private TranslogStats(Builder builder) {
+        this.translogSizeInBytes = builder.translogSizeInBytes;
+        this.numberOfOperations = builder.numberOfOperations;
+        this.uncommittedSizeInBytes = builder.uncommittedSizeInBytes;
+        this.uncommittedOperations = builder.uncommittedOperations;
+        this.earliestLastModifiedAge = builder.earliestLastModifiedAge;
+        this.remoteTranslogStats = builder.remoteTranslogStats;
+    }
+
     public TranslogStats(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
@@ -78,6 +92,11 @@ public class TranslogStats implements Writeable, ToXContentFragment {
             : new RemoteTranslogStats();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link TranslogStats.Builder} instead.
+     */
+    @Deprecated
     public TranslogStats(
         int numberOfOperations,
         long translogSizeInBytes,
@@ -157,6 +176,69 @@ public class TranslogStats implements Writeable, ToXContentFragment {
 
     public RemoteTranslogStats getRemoteTranslogStats() {
         return remoteTranslogStats;
+    }
+
+    /**
+     * Builder for the {@link TranslogStats} class.
+     * Provides a fluent API for constructing a TranslogStats object.
+     */
+    public static class Builder {
+        private int numberOfOperations = 0;
+        private long translogSizeInBytes = 0;
+        private int uncommittedOperations = 0;
+        private long uncommittedSizeInBytes = 0;
+        private long earliestLastModifiedAge = 0;
+        private final RemoteTranslogStats remoteTranslogStats = new RemoteTranslogStats();
+
+        public Builder() {}
+
+        public Builder numberOfOperations(int operations) {
+            if (operations < 0) {
+                throw new IllegalArgumentException("numberOfOperations must be >= 0");
+            }
+            this.numberOfOperations = operations;
+            return this;
+        }
+
+        public Builder translogSizeInBytes(long size) {
+            if (size < 0) {
+                throw new IllegalArgumentException("translogSizeInBytes must be >= 0");
+            }
+            this.translogSizeInBytes = size;
+            return this;
+        }
+
+        public Builder uncommittedOperations(int operations) {
+            if (operations < 0) {
+                throw new IllegalArgumentException("uncommittedOperations must be >= 0");
+            }
+            this.uncommittedOperations = operations;
+            return this;
+        }
+
+        public Builder uncommittedSizeInBytes(long bytes) {
+            if (bytes < 0) {
+                throw new IllegalArgumentException("uncommittedSizeInBytes must be >= 0");
+            }
+            this.uncommittedSizeInBytes = bytes;
+            return this;
+        }
+
+        public Builder earliestLastModifiedAge(long age) {
+            if (age < 0) {
+                throw new IllegalArgumentException("earliestLastModifiedAge must be >= 0");
+            }
+            this.earliestLastModifiedAge = age;
+            return this;
+        }
+
+        /**
+         * Creates a {@link TranslogStats} object from the builder's current state.
+         * @return A new TranslogStats instance.
+         */
+        public TranslogStats build() {
+            return new TranslogStats(this);
+        }
     }
 
     @Override

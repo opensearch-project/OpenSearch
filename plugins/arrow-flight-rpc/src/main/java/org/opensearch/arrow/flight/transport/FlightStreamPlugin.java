@@ -174,7 +174,7 @@ public class FlightStreamPlugin extends Plugin
             flightService.setSecureTransportSettingsProvider(secureTransportSettingsProvider);
         }
         if (isStreamTransportEnabled && ServerConfig.isSslEnabled()) {
-            SslContextProvider sslContextProvider = new DefaultSslContextProvider(secureTransportSettingsProvider);
+            SslContextProvider sslContextProvider = new DefaultSslContextProvider(secureTransportSettingsProvider, settings);
             return Collections.singletonMap(
                 "FLIGHT-SECURE",
                 () -> new FlightTransport(

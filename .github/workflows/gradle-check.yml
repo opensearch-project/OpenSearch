@@ -21,10 +21,10 @@ jobs:
     outputs:
       RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Get changed files
       id: changed-files-specific
-      uses: tj-actions/changed-files@v46.0.5
+      uses: tj-actions/changed-files@v47.0.0
       with:
         files_ignore: |
           release-notes/*.md
@@ -42,7 +42,7 @@ jobs:
     timeout-minutes: 130
     steps:
       - name: Checkout OpenSearch repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -61,7 +61,7 @@ jobs:
           echo "post_merge_action=false" >> $GITHUB_ENV
 
       # to get the PR data that can be used for post merge actions
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v8
         if: github.event_name == 'push'
         id: get_pr_data
         with:
@@ -93,7 +93,7 @@ jobs:
           echo "post_merge_action=true" >> $GITHUB_ENV
 
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: opensearch-project/opensearch-build
           ref: main
@@ -122,7 +122,7 @@ jobs:
 
       - name: Create Comment Success
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
           body: |
@@ -145,7 +145,7 @@ jobs:
 
       - name: Create Comment Flaky
         if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
           body: |
@@ -155,7 +155,7 @@ jobs:
 
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
           body: |

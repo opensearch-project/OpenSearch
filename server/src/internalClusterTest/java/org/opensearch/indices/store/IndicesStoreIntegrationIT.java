@@ -80,7 +80,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.lang.Thread.sleep;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -166,7 +165,7 @@ public class IndicesStoreIntegrationIT extends ParameterizedStaticSettingsOpenSe
         if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
             BlockClusterStateProcessing disruption = relocateAndBlockCompletion(logger, "test", 0, node_1, node_3);
             // wait a little so that cluster state observer is registered
-            sleep(50);
+            Thread.yield();
             logger.info("--> stopping disruption");
             disruption.stopDisrupting();
         } else {

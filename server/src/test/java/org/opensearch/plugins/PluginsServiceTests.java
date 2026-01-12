@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
@@ -552,13 +551,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps)
-        );
-        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
-        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+        // This should not throw an exception - shared transitive dependencies are allowed
+        PluginsService.checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveDeps);
+        // Verify the transitive URLs were correctly populated
+        Set<URL> deps = transitiveDeps.get("myplugin");
+        assertNotNull(deps);
+        assertThat(deps, containsInAnyOrder(pluginJar.toUri().toURL(), dupJar.toUri().toURL()));
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager
@@ -730,14 +728,14 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "my_plugin",
             "desc",
             "1.0",
-            LegacyESVersion.fromId(6000099),
+            Version.fromString("1.0.0"),
             "1.8",
             "FakePlugin",
             Collections.emptyList(),
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
-        assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version 1.0.0"));
     }
 
     public void testCompatibleOpenSearchVersionRange() {

@@ -59,13 +59,8 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
             validateTask.configure(task -> {
                 task.dependsOn(generateMavenPom);
                 task.getPomFile().fileProvider(generateMavenPom.map(GenerateMavenPom::getDestination));
-                publishing.getPublications().all(publicationForPomGen -> {
-                    task.mustRunAfter(
-                        project.getTasks()
-                            .withType(GenerateMavenPom.class)
-                            .getByName("generatePomFileFor" + Util.capitalize(publicationForPomGen.getName()) + "Publication")
-                    );
-                });
+                // Force the validate to run after all generate tasks since they overwrite the same POM file
+                task.mustRunAfter(project.getTasks().withType(GenerateMavenPom.class));
             });
         });
 

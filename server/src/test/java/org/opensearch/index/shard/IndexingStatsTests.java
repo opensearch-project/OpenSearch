@@ -10,16 +10,12 @@ package org.opensearch.index.shard;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexingStatsTests extends OpenSearchTestCase {
 
@@ -50,22 +46,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
                 assertEquals(totalStats.getNoopUpdateCount(), deserializedTotalStats.getNoopUpdateCount());
                 assertEquals(totalStats.isThrottled(), deserializedTotalStats.isThrottled());
                 assertEquals(totalStats.getThrottleTime(), deserializedTotalStats.getThrottleTime());
-
-                if (totalStats.getDocStatusStats() == null) {
-                    assertNull(deserializedTotalStats.getDocStatusStats());
-                    return;
-                }
-
-                IndexingStats.Stats.DocStatusStats docStatusStats = totalStats.getDocStatusStats();
-                IndexingStats.Stats.DocStatusStats deserializedDocStatusStats = deserializedTotalStats.getDocStatusStats();
-
-                assertTrue(
-                    Arrays.equals(
-                        docStatusStats.getDocStatusCounter(),
-                        deserializedDocStatusStats.getDocStatusCounter(),
-                        Comparator.comparingLong(AtomicLong::longValue)
-                    )
-                );
             }
         }
     }
@@ -73,7 +53,6 @@ public class IndexingStatsTests extends OpenSearchTestCase {
     public void testToXContentForIndexingStats() throws IOException {
         IndexingStats stats = createTestInstance();
         IndexingStats.Stats totalStats = stats.getTotal();
-        AtomicLong[] counter = totalStats.getDocStatusStats().getDocStatusCounter();
 
         String expected = "{\"indexing\":{\"index_total\":"
             + totalStats.getIndexCount()
@@ -95,17 +74,7 @@ public class IndexingStatsTests extends OpenSearchTestCase {
             + totalStats.isThrottled()
             + ",\"throttle_time_in_millis\":"
             + totalStats.getThrottleTime().getMillis()
-            + ",\"doc_status\":{\"1xx\":"
-            + counter[0]
-            + ",\"2xx\":"
-            + counter[1]
-            + ",\"3xx\":"
-            + counter[2]
-            + ",\"4xx\":"
-            + counter[3]
-            + ",\"5xx\":"
-            + counter[4]
-            + "},\"max_last_index_request_timestamp\":"
+            + ",\"max_last_index_request_timestamp\":"
             + totalStats.getMaxLastIndexRequestTimestamp()
             + "}}";
 
@@ -124,13 +93,23 @@ public class IndexingStatsTests extends OpenSearchTestCase {
      */
     public void testMaxLastIndexRequestTimestampAggregation() throws Exception {
         // Use explicit values for all fields except the timestamp
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts1 = randomLongBetween(0, 1000000);
         long ts2 = randomLongBetween(0, 1000000);
         long ts3 = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats1 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts1);
-        IndexingStats.Stats stats2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts2);
-        IndexingStats.Stats stats3 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts3);
+
+        IndexingStats.Stats.Builder defaultStats = new IndexingStats.Stats.Builder().indexCount(1)
+            .indexTimeInMillis(2)
+            .indexCurrent(3)
+            .indexFailedCount(4)
+            .deleteCount(5)
+            .deleteTimeInMillis(6)
+            .deleteCurrent(7)
+            .noopUpdateCount(8)
+            .isThrottled(false)
+            .throttleTimeInMillis(9);
+        IndexingStats.Stats stats1 = defaultStats.maxLastIndexRequestTimestamp(ts1).build();
+        IndexingStats.Stats stats2 = defaultStats.maxLastIndexRequestTimestamp(ts2).build();
+        IndexingStats.Stats stats3 = defaultStats.maxLastIndexRequestTimestamp(ts3).build();
 
         // Aggregate stats1 + stats2
         stats1.add(stats2);
@@ -141,20 +120,31 @@ public class IndexingStatsTests extends OpenSearchTestCase {
         assertEquals(Math.max(Math.max(ts1, ts2), ts3), stats1.getMaxLastIndexRequestTimestamp());
 
         // Test with zero and negative values
-        IndexingStats.Stats statsZero = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, 0L);
-        IndexingStats.Stats statsNeg = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -100L);
+        IndexingStats.Stats statsZero = defaultStats.maxLastIndexRequestTimestamp(0L).build();
+        IndexingStats.Stats statsNeg = defaultStats.maxLastIndexRequestTimestamp(-100L).build();
+
         statsZero.add(statsNeg);
         assertEquals(0L, statsZero.getMaxLastIndexRequestTimestamp());
 
-        IndexingStats.Stats statsNeg2 = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, -50L);
+        IndexingStats.Stats statsNeg2 = defaultStats.maxLastIndexRequestTimestamp(-50L).build();
         statsNeg.add(statsNeg2);
         assertEquals(-50L, statsNeg.getMaxLastIndexRequestTimestamp());
     }
 
     public void testMaxLastIndexRequestTimestampBackwardCompatibility() throws IOException {
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
         long ts = randomLongBetween(0, 1000000);
-        IndexingStats.Stats stats = new IndexingStats.Stats(1, 2, 3, 4, 5, 6, 7, 8, false, 9, docStatusStats, ts);
+        IndexingStats.Stats stats = new IndexingStats.Stats.Builder().indexCount(1)
+            .indexTimeInMillis(2)
+            .indexCurrent(3)
+            .indexFailedCount(4)
+            .deleteCount(5)
+            .deleteTimeInMillis(6)
+            .deleteCurrent(7)
+            .noopUpdateCount(8)
+            .isThrottled(false)
+            .throttleTimeInMillis(9)
+            .maxLastIndexRequestTimestamp(ts)
+            .build();
 
         // Serialize with V_3_1_0 (should include the field)
         BytesStreamOutput outNew = new BytesStreamOutput();
@@ -176,25 +166,18 @@ public class IndexingStatsTests extends OpenSearchTestCase {
     }
 
     private IndexingStats createTestInstance() {
-        IndexingStats.Stats.DocStatusStats docStatusStats = new IndexingStats.Stats.DocStatusStats();
-        for (int i = 1; i < 6; ++i) {
-            docStatusStats.add(RestStatus.fromCode(i * 100), randomNonNegativeLong());
-        }
-
-        IndexingStats.Stats stats = new IndexingStats.Stats(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomBoolean(),
-            randomNonNegativeLong(),
-            docStatusStats,
-            randomLong()
-        );
+        IndexingStats.Stats stats = new IndexingStats.Stats.Builder().indexCount(randomNonNegativeLong())
+            .indexTimeInMillis(randomNonNegativeLong())
+            .indexCurrent(randomNonNegativeLong())
+            .indexFailedCount(randomNonNegativeLong())
+            .deleteCount(randomNonNegativeLong())
+            .deleteTimeInMillis(randomNonNegativeLong())
+            .deleteCurrent(randomNonNegativeLong())
+            .noopUpdateCount(randomNonNegativeLong())
+            .isThrottled(randomBoolean())
+            .throttleTimeInMillis(randomNonNegativeLong())
+            .maxLastIndexRequestTimestamp(randomLong())
+            .build();
 
         return new IndexingStats(stats);
     }

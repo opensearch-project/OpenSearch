@@ -240,13 +240,25 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
-            ))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(1)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(1)
+                    .completed(0)
+                    .waitTimeNanos(0)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
 
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertTrue(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -256,13 +268,25 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 60);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 0, 0, 0, 1, 0, 0
-            ))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(1)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(1)
+                    .completed(0)
+                    .waitTimeNanos(0)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
         Settings settings = getConfiguredClusterSettings(false, false, Collections.emptyMap());
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(settings, getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            settings,
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getConfigurationValidator().validate().isAllowed());
         assertNotEquals(Lifecycle.State.STARTED, ResourceTrackerProvider.resourceTrackers.cpuFiveMinute.lifecycleState());
@@ -310,7 +334,10 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
     public void testNodeValidatorWithHighDiskUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(disk.getAvailable()).thenReturn(new ByteSizeValue(5));
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -318,14 +345,17 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
 
     public void testNodeValidatorWithHighJVMUsage() {
         when(cpu.getPercent()).thenReturn((short) 50);
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         when(jvm.getHeapUsedPercent()).thenReturn((short) 90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmOneMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
-        for(int i = 0; i < 10; i++)
+        for (int i = 0; i < 10; i++)
             ResourceTrackerProvider.resourceTrackers.jvmFiveMinute.recordUsage(90);
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         autoForceMergeManager.close();
@@ -335,12 +365,24 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(cpu.getPercent()).thenReturn((short) 50);
         when(jvm.getHeapUsedPercent()).thenReturn((short) 50);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(
-                ThreadPool.Names.FORCE_MERGE, 1, 1, 1, 0, 1, 0, -1
-            ))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(1)
+                    .queue(1)
+                    .active(1)
+                    .rejected(0)
+                    .largest(1)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
-        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(getConfiguredClusterSettings(true, true, Collections.emptyMap()), getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        AutoForceMergeManager autoForceMergeManager = clusterSetupWithNode(
+            getConfiguredClusterSettings(true, true, Collections.emptyMap()),
+            getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
+        );
         autoForceMergeManager.start();
         assertFalse(autoForceMergeManager.getNodeValidator().validate().isAllowed());
         ThreadPoolStats emptyStats = new ThreadPoolStats(Collections.emptyList());
@@ -356,7 +398,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(6).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         assertTrue(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
         autoForceMergeManager.close();
@@ -368,7 +415,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(6).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         when(shard.state()).thenReturn(IndexShardState.RECOVERING);
         assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
@@ -395,7 +447,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(5).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(5).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, 1);
         assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
         autoForceMergeManager.close();
@@ -409,7 +466,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
             getNodeWithRoles(DATA_NODE_1, Set.of(DiscoveryNodeRole.DATA_ROLE))
         );
         autoForceMergeManager.start();
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(1).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         assertFalse(autoForceMergeManager.getShardValidator().validate(shard).isAllowed());
         autoForceMergeManager.close();
@@ -474,12 +536,28 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(forceMergeThreads)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(forceMergeThreads)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
 
         IndexService indexService1 = mock(IndexService.class);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(6).getMillis())
+            .build();
         IndexShard shard1 = getShard(TEST_INDEX_1, translogStats, 2);
         List<IndexShard> indexShards1 = List.of(shard1);
         when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
@@ -524,11 +602,27 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(forceMergeThreads)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(forceMergeThreads)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
         IndexService indexService1 = mock(IndexService.class);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(1).getMillis())
+            .build();
         IndexShard shard1 = getShard(TEST_INDEX_1, translogStats, 2);
         List<IndexShard> indexShards1 = List.of(shard1);
         when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
@@ -580,12 +674,28 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         ExecutorService executorService = Executors.newFixedThreadPool(forceMergeThreads);
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, forceMergeThreads, 0, 0, 0, forceMergeThreads, 0, -1))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(forceMergeThreads)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(forceMergeThreads)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
 
         IndexService indexService1 = mock(IndexService.class);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(1).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(1).getMillis())
+            .build();
         List<IndexShard> indexShards1 = List.of(getShard(TEST_INDEX_1, translogStats, 2));
         when(indexService1.spliterator()).thenReturn(indexShards1.spliterator());
         List<IndexService> indexServices = List.of(indexService1);
@@ -619,13 +729,7 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.localNode()).thenReturn(node);
 
-        return new AutoForceMergeManager(
-            threadPool,
-            monitorService,
-            indicesService,
-            clusterService,
-            autoForceMergeMetrics
-        );
+        return new AutoForceMergeManager(threadPool, monitorService, indicesService, clusterService, autoForceMergeMetrics);
     }
 
     public void testMergesSkippedNoWarmNodesMetric() {
@@ -658,7 +762,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         setupIndexServiceWithShard(1024L, 2);
 
         IndexService indexService = mock(IndexService.class);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(6).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, 2);
         doThrow(new IOException("Test exception")).when(shard).forceMerge(any());
 
@@ -756,7 +865,18 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
         when(threadPool.executor(ThreadPool.Names.FORCE_MERGE)).thenReturn(executorService);
 
         ThreadPoolStats stats = new ThreadPoolStats(
-            Arrays.asList(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, threadCount, 0, 0, 0, threadCount, 0, -1))
+            Arrays.asList(
+                new ThreadPoolStats.Stats.Builder().name(ThreadPool.Names.FORCE_MERGE)
+                    .threads(threadCount)
+                    .queue(0)
+                    .active(0)
+                    .rejected(0)
+                    .largest(threadCount)
+                    .completed(0)
+                    .waitTimeNanos(-1)
+                    .parallelism(-1)
+                    .build()
+            )
         );
         when(threadPool.stats()).thenReturn(stats);
 
@@ -771,7 +891,12 @@ public class AutoForceMergeManagerTests extends OpenSearchTestCase {
 
     private void setupIndexServiceWithShard(long shardSize, int segmentCount) throws IOException {
         IndexService indexService = mock(IndexService.class);
-        TranslogStats translogStats = new TranslogStats(0, 0, 0, 0, TimeValue.timeValueSeconds(6).getMillis());
+        TranslogStats translogStats = new TranslogStats.Builder().numberOfOperations(0)
+            .translogSizeInBytes(0)
+            .uncommittedOperations(0)
+            .uncommittedSizeInBytes(0)
+            .earliestLastModifiedAge(TimeValue.timeValueSeconds(6).getMillis())
+            .build();
         IndexShard shard = getShard(TEST_INDEX_1, translogStats, segmentCount);
 
         if (shardSize != 1024L) {
