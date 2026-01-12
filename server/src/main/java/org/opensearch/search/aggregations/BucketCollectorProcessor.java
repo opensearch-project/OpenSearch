@@ -20,6 +20,7 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -74,12 +75,8 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector bucketCollector) {
-                // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator aggregator) {
-                    // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
                     bucketCollector.postCollection();
-                    // Only call buildTopLevel() if it hasn't been called yet (e.g., in streaming mode,
-                    // buildAggBatch() may have already called it via toInternalAggregations())
                     if (aggregator.getPostCollectionAggregation() == null) {
                         aggregator.buildTopLevel();
                     }
@@ -97,9 +94,6 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        // For streaming batches, we need to build aggregations and reset state so aggregators
-        // can be reused for subsequent segments. We traverse the collector tree directly and
-        // call buildTopLevelBatch() (which builds and resets) rather than buildTopLevel().
         List<InternalAggregation> internalAggregations = new ArrayList<>();
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
@@ -114,13 +108,8 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector bucketCollector) {
-                // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator aggregator) {
-                    // Call postCollection() before building to ensure collectors finalize their data
-                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
                     bucketCollector.postCollection();
-                    // Call buildTopLevelBatch() which builds the aggregation and resets state
-                    // This allows the aggregator to be reused for the next segment
                     InternalAggregation batch = aggregator.buildTopLevelBatch();
                     if (batch != null) {
                         internalAggregations.add(batch);
@@ -183,12 +172,10 @@ public class BucketCollectorProcessor {
         while (!allCollectors.isEmpty()) {
             Collector currentCollector = allCollectors.pop();
 
-            // Skip null collectors
             if (currentCollector == null) {
                 continue;
             }
 
-            // Unwrap profiling collectors
             while (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
                 currentCollector = internalProfileCollector.getCollector();
                 if (currentCollector == null) {
@@ -201,9 +188,6 @@ public class BucketCollectorProcessor {
             }
 
             if (currentCollector instanceof Aggregator aggregator) {
-                // Include all aggregators in final reduction - no more skipping streaming aggregators
-                // Note: aggregators should already be finalized via processPostCollection() before
-                // toInternalAggregations() is called. This method only unwraps and reads the results.
                 InternalAggregation ia = aggregator.getPostCollectionAggregation();
                 if (ia != null) {
                     internalAggregations.add(ia);

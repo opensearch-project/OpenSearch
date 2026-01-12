@@ -50,7 +50,7 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
     @Override
     protected String getTypeFromElement(Aggregator element) {
         // Unwrap profiling wrapper so profile type reflects the real aggregator class
-        Aggregator actual = ProfilingAggregator.unwrap(element);
+        Aggregator actual = element instanceof ProfilingAggregator profilingAggregator ? profilingAggregator.unwrapAggregator() : element;
 
         // Anonymous classes (such as NonCollectingAggregator in TermsAgg) won't have a name,
         // we need to get the super class
