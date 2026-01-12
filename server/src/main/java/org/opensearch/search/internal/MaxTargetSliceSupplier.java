@@ -70,13 +70,14 @@ final class MaxTargetSliceSupplier {
         for (LeafReaderContext leaf : leaves) {
             totalDocs += leaf.reader().maxDoc();
         }
+        // Used ceiling division to ensure partitions don't exceed the target slice count
         long maxDocsPerPartition = (totalDocs + targetMaxSlice - 1) / targetMaxSlice;
         // Pre-size list based on estimate (at most targetMaxSlice partitions per segment)
         List<LeafReaderContextPartition> partitions = new ArrayList<>(Math.min(leaves.size() * 2, targetMaxSlice * 2));
         for (LeafReaderContext leaf : leaves) {
             int segmentSize = leaf.reader().maxDoc();
             if (segmentSize > maxDocsPerPartition && segmentSize >= minSegmentSize) {
-                int numPartitions = (int) ((segmentSize + maxDocsPerPartition - 1) / maxDocsPerPartition); // ceil
+                int numPartitions = (int) ((segmentSize + maxDocsPerPartition - 1) / maxDocsPerPartition);
                 numPartitions = Math.min(numPartitions, targetMaxSlice);
                 int docsPerPartition = segmentSize / numPartitions;
                 for (int i = 0; i < numPartitions; i++) {

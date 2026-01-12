@@ -68,6 +68,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
@@ -1416,6 +1417,13 @@ final class DefaultSearchContext extends SearchContext {
     private IntraSegmentSearchDecision evaluateAggregationsForIntraSegment() {
         if (aggregations() == null || aggregations().factories() == null) {
             return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no aggregations");
+        }
+        // StarTree precomputes aggregations at index time - intra-segment adds no benefit and causes duplicate results
+        if (StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
+            return new IntraSegmentSearchDecision(
+                IntraSegmentSearchDecision.DecisionStatus.NO,
+                "StarTree index detected - precomputed aggregations incompatible with intra-segment"
+            );
         }
         boolean allSupport = aggregations().factories().allFactoriesSupportIntraSegmentSearch();
         if (allSupport) {
