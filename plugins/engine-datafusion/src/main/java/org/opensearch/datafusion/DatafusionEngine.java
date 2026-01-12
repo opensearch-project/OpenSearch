@@ -513,14 +513,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     @Override
     public Map<String, FileStats> fetchSegmentStats() throws IOException {
-        DatafusionReader datafusionReader = null;
-        try {
-            datafusionReader = datafusionReaderManager.acquire();
+        try (DatafusionReader datafusionReader = datafusionReaderManager.acquire()) {
             return datafusionReader.fetchSegmentStats();
-        } finally {
-            if (datafusionReader != null) {
-                datafusionReaderManager.release(datafusionReader);
-            }
         }
     }
 }

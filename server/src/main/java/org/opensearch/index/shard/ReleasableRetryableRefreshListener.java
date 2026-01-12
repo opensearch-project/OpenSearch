@@ -65,13 +65,7 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
     @Override
     public final void afterRefresh(boolean didRefresh, Supplier<CompositeEngine.ReleasableRef<CatalogSnapshot>> catalogSnapshot) throws IOException {
         // TODO CompositeEngine filters CatalogSnapshotAwareListeners, keeping this for now
-
         afterRefresh(didRefresh);
-        try {
-            catalogSnapshot.get().close();
-        } catch (Exception ex) {
-
-        }
     }
 
     @Override

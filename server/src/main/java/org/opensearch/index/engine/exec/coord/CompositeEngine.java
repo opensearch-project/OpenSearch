@@ -152,7 +152,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private static final BiConsumer<Supplier<ReleasableRef<CatalogSnapshot>>, CatalogSnapshotAwareRefreshListener>
         POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener) -> {
         try {
-            // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
             catalogSnapshotAwareRefreshListener.afterRefresh(true, catalogSnapshot);
         } catch (IOException e) {
             throw new RuntimeException(e);
