@@ -55,7 +55,19 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isSearchable, isStored, hasDocValues, false, textSearchInfo, meta);
+    }
+
+    protected SimpleMappedFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        boolean bloomFilterEnabled,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
+        super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, textSearchInfo, meta);
     }
 
     @Override

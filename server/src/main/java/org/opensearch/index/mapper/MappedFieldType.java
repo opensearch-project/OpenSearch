@@ -88,6 +88,7 @@ public abstract class MappedFieldType {
     private final boolean isIndexed;
     private final boolean isStored;
     private final boolean isColumnar;
+    private final boolean bloomFilterEnabled;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
     private float boost;
@@ -102,6 +103,18 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
+        this(name, isIndexed, isStored, hasDocValues, false, textSearchInfo, meta);
+    }
+
+    public MappedFieldType(
+        String name,
+        boolean isIndexed,
+        boolean isStored,
+        boolean hasDocValues,
+        boolean bloomFilterEnabled,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
         // TODO: take the value from user input
         this.isColumnar = true;
         this.boost = 1.0f;
@@ -109,6 +122,7 @@ public abstract class MappedFieldType {
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
+        this.bloomFilterEnabled = bloomFilterEnabled;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
     }
@@ -157,6 +171,10 @@ public abstract class MappedFieldType {
 
     public boolean hasDocValues() {
         return docValues;
+    }
+
+    public boolean isBloomFilterEnabled() {
+        return bloomFilterEnabled;
     }
 
     public NamedAnalyzer indexAnalyzer() {

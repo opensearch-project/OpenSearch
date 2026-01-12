@@ -164,6 +164,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
                     indexed.getValue(),
                     stored.getValue(),
                     hasDocValues.getValue(),
+                    getBloomFilterEnabled(),
                     parseNullValue(),
                     meta.getValue()
                 ),
@@ -224,7 +225,19 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             InetAddress nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this(name, indexed, stored, hasDocValues, false, nullValue, meta);
+        }
+
+        public IpFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            boolean hasDocValues,
+            boolean bloomFilterEnabled,
+            InetAddress nullValue,
+            Map<String, String> meta
+        ) {
+            super(name, indexed, stored, hasDocValues, bloomFilterEnabled, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
         }
 

@@ -141,6 +141,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                 indexed.getValue(),
                 stored.getValue(),
                 docValues.getValue(),
+                getBloomFilterEnabled(),
                 nullValue.getValue(),
                 meta.getValue()
             );
@@ -168,7 +169,19 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             Boolean nullValue,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this(name, isSearchable, isStored, hasDocValues, false, nullValue, meta);
+        }
+
+        public BooleanFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            boolean bloomFilterEnabled,
+            Boolean nullValue,
+            Map<String, String> meta
+        ) {
+            super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
         }
 

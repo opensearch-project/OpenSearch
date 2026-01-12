@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -208,6 +210,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
+    private static final Logger logger = LogManager.getLogger(MapperService.class);
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -717,6 +720,63 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
+    }
+
+    /**
+     * Generic method to extract field-level configuration parameters.
+     * Returns a map of field names to their parameter values for fields where the parameter
+     * is explicitly configured and differs from the default value.
+     * The default value is automatically fetched from the parameter definition.
+     *
+     * @param parameterName the name of the parameter to extract (e.g., "bloom_filter_enable", "index", "doc_values")
+     * @param parameterType the type of the parameter (e.g., Boolean.class, String.class)
+     * @return map of field names to parameter values (only non-default values)
+     */
+    public <T> Map<String, T> getFieldConfigurations(String parameterName, Class<T> parameterType) {
+        Map<String, T> fieldConfigs = new HashMap<>();
+
+        if (this.mapper == null) {
+            logger.debug("No mapper available for field configurations");
+            return fieldConfigs;
+        }
+
+        logger.debug("Extracting field configurations for parameter: {}", parameterName);
+
+        T defaultValue = null;
+        boolean defaultValueFound = false;
+
+        for (Mapper mapper : this.mapper.mapping().root()) {
+            logger.debug("Processing mapper: {} (type: {})", mapper.simpleName(), mapper.getClass().getSimpleName());
+
+            if (mapper instanceof ParametrizedFieldMapper) {
+                ParametrizedFieldMapper fieldMapper = (ParametrizedFieldMapper) mapper;
+                ParametrizedFieldMapper.Builder builder = fieldMapper.getMergeBuilder();
+
+                if (builder != null) {
+                    if (!defaultValueFound) {
+                        defaultValue = builder.getParameterDefaultValue(parameterName, parameterType);
+                        defaultValueFound = true;
+                        logger.debug("Found default value for parameter '{}': {}", parameterName, defaultValue);
+                    }
+
+                    T parameterValue = builder.getParameterValue(parameterName, parameterType);
+                    logger.debug("Field '{}': parameter '{}' = {} (default: {})",
+                        fieldMapper.simpleName(), parameterName, parameterValue, defaultValue);
+
+                    if (parameterValue != null && !parameterValue.equals(defaultValue)) {
+                        fieldConfigs.put(fieldMapper.simpleName(), parameterValue);
+                        logger.debug("Added field '{}' to configurations (non-default value: {})",
+                            fieldMapper.simpleName(), parameterValue);
+                    }
+                } else {
+                    logger.warn("No builder available for field mapper: {}", fieldMapper.simpleName());
+                }
+            }
+        }
+
+        logger.debug("Found {} fields with non-default values for parameter '{}'", fieldConfigs.size(), parameterName);
+
+        return fieldConfigs;
     }
 
     /**

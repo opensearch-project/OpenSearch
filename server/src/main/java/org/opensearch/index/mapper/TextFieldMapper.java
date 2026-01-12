@@ -410,7 +410,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 searchQuoteAnalyzer = new NamedAnalyzer(searchQuoteAnalyzer, positionIncrementGap.get());
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), tsi, meta.getValue());
+            TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), getBloomFilterEnabled(), tsi, meta.getValue());
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
             ft.setBoost(boost.getValue());
@@ -769,16 +769,25 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         private boolean indexPhrases = false;
 
         public TextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, false, tsi, meta);
+            this(name, indexed, stored, false, tsi, meta);
+        }
+
+        public TextFieldType(String name, boolean indexed, boolean stored, boolean bloomFilterEnabled, TextSearchInfo tsi, Map<String, String> meta) {
+            super(name, indexed, stored, false, bloomFilterEnabled, tsi, meta);
             fielddata = false;
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
+            this(name, indexed, stored, false, meta);
+        }
+
+        public TextFieldType(String name, boolean indexed, boolean stored, boolean bloomFilterEnabled, Map<String, String> meta) {
             super(
                 name,
                 indexed,
                 stored,
                 false,
+                bloomFilterEnabled,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 meta
             );
@@ -1233,6 +1242,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+        mapperBuilder.bloomFilterEnabled.toXContent(builder, includeDefaults);
     }
 
     @Override

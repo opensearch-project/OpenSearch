@@ -379,6 +379,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
+                getBloomFilterEnabled(),
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
@@ -426,7 +427,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             String nullValue,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this(name, isSearchable, isStored, hasDocValues, false, dateTimeFormatter, resolution, nullValue, meta);
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            boolean bloomFilterEnabled,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            Map<String, String> meta
+        ) {
+            super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;

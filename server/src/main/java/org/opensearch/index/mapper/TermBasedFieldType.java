@@ -64,6 +64,18 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
+    public TermBasedFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        boolean bloomFilterEnabled,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
+        super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, textSearchInfo, meta);
+    }
+
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */
