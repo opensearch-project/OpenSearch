@@ -303,7 +303,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             namedWriteableRegistry,
             this::handlePublishRequest,
             this::handleApplyCommit,
-            remoteClusterStateService
+            remoteClusterStateService,
+            this::lastSeenIndexMetadataManifestObjectVersionSetter
         );
         this.leaderChecker = new LeaderChecker(
             settings,
@@ -361,8 +362,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             transportService,
             namedWriteableRegistry,
             this::handleIndexMetadataPublishRequest,
-            remoteClusterStateService
+            remoteClusterStateService,
+            this::lastSeenIndexMetadataManifestObjectVersionSetter
         );
+    }
+
+    private void lastSeenIndexMetadataManifestObjectVersionSetter(String lastSeenIndexMetadataManifestObjectVersion) {
+        coordinationState.get().setLastSeenIndexMetadataManifestObjectVersion(lastSeenIndexMetadataManifestObjectVersion);
     }
 
     private void setPublishTimeout(TimeValue publishTimeout) {

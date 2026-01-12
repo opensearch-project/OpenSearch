@@ -44,6 +44,7 @@ import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedState
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.TriConsumer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -64,11 +65,13 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Transport handler for publication
@@ -88,6 +91,7 @@ public class PublicationTransportHandler {
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
     private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
+    private final Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter;
 
     // the cluster-manager needs the original non-serialized state as the cluster state contains some volatile information that we
     // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
@@ -114,10 +118,29 @@ public class PublicationTransportHandler {
         TriConsumer<ApplyCommitRequest, Consumer<ClusterState>, ActionListener<Void>> handleApplyCommit,
         RemoteClusterStateService remoteClusterStateService
     ) {
+        this(
+            transportService,
+            namedWriteableRegistry,
+            handlePublishRequest,
+            handleApplyCommit,
+            remoteClusterStateService,
+            null
+        );
+    }
+
+    public PublicationTransportHandler(
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
+        TriConsumer<ApplyCommitRequest, Consumer<ClusterState>, ActionListener<Void>> handleApplyCommit,
+        RemoteClusterStateService remoteClusterStateService,
+        Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter
+    ) {
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
         this.remoteClusterStateService = remoteClusterStateService;
+        this.lastSeenIndexMetadataManifestObjectVersionSetter = lastSeenIndexMetadataManifestObjectVersionSetter;
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
@@ -248,7 +271,7 @@ public class PublicationTransportHandler {
             }
 
             // Fetch IndexMetadataManifest if available
-            IndexMetadataManifest indexManifest = remoteClusterStateService.getLatestIndexMetadataManifest();
+            Tuple<IndexMetadataManifest,String> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
 
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {
@@ -274,13 +297,16 @@ public class PublicationTransportHandler {
                 ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
                     request.getClusterName(),
                     manifest,
-                    indexManifest,
+                    indexManifestByVersion.v1(),
                     transportService.getLocalNode().getId(),
                     true
                 );
                 fullClusterStateReceivedCount.incrementAndGet();
                 final PublishWithJoinResponse response = acceptState(clusterState, manifest);
                 lastSeenClusterState.set(clusterState);
+                if (Objects.nonNull(lastSeenIndexMetadataManifestObjectVersionSetter)) {
+                    lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.v2());
+                }
                 return response;
             } else {
                 logger.debug(

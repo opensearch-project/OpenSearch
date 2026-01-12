@@ -43,6 +43,7 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
     private long currentTerm;
     private ClusterState acceptedState;
     private int indexMetadataVersion;
+    private String lastSeenIndexMetadataManifestObjectVersion;
 
     public InMemoryPersistedState(long term, ClusterState acceptedState) {
         this.currentTerm = term;
@@ -64,6 +65,16 @@ public class InMemoryPersistedState implements CoordinationState.PersistedState 
     @Override
     public void setLastAcceptedState(ClusterState clusterState) {
         this.acceptedState = clusterState;
+    }
+
+    @Override
+    public void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion) {
+        this.lastSeenIndexMetadataManifestObjectVersion = lastSeenIndexMetadataManifestObjectVersion;
+    }
+
+    @Override
+    public String getLastSeenIndexMetadataManifestObjectVersion() {
+        return lastSeenIndexMetadataManifestObjectVersion;
     }
 
     @Override

@@ -45,6 +45,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.TriConsumer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -60,6 +61,7 @@ import org.opensearch.transport.*;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,6 +92,7 @@ public class IndexMetadataPublicationTransportHandler {
         .withType(TransportRequestOptions.Type.STATE)
         .build();
     private final RemoteClusterStateService remoteClusterStateService;
+    private final Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter;
 
     public IndexMetadataPublicationTransportHandler(
         TransportService transportService,
@@ -97,10 +100,22 @@ public class IndexMetadataPublicationTransportHandler {
         BiFunction<Map<String, IndexMetadata>, Integer, IndexMetadataPublishResponse> handlePublishRequest,
         RemoteClusterStateService remoteClusterStateService
     ) {
+        this(transportService, namedWriteableRegistry, handlePublishRequest, remoteClusterStateService, null);
+    }
+
+    public IndexMetadataPublicationTransportHandler(
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BiFunction<Map<String, IndexMetadata>, Integer, IndexMetadataPublishResponse> handlePublishRequest,
+        RemoteClusterStateService remoteClusterStateService,
+        Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter
+    ) {
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handleIndexMetadataPublishRequest = handlePublishRequest;
         this.remoteClusterStateService = remoteClusterStateService;
+        this.lastSeenIndexMetadataManifestObjectVersionSetter = lastSeenIndexMetadataManifestObjectVersionSetter;
+
 
         transportService.registerRequestHandler(
             PUBLISH_INDEX_METADATA_STATE_ACTION_NAME,
@@ -114,7 +129,10 @@ public class IndexMetadataPublicationTransportHandler {
 
     // package private for testing
     IndexMetadataPublishResponse handleIncomingRemotePublishRequest(IndexMetadataPublishRequest request) throws IOException, IllegalStateException {
-        IndexMetadataManifest indexManifest = remoteClusterStateService.getLatestIndexMetadataManifest();
+        Tuple<IndexMetadataManifest,String> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
+
+        IndexMetadataManifest indexManifest = indexManifestByVersion.v1();
+
         boolean applyFullIndexMetadataState = false;
 
         final Map<String, IndexMetadata> lastSeen = lastSeenIndexMetadata.get();
@@ -135,6 +153,10 @@ public class IndexMetadataPublicationTransportHandler {
                 indexManifest,
                 lastSeen
             );
+        }
+
+        if (Objects.nonNull(lastSeenIndexMetadataManifestObjectVersionSetter)) {
+            lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.v2());
         }
 
         logger.info("Fetched latest manifest. Contains indices - " + indexManifest.getIndices().size());

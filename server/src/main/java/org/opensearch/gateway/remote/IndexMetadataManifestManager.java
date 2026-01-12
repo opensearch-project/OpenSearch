@@ -75,8 +75,9 @@ public class IndexMetadataManifestManager {
         ClusterState clusterState,
         ClusterState previousClusterState,
         List<UploadedIndexMetadata> uploadedIndexMetadata,
-        int indexMetadataVersion
-    ) throws IOException {
+        int indexMetadataVersion,
+        String lastSeenIndexMetadataManifestObjectVersion
+    ) {
 
         IndexStateDiffManifest indexDiffManifest = null;
         if (previousClusterState != null) {
@@ -109,10 +110,20 @@ public class IndexMetadataManifestManager {
             .indexDiffManifest(indexDiffManifest)
             .build();
 
-        return writeIndexMetadataManifest(clusterState.metadata().clusterUUID(), indexManifest);
+        return writeIndexMetadataManifest(clusterState.metadata().clusterUUID(), indexManifest, lastSeenIndexMetadataManifestObjectVersion);
     }
 
-    private String writeIndexMetadataManifest(String clusterUUID, IndexMetadataManifest indexManifest) throws IOException {
+    private String writeIndexMetadataManifest(String clusterUUID,
+                                              IndexMetadataManifest indexManifest,
+                                              String lastSeenIndexMetadataManifestObjectVersion){
+
+        String versionToUseForConditionalUpdate;
+        if (Objects.isNull(lastSeenIndexMetadataManifestObjectVersion)) {
+            versionToUseForConditionalUpdate = lastSeenIndexMetadataManifestObjectVersion;
+        } else {
+            versionToUseForConditionalUpdate = lastUploadedIndexManifestVersion;
+        }
+
         RemoteIndexMetadataManifest remoteIndexManifest = new RemoteIndexMetadataManifest(
             indexManifest,
             clusterUUID,
@@ -122,10 +133,10 @@ public class IndexMetadataManifestManager {
 
         String newManifestVersion;
         try {
-            if (lastUploadedIndexManifestVersion != null) {
+            if (versionToUseForConditionalUpdate != null) {
                 newManifestVersion = indexManifestBlobStore.conditionallyUpdateVersionedBlob(
                     remoteIndexManifest,
-                    lastUploadedIndexManifestVersion
+                    versionToUseForConditionalUpdate
                 );
             } else {
                 newManifestVersion = indexManifestBlobStore.writeVersionedBlob(remoteIndexManifest);
@@ -136,7 +147,7 @@ public class IndexMetadataManifestManager {
                     String.format(
                         Locale.ROOT,
                         "Version conflict while uploading index metadata manifest. Expected version: %s",
-                        lastUploadedIndexManifestVersion
+                        versionToUseForConditionalUpdate
                     ),
                     e
                 );
@@ -145,7 +156,7 @@ public class IndexMetadataManifestManager {
         }
 
         lastUploadedIndexManifestVersion = newManifestVersion;
-        logger.debug("Updated index metadata manifest version: {}", newManifestVersion);
+        logger.info("Updated index metadata manifest version: {}", newManifestVersion);
 
         return newManifestVersion;
     }
@@ -193,6 +204,26 @@ public class IndexMetadataManifestManager {
             IndexMetadataManifest manifest = manifestByVersion.v1();
             lastUploadedIndexManifestVersion = manifestByVersion.v2();
             return manifest;
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Error while downloading index metadata manifest - %s", filename),
+                e
+            );
+        }
+    }
+
+    private Tuple<IndexMetadataManifest, String> fetchRemoteIndexMetadataManifestAndObjectVersion(String clusterName, String clusterUUID, String filename) {
+        try {
+            RemoteIndexMetadataManifest remoteIndexManifest = new RemoteIndexMetadataManifest(
+                filename,
+                clusterUUID,
+                compressor,
+                namedXContentRegistry
+            );
+            Tuple<IndexMetadataManifest, String> manifestByVersion = indexManifestBlobStore.readWithVersion(remoteIndexManifest);
+            IndexMetadataManifest manifest = manifestByVersion.v1();
+            lastUploadedIndexManifestVersion = manifestByVersion.v2();
+            return manifestByVersion;
         } catch (IOException e) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "Error while downloading index metadata manifest - %s", filename),
@@ -264,5 +295,13 @@ public class IndexMetadataManifestManager {
             return null;
         }
         return fetchRemoteIndexMetadataManifest(null, null, latestManifestFileName);
+    }
+
+    public Tuple<IndexMetadataManifest, String> getLatestIndexMetadataManifestAndObjectVersion() throws IOException {
+        String latestManifestFileName = getLatestManifestFileName();
+        if (Objects.isNull(latestManifestFileName)) {
+            return null;
+        }
+        return fetchRemoteIndexMetadataManifestAndObjectVersion(null, null, latestManifestFileName);
     }
 }
