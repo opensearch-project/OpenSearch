@@ -1007,14 +1007,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (type == ThreadPoolType.RESIZABLE && out.getVersion().before(Version.V_3_0_0)) {
+            if ((type == ThreadPoolType.RESIZABLE || type == ThreadPoolType.VIRTUAL) && out.getVersion().before(Version.V_3_0_0)) {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_4_0)) {
                 // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
-            } else {
+            } else if (type == ThreadPoolType.VIRTUAL && out.getVersion().before(Version.V_3_5_0)) {
+                // VIRTUAL thread pool type added in 3.5. Convert to RESIZABLE for earlier versions.
+                out.writeString(ThreadPoolType.RESIZABLE.getType());
+            }
+            else {
                 out.writeString(type.getType());
             }
             out.writeInt(min);
