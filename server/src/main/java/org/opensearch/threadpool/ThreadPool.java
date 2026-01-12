@@ -471,8 +471,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             }
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
-            // Skip validation for ForkJoinPool and Virtual thread pools since they do not support setting updates
-            if (holder.info.type == ThreadPoolType.FORK_JOIN || holder.info.type == ThreadPoolType.VIRTUAL) {
+            // Skip validation for ForkJoinPool type since it does not support setting updates
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
                 continue;
             }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
@@ -513,7 +513,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (holder == null) {
                 throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
             }
-            if (holder.info.type == ThreadPoolType.FORK_JOIN || holder.info.type == ThreadPoolType.VIRTUAL) {
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
                 continue;
             }
             assert holder.executor instanceof OpenSearchThreadPoolExecutor;
