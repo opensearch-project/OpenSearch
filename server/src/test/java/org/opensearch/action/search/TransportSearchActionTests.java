@@ -1235,8 +1235,10 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
                 threadPool,
                 mock(CircuitBreakerService.class),
                 mock(TransportService.class),
+                null, // StreamTransportService
                 mock(SearchService.class),
                 searchTransportService,
+                null, // StreamSearchTransportService
                 new SearchPhaseController(namedWriteableRegistry, (searchSourceBuilder) -> null),
                 clusterService,
                 mock(ActionFilters.class),
