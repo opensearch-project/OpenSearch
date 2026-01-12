@@ -46,35 +46,21 @@ public class CatalogSnapshotManager {
         this.compositeEngineCommitter = compositeEngineCommitter;
         indexFileDeleter = new AtomicReference<>();
 
-        logger.info("[CATALOG_SNAPSHOT_MANAGER] Initializing CatalogSnapshotManager for shardPath: {}", shardPath.getDataPath());
-
         Optional<CompositeEngineCatalogSnapshot> lastCommittedOpt = getLastCommittedCatalogSnapshot();
-        logger.info("[CATALOG_SNAPSHOT_MANAGER] getLastCommittedCatalogSnapshot returned: present={}", lastCommittedOpt.isPresent());
 
         lastCommittedOpt.ifPresent(lastCommittedCatalogSnapshot -> {
             latestCatalogSnapshot = lastCommittedCatalogSnapshot;
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] Loaded CatalogSnapshot from commit: id={}, version={}, " +
-                       "lastWriterGeneration={}, segmentCount={}, segments={}",
-                       latestCatalogSnapshot.getId(),
-                       latestCatalogSnapshot.getVersion(),
-                       latestCatalogSnapshot.getLastWriterGeneration(),
-                       latestCatalogSnapshot.getSegments().size(),
-                       latestCatalogSnapshot.getSegments());
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
             latestCatalogSnapshot.remapPaths(shardPath.getDataPath());
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] After remapPaths, segments: {}", latestCatalogSnapshot.getSegments());
         });
 
         indexFileDeleter.set(new IndexFileDeleter(compositeEngine, latestCatalogSnapshot, shardPath));
         if(latestCatalogSnapshot != null) {
             latestCatalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] Using restored CatalogSnapshot");
         } else {
             latestCatalogSnapshot = new CompositeEngineCatalogSnapshot(1, 1, new ArrayList<>(), catalogSnapshotMap, indexFileDeleter::get);
             catalogSnapshotMap.put(latestCatalogSnapshot.getId(), latestCatalogSnapshot);
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] Created new empty CatalogSnapshot: id={}, lastWriterGeneration={}",
-                       latestCatalogSnapshot.getId(), latestCatalogSnapshot.getLastWriterGeneration());
         }
     }
 
@@ -181,19 +167,13 @@ public class CatalogSnapshotManager {
 
     private Optional<CompositeEngineCatalogSnapshot> getLastCommittedCatalogSnapshot() throws IOException {
         Map<String, String> lastCommittedData = compositeEngineCommitter.getLastCommittedData();
-        logger.info("[CATALOG_SNAPSHOT_MANAGER] getLastCommittedCatalogSnapshot: lastCommittedData keys={}", lastCommittedData.keySet());
 
         if (lastCommittedData.containsKey(CATALOG_SNAPSHOT_KEY)) {
             String serializedSnapshot = lastCommittedData.get(CATALOG_SNAPSHOT_KEY);
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] Found CATALOG_SNAPSHOT_KEY, serialized length={}",
-                       serializedSnapshot != null ? serializedSnapshot.length() : 0);
             CompositeEngineCatalogSnapshot snapshot = CompositeEngineCatalogSnapshot.deserializeFromString(serializedSnapshot);
-            logger.info("[CATALOG_SNAPSHOT_MANAGER] Deserialized CatalogSnapshot: id={}, lastWriterGeneration={}, segmentCount={}",
-                       snapshot.getId(), snapshot.getLastWriterGeneration(), snapshot.getSegments().size());
             return Optional.of(snapshot);
         }
 
-        logger.info("[CATALOG_SNAPSHOT_MANAGER] CATALOG_SNAPSHOT_KEY not found in commit data");
         return Optional.empty();
     }
 
