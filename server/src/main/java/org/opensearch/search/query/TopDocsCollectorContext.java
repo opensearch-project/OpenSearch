@@ -468,8 +468,13 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
                 hitCount = -1;
             } else {
+                boolean deferShortcutTotalHitCount = deferShortcutTotalHitCount(hasFilterCollector, reader.hasDeletions(), query);
+                if (deferShortcutTotalHitCount) {
+                    this.hitCount = 0;
+                } else {
+                    this.hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
+                }
                 // implicit total hit counts are valid only when there is no filter collector in the chain
-                this.hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
                 if (this.hitCount == -1) {
                     topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHitsUpTo);
                     topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
@@ -478,7 +483,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                     // don't compute hit counts via the collector
                     topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1);
                     topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
-                    totalHitsSupplier = () -> new TotalHits(this.hitCount, TotalHits.Relation.EQUAL_TO);
+                    totalHitsSupplier = shortcutTotalHitCountSupplier(deferShortcutTotalHitCount, this.hitCount, reader, query);
                 }
             }
             MaxScoreCollector maxScoreCollector = null;
@@ -509,6 +514,21 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             }
 
             this.collector = MultiCollector.wrap(topDocsCollector, maxScoreCollector);
+        }
+
+        private Supplier<TotalHits> shortcutTotalHitCountSupplier(
+            boolean deferShortcutTotalHitCount,
+            int computedHitCount,
+            IndexReader reader,
+            Query query
+        ) throws IOException {
+            long shortcutTotalHitCnt;
+            if (deferShortcutTotalHitCount) {
+                shortcutTotalHitCnt = shortcutTotalHitCount(reader, query);
+            } else {
+                shortcutTotalHitCnt = computedHitCount;
+            }
+            return () -> (new TotalHits(shortcutTotalHitCnt, TotalHits.Relation.EQUAL_TO));
         }
 
         private class SimpleTopDocsCollectorManager
@@ -621,7 +641,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
                 if (hitCount == -1) {
                     totalHits = topDocs.totalHits;
                 } else {
-                    totalHits = new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
+                    totalHits = totalHitsSupplier.get();
                 }
             }
 
@@ -765,21 +785,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
      * -1 otherwise.
      */
     static int shortcutTotalHitCount(IndexReader reader, Query query) throws IOException {
-        while (true) {
-            // remove wrappers that don't matter for counts
-            // this is necessary so that we don't only optimize match_all
-            // queries but also match_all queries that are nested in
-            // a constant_score query
-            if (query instanceof ConstantScoreQuery constantScoreQuery) {
-                query = constantScoreQuery.getQuery();
-            } else if (query instanceof BoostQuery boostQuery) {
-                query = boostQuery.getQuery();
-            } else if (query instanceof ApproximateScoreQuery approximateScoreQuery) {
-                query = approximateScoreQuery.getOriginalQuery();
-            } else {
-                break;
-            }
-        }
+        query = removeWrappersFromQuery(query);
         if (query.getClass() == MatchAllDocsQuery.class) {
             return reader.numDocs();
         } else if (query.getClass() == TermQuery.class && reader.hasDeletions() == false) {
@@ -815,6 +821,33 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
         } else {
             return -1;
         }
+    }
+
+    static boolean deferShortcutTotalHitCount(boolean hasFilterCollector, boolean hasDeletions, Query query) {
+        if (hasFilterCollector) {
+            return false;
+        }
+        query = removeWrappersFromQuery(query);
+        return (query.getClass() == TermQuery.class && hasDeletions == false);
+    }
+
+    static Query removeWrappersFromQuery(Query query) {
+        while (true) {
+            // remove wrappers that don't matter for counts
+            // this is necessary so that we don't only optimize match_all
+            // queries but also match_all queries that are nested in
+            // a constant_score query
+            if (query instanceof ConstantScoreQuery constantScoreQuery) {
+                query = constantScoreQuery.getQuery();
+            } else if (query instanceof BoostQuery boostQuery) {
+                query = boostQuery.getQuery();
+            } else if (query instanceof ApproximateScoreQuery approximateScoreQuery) {
+                query = approximateScoreQuery.getOriginalQuery();
+            } else {
+                break;
+            }
+        }
+        return query;
     }
 
     /**
