@@ -44,10 +44,7 @@ public class StreamingQuerySelectionTests extends OpenSearchTestCase {
         when(mockSearchContext.isStreamingSearch()).thenReturn(true);
         when(mockSearchContext.getStreamingMode()).thenReturn(StreamingSearchMode.NO_SCORING);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingUnsortedCollectorContext);
@@ -58,10 +55,7 @@ public class StreamingQuerySelectionTests extends OpenSearchTestCase {
         when(mockSearchContext.isStreamingSearch()).thenReturn(true);
         when(mockSearchContext.getStreamingMode()).thenReturn(StreamingSearchMode.SCORED_UNSORTED);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingScoredUnsortedCollectorContext);
@@ -73,10 +67,7 @@ public class StreamingQuerySelectionTests extends OpenSearchTestCase {
         when(mockSearchContext.getStreamingMode()).thenReturn(StreamingSearchMode.SCORED_SORTED);
         when(mockSearchContext.sort()).thenReturn(null);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingSortedCollectorContext);
@@ -93,10 +84,7 @@ public class StreamingQuerySelectionTests extends OpenSearchTestCase {
         );
         when(mockSearchContext.sort()).thenReturn(sortAndFormats);
 
-        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
-            mockSearchContext,
-            false
-        );
+        TopDocsCollectorContext context = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(mockSearchContext, false);
 
         assertNotNull(context);
         assertTrue(context instanceof StreamingSortedCollectorContext);

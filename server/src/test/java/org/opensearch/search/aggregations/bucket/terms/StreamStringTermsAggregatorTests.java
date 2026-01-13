@@ -451,7 +451,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     // Verify factory created a StreamStringTermsAggregator (should pass since reader has single leaf)
                     Aggregator unwrappedAggregator = aggregator;
                     if (profile && aggregator instanceof ProfilingAggregator) {
-                          unwrappedAggregator = ((ProfilingAggregator) aggregator).unwrapAggregator();
+                        unwrappedAggregator = ((ProfilingAggregator) aggregator).unwrapAggregator();
                     }
                     assertThat(
                         "Factory should create StreamStringTermsAggregator for single-leaf readers",
