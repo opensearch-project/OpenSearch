@@ -9,12 +9,16 @@
 package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.simpletext.SimpleTextCodec;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.CodecRegistry;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
@@ -30,8 +34,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 
 public class EngineConfigFactoryTests extends OpenSearchTestCase {
     public void testCreateEngineConfigFromFactory() {
@@ -118,6 +127,22 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         expectThrows(IllegalStateException.class, () -> new EngineConfigFactory(plugins, indexSettings));
     }
 
+    public void testCreateEngineConfigFromFactoryAdditionalCodecs() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new BazEnginePlugin());
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        final CodecService codecService = factory.newDefaultCodecService(indexSettings, null, logger);
+        assertThat(codecService.codec("test"), is(instanceOf(SimpleTextCodec.class)));
+        assertThat(codecService.codec("zlib"), is(not(instanceOf(SimpleTextCodec.class))));
+        assertThrows(IllegalArgumentException.class, () -> codecService.codec("lz4"));
+    }
+
     public void testCreateCodecServiceFromFactory() {
         IndexMetadata meta = IndexMetadata.builder("test")
             .settings(settings(Version.CURRENT))
@@ -186,7 +211,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
 
         @Override
         public Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
-            return Optional.of(new CodecService(null, indexSettings, LogManager.getLogger(getClass())));
+            return Optional.of(new CodecService(null, indexSettings, LogManager.getLogger(getClass()), List.of()));
         }
 
         @Override
@@ -203,7 +228,7 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
 
         @Override
         public Optional<CodecService> getCustomCodecService(IndexSettings indexSettings) {
-            return Optional.of(new CodecService(null, indexSettings, LogManager.getLogger(getClass())));
+            return Optional.of(new CodecService(null, indexSettings, LogManager.getLogger(getClass()), List.of()));
         }
     }
 
@@ -216,7 +241,12 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         @Override
         public Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
             return Optional.of(
-                config -> new CodecService(config.getMapperService(), config.getIndexSettings(), LogManager.getLogger(getClass()))
+                config -> new CodecService(
+                    config.getMapperService(),
+                    config.getIndexSettings(),
+                    LogManager.getLogger(getClass()),
+                    List.of()
+                )
             );
         }
     }
@@ -230,6 +260,31 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         @Override
         public Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
             return Optional.of(CustomTranslogDeletionPolicy::new);
+        }
+
+        @Override
+        public Optional<CodecRegistry> getAdditionalCodecs(IndexSettings indexSettings) {
+            return Optional.of(new CodecRegistry() {
+                @Override
+                public Codec onConflict(String name, Codec oldCodec, Codec newCodec) {
+                    if (name.equalsIgnoreCase("lz4")) {
+                        return null;
+                    } else if (name.equalsIgnoreCase("zlib")) {
+                        return oldCodec;
+                    } else {
+                        return null;
+                    }
+                }
+
+                @Override
+                public Map<String, Codec> getCodecs(
+                    MapperService mapperService,
+                    IndexSettings indexSettings,
+                    Supplier<Codec> defaultCodec
+                ) {
+                    return Map.of("test", new SimpleTextCodec(), "lz4", new SimpleTextCodec(), "zlib", new SimpleTextCodec());
+                }
+            });
         }
     }
 

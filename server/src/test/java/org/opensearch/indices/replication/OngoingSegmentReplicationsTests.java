@@ -32,6 +32,7 @@ import org.junit.Assert;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +74,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
-        CodecService codecService = new CodecService(null, getEngine(primary).config().getIndexSettings(), null);
+        CodecService codecService = new CodecService(null, getEngine(primary).config().getIndexSettings(), null, List.of());
         String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
