@@ -195,7 +195,7 @@ public class IndexMetadataManifestManager {
     private IndexMetadataManifest fetchRemoteIndexMetadataManifest(String clusterName, String clusterUUID, String filename) {
         try {
             RemoteIndexMetadataManifest remoteIndexManifest = new RemoteIndexMetadataManifest(
-                filename,
+                getManifestPath().add(filename).buildAsString(),
                 clusterUUID,
                 compressor,
                 namedXContentRegistry
@@ -215,7 +215,7 @@ public class IndexMetadataManifestManager {
     private Tuple<IndexMetadataManifest, String> fetchRemoteIndexMetadataManifestAndObjectVersion(String clusterName, String clusterUUID, String filename) {
         try {
             RemoteIndexMetadataManifest remoteIndexManifest = new RemoteIndexMetadataManifest(
-                filename,
+                getManifestPath().add(filename).buildAsString(),
                 clusterUUID,
                 compressor,
                 namedXContentRegistry
@@ -271,7 +271,7 @@ public class IndexMetadataManifestManager {
 
     public BlobPath getManifestPath() {
         BlobPath blobPath = indexManifestBlobStore.getBlobPathPrefix(null, true);
-        blobPath = blobPath.add(RemoteClusterMetadataManifest.MANIFEST);
+        blobPath = blobPath.add(RemoteIndexMetadataManifest.INDEX_METADATA_MANIFEST);
         return blobPath;
     }
 
@@ -297,11 +297,11 @@ public class IndexMetadataManifestManager {
         return fetchRemoteIndexMetadataManifest(null, null, latestManifestFileName);
     }
 
-    public Tuple<IndexMetadataManifest, String> getLatestIndexMetadataManifestAndObjectVersion() throws IOException {
+    public Optional<Tuple<IndexMetadataManifest, String>> getLatestIndexMetadataManifestAndObjectVersion() throws IOException {
         String latestManifestFileName = getLatestManifestFileName();
         if (Objects.isNull(latestManifestFileName)) {
-            return null;
+            return Optional.empty();
         }
-        return fetchRemoteIndexMetadataManifestAndObjectVersion(null, null, latestManifestFileName);
+        return Optional.of(fetchRemoteIndexMetadataManifestAndObjectVersion(null, null, latestManifestFileName));
     }
 }

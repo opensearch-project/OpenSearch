@@ -62,6 +62,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -129,9 +130,9 @@ public class IndexMetadataPublicationTransportHandler {
 
     // package private for testing
     IndexMetadataPublishResponse handleIncomingRemotePublishRequest(IndexMetadataPublishRequest request) throws IOException, IllegalStateException {
-        Tuple<IndexMetadataManifest,String> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
+        Optional<Tuple<IndexMetadataManifest,String>> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
 
-        IndexMetadataManifest indexManifest = indexManifestByVersion.v1();
+        IndexMetadataManifest indexManifest = indexManifestByVersion.map(Tuple::v1).orElse(null);
 
         boolean applyFullIndexMetadataState = false;
 
@@ -156,7 +157,7 @@ public class IndexMetadataPublicationTransportHandler {
         }
 
         if (Objects.nonNull(lastSeenIndexMetadataManifestObjectVersionSetter)) {
-            lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.v2());
+            lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.map(Tuple::v2).orElse(null));
         }
 
         logger.info("Fetched latest manifest. Contains indices - " + indexManifest.getIndices().size());
@@ -172,6 +173,9 @@ public class IndexMetadataPublicationTransportHandler {
         return new IndexMetadataPublicationContext(clusterState, persistedStateRegistry);
     }
 
+    /**
+     * Javadoc
+     */
     public class IndexMetadataPublicationContext {
 
         protected final DiscoveryNodes discoveryNodes;

@@ -857,22 +857,28 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             lastKnownLeader
         );
 
-////         Read latest state from remote before becoming leader to avoid losing updates
-//        if (remoteClusterStateService != null) {
-//            try {
-//                ClusterState remoteState = remoteClusterStateService.getLatestClusterStateForNewManager(
-//                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
-//                    getLocalNode().getId()
-//                );
-//                if (remoteState != null && remoteState.version() > getLastAcceptedState().version()) {
-//                    logger.info("Applying latest remote state version {} before becoming leader", remoteState.version());
-//                        assert persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
-//                        persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE).setLastAcceptedState(remoteState);
-//                }
-//            } catch (Exception e) {
-//                logger.warn("Failed to read latest remote state when becoming leader, proceeding with local state", e);
-//            }
-//        }
+
+//         Read latest state from remote before becoming leader to avoid losing updates
+        if (Objects.nonNull(remoteClusterStateService)) {
+            logger.info("remoteClusterStateService is enabled");
+            try {
+                ClusterState remoteState = remoteClusterStateService.getLatestClusterStateForNewManager(
+                    ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
+                    getLocalNode().getId()
+                );
+                if (remoteState != null && remoteState.version() > getLastAcceptedState().version()) {
+                    logger.info("Applying latest remote state version {} before becoming leader", remoteState.version());
+                        assert persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+                        persistedStateRegistry.getPersistedState(PersistedStateRegistry.PersistedStateType.REMOTE).setLastAcceptedState(remoteState);
+                } else {
+                    logger.info("Not Applying latest remote state version before becoming leader");
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to read latest remote state when becoming leader, proceeding with local state", e);
+            }
+        } else {
+            logger.info("remoteClusterStateService is not enabled");
+        }
 
         mode = Mode.LEADER;
         joinAccumulator.close(mode);

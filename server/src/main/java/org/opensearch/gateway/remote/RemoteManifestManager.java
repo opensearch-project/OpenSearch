@@ -258,7 +258,7 @@ public class RemoteManifestManager {
     ClusterMetadataManifest fetchRemoteClusterMetadataManifest(String clusterName, String clusterUUID, String filename)
         throws IllegalStateException {
         try {
-            String fullBlobName = getManifestFolderPath(clusterName, clusterUUID).buildAsString() + filename;
+            String fullBlobName = getManifestPath().buildAsString() + filename;
             RemoteClusterMetadataManifest remoteClusterMetadataManifest = new RemoteClusterMetadataManifest(
                 fullBlobName,
                 clusterUUID,
@@ -340,6 +340,20 @@ public class RemoteManifestManager {
         }
     }
 
+
+    private List<BlobMetadata> getManifestFileNamesV2()
+        throws IllegalStateException {
+        try {
+            return manifestContainerV2().listBlobsByPrefixInSortedOrder(
+                RemoteClusterMetadataManifest.MANIFEST,
+                1,
+                BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Error while fetching latest manifest file for remote cluster state", e);
+        }
+    }
+
     public static String getManifestFilePrefixForTermVersion(long term, long version) {
         return String.join(
             DELIMITER,
@@ -362,7 +376,7 @@ public class RemoteManifestManager {
             1,
             BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
         );
-        return manifests.getFirst().name();
+        return manifests.isEmpty() ? null : manifests.getFirst().name();
     }
 
 
@@ -375,14 +389,9 @@ public class RemoteManifestManager {
      * @return latest ClusterMetadataManifest filename
      */
     private Optional<String> getLatestManifestFileName(String clusterName, String clusterUUID) throws IllegalStateException {
-        List<BlobMetadata> manifestFilesMetadata = getManifestFileNames(
-            clusterName,
-            clusterUUID,
-            RemoteClusterMetadataManifest.MANIFEST + DELIMITER,
-            1
-        );
+        List<BlobMetadata> manifestFilesMetadata = getManifestFileNamesV2();
         if (manifestFilesMetadata != null && !manifestFilesMetadata.isEmpty()) {
-            return Optional.of(manifestFilesMetadata.get(0).name());
+            return Optional.of(manifestFilesMetadata.getFirst().name());
         }
         logger.info("No manifest file present in remote store for cluster name: {}, cluster UUID: {}", clusterName, clusterUUID);
         return Optional.empty();

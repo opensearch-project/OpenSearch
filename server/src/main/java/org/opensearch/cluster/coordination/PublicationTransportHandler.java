@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -271,7 +272,8 @@ public class PublicationTransportHandler {
             }
 
             // Fetch IndexMetadataManifest if available
-            Tuple<IndexMetadataManifest,String> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
+            Optional<Tuple<IndexMetadataManifest,String>> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
+            IndexMetadataManifest indexManifest = indexManifestByVersion.map(Tuple::v1).orElse(null);
 
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {
@@ -297,7 +299,7 @@ public class PublicationTransportHandler {
                 ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
                     request.getClusterName(),
                     manifest,
-                    indexManifestByVersion.v1(),
+                    indexManifest,
                     transportService.getLocalNode().getId(),
                     true
                 );
@@ -305,7 +307,7 @@ public class PublicationTransportHandler {
                 final PublishWithJoinResponse response = acceptState(clusterState, manifest);
                 lastSeenClusterState.set(clusterState);
                 if (Objects.nonNull(lastSeenIndexMetadataManifestObjectVersionSetter)) {
-                    lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.v2());
+                    lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.map(Tuple::v2).orElse(null));
                 }
                 return response;
             } else {

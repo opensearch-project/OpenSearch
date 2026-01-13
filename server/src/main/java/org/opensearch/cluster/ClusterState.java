@@ -490,6 +490,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.field("master_node", nodes().getClusterManagerNodeId());
         }
 
+        builder.field("index_metadata_coordinator_node", nodes().getIndexMetadataCoordinatorNodeId());
+
         // Value of the field is identical with the above, and aims to replace the above field.
         if (metrics.contains(Metric.CLUSTER_MANAGER_NODE)) {
             builder.field("cluster_manager_node", nodes().getClusterManagerNodeId());

@@ -8,6 +8,7 @@
 
 package org.opensearch.action.support.indexmetadatacoordinator;
 
+import org.apache.lucene.queryparser.flexible.core.util.StringUtils;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ActionFilters;
@@ -20,6 +21,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
@@ -27,6 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A base class for operations that need to be performed on the Index Metadata Coordinator (IMC) node.
@@ -78,7 +81,7 @@ public abstract class TransportIndexMetadataCoordinatorAction<Request extends Cl
         ClusterState state = clusterService.state();
         String imcNodeId = state.nodes().getIndexMetadataCoordinatorNodeId();
 
-        if (imcNodeId == null) {
+        if (Strings.isNullOrEmpty(imcNodeId)) {
             listener.onFailure(new IllegalStateException("No Index Metadata Coordinator node found"));
             return;
         }

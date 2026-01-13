@@ -186,6 +186,9 @@ public class IndexMetadataManifest implements Writeable, ToXContentFragment {
         return (IndexStateDiffManifest) fields[4];
     }
 
+    /**
+     * Javadoc
+     */
     public static class Builder {
         private Version opensearchVersion;
         private int codecVersion;
