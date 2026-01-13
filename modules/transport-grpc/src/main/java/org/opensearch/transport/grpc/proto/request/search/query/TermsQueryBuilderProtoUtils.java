@@ -12,8 +12,6 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.protobufs.TermsQueryField;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 import java.util.ArrayList;
@@ -75,48 +73,6 @@ class TermsQueryBuilderProtoUtils {
     }
 
     /**
-     * Converts a Protocol Buffer TermsQueryField to an OpenSearch TermQueryBuilder.
-     * This method handles the field-specific conversion (values or lookup) without
-     * boost, queryName, or valueType which are handled at the TermsQuery level.
-     *
-     * @param termsQueryProto The Protocol Buffer TermsQueryField object
-     * @return A configured TermQueryBuilder instance
-     * @throws IllegalArgumentException if the term query field value is not recognized
-     */
-    static TermsQueryBuilder fromProto(TermsQueryField termsQueryProto) {
-        String fieldName = null;
-        List<Object> values = null;
-        TermsLookup termsLookup = null;
-
-        switch (termsQueryProto.getTermsQueryFieldCase()) {
-            case FIELD_VALUE_ARRAY:
-                values = parseFieldValueArray(termsQueryProto.getFieldValueArray());
-                break;
-            case LOOKUP:
-                termsLookup = parseTermsLookup(termsQueryProto.getLookup());
-                break;
-            case TERMSQUERYFIELD_NOT_SET:
-            default:
-                throw new IllegalArgumentException("Neither field_value_array nor lookup is set");
-        }
-
-        if (values == null && termsLookup == null) {
-            throw new IllegalArgumentException("Either field_value_array or lookup must be set");
-        }
-
-        TermsQueryBuilder termsQueryBuilder;
-        if (values == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, termsLookup);
-        } else if (termsLookup == null) {
-            termsQueryBuilder = new TermsQueryBuilder(fieldName, values);
-        } else {
-            throw new IllegalArgumentException("values and termsLookup cannot both be null");
-        }
-
-        return termsQueryBuilder;
-    }
-
-    /**
      * Builds a TermsQueryBuilder from a field name, TermsQueryField oneof, and value_type.
      * @param fieldName the field name (from the terms map key)
      * @param termsQueryField the protobuf oneof (field_value_array or lookup)
@@ -137,15 +93,15 @@ class TermsQueryBuilderProtoUtils {
         TermsLookup termsLookup = null;
 
         switch (termsQueryField.getTermsQueryFieldCase()) {
-            case FIELD_VALUE_ARRAY:
-                values = parseFieldValueArray(termsQueryField.getFieldValueArray());
+            case VALUE:
+                values = parseFieldValueArray(termsQueryField.getValue());
                 break;
             case LOOKUP:
                 termsLookup = parseTermsLookup(termsQueryField.getLookup());
                 break;
             case TERMSQUERYFIELD_NOT_SET:
             default:
-                throw new IllegalArgumentException("Neither field_value_array nor lookup is set");
+                throw new IllegalArgumentException("Neither value nor lookup is set");
         }
 
         if (values == null && termsLookup == null) {
@@ -176,27 +132,6 @@ class TermsQueryBuilderProtoUtils {
             : new TermsQueryBuilder(fieldName, termsLookup);
 
         return termsQueryBuilder.valueType(valueType);
-    }
-
-    /**
-     * Parses a protobuf ScriptLanguage to a String representation
-     *
-     * See {@link org.opensearch.index.query.TermsQueryBuilder.ValueType#fromString(String)}  }
-     * *
-     * @param valueType the Protocol Buffer ValueType to convert
-     * @return the string representation of the script language
-     * @throws UnsupportedOperationException if no language was specified
-     */
-    public static TermsQueryBuilder.ValueType parseValueType(ValueType valueType) {
-        switch (valueType) {
-            case VALUE_TYPE_BITMAP:
-                return TermsQueryBuilder.ValueType.BITMAP;
-            case VALUE_TYPE_DEFAULT:
-                return TermsQueryBuilder.ValueType.DEFAULT;
-            case VALUE_TYPE_UNSPECIFIED:
-            default:
-                return TermsQueryBuilder.ValueType.DEFAULT;
-        }
     }
 
     /**

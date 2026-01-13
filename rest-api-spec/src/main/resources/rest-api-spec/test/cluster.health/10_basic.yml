@@ -201,9 +201,6 @@
 
 ---
 "Get cluster health has same value for discovered_master and discovered_cluster_manager":
-  - skip:
-      version: " - 1.4.99"
-      reason: "discovered_cluster_manager is added in 2.0.0"
   - do:
       cluster.health: {}
   - set:
