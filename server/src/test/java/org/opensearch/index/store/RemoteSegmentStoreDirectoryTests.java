@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.opensearch.index.store.RemoteSegmentStoreDirectory.METADATA_FILES_TO_FETCH;
 import static org.opensearch.index.store.MetadataFilenameUtils.SEPARATOR;
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
@@ -212,7 +213,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
-        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(any());
+        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(anyString());
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteFile("_0.si"));
     }
 
@@ -1014,7 +1015,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
-        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+        verify(remoteMetadataDirectory, times(0)).deleteFile(anyString());
     }
 
     public void testDeleteStaleCommitsExceptionWhileFetchingLocks() throws Exception {
@@ -1027,7 +1028,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
 
-        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+        verify(remoteMetadataDirectory, times(0)).deleteFile(anyString());
     }
 
     public void testDeleteStaleCommitsDeleteDedup() throws Exception {
