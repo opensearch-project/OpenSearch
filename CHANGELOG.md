@@ -60,6 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `lycheeverse/lychee-action` from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
 - Bump `opensearch-protobufs` from 1.0.0 to 1.1.0 and update transport-grpc module compatibility ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
 - Bump `ch.qos.logback:logback-classic` from 1.5.23 to 1.5.24 ([#20407](https://github.com/opensearch-project/OpenSearch/pull/20407))
+- Bump `org.wiremock:wiremock-standalone` from 3.6.0 to 3.13.2 ([#20406](https://github.com/opensearch-project/OpenSearch/pull/20406))
+- Bump `tj-actions/changed-files` from 47.0.0 to 47.0.1 ([#20408](https://github.com/opensearch-project/OpenSearch/pull/20408))
 
 ### Removed
 
