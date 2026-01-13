@@ -59,6 +59,14 @@ testClusters {
       setting 'node.attr.remote_store.repository.my-s3-repo.type', 's3'
       setting 'node.attr.remote_store.repository.my-s3-repo.settings.bucket', 'local-opensearch-bucket'
       setting 'node.attr.remote_store.repository.my-s3-repo.settings.base_path', 'raghraaj-local-1230'
+      
+      // SSE-KMS configuration
+      if (findProperty("enableSseKms")) {
+        setting 'node.attr.remote_store.repository.my-s3-repo.settings.server_side_encryption_type', 'aws:kms'
+        setting 'node.attr.remote_store.repository.my-s3-repo.settings.server_side_encryption_kms_key_id', 'arn:aws:kms:us-east-1:389347062219:key/006ef490-5452-4f4d-8da3-a0cb7344ab59'
+        setting 'node.attr.remote_store.repository.my-s3-repo.settings.server_side_encryption_bucket_key_enabled', findProperty("sseBucketKeyEnabled") ?: 'true'
+        setting 'node.attr.remote_store.repository.my-s3-repo.settings.server_side_encryption_encryption_context', '{"identifier":"mustang"}'
+      }
     }
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
