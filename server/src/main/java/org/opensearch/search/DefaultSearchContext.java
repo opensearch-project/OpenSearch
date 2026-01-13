@@ -68,7 +68,6 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
-import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.search.NestedHelper;
@@ -111,6 +110,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
