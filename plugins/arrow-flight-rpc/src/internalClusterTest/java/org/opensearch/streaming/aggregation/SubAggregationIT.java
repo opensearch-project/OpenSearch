@@ -47,7 +47,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.opensearch.index.query.QueryBuilders.existsQuery;
@@ -306,13 +305,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
         assertNotNull(resp);
@@ -337,13 +329,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
         assertNotNull(resp);
@@ -391,13 +376,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
         assertNotNull(resp);
@@ -421,13 +399,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
 
@@ -469,13 +440,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
 
@@ -525,13 +489,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             try {
                 resp = future.actionGet(TimeValue.timeValueSeconds(35));
             } catch (Exception e) {
-                Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-                all.forEach((t, st) -> {
-                    logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                    for (StackTraceElement el : st) {
-                        logger.error("  at {}", el);
-                    }
-                });
                 throw e;
             }
 
@@ -577,13 +534,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
         assertNotNull(resp);
@@ -631,13 +581,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
 
@@ -667,13 +610,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
 
@@ -710,13 +646,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         try {
             resp = future.actionGet(TimeValue.timeValueSeconds(35));
         } catch (Exception e) {
-            Map<Thread, StackTraceElement[]> all = Thread.getAllStackTraces();
-            all.forEach((t, st) -> {
-                logger.error("THREAD DUMP: {} {}", t.getName(), t.getState());
-                for (StackTraceElement el : st) {
-                    logger.error("  at {}", el);
-                }
-            });
             throw e;
         }
 
