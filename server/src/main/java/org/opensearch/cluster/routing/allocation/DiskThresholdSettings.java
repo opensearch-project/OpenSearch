@@ -1,10 +1,10 @@
-   /*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
+/*
+* SPDX-License-Identifier: Apache-2.0
+*
+* The OpenSearch Contributors require contributions made to
+* this file be licensed under the Apache-2.0 license or a
+* compatible open source license.
+*/
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -96,20 +96,20 @@ public class DiskThresholdSettings {
         Setting.Property.NodeScope
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_FILE_DESCRIPTOR_SETTING = new Setting<>(
-            "cluster.routing.allocation.file.descriptor.high",
-            "85%",
-            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file.descriptor.high"),
-            new HighFileDescriptorValidator(),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
+        "cluster.routing.allocation.file_descriptor_high",
+        "85%",
+        (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file_descriptor_high"),
+        new HighFileDescriptorValidator(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_FILE_DESCRIPTOR_SETTING = new Setting<>(
-            "cluster.routing.allocation.file.descriptor.low",
-            "75%",
-            (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file.descriptor.low"),
-            new LowFileDescriptorValidator(),
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
+        "cluster.routing.allocation.file_descriptor_low",
+        "75%",
+        (s) -> validWatermarkSetting(s, "cluster.routing.allocation.file_descriptor_low"),
+        new LowFileDescriptorValidator(),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.disk.include_relocations",
@@ -299,7 +299,9 @@ public class DiskThresholdSettings {
                 final double lowThreshold = thresholdPercentageFromWatermark(lowFileDescriptorRaw, false);
                 final double highThreshold = thresholdPercentageFromWatermark(value, false);
                 if (lowThreshold > highThreshold) {
-                    throw new IllegalArgumentException("low file descriptor [" + lowFileDescriptorRaw + "] more than high file descriptor [" + value + "]");
+                    throw new IllegalArgumentException(
+                        "low file descriptor [" + lowFileDescriptorRaw + "] more than high file descriptor [" + value + "]"
+                    );
                 }
             }
         }
@@ -331,7 +333,9 @@ public class DiskThresholdSettings {
                 final double lowThreshold = thresholdPercentageFromWatermark(value, false);
                 final double highThreshold = thresholdPercentageFromWatermark(highFileDescriptorRaw, false);
                 if (lowThreshold > highThreshold) {
-                    throw new IllegalArgumentException("low file descriptor [" + value + "] more than high file descriptor [" + highFileDescriptorRaw + "]");
+                    throw new IllegalArgumentException(
+                        "low file descriptor [" + value + "] more than high file descriptor [" + highFileDescriptorRaw + "]"
+                    );
                 }
             }
         }

@@ -333,7 +333,10 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
             .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        assertThat(e, hasToString(containsString("illegal value can't update [cluster.routing.allocation.file.descriptor.high] from [85%] to [80%]")));
+        assertThat(
+            e,
+            hasToString(containsString("illegal value can't update [cluster.routing.allocation.file_descriptor_high] from [85%] to [80%]"))
+        );
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();

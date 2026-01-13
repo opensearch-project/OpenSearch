@@ -225,6 +225,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     @Override
     public ClusterInfo getClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
+        logger.debug("Returning cluster info with {} process stats entries", nodeProcessStats.size());
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
@@ -303,6 +304,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         .filter(nodeStats -> nodeStats.getProcess() != null)
                         .collect(Collectors.toMap(nodeStats -> nodeStats.getNode().getId(), NodeStats::getProcess))
                 );
+                logger.debug("Process stats collected for {} nodes", nodeProcessStats.size());
+                if (logger.isTraceEnabled()) {
+                    nodeProcessStats.forEach(
+                        (nodeId, stats) -> logger.trace(
+                            "Node [{}] process stats: openFDs={}, maxFDs={}",
+                            nodeId,
+                            stats.getOpenFileDescriptors(),
+                            stats.getMaxFileDescriptors()
+                        )
+                    );
+                }
 
                 final Map<String, NodeResourceUsageStats> nodeResourceUsageStatsBuilder = new HashMap<>();
                 fillNodeResourceUsageStatsPerNode(logger, adjustNodesStats(nodesStatsResponse.getNodes()), nodeResourceUsageStatsBuilder);
@@ -327,6 +339,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     mostAvailableSpaceUsages = Map.of();
                     nodeResourceUsageStats = Map.of();
                     nodeProcessStats = Map.of();
+                    logger.debug("Clearing process stats due to failure");
                 }
             }
         });
