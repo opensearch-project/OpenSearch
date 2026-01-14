@@ -195,6 +195,10 @@ public class NativeLuceneIndexWriterFactory implements IndexWriterFactory {
             iwc.setMergePolicy(new OpenSearchMergePolicy(mergePolicy));
             iwc.setSimilarity(engineConfig.getSimilarity());
             iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
+            // We are setting the codec here rather than in the CodecService because each CriteriaBasedCodec requires
+            // associatedCriteria to be attached upon creation during IndexWriter initialisation. This criteria is
+            // determined on a per-document basis and is only available within the InternalEngine. Therefore, the codec
+            // for the child writer is created here where the necessary criteria information is accessible
             if (engineConfig.getIndexSettings().isContextAwareEnabled()) {
                 iwc.setCodec(new CriteriaBasedCodec(engineConfig.getCodec(), associatedCriteria));
             } else {
