@@ -27,6 +27,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -587,12 +588,14 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
 
+        // Mock ShardRouting as active (not initializing, not relocating)
+        ShardRouting mockRouting = mock(ShardRouting.class);
+        when(mockRouting.initializing()).thenReturn(false);
+        when(mockRouting.relocating()).thenReturn(false);
+        when(spyIndexShard.routingEntry()).thenReturn(mockRouting);
+
         // Create target with newer checkpoint
         segrepTarget = new SegmentReplicationTarget(spyIndexShard, newerCheckpoint, segrepSource, segRepListener);
-
-        // Mock shard as active (not initializing, not relocating)
-        when(spyIndexShard.routingEntry().initializing()).thenReturn(false);
-        when(spyIndexShard.routingEntry().relocating()).thenReturn(false);
 
         // Start replication - should fail due to stale checkpoint
         segrepTarget.startReplication(new ActionListener<Void>() {
@@ -654,12 +657,14 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             SegmentReplicationTargetService.SegmentReplicationListener.class
         );
 
+        // Mock ShardRouting as initializing (recovering)
+        ShardRouting mockRouting = mock(ShardRouting.class);
+        when(mockRouting.initializing()).thenReturn(true);
+        when(mockRouting.relocating()).thenReturn(false);
+        when(spyIndexShard.routingEntry()).thenReturn(mockRouting);
+
         // Create target with newer checkpoint
         segrepTarget = new SegmentReplicationTarget(spyIndexShard, newerCheckpoint, segrepSource, segRepListener);
-
-        // Mock shard as initializing (recovering)
-        when(spyIndexShard.routingEntry().initializing()).thenReturn(true);
-        when(spyIndexShard.routingEntry().relocating()).thenReturn(false);
 
         // Start replication - should succeed despite stale checkpoint
         segrepTarget.startReplication(new ActionListener<Void>() {
