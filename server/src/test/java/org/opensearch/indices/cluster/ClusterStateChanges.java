@@ -45,6 +45,7 @@ import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeClose
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -54,9 +55,12 @@ import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsA
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeActionUtils;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -398,22 +402,7 @@ public class ClusterStateChanges {
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
-        try {
-            CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-                request.cause(),
-                request.index(),
-                request.index()
-            ).ackTimeout(request.timeout())
-                .clusterManagerNodeTimeout(request.clusterManagerNodeTimeout())
-                .settings(request.settings())
-                .mappings(request.mappings())
-                .aliases(request.aliases())
-                .waitForActiveShards(request.waitForActiveShards());
-
-            return createIndexService.applyCreateIndexRequest(state, updateRequest, false);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        return execute(transportCreateIndexAction, request, state);
     }
 
     public ClusterState closeIndices(ClusterState state, CloseIndexRequest request) {
@@ -531,6 +520,35 @@ public class ClusterStateChanges {
             try {
                 TransportClusterManagerNodeActionUtils.runClusterManagerOperation(
                     masterNodeAction,
+                    request,
+                    clusterState,
+                    new ActionListener<Response>() {
+                        @Override
+                        public void onResponse(Response response) {
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e.getMessage(), e);
+                        }
+                    }
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
+        TransportIndexMetadataCoordinatorAction<Request, Response> imcNodeAction,
+        Request request,
+        ClusterState clusterState
+    ) {
+        return executeClusterStateUpdateTask(clusterState, () -> {
+            try {
+                TransportIndexMetadataCoordinatorActionUtils.runIndexMetadataOperation(
+                    imcNodeAction,
                     request,
                     clusterState,
                     new ActionListener<Response>() {

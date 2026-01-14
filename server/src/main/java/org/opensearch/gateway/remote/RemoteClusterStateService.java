@@ -470,6 +470,7 @@ public class RemoteClusterStateService implements Closeable {
         uploadedMetadataResults.uploadedIndexMetadata.forEach(
             uploadedIndexMetadata -> allUploadedIndexMetadata.put(uploadedIndexMetadata.getIndexName(), uploadedIndexMetadata)
         );
+        indicesToBeDeletedFromRemote.keySet().forEach(allUploadedIndexMetadata::remove);
 
         uploadedMetadataResults.uploadedIndexMetadata = new ArrayList<>(allUploadedIndexMetadata.values());
 

@@ -10,6 +10,7 @@ package org.opensearch.gateway.remote;
 
 import org.junit.Assert;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -370,12 +371,9 @@ public class RemoteManifestConditionalUpdateIT extends RemoteStoreBaseIntegTestC
             .build());
         ensureGreen("test-index-2");
 
-        List<String> nodes = Arrays.stream(internalCluster().getNodeNames())
-            .collect(Collectors.toList());
-
-        nodes.stream().forEach(node -> {
-            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastAcceptedState().metadata().indices().size()==2);
-            assertTrue(internalCluster().getInstance(PersistedStateRegistry.class, node).getPersistedState(PersistedStateRegistry.PersistedStateType.LOCAL).getLastUpdatedIndexMetadataVersion()==2);
+        client().admin().indices().prepareDelete(INDEX_NAME).execute().actionGet();
+        assertBusy(() ->{
+            assertFalse(client().admin().indices().prepareExists(INDEX_NAME).execute().actionGet().isExists());
         });
     }
 

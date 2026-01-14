@@ -56,38 +56,57 @@ public class IndexRoutingNodeApplier implements ClusterStateApplier {
 
         ClusterState newState = event.state();
 
-        // Find indices that exist in metadata but not in routing table
+        // Find indices that exist in metadata but not in routing table (for creation)
         Set<String> indicesWithoutRouting = newState.metadata().indices().keySet().stream()
             .filter(indexName -> !newState.routingTable().hasIndex(indexName))
             .collect(Collectors.toSet());
 
-        if (indicesWithoutRouting.isEmpty()) {
+        // Find indices that exist in routing table but not in metadata (for deletion)
+        Set<String> routingWithoutMetadata = newState.routingTable().indicesRouting().keySet().stream()
+            .filter(indexName -> !newState.metadata().hasIndex(indexName))
+            .collect(Collectors.toSet());
+
+        if (indicesWithoutRouting.isEmpty() && routingWithoutMetadata.isEmpty()) {
             return;
         }
 
         if (!newState.nodes().isLocalNodeElectedClusterManager()) {
-            logger.info("Skipping index routing node creation as local node is not cluster manager");
+            logger.info("Skipping index routing synchronization as local node is not cluster manager");
             return;
         }
 
-        logger.info("Found {} indices without routing nodes: {}", indicesWithoutRouting.size(), indicesWithoutRouting);
+        if (!indicesWithoutRouting.isEmpty()) {
+            logger.info("Found {} indices without routing nodes: {}", indicesWithoutRouting.size(), indicesWithoutRouting);
+        }
+        if (!routingWithoutMetadata.isEmpty()) {
+            logger.info("Found {} routing nodes without metadata: {}", routingWithoutMetadata.size(), routingWithoutMetadata);
+        }
 
-        // Submit task to create routing nodes for these indices
+        // Submit task to synchronize routing table with metadata
         clusterService.submitStateUpdateTask(
-            "create-routing-nodes-for-imc-indices",
+            "sync-routing-table-with-metadata",
             new ClusterStateUpdateTask(Priority.HIGH) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                     boolean hasChanges = false;
 
+                    // Add routing for indices that exist in metadata but not in routing table
                     for (String indexName : indicesWithoutRouting) {
-                        // Double-check the index still exists and doesn't have routing
                         if (currentState.metadata().hasIndex(indexName) && !currentState.routingTable().hasIndex(indexName)) {
                             IndexMetadata indexMetadata = currentState.metadata().index(indexName);
                             routingTableBuilder.addAsNew(indexMetadata);
                             hasChanges = true;
                             logger.info("Added routing table for index: {}", indexName);
+                        }
+                    }
+
+                    // Remove routing for indices that exist in routing table but not in metadata
+                    for (String indexName : routingWithoutMetadata) {
+                        if (!currentState.metadata().hasIndex(indexName) && currentState.routingTable().hasIndex(indexName)) {
+                            routingTableBuilder.remove(indexName);
+                            hasChanges = true;
+                            logger.info("Removed routing table for deleted index: {}", indexName);
                         }
                     }
 
@@ -99,13 +118,14 @@ public class IndexRoutingNodeApplier implements ClusterStateApplier {
                         .routingTable(routingTableBuilder.build())
                         .build();
 
-                    // Apply allocation to create actual shard assignments
-                    return allocationService.reroute(updatedState, "create routing nodes for IMC indices");
+                    // Apply allocation to update shard assignments
+                    return allocationService.reroute(updatedState, "sync routing table with metadata");
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("Failed to create routing nodes for IMC indices: {}", indicesWithoutRouting, e);
+                    logger.error("Failed to sync routing table with metadata. Indices without routing: {}, Routing without metadata: {}", 
+                        indicesWithoutRouting, routingWithoutMetadata, e);
                 }
             }
         );

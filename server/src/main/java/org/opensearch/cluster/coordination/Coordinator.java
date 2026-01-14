@@ -494,7 +494,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     IndexMetadataPublishResponse handleIndexMetadataPublishRequest(Map<String, IndexMetadata> latestIndices, int indexMetadataVersion) {
         synchronized (mutex) {
             ClusterState currentState = getLastAcceptedState();
-            Metadata updatedIndexMetadata = Metadata.builder(currentState.metadata()).indices(latestIndices).build();
+            Metadata updatedIndexMetadata = Metadata.builder(currentState.metadata()).removeAllIndices().indices(latestIndices).build();
             ClusterState updateState = ClusterState.builder(currentState).metadata(updatedIndexMetadata).build();
 
             logger.info("Built new IndexMetadata Cluster State. Number of Indices - " + updateState.metadata().indices().size());

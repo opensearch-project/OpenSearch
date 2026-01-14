@@ -36,10 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.opensearch.cluster.AckedClusterStateTaskListener;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateTaskConfig;
-import org.opensearch.cluster.ClusterStateTaskExecutor;
+import org.opensearch.cluster.*;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
@@ -366,9 +363,9 @@ public class MetadataMappingService {
         clusterService.submitStateUpdateTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             request,
-            ClusterStateTaskConfig.build(Priority.HIGH, request.clusterManagerNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.HIGH, request.clusterManagerNodeTimeout(), true),
             putMappingExecutor,
-            new AckedClusterStateTaskListener() {
+            new RemoteClusterStateUpdateTaskListener() {
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -376,12 +373,7 @@ public class MetadataMappingService {
                 }
 
                 @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    return true;
-                }
-
-                @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onRemoteAcked(Exception e) {
                     listener.onResponse(new ClusterStateUpdateResponse(e == null));
                 }
 

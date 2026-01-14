@@ -346,15 +346,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
     }
 
-    /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, ClusterStateTaskConfig,
-     * ClusterStateTaskConfig, ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
-     *
-     * @param source     the source of the cluster state update task
-     * @param updateTask the full context for the cluster state update
-     *                   task
-     *
-     */
     public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener> void submitStateUpdateTask(
         String source,
         T updateTask
@@ -381,33 +372,6 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T extends ClusterStateTaskConfig> void submitStateUpdateTask(
-        String source,
-        T task,
-        ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor,
-        ClusterStateTaskListener listener
-    ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, Boolean.TRUE.equals(task.indexMetadataUpdate()));
-    }
-
-    /**
-     * Submits a cluster state update task; submitted updates will be
-     * batched across the same instance of executor. The exact batching
-     * semantics depend on the underlying implementation but a rough
-     * guideline is that if the update task is submitted while there
-     * are pending update tasks for the same executor, these update
-     * tasks will all be executed on the executor in a single batch
-     *
-     * @param source   the source of the cluster state update task
-     * @param task     the state needed for the cluster state update task
-     * @param config   the cluster state update task configuration
-     * @param executor the cluster state update task executor; tasks
-     *                 that share the same executor will be executed
-     *                 batches on this executor
-     * @param <T>      the type of the cluster state update task state
-     *
-     */
     public <T> void submitStateUpdateTask(
         String source,
         T task,
@@ -415,7 +379,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterStateTaskExecutor<T> executor,
         ClusterStateTaskListener listener
     ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, false);
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, Boolean.TRUE.equals(config.indexMetadataUpdate()));
     }
 
     /**
