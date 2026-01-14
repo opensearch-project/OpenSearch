@@ -82,7 +82,7 @@ public class RemoteStoreCustomMetadataResolver {
         } catch (RepositoryMissingException ex) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
-        return Version.V_3_4_0.compareTo(minNodeVersionSupplier.get()) <= 0
+        return Version.V_3_3_0.compareTo(minNodeVersionSupplier.get()) <= 0
             && remoteStoreSettings.isClusterServerSideEncryptionEnabled()
             && segmentRepository.isSeverSideEncryptionEnabled()
             && translogRepository.isSeverSideEncryptionEnabled();
