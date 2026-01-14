@@ -84,6 +84,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -690,7 +691,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
-        return compositeMappedFieldTypes;
+        return compositeMappedFieldTypes.stream()
+            .filter(compositeMappedFieldType -> compositeMappedFieldType instanceof CompositeDataCubeFieldType)
+            .collect(Collectors.toSet());
     }
 
     private Set<CompositeMappedFieldType> getCompositeFieldTypesFromMapper() {
