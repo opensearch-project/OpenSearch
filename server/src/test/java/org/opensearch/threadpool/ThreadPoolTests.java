@@ -587,7 +587,10 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testMaxVirtualThreadsMultiplierWithDefaultSettings() {
-        Settings settings = Settings.builder().put("node.name", "testnode").build();
+        Settings settings = Settings.builder()
+            .put("node.name", "testnode")
+            .put("opensearch.experimental.feature.search_virtual_threads.enabled", true)
+            .build();
         ThreadPool threadPool = new ThreadPool(settings);
         int defaultMultiplier = ThreadPool.MAX_VIRTUAL_THREADS_MULTIPLIER.getDefault(settings);
         int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
@@ -607,6 +610,7 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         int customMultiplier = 50;
         Settings settings = Settings.builder()
             .put("node.name", "testnode")
+            .put("opensearch.experimental.feature.search_virtual_threads.enabled", true)
             .put("thread_pool.search_threadpools.max_virtual_threads_multiplier", customMultiplier)
             .build();
         ThreadPool threadPool = new ThreadPool(settings);
@@ -643,6 +647,56 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
         ThreadPool.Info indexSearcherInfo = threadPool.info(ThreadPool.Names.INDEX_SEARCHER);
         assertEquals(searcherSize, indexSearcherInfo.getMax());
+
+        terminate(threadPool);
+    }
+
+    public void testSearchVirtualThreadsFeatureFlag() {
+        // Test with feature flag disabled (default)
+        Settings settingsDisabled = Settings.builder().put("node.name", "testnode").build();
+        ThreadPool threadPoolDisabled = new ThreadPool(settingsDisabled);
+
+        ThreadPool.Info searchInfo = threadPoolDisabled.info(ThreadPool.Names.SEARCH);
+        ThreadPool.Info indexSearcherInfo = threadPoolDisabled.info(ThreadPool.Names.INDEX_SEARCHER);
+
+        assertEquals(ThreadPool.ThreadPoolType.RESIZABLE, searchInfo.getThreadPoolType());
+        assertEquals(ThreadPool.ThreadPoolType.RESIZABLE, indexSearcherInfo.getThreadPoolType());
+
+        terminate(threadPoolDisabled);
+
+        // Test with feature flag enabled
+        Settings settingsEnabled = Settings.builder()
+            .put("node.name", "testnode")
+            .put("opensearch.experimental.feature.search_virtual_threads.enabled", true)
+            .build();
+        ThreadPool threadPoolEnabled = new ThreadPool(settingsEnabled);
+
+        searchInfo = threadPoolEnabled.info(ThreadPool.Names.SEARCH);
+        indexSearcherInfo = threadPoolEnabled.info(ThreadPool.Names.INDEX_SEARCHER);
+
+        assertEquals(ThreadPool.ThreadPoolType.VIRTUAL, searchInfo.getThreadPoolType());
+        assertEquals(ThreadPool.ThreadPoolType.VIRTUAL, indexSearcherInfo.getThreadPoolType());
+
+        terminate(threadPoolEnabled);
+    }
+
+    public void testMaxVirtualThreadsMultiplierIgnoredWhenFeatureFlagDisabled() {
+        int customMultiplier = 50;
+        Settings settings = Settings.builder()
+            .put("node.name", "testnode")
+            .put("thread_pool.search_threadpools.max_virtual_threads_multiplier", customMultiplier)
+            .build();
+        ThreadPool threadPool = new ThreadPool(settings);
+        int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+
+        // When virtual threadpools are disabled, multiplier should be ignored
+        ThreadPool.Info searchInfo = threadPool.info(ThreadPool.Names.SEARCH);
+        int expectedSearchSize = ThreadPool.searchThreadPoolSize(allocatedProcessors);
+        assertEquals(expectedSearchSize, searchInfo.getMax());
+
+        ThreadPool.Info indexSearcherInfo = threadPool.info(ThreadPool.Names.INDEX_SEARCHER);
+        int expectedIndexSearcherSize = ThreadPool.twiceAllocatedProcessors(allocatedProcessors);
+        assertEquals(expectedIndexSearcherSize, indexSearcherInfo.getMax());
 
         terminate(threadPool);
     }

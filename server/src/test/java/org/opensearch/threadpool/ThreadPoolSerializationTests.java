@@ -42,7 +42,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -158,7 +157,8 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
             /* The SerDe patch converts RESIZABLE threadpool type value to FIXED. Implementing
              * the same conversion in test to maintain parity.
              */
-            assertThat(newInfo.getThreadPoolType(), is(threadPoolType)); // TODO: FIXED incorrectly giving DIRECT, not sure why my change would cause this?
+            assertThat(newInfo.getThreadPoolType(), is(threadPoolType)); // TODO: FIXED incorrectly giving DIRECT, not sure why my change
+                                                                         // would cause this?
         }
     }
 

@@ -43,6 +43,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -174,9 +175,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
-    public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES;
+    public static Map<String, ThreadPoolType> THREAD_POOL_TYPES;
 
     static {
+        // Initialize with default values (virtual threads disabled)
+        THREAD_POOL_TYPES = buildThreadPoolTypes(Settings.EMPTY);
+    }
+
+    private static Map<String, ThreadPoolType> buildThreadPoolTypes(Settings settings) {
         HashMap<String, ThreadPoolType> map = new HashMap<>();
         map.put(Names.SAME, ThreadPoolType.DIRECT);
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
@@ -184,7 +190,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
-        map.put(Names.SEARCH, ThreadPoolType.VIRTUAL); // TODO: If we want virtual threads to be behind some setting, this map may be an issue?
+
+        boolean searchVirtualThreadsEnabled = FeatureFlags.SEARCH_VIRTUAL_THREADS_SETTING.get(settings);
+        map.put(Names.SEARCH, searchVirtualThreadsEnabled ? ThreadPoolType.VIRTUAL : ThreadPoolType.RESIZABLE);
+        map.put(Names.INDEX_SEARCHER, searchVirtualThreadsEnabled ? ThreadPoolType.VIRTUAL : ThreadPoolType.RESIZABLE);
+
         map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
@@ -204,9 +214,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
-        map.put(Names.INDEX_SEARCHER, ThreadPoolType.VIRTUAL);
         map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
-        THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
+        return Collections.unmodifiableMap(map);
     }
 
     private final Map<String, ExecutorHolder> executors;
@@ -264,6 +273,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
+        // Initialize THREAD_POOL_TYPES based on feature flags
+        THREAD_POOL_TYPES = buildThreadPoolTypes(settings);
+
+        final boolean searchVirtualThreadsEnabled = FeatureFlags.SEARCH_VIRTUAL_THREADS_SETTING.get(settings);
+
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         final int halfProc = halfAllocatedProcessors(allocatedProcessors);
@@ -275,10 +289,46 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
-        builders.put(
-            Names.SEARCH,
-            new VirtualThreadExecutorBuilder(settings, Names.SEARCH, MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
-        );
+
+        if (searchVirtualThreadsEnabled) {
+            // TODO: We may be interested in extending the cat threadpools API to expose max size, queue size, and threadpool type. This can
+            // go in a future PR.
+            builders.put(
+                Names.SEARCH,
+                new VirtualThreadExecutorBuilder(
+                    settings,
+                    Names.SEARCH,
+                    MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * searchThreadPoolSize(allocatedProcessors),
+                    1000,
+                    runnableTaskListener
+                )
+            );
+            builders.put(
+                Names.INDEX_SEARCHER,
+                new VirtualThreadExecutorBuilder(
+                    settings,
+                    Names.INDEX_SEARCHER,
+                    MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * twiceAllocatedProcessors(allocatedProcessors),
+                    1000,
+                    runnableTaskListener
+                )
+            );
+        } else {
+            builders.put(
+                Names.SEARCH,
+                new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
+            );
+            builders.put(
+                Names.INDEX_SEARCHER,
+                new ResizableExecutorBuilder(
+                    settings,
+                    Names.INDEX_SEARCHER,
+                    twiceAllocatedProcessors(allocatedProcessors),
+                    1000,
+                    runnableTaskListener
+                )
+            );
+        }
         // TODO: configure the appropriate size and explore use of virtual threads
         builders.put(
             Names.STREAM_SEARCH,
@@ -339,16 +389,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(
             Names.REMOTE_STATE_READ,
             new FixedExecutorBuilder(settings, Names.REMOTE_STATE_READ, boundedBy(4 * allocatedProcessors, 4, 32), 120000)
-        );
-        builders.put(
-            Names.INDEX_SEARCHER,
-            new VirtualThreadExecutorBuilder(
-                settings,
-                Names.INDEX_SEARCHER,
-                MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * twiceAllocatedProcessors(allocatedProcessors),
-                1000,
-                runnableTaskListener
-            )
         );
         builders.put(
             Names.REMOTE_STATE_CHECKSUM,
@@ -1017,8 +1057,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             } else if (type == ThreadPoolType.VIRTUAL && out.getVersion().before(Version.V_3_5_0)) {
                 // VIRTUAL thread pool type added in 3.5. Convert to RESIZABLE for earlier versions.
                 out.writeString(ThreadPoolType.RESIZABLE.getType());
-            }
-            else {
+            } else {
                 out.writeString(type.getType());
             }
             out.writeInt(min);

@@ -20,9 +20,7 @@ public class VirtualThreadExecutorBuilderTests extends OpenSearchTestCase {
 
     public void testVirtualThreadFactory() {
         Settings settings = Settings.builder().put("node.name", "test").build();
-        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(
-            settings, "test_pool", 4, 100, new AtomicReference<>()
-        );
+        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(settings, "test_pool", 4, 100, new AtomicReference<>());
 
         AbstractResizableExecutorBuilder.ResizableExecutorSettings executorSettings =
             new AbstractResizableExecutorBuilder.ResizableExecutorSettings("test", 4, 100);
@@ -34,18 +32,14 @@ public class VirtualThreadExecutorBuilderTests extends OpenSearchTestCase {
 
     public void testThreadPoolType() {
         Settings settings = Settings.builder().put("node.name", "test").build();
-        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(
-            settings, "test_pool", 4, 100, new AtomicReference<>()
-        );
+        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(settings, "test_pool", 4, 100, new AtomicReference<>());
 
         assertEquals(ThreadPool.ThreadPoolType.VIRTUAL, builder.getThreadPoolType());
     }
 
     public void testFormatInfo() {
         Settings settings = Settings.builder().put("node.name", "test").build();
-        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(
-            settings, "test_pool", 4, 100, new AtomicReference<>()
-        );
+        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(settings, "test_pool", 4, 100, new AtomicReference<>());
 
         ThreadPool.Info info = new ThreadPool.Info("test_pool", ThreadPool.ThreadPoolType.VIRTUAL, 4, 4, null, new SizeValue(100));
         String formatted = builder.formatInfo(info);
@@ -62,9 +56,7 @@ public class VirtualThreadExecutorBuilderTests extends OpenSearchTestCase {
             .put("thread_pool.test_pool.size", 6)
             .put("thread_pool.test_pool.queue_size", 150)
             .build();
-        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(
-            nodeSettings, "test_pool", 4, 100, new AtomicReference<>()
-        );
+        VirtualThreadExecutorBuilder builder = new VirtualThreadExecutorBuilder(nodeSettings, "test_pool", 4, 100, new AtomicReference<>());
 
         AbstractResizableExecutorBuilder.ResizableExecutorSettings settings = builder.getSettings(nodeSettings);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
