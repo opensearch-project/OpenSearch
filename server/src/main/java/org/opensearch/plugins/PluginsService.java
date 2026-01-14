@@ -410,7 +410,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Set<Bundle> bundles = getPluginBundles(pluginsDir);
         for (Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                if (extendedPlugin.equals(pluginName)) {
+                if (!bundle.plugin.isExtendedPluginOptional(extendedPlugin) && extendedPlugin.equals(pluginName)) {
                     usedBy.add(bundle.plugin.getName());
                 }
             }
