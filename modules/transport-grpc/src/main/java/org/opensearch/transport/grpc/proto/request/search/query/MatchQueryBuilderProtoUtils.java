@@ -13,11 +13,9 @@ import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.search.MatchQuery;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.protobufs.ZeroTermsQuery;
 import org.opensearch.transport.grpc.proto.request.search.OperatorProtoUtils;
 import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
-import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
  * Utility class for converting MatchQuery Protocol Buffers to OpenSearch objects.
@@ -101,10 +99,7 @@ class MatchQueryBuilderProtoUtils {
         }
 
         if (matchQueryProto.hasFuzzyRewrite()) {
-            MultiTermQueryRewrite rewriteEnum = matchQueryProto.getFuzzyRewrite();
-            if (rewriteEnum != MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_UNSPECIFIED) {
-                fuzzyRewrite = ProtobufEnumUtils.convertToString(rewriteEnum);
-            }
+            fuzzyRewrite = matchQueryProto.getFuzzyRewrite();
         }
 
         if (matchQueryProto.hasFuzzyTranspositions()) {

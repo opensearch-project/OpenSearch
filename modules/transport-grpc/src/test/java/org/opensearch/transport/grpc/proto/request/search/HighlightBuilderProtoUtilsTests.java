@@ -446,7 +446,7 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertFalse(field.requireFieldMatch());
     }
 
-    public void testFromProto_WithFieldTagsSchema() {
+    public void testFromProto_WithFieldTagsSchemaStyled() {
         HighlightField fieldProto = HighlightField.newBuilder().setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_STYLED).build();
 
         Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
@@ -459,6 +459,37 @@ public class HighlightBuilderProtoUtilsTests extends OpenSearchTestCase {
         // The tags schema should have been applied - verify the field was created
         HighlightBuilder.Field field = fields.get(0);
         assertEquals("title", field.name());
+        // Verify styled tags were applied
+        String[] preTags = field.preTags();
+        assertNotNull(preTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_STYLED_PRE_TAG, preTags);
+        String[] postTags = field.postTags();
+        assertNotNull(postTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_STYLED_POST_TAGS, postTags);
+    }
+
+    public void testFromProto_WithFieldTagsSchemaDefault() {
+        HighlightField fieldProto = HighlightField.newBuilder()
+            .setTagsSchema(HighlighterTagsSchema.HIGHLIGHTER_TAGS_SCHEMA_DEFAULT)
+            .build();
+
+        Highlight highlightProto = Highlight.newBuilder().putFields("title", fieldProto).build();
+        HighlightBuilder result = HighlightBuilderProtoUtils.fromProto(highlightProto, registry);
+
+        assertNotNull(result);
+        List<HighlightBuilder.Field> fields = result.fields();
+        assertEquals(1, fields.size());
+
+        // The tags schema should have been applied - verify the field was created
+        HighlightBuilder.Field field = fields.get(0);
+        assertEquals("title", field.name());
+        // Verify default tags were applied
+        String[] preTags = field.preTags();
+        assertNotNull(preTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_PRE_TAGS, preTags);
+        String[] postTags = field.postTags();
+        assertNotNull(postTags);
+        assertArrayEquals(HighlightBuilder.DEFAULT_POST_TAGS, postTags);
     }
 
     public void testFromProto_WithFieldForceSource() {

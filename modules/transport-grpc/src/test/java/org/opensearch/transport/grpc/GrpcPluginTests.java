@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import io.grpc.BindableService;
 import io.grpc.Metadata;
@@ -629,7 +630,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(new ArrayList<>());
             when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
         } else {
-            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(order -> createMockInterceptor(order)).toList();
+            List<OrderedGrpcInterceptor> interceptors = orders.stream()
+                .map(order -> createMockInterceptor(order))
+                .collect(Collectors.toList());
 
             GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
             when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
@@ -647,11 +650,11 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
 
         List<GrpcInterceptorProvider> providers = providerOrders.stream().map(orders -> {
-            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(this::createMockInterceptor).toList();
+            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(this::createMockInterceptor).collect(Collectors.toList());
             GrpcInterceptorProvider provider = Mockito.mock(GrpcInterceptorProvider.class);
             when(provider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
             return provider;
-        }).toList();
+        }).collect(Collectors.toList());
 
         when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(providers);
         return mockLoader;
