@@ -256,8 +256,49 @@ final class DocumentParser {
      * Handles flat field mapping by adding the mapper directly to the root.
      */
     private static void handleDisableObjectsMapping(List<ObjectMapper> parentMappers, Mapper newMapper, DocumentMapper docMapper) {
-        ObjectMapper rootUpdate = parentMappers.get(0).mappingUpdate(newMapper);
-        parentMappers.set(0, parentMappers.get(0).merge(rootUpdate));
+        String[] fullNameParts = splitAndValidatePath(newMapper.name());
+    
+        // Find the disable_objects parent index
+        int disableObjectsIndex = 0;
+        if (!docMapper.root().disableObjects()) {
+            for (int k = 1; k < fullNameParts.length; k++) {
+                String parentPath = String.join(".", java.util.Arrays.copyOf(fullNameParts, k));
+                ObjectMapper parent = docMapper.objectMappers().get(parentPath);
+                if (parent != null && parent.disableObjects()) {
+                    disableObjectsIndex = k;
+                    break;
+                }
+            }
+        }
+        
+        // Traverse from root to the disable_objects parent
+        ObjectMapper current = docMapper.root();
+        List<ObjectMapper> pathMappers = new ArrayList<>();
+        pathMappers.add(current);
+        
+        for (int i = 0; i < disableObjectsIndex; i++) {
+            Mapper child = current.getMapper(fullNameParts[i]);
+            if (child instanceof ObjectMapper om) {
+                pathMappers.add(om);
+                current = om;
+            } else {
+                // Shouldn't happen if mapping exists
+                break;
+            }
+        }
+        
+        // Build the update from the disable_objects parent back up to root
+        // Start by adding the mapper to the disable_objects parent (last in pathMappers)
+        ObjectMapper disableObjectsParent = pathMappers.get(pathMappers.size() - 1);
+        ObjectMapper update = disableObjectsParent.mappingUpdate(newMapper);
+        
+        // Work backwards to root, wrapping each update
+        for (int i = pathMappers.size() - 2; i >= 0; i--) {
+            update = pathMappers.get(i).mappingUpdate(update);
+        }
+        
+        // Merge with existing root update
+        parentMappers.set(0, parentMappers.get(0).merge(update));
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
