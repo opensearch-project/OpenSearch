@@ -412,6 +412,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
                 if (!bundle.plugin.isExtendedPluginOptional(extendedPlugin) && extendedPlugin.equals(pluginName)) {
                     usedBy.add(bundle.plugin.getName());
+                } else if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
                 }
             }
         }
