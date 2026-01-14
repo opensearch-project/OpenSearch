@@ -43,6 +43,12 @@ import org.opensearch.common.unit.TimeValue;
  */
 @PublicApi(since = "1.0.0")
 public interface ClusterStateTaskConfig {
+
+    @Nullable
+    default Boolean indexMetadataUpdate() {
+        return false;
+    }
+
     /**
      * The timeout for this cluster state update task configuration. If
      * the cluster state update task isn't processed within this

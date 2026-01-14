@@ -1443,13 +1443,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     @Override
-    public void publishIndexMetadata(ClusterState clusterState, int indexMetadataVersion) {
-        coordinationState.get().uploadIndexMetadataState(clusterState, indexMetadataVersion);
-
+    public void publishIndexMetadata(ClusterChangedEvent clusterChangedEvent, Integer updatedIndexMetadataVersion, IndexMetadataUpdateAckListener ackListener) {
         IndexMetadataPublicationTransportHandler.IndexMetadataPublicationContext indexMetadataPublicationContext =
-            indexMetadataPublicationTransportHandler.newIndexMetadataPublicationContext(clusterState, persistedStateRegistry);
+            indexMetadataPublicationTransportHandler.newIndexMetadataPublicationContext(clusterChangedEvent, persistedStateRegistry);
 
-        final IndexMetadataPublication publication = new IndexStatePublication(clusterState, indexMetadataPublicationContext);
+        try {
+            coordinationState.get().uploadIndexMetadataState(clusterChangedEvent.state(), updatedIndexMetadataVersion);
+            ackListener.onRemoteAck(null);
+        } catch (Exception e) {
+            logger.error("Failed to upload index metadata state", e);
+            ackListener.onRemoteAck(e);
+            return;
+        }
+
+        final IndexMetadataPublication publication = new IndexStatePublication(clusterChangedEvent.state(), indexMetadataPublicationContext);
         publication.start();
 
     }

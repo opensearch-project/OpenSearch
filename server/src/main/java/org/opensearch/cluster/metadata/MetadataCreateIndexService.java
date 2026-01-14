@@ -47,6 +47,7 @@ import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
+import org.opensearch.cluster.AsyncClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
@@ -382,34 +383,12 @@ public class MetadataCreateIndexService {
                         }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     },
-                    listener::onFailure
+                    listener::onFailure,
+                    true
                 );
             } else {
                 listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
             }
-        }, listener::onFailure));
-    }
-
-    /**
-     * Creates an index in the cluster state and waits for the specified number of shard copies to
-     * become active (as specified in {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()})
-     * before sending the response on the listener. If the index creation was successfully applied on
-     * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
-     * true, otherwise it will return false and no waiting will occur for started shards
-     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will also be false).  If the index
-     * creation in the cluster state was successful and the requisite shard copies were started before
-     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will
-     * return true, otherwise if the operation timed out, then it will return false.
-     *
-     * @param request the index creation cluster state update request
-     * @param listener the listener on which to send the index creation cluster state update response
-     */
-    public void createIndexViaIMC(
-        final CreateIndexIndexMetadataCoordinatorRequest request,
-        final ActionListener<CreateIndexClusterStateUpdateResponse> listener
-    ) {
-        onlyCreateIndexViaIMC(request, ActionListener.wrap(response -> {
-            listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
         }, listener::onFailure));
     }
 
@@ -420,7 +399,7 @@ public class MetadataCreateIndexService {
         normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+            new AsyncClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -445,88 +424,14 @@ public class MetadataCreateIndexService {
                     }
                     super.onFailure(source, e);
                 }
-            }
-        );
-    }
 
-    private void onlyCreateIndexViaIMC(
-        final CreateIndexIndexMetadataCoordinatorRequest request,
-        final ActionListener<ClusterStateUpdateResponse> listener
-    ) {
-        normalizeRequestSetting(request);
-        logger.info("Submitting request to create index [" + request.index() + "]");
-
-        clusterService.submitIndexMetadataUpdateTask(
-            "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            request,
-            new org.opensearch.cluster.ClusterStateTaskConfig() {
+                // Is an index metadata update -> Hence setting it to True
                 @Override
-                public org.opensearch.common.Priority priority() {
-                    return Priority.URGENT;
-                }
-
-                @Override
-                public org.opensearch.common.unit.TimeValue timeout() {
-                    return request.ackTimeout();
-                }
-            },
-            new IndexMetadataCoordinatorExecutor(),
-            new IndexMetadataCoordinatorService.IndexMetadataUpdateListener<CreateIndexIndexMetadataCoordinatorRequest>() {
-                @Override
-                public void onResponse(ClusterState newState) {
-                    listener.onResponse(new ClusterStateUpdateResponse(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ResourceAlreadyExistsException) {
-                        logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-                    } else {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
-                    }
-                    listener.onFailure(e);
+                public Boolean indexMetadataUpdate() {
+                    return true;
                 }
             }
         );
-    }
-
-    /**
-     * Executor for index metadata coordination tasks
-     */
-    private class IndexMetadataCoordinatorExecutor implements org.opensearch.cluster.ClusterStateTaskExecutor<CreateIndexIndexMetadataCoordinatorRequest> {
-
-        @Override
-        public ClusterTasksResult<CreateIndexIndexMetadataCoordinatorRequest> execute(
-            ClusterState currentState,
-            java.util.List<CreateIndexIndexMetadataCoordinatorRequest> tasks
-        ) throws Exception {
-            ClusterTasksResult.Builder<CreateIndexIndexMetadataCoordinatorRequest> builder = ClusterTasksResult.builder();
-            ClusterState newState = currentState;
-
-            for (CreateIndexIndexMetadataCoordinatorRequest task : tasks) {
-                try {
-                    newState = applyCreateIndexRequest(newState, task, false);
-                    logger.info("Computed new state in IMC");
-                    builder.success(task);
-                } catch (Exception e) {
-                    builder.failure(task, e);
-                }
-            }
-
-            return builder.build(newState);
-        }
-
-        @Override
-        public org.opensearch.cluster.service.ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
-            return createIndexTaskKey;
-        }
-
-        @Override
-        public String describeTasks(java.util.List<CreateIndexIndexMetadataCoordinatorRequest> tasks) {
-            return tasks.stream()
-                .map(task -> "create-index [" + task.index() + "]")
-                .collect(java.util.stream.Collectors.joining(", "));
-        }
     }
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {

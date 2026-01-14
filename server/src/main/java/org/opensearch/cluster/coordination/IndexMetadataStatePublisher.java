@@ -54,6 +54,16 @@ public interface IndexMetadataStatePublisher {
      * The method is guaranteed to pass back a {@link FailedToCommitClusterStateException} to the publishListener if the change is not
      * committed and should be rejected. Any other exception signals that something bad happened but the change is committed.
      */
-    void publishIndexMetadata(ClusterState clusterState, int indexMetadataVersion);
+    void publishIndexMetadata(ClusterChangedEvent clusterChangedEvent, Integer updatedIndexMetadataVersion, IndexMetadataUpdateAckListener ackListener);
 
+    /**
+     * An acknowledgement listener.
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "1.0.0")
+    interface IndexMetadataUpdateAckListener {
+
+        void onRemoteAck( @Nullable Exception e);
+    }
 }

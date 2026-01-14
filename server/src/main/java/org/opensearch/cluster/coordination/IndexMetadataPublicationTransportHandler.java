@@ -167,10 +167,10 @@ public class IndexMetadataPublicationTransportHandler {
 
 
     public IndexMetadataPublicationContext newIndexMetadataPublicationContext(
-        ClusterState clusterState,
+        ClusterChangedEvent clusterChangedEvent,
         PersistedStateRegistry persistedStateRegistry
     ) {
-        return new IndexMetadataPublicationContext(clusterState, persistedStateRegistry);
+        return new IndexMetadataPublicationContext(clusterChangedEvent, persistedStateRegistry);
     }
 
     /**
@@ -182,9 +182,9 @@ public class IndexMetadataPublicationTransportHandler {
         protected final ClusterState newState;
         protected final PersistedStateRegistry persistedStateRegistry;
 
-        IndexMetadataPublicationContext(ClusterState clusterState, PersistedStateRegistry persistedStateRegistry) {
-            discoveryNodes = clusterState.nodes();
-            newState = clusterState;
+        IndexMetadataPublicationContext(ClusterChangedEvent clusterChangedEvent, PersistedStateRegistry persistedStateRegistry) {
+            discoveryNodes = clusterChangedEvent.state().nodes();
+            newState = clusterChangedEvent.state();
             this.persistedStateRegistry = persistedStateRegistry;
         }
 

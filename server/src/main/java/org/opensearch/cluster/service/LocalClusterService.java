@@ -86,15 +86,4 @@ public class LocalClusterService extends ClusterService {
     ) {
         throw new UnsupportedOperationException("Cannot submit cluster state update tasks when cluster manager service is not available");
     }
-
-    @Override
-    public <T> void submitIndexMetadataUpdateTask(
-        String source,
-        T task,
-        ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor,
-        IndexMetadataCoordinatorService.IndexMetadataUpdateListener<T> listener
-    ) {
-        throw new UnsupportedOperationException("Cannot submit index metadata update tasks when index metadata coordinator is not available");
-    }
 }

@@ -32,6 +32,8 @@
 
 package org.opensearch.cluster.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
@@ -68,6 +70,7 @@ import java.util.Map;
  */
 @PublicApi(since = "1.0.0")
 public class ClusterService extends AbstractLifecycleComponent {
+    private static final Logger log = LogManager.getLogger(ClusterService.class);
     private final ClusterManagerService clusterManagerService;
 
     private final ClusterApplierService clusterApplierService;
@@ -344,8 +347,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
+     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, ClusterStateTaskConfig,
+     * ClusterStateTaskConfig, ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
      *
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
@@ -378,6 +381,33 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @param <T>      the type of the cluster state update task state
      *
      */
+    public <T extends ClusterStateTaskConfig> void submitStateUpdateTask(
+        String source,
+        T task,
+        ClusterStateTaskConfig config,
+        ClusterStateTaskExecutor<T> executor,
+        ClusterStateTaskListener listener
+    ) {
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, Boolean.TRUE.equals(task.indexMetadataUpdate()));
+    }
+
+    /**
+     * Submits a cluster state update task; submitted updates will be
+     * batched across the same instance of executor. The exact batching
+     * semantics depend on the underlying implementation but a rough
+     * guideline is that if the update task is submitted while there
+     * are pending update tasks for the same executor, these update
+     * tasks will all be executed on the executor in a single batch
+     *
+     * @param source   the source of the cluster state update task
+     * @param task     the state needed for the cluster state update task
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param <T>      the type of the cluster state update task state
+     *
+     */
     public <T> void submitStateUpdateTask(
         String source,
         T task,
@@ -385,7 +415,35 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterStateTaskExecutor<T> executor,
         ClusterStateTaskListener listener
     ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor, false);
+    }
+
+    /**
+     * Submits a batch of cluster state update tasks; submitted updates are guaranteed to be processed together,
+     * potentially with more tasks of the same executor.
+     *
+     * @param source   the source of the cluster state update task
+     * @param tasks    a map of update tasks and their corresponding listeners
+     * @param config   the cluster state update task configuration
+     * @param executor the cluster state update task executor; tasks
+     *                 that share the same executor will be executed
+     *                 batches on this executor
+     * @param <T>      the type of the cluster state update task state
+     *
+     */
+    public <T> void submitStateUpdateTasks(
+        final String source,
+        final Map<T, ClusterStateTaskListener> tasks,
+        final ClusterStateTaskConfig config,
+        final ClusterStateTaskExecutor<T> executor,
+        boolean indexMetadataUpdate
+    ) {
+        if (indexMetadataUpdate) {
+            log.info("Submitting IndexMetadata Update");
+            indexMetadataCoordinatorService.submitIndexMetadataUpdateTasks(source, tasks, config, executor);
+        } else {
+            clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
+        }
     }
 
     /**
@@ -407,19 +465,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
-        clusterManagerService.submitStateUpdateTasks(source, tasks, config, executor);
-    }
-
-    /**
-     * Submits an index metadata update task without publishing to the cluster.
-     */
-    public <T> void submitIndexMetadataUpdateTask(
-        String source,
-        T task,
-        ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor,
-        IndexMetadataCoordinatorService.IndexMetadataUpdateListener<T> listener
-    ) {
-        indexMetadataCoordinatorService.submitIndexMetadataUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+        submitStateUpdateTasks(source, tasks, config, executor, false);
     }
 }

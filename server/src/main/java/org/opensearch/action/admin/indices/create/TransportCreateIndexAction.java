@@ -112,7 +112,7 @@ public class TransportCreateIndexAction extends TransportIndexMetadataCoordinato
                 .context(request.context())
                 .waitForActiveShards(request.waitForActiveShards());
 
-            createIndexService.createIndexViaIMC(
+            createIndexService.createIndex(
                 updateRequest,
                 ActionListener.map(
                     listener,
