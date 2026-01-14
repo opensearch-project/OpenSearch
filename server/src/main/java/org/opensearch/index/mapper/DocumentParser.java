@@ -253,11 +253,20 @@ final class DocumentParser {
     }
 
     /**
-     * Handles flat field mapping by adding the mapper directly to the root.
+     * Handles flat field mapping by adding the mapper directly to the disable_objects parent.
+     * Only FieldMappers are added; ObjectMappers are skipped as they conflict with disable_objects.
      */
     private static void handleDisableObjectsMapping(List<ObjectMapper> parentMappers, Mapper newMapper, DocumentMapper docMapper) {
+        // If the mapper is an ObjectMapper, we cannot add it to a disable_objects parent
+        // This can happen when intermediate object mappers are created during dynamic mapping
+        // In disable_objects mode, we only want FieldMappers with dotted names
+        if (newMapper instanceof ObjectMapper) {
+            // Skip ObjectMappers - they will be handled when their leaf FieldMappers are processed
+            return;
+        }
+
         String[] fullNameParts = splitAndValidatePath(newMapper.name());
-    
+
         // Find the disable_objects parent index
         int disableObjectsIndex = 0;
         if (!docMapper.root().disableObjects()) {
@@ -270,12 +279,12 @@ final class DocumentParser {
                 }
             }
         }
-        
+
         // Traverse from root to the disable_objects parent
         ObjectMapper current = docMapper.root();
         List<ObjectMapper> pathMappers = new ArrayList<>();
         pathMappers.add(current);
-        
+
         for (int i = 0; i < disableObjectsIndex; i++) {
             Mapper child = current.getMapper(fullNameParts[i]);
             if (child instanceof ObjectMapper om) {
@@ -286,17 +295,17 @@ final class DocumentParser {
                 break;
             }
         }
-        
+
         // Build the update from the disable_objects parent back up to root
-        // Start by adding the mapper to the disable_objects parent (last in pathMappers)
+        // Add the FieldMapper to the disable_objects parent (last in pathMappers)
         ObjectMapper disableObjectsParent = pathMappers.get(pathMappers.size() - 1);
         ObjectMapper update = disableObjectsParent.mappingUpdate(newMapper);
-        
+
         // Work backwards to root, wrapping each update
         for (int i = pathMappers.size() - 2; i >= 0; i--) {
             update = pathMappers.get(i).mappingUpdate(update);
         }
-        
+
         // Merge with existing root update
         parentMappers.set(0, parentMappers.get(0).merge(update));
     }
@@ -517,41 +526,6 @@ final class DocumentParser {
         }
     }
 
-    /**
-     * Processes different token types during object parsing
-     */
-    private static void processToken(
-        ParseContext context,
-        ObjectMapper mapper,
-        String fieldName,
-        String[] paths,
-        XContentParser.Token token
-    ) throws IOException {
-        switch (token) {
-            case START_OBJECT:
-                parseObject(context, mapper, fieldName, paths);
-                break;
-            case START_ARRAY:
-                parseArray(context, mapper, fieldName, paths);
-                break;
-            case VALUE_NULL:
-                parseNullValue(context, mapper, fieldName, paths);
-                break;
-            default:
-                if (token == null) {
-                    throw new MapperParsingException(
-                        "object mapping for ["
-                            + mapper.name()
-                            + "] tried to parse field ["
-                            + fieldName
-                            + "] as object, but got EOF, has a concrete value been provided to it?"
-                    );
-                } else if (token.isValue()) {
-                    parseValue(context, mapper, fieldName, token, paths);
-                }
-        }
-    }
-
     private static void innerParseObject(
         ParseContext context,
         ObjectMapper mapper,
@@ -573,7 +547,30 @@ final class DocumentParser {
                         parser.skipChildren();
                     }
                 } else {
-                    processToken(context, mapper, currentFieldName, paths, token);
+                    // Process different token types during object parsing
+                    switch (token) {
+                        case START_OBJECT:
+                            parseObject(context, mapper, currentFieldName, paths);
+                            break;
+                        case START_ARRAY:
+                            parseArray(context, mapper, currentFieldName, paths);
+                            break;
+                        case VALUE_NULL:
+                            parseNullValue(context, mapper, currentFieldName, paths);
+                            break;
+                        default:
+                            if (token == null) {
+                                throw new MapperParsingException(
+                                    "object mapping for ["
+                                        + mapper.name()
+                                        + "] tried to parse field ["
+                                        + currentFieldName
+                                        + "] as object, but got EOF, has a concrete value been provided to it?"
+                                );
+                            } else if (token.isValue()) {
+                                parseValue(context, mapper, currentFieldName, token, paths);
+                            }
+                    }
                 }
                 token = parser.nextToken();
             }
@@ -631,19 +628,10 @@ final class DocumentParser {
     }
 
     /**
-     * Functional interface for processing flattened fields that can throw IOException.
-     */
-    @FunctionalInterface
-    private interface FieldProcessor {
-        void accept(String fieldName, XContentParser.Token token) throws IOException;
-    }
-
-    /**
      * Handles flattening of object tokens by iterating through fields and building dotted field names.
      * This is shared logic used by multiple methods that need to flatten objects in disable_objects mode.
      */
-    private static void flattenObjectFields(ParseContext context, ObjectMapper mapper, String fieldName, FieldProcessor fieldProcessor)
-        throws IOException {
+    private static void flattenObjectFields(ParseContext context, ObjectMapper mapper, String fieldName) throws IOException {
         XContentParser xParser = context.parser();
         XContentParser.Token objToken = xParser.nextToken(); // Move to first field or END_OBJECT
 
@@ -654,7 +642,7 @@ final class DocumentParser {
                 String dottedFieldName = fieldName.isEmpty() ? nestedFieldName : fieldName + "." + nestedFieldName;
                 objToken = xParser.nextToken(); // Move to the value
 
-                fieldProcessor.accept(dottedFieldName, objToken);
+                processFlattenedTokenForDisableObjects(context, mapper, dottedFieldName, objToken);
             } else {
                 throw new MapperParsingException(
                     "Unexpected token [" + objToken + "] while flattening object for field [" + fieldName + "]"
@@ -678,12 +666,7 @@ final class DocumentParser {
         // Handle structured tokens (objects and arrays) with recursive flattening
         switch (token) {
             case START_OBJECT:
-                flattenObjectFields(
-                    context,
-                    mapper,
-                    fieldName,
-                    (dottedFieldName, objToken) -> processFlattenedTokenForDisableObjects(context, mapper, dottedFieldName, objToken)
-                );
+                flattenObjectFields(context, mapper, fieldName);
                 return;
             case START_ARRAY:
                 // Use parseNonDynamicArray which handles disable_objects mode properly
@@ -892,12 +875,7 @@ final class DocumentParser {
     ) throws IOException {
         switch (token) {
             case START_OBJECT:
-                flattenObjectFields(
-                    context,
-                    parentMapper,
-                    fieldName,
-                    (dottedFieldName, objToken) -> processFlattenedTokenForDisableObjects(context, parentMapper, dottedFieldName, objToken)
-                );
+                flattenObjectFields(context, parentMapper, fieldName);
                 break;
             case START_ARRAY:
                 // Use parseNonDynamicArray which now handles disable_objects mode
@@ -938,7 +916,7 @@ final class DocumentParser {
             // disable_objects mode: incorporate object flattening logic directly
             parseObjectForDisabledObjects(context, mapper, currentFieldName);
         } else {
-            // Nested mode: use existing nested object parsing logic
+            // Object mode: use existing nested object parsing logic
             Mapper objectMapper = getMapper(context, mapper, currentFieldName, paths);
             if (objectMapper != null) {
                 context.path().add(currentFieldName);
@@ -1002,9 +980,7 @@ final class DocumentParser {
      */
     private static void parseObjectForDisabledObjects(ParseContext context, ObjectMapper mapper, String currentFieldName)
         throws IOException {
-        flattenObjectFields(context, mapper, currentFieldName, (dottedFieldName, token) ->
-        // Use processFlattenedTokenForDisableObjects method for the value
-        processFlattenedTokenForDisableObjects(context, mapper, dottedFieldName, token));
+        flattenObjectFields(context, mapper, currentFieldName);
     }
 
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName, String[] paths)
@@ -1014,12 +990,12 @@ final class DocumentParser {
             context.incrementFieldArrayDepth();
             context.checkFieldArrayDepthLimit();
 
-            // Handle both disable_objects and nested modes internally based on parentMapper's disable_objects setting
+            // Handle both disable_objects and object modes internally based on parentMapper's disable_objects setting
             if (parentMapper.disableObjects()) {
                 // disable_objects mode: use parseNonDynamicArray which will delegate to our enhanced parsing methods
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
-                // Nested mode: use existing nested array parsing logic
+                // Object mode: use existing object array parsing logic
                 Mapper mapper = getMapper(context, parentMapper, lastFieldName, paths);
                 if (mapper != null) {
                     // There is a concrete mapper for this field already. Need to check if the mapper
