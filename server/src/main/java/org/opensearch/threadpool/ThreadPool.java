@@ -966,10 +966,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor
-                || executor == DIRECT_EXECUTOR
-                || executor instanceof ForkJoinPool
-                || info.type == ThreadPoolType.VIRTUAL;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool;
             this.executor = executor;
             this.info = info;
         }

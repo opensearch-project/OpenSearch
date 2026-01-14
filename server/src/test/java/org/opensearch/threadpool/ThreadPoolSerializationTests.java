@@ -157,8 +157,7 @@ public class ThreadPoolSerializationTests extends OpenSearchTestCase {
             /* The SerDe patch converts RESIZABLE threadpool type value to FIXED. Implementing
              * the same conversion in test to maintain parity.
              */
-            assertThat(newInfo.getThreadPoolType(), is(threadPoolType)); // TODO: FIXED incorrectly giving DIRECT, not sure why my change
-                                                                         // would cause this?
+            assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
         }
     }
 
