@@ -83,7 +83,7 @@ public abstract class SearchPhase implements CheckedRunnable<IOException> {
     /**
      * Returns an Optional of the SearchPhase name as {@link SearchPhaseName}. If there's not a matching SearchPhaseName,
      * returns an empty Optional.
-     * @return {@link Optional<SearchPhaseName>}
+     * @return {@link Optional} of {@link SearchPhaseName}
      */
     public Optional<SearchPhaseName> getSearchPhaseNameOptional() {
         try {
