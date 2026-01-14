@@ -407,15 +407,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     public static List<String> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
         List<String> usedBy = new ArrayList<>();
+        List<String> optionalDeps = new ArrayList<>();
         Set<Bundle> bundles = getPluginBundles(pluginsDir);
         for (Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
-                if (!bundle.plugin.isExtendedPluginOptional(extendedPlugin) && extendedPlugin.equals(pluginName)) {
-                    usedBy.add(bundle.plugin.getName());
-                } else if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
-                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                if (extendedPlugin.equals(pluginName)) {
+                    if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                        optionalDeps.add(bundle.plugin.getName());
+                    } else {
+                        usedBy.add(bundle.plugin.getName());
+                    }
                 }
             }
+        }
+        if (!optionalDeps.isEmpty()) {
+            logger.warn("Some features of {} may not function without the dependency [{}] being installed.", optionalDeps, pluginName);
         }
         return usedBy;
     }
