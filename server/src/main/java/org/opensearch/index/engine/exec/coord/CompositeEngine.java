@@ -16,6 +16,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
@@ -149,10 +150,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             throw new RuntimeException(e);
         }
     };
-    private static final BiConsumer<Supplier<ReleasableRef<CatalogSnapshot>>, CatalogSnapshotAwareRefreshListener>
-        POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener) -> {
+    private static final TriConsumer<Supplier<ReleasableRef<CatalogSnapshot>>, CatalogSnapshotAwareRefreshListener, Boolean>
+        POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER = (catalogSnapshot, catalogSnapshotAwareRefreshListener, didRefresh) -> {
         try {
-            catalogSnapshotAwareRefreshListener.afterRefresh(true, catalogSnapshot);
+            // Wrap in Supplier as required by CatalogSnapshotAwareRefreshListener interface
+            catalogSnapshotAwareRefreshListener.afterRefresh(didRefresh, catalogSnapshot);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -400,10 +402,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                     }
                 }
             }
-            catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                this::acquireSnapshot,
-                refreshListener
-            ));
+            invokeRefreshListeners(true);
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -785,31 +784,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
             refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
 
-            // Call checkpoint listener's beforeRefresh to capture pending checkpoint
-            lastRefreshedCheckpointListener.beforeRefresh();
-
             RefreshInput refreshInput = new RefreshInput();
             refreshInput.setExistingSegments(new ArrayList<>(catalogSnapshotReleasableRef.getRef().getSegments()));
             RefreshResult refreshResult = engine.refresh(refreshInput);
-            if (refreshResult == null) {
-                return;
+            if (refreshResult != null) {
+                catalogSnapshotManager.applyRefreshResult(refreshResult);
+                refreshed = true;
             }
-            catalogSnapshotManager.applyRefreshResult(refreshResult);
-            refreshed = true;
 
-            catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.accept(
-                this::acquireSnapshot,
-                refreshListener
-            ));
-
-            refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
+            invokeRefreshListeners(refreshed);
 
             // Call checkpoint listener's afterRefresh to update refreshed checkpoint
             if (refreshed) {
-                lastRefreshedCheckpointListener.afterRefresh(true);
+                triggerPossibleMerges(); // trigger merges
             }
-
-            triggerPossibleMerges(); // trigger merges
         } catch (Exception ex) {
             try {
                 failEngine("refresh failed source[" + source + "]", ex);
@@ -826,9 +814,20 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             + lastRefreshedCheckpoint();
     }
 
+    private void invokeRefreshListeners(boolean didRefresh) {
+        catalogSnapshotAwareRefreshListeners.forEach(refreshListener -> POST_REFRESH_CATALOG_SNAPSHOT_AWARE_LISTENER_CONSUMER.apply(
+            this::acquireSnapshot,
+            refreshListener,
+            didRefresh
+        ));
+
+        refreshListeners.forEach(POST_REFRESH_LISTENER_CONSUMER);
+    }
+
     public synchronized void applyMergeChanges(MergeResult mergeResult, OneMerge oneMerge) {
         try {
             catalogSnapshotManager.applyMergeResults(mergeResult, oneMerge);
+            invokeRefreshListeners(true);
         } catch (Exception ex) {
             try {
                 logger.error(
