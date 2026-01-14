@@ -15,8 +15,6 @@ import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
-import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
-import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
@@ -32,10 +30,10 @@ import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.opensearch.plugin.wlm.WorkloadManagementPlugin.PRINCIPAL_ATTRIBUTE_NAME;
 
@@ -94,34 +92,29 @@ public class AutoTaggingActionFilter implements ActionFilter {
             return;
         }
         List<AttributeExtractor<String>> attributeExtractors = new ArrayList<>();
-        final OptionallyResolvedIndices optionallyResolved = actionRequestMetadata.resolvedIndices();
-        final boolean hasResolvedIndices = optionallyResolved instanceof ResolvedIndices;
-
-        if (hasResolvedIndices) {
-            final ResolvedIndices resolved = (ResolvedIndices) optionallyResolved;
-            final Set<String> names = resolved.local().names();
-
-            attributeExtractors.add(new AttributeExtractor<>() {
-                @Override
-                public Attribute getAttribute() {
-                    return RuleAttribute.INDEX_PATTERN;
-                }
-
-                @Override
-                public Iterable<String> extract() {
-                    return names;
-                }
-
-                @Override
-                public LogicalOperator getLogicalOperator() {
-                    return LogicalOperator.AND;
-                }
-            });
-        } else if (isSearchRequest) {
+        if (isSearchRequest) {
             attributeExtractors.add(new IndicesExtractor((IndicesRequest) request));
         } else {
-            chain.proceed(task, action, request, listener);
-            return;
+            // Scroll: recover the original user-provided expressions from metadata
+            final String[] originalIndices = actionRequestMetadata.originalIndices();
+            if (originalIndices != null && originalIndices.length > 0) {
+                attributeExtractors.add(new AttributeExtractor<>() {
+                    @Override
+                    public Attribute getAttribute() {
+                        return RuleAttribute.INDEX_PATTERN;
+                    }
+
+                    @Override
+                    public Iterable<String> extract() {
+                        return Arrays.asList(originalIndices);
+                    }
+
+                    @Override
+                    public LogicalOperator getLogicalOperator() {
+                        return LogicalOperator.AND;
+                    }
+                });
+            }
         }
 
         if (featureType.getAllowedAttributesRegistry().containsKey(PRINCIPAL_ATTRIBUTE_NAME)) {

@@ -58,4 +58,13 @@ public class ActionRequestMetadata<Request extends ActionRequest, Response exten
         TransportIndicesResolvingAction<Request> indicesResolvingAction = (TransportIndicesResolvingAction<Request>) this.transportAction;
         return indicesResolvingAction.resolveIndices(request);
     }
+
+    public String[] originalIndices() {
+        if (!(transportAction instanceof TransportOriginalIndicesAction<?>)) {
+            return null;
+        }
+        @SuppressWarnings("unchecked")
+        TransportOriginalIndicesAction<Request> original = (TransportOriginalIndicesAction<Request>) this.transportAction;
+        return original.originalIndices(request);
+    }
 }

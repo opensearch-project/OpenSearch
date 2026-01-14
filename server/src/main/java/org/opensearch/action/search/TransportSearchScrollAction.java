@@ -34,9 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.action.support.TransportIndicesResolvingAction;
-import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
-import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.action.support.TransportOriginalIndicesAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -53,7 +51,7 @@ import org.opensearch.wlm.WorkloadGroupTask;
  */
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse>
     implements
-        TransportIndicesResolvingAction<SearchScrollRequest> {
+        TransportOriginalIndicesAction<SearchScrollRequest> {
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
@@ -121,24 +119,17 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     }
 
     @Override
-    public OptionallyResolvedIndices resolveIndices(SearchScrollRequest request) {
+    public String[] originalIndices(SearchScrollRequest request) {
+        final String scrollIdString = request.scrollId();
+        if (scrollIdString == null || scrollIdString.isEmpty()) {
+            return null;
+        }
         try {
-            final String scrollIdString = request.scrollId();
-            if (scrollIdString == null || scrollIdString.isEmpty()) {
-                return OptionallyResolvedIndices.unknown();
-            }
-
-            final ParsedScrollId parsed = request.parseScrollId();
-            if (parsed == null) {
-                return OptionallyResolvedIndices.unknown();
-            }
-            final String[] originalIndices = parsed.getOriginalIndices();
-            if (originalIndices == null || originalIndices.length == 0) {
-                return OptionallyResolvedIndices.unknown();
-            }
-            return ResolvedIndices.of(originalIndices);
-        } catch (Exception e) {
-            return OptionallyResolvedIndices.unknown();
+            ParsedScrollId parsed = request.parseScrollId();
+            final String[] originalIndices = (parsed == null) ? null : parsed.getOriginalIndices();
+            return (originalIndices == null || originalIndices.length == 0) ? null : originalIndices.clone();
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 }
