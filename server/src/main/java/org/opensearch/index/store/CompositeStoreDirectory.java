@@ -65,7 +65,6 @@ public class CompositeStoreDirectory extends Store.StoreDirectory {
         try {
             FormatStoreDirectory<?> metadataDirectory = createMetadataDirectory(shardPath);
             delegatesMap.put("metadata", metadataDirectory);
-            logger.debug("Created metadata directory pointing to: {}", shardPath.resolveIndex());
 
             pluginsService.filterPlugins(DataSourcePlugin.class).forEach(plugin -> {
                 try {

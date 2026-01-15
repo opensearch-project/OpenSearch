@@ -61,7 +61,6 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
 
     public CompositeEngineCatalogSnapshot(StreamInput in) throws IOException {
         super(in);
-        logger.info("[CATALOG_SNAPSHOT_DESERIALIZE] Starting deserialization, generation={}, version={}", generation, version);
 
         // Read userData map
         int userDataSize = in.readVInt();

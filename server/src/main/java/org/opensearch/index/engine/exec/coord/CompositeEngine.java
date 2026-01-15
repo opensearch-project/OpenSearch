@@ -253,17 +253,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             try {
                 final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
                 userData = segmentInfos.getUserData();
-                logger.info("[COMPOSITE ENGINE STARTUP] Read userData from Lucene commit: keys={}", userData.keySet());
-                logger.info("[COMPOSITE ENGINE STARTUP] CATALOG_SNAPSHOT_KEY present={}, LAST_COMPOSITE_WRITER_GEN_KEY present={}",
-                           userData.containsKey(CATALOG_SNAPSHOT_KEY), userData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY));
-                if (userData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
-                    logger.info("[COMPOSITE ENGINE STARTUP] LAST_COMPOSITE_WRITER_GEN_KEY value={}",
-                               userData.get(LAST_COMPOSITE_WRITER_GEN_KEY));
-                }
                 translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             } catch (java.io.FileNotFoundException e) {
                 // Local store is empty (remote store recovery scenario)
-                logger.debug("Local store is empty, reading translog UUID from translog header and creating initial commit");
                 final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
                 final Checkpoint checkpoint = Checkpoint.read(translogPath.resolve(Translog.CHECKPOINT_FILE_NAME));
                 final Path translogFile = translogPath.resolve(Translog.getFilename(checkpoint.getGeneration()));
@@ -1041,11 +1033,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                         final long engineLastAssignedGen = engine.getCurrentWriterGeneration() - 1;
                         final long snapshotLastWriterGen = catalogSnapshotToFlush.getLastWriterGeneration();
                         final long lastWriterGeneration = Math.max(engineLastAssignedGen, snapshotLastWriterGen);
-
-                        logger.info("[COMPOSITE ENGINE FLUSH] Computing lastWriterGeneration: engineCounter={}, " +
-                                   "engineLastAssignedGen={}, snapshotLastWriterGen={}, result={}",
-                                   engine.getCurrentWriterGeneration(), engineLastAssignedGen,
-                                   snapshotLastWriterGen, lastWriterGeneration);
 
                         final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
 

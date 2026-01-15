@@ -270,10 +270,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         Collectors.counting()
                     ));
 
-                logger.info("[SEGMENT_UPLOAD_DEBUG] Files to upload: totalFiles={}, formatBreakdown={}, files={}",
-                    localFilesPostRefresh.size(), formatCounts,
-                    localFilesPostRefresh.stream().map(FileMetadata::file).collect(Collectors.toList()));
-
                 Map<FileMetadata, Long> fileMetadataToSizeMap = updateLocalSizeMapAndTracker(localFilesPostRefresh);
 
                 CountDownLatch latch = new CountDownLatch(1);
@@ -489,12 +485,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCloned.setUserData(userData, false);
-
-        // Log for verification during debugging
-        logger.debug("Uploading metadata with userData: translog_uuid={}, history_uuid={}, all_keys={}",
-                   userData.get(Translog.TRANSLOG_UUID_KEY),
-                   userData.get(org.opensearch.index.engine.Engine.HISTORY_UUID_KEY),
-                   userData.keySet());
 
         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {

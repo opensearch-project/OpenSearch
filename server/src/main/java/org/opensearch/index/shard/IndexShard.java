@@ -5388,7 +5388,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = compositeEngine.acquireSnapshot()) {
                 final ReplicationCheckpoint checkpoint = computeReplicationCheckpoint(catalogSnapshotRef.getRef());
                 replicationTracker.setLatestReplicationCheckpoint(checkpoint);
-                logger.trace("Updated replication checkpoint from CatalogSnapshot: shard={}, checkpoint={}", shardId, checkpoint);
             } catch (Exception e) {
                 logger.error("Error computing replication checkpoint from catalog snapshot for shard [{}]", shardId, e);
             }
@@ -5953,7 +5952,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             long localChecksum = localDirectory.calculateChecksum(fileMetadata);
 
             if (checksum == localChecksum) {
-                logger.debug("Checksum match for file: {}, format: {}", fileMetadata.file(), fileMetadata.dataFormat());
                 return true;
             } else {
                 logger.warn("Checksum mismatch for file: {}, format: {}, expected: {}, local: {}, will override",
