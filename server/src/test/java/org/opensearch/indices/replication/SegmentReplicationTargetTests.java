@@ -553,9 +553,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         ReplicationCheckpoint newerCheckpoint = new ReplicationCheckpoint(
             repCheckpoint.getShardId(),
             repCheckpoint.getPrimaryTerm(),
-            200L, // higher segmentInfosVersion
             repCheckpoint.getSegmentsGen(),
-            repCheckpoint.getLength(),
+            200L, // higher segmentInfosVersion
             repCheckpoint.getCodec()
         );
 
@@ -622,9 +621,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         ReplicationCheckpoint newerCheckpoint = new ReplicationCheckpoint(
             repCheckpoint.getShardId(),
             repCheckpoint.getPrimaryTerm(),
-            200L, // higher segmentInfosVersion
             repCheckpoint.getSegmentsGen(),
-            repCheckpoint.getLength(),
+            200L, // higher segmentInfosVersion
             repCheckpoint.getCodec()
         );
 
