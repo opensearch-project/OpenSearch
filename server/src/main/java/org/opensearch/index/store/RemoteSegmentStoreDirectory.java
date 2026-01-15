@@ -617,7 +617,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
                         new RemoteSegmentMetadata(
                             RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments).entrySet().stream().collect(
                                 Collectors.toMap(
-                                    entry -> new FileMetadata(entry.getKey()),  // Keys are already serialized, don't add :::lucene again
+                                    entry -> new FileMetadata(entry.getKey() + FileMetadata.DELIMITER + "lucene"),
                                     Map.Entry::getValue
                                 )
                             ),
