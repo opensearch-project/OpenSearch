@@ -17,6 +17,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineException;
@@ -37,12 +38,12 @@ import java.util.function.LongSupplier;
 public class LuceneCommitEngine implements Committer {
 
     private final Logger logger;
-    private final IndexWriter indexWriter;
+    private IndexWriter indexWriter;
     private final CombinedDeletionPolicy combinedDeletionPolicy;
     private final Store store;
     private volatile SegmentInfos lastCommittedSegmentInfos;
 
-    public LuceneCommitEngine(Store store, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier)
+    public LuceneCommitEngine(Store store, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier, boolean primaryMode)
         throws IOException {
         this.logger = Loggers.getLogger(LuceneCommitEngine.class, store.shardId());
         this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy, null, globalCheckpointSupplier);
@@ -50,7 +51,9 @@ public class LuceneCommitEngine implements Committer {
         indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
         this.store = store;
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-        this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
+        if (primaryMode) {
+            this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
+        }
     }
 
     @Override
@@ -136,6 +139,6 @@ public class LuceneCommitEngine implements Committer {
 
     @Override
     public void close() throws IOException {
-        this.indexWriter.close();
+        IOUtils.close(indexWriter);
     }
 }

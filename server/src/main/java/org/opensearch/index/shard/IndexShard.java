@@ -136,6 +136,7 @@ import org.opensearch.index.engine.EngineSearcherSupplier;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.index.engine.NRTReplicationCompositeEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
@@ -3053,7 +3054,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             if (indexSettings.isOptimizedIndex()) {
-                CompositeEngine compositeEngine = new CompositeEngine(
+                CompositeEngine compositeEngine = config.isReadOnlyReplica()
+                    ? new NRTReplicationCompositeEngine(
+                    config,
+                    mapperService,
+                    pluginsService,
+                    indexSettings,
+                    path,
+                    LocalCheckpointTracker::new,
+                    TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                )
+                    : new CompositeEngine(
                     config,
                     mapperService,
                     pluginsService,
@@ -3062,6 +3073,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     LocalCheckpointTracker::new,
                     TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
                 );
+                // Don't set currentCompositeEngineReference for replicas
                 currentCompositeEngineReference.set(compositeEngine);
             }
             onNewEngine(newEngine);
@@ -4195,7 +4207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public StatsHolder getStatsHolder() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator(): currentEngineReference.get();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public IndexingThrottler getIndexingThrottler() {
@@ -5505,9 +5517,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if ((indexSettings.isRemoteTranslogStoreEnabled() || this.isRemoteSeeded()) && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
-
-            CompositeEngine oldCompositeEngine = currentCompositeEngineReference.getAndSet(null);
-            IOUtils.close(oldCompositeEngine);
         }
 
         // When the new engine is created, translogs are synced from remote store onto local. Since remote store is the source
@@ -5519,9 +5528,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : globalCheckpoint;
 
         // Only create CompositeEngine for optimized indices
+        CompositeEngine newCompositeEngine;
         if (indexSettings.isOptimizedIndex()) {
             // Create NEW CompositeEngine OUTSIDE synchronized block with fresh translog
-            final CompositeEngine newCompositeEngine = new CompositeEngine(
+            newCompositeEngine = new CompositeEngine(
                 newEngineConfig(replicationTracker),
                 mapperService,
                 pluginsService,
@@ -5530,8 +5540,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 LocalCheckpointTracker::new,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
             );
-
-            currentCompositeEngineReference.set(newCompositeEngine);
 
             final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
                 newCompositeEngine,
@@ -5547,6 +5555,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 .translogManager()
                 .recoverFromTranslog(translogRunner, newCompositeEngine.getProcessedLocalCheckpoint(), recoverUpto);
             newCompositeEngine.refresh("reset_engine");
+        } else {
+            newCompositeEngine = null;
         }
 
         // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
@@ -5572,7 +5582,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         synchronized (engineMutex) {
             verifyNotClosed();
-            IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()));
+            IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()), currentCompositeEngineReference.getAndSet(newCompositeEngine));
 
             // onNewEngine must be called inside synchronized(engineMutex) block for both optimized and non-optimized indices
 

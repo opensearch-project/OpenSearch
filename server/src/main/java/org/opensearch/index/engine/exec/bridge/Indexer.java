@@ -21,6 +21,7 @@ import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 
@@ -197,6 +198,18 @@ public interface Indexer extends LifecycleAware {
      * Creates segments for data in buffers, and make them available for search.
      */
     void refresh(String source) throws EngineException;
+
+    /**
+     * Finalizes replication by applying catalog snapshot changes.
+     * Default no-op implementation for engines that don't support replication.
+     *
+     * @param catalogSnapshot the catalog snapshot to apply
+     * @param shardPath the shard path
+     * @throws IOException if finalization fails
+     */
+    default void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
+        // No-op by default
+    }
 
     /**
      * Commits the data and state to disk, resulting in documents being persisted onto the underlying formats.

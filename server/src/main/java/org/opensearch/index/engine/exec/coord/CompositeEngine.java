@@ -49,7 +49,6 @@ import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.VersionValue;
-import org.opensearch.index.engine.*;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.FileStats;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -57,14 +56,12 @@ import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.WriteResult;
 import org.opensearch.index.engine.exec.bridge.CheckpointState;
 import org.opensearch.index.engine.exec.bridge.Indexer;
-import org.opensearch.index.engine.exec.bridge.Indexer.OpVsEngineDocStatus;
 import org.opensearch.index.engine.exec.bridge.IndexingThrottler;
 import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
-import org.opensearch.index.engine.exec.coord.CompositeEngine.ReleasableRef;
 import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
@@ -97,7 +94,6 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
-import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -105,7 +101,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -119,19 +114,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.function.Supplier;
 
 import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 import static org.opensearch.index.engine.Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.CATALOG_SNAPSHOT_KEY;
 import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOSITE_WRITER_GEN_KEY;
-import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.*;
 
 @ExperimentalApi
 public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
@@ -162,9 +154,9 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private static final Function<String, String> extractSegmentName = name -> name.substring(name.lastIndexOf('_'), name.lastIndexOf('.'));
 
     private final ShardId shardId;
-    private final CompositeIndexingExecutionEngine engine;
-    private final EngineConfig engineConfig;
-    private final Store store;
+    protected final CompositeIndexingExecutionEngine engine;
+    protected final EngineConfig engineConfig;
+    protected final Store store;
     private final Logger logger;
     private final Committer compositeEngineCommitter;
     private final TranslogManager translogManager;
@@ -212,7 +204,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
-    private final CatalogSnapshotManager catalogSnapshotManager;
+    protected final CatalogSnapshotManager catalogSnapshotManager;
     private ReleasableRef<CatalogSnapshot> lastCommitedCatalogSnapshotRef;
     private final EventListener eventListener;
 
@@ -298,7 +290,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.translogManager = translogManagerRef;
 
             // initialize committer and composite indexing execution engine
-            committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint);
+            committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint, !config().isReadOnlyReplica());
             this.compositeEngineCommitter = committerRef;
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
             Map<String, String> lastCommittedData = this.compositeEngineCommitter.getLastCommittedData();
@@ -840,17 +832,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         mergeScheduler.triggerMerges();
     }
 
-    public void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
-        catalogSnapshotManager.applyReplicationChanges(catalogSnapshot, shardPath);
-
-        if (catalogSnapshot != null) {
-            long maxGenerationInSnapshot = catalogSnapshot.getLastWriterGeneration();
-            engine.updateWriterGenerationIfNeeded(maxGenerationInSnapshot);
-        }
-
-        updateSearchEngine();
-    }
-
     // This should get wired into searcher acquireSnapshot for initializing reader context later
     // this now becomes equivalent of the reader
     // Each search side specific impl can decide on how to init specific reader instances using this pit snapshot provided by writers
@@ -1230,7 +1211,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return engineFailed;
     }
 
-    private boolean maybeFailEngine(String source, Exception e) {
+    protected boolean maybeFailEngine(String source, Exception e) {
         // Check for AlreadyClosedException -- ACE is a very special
         // exception that should only be thrown in a tragic event. we pass on the checks to failOnTragicEvent which will
         // throw and AssertionError if the tragic event condition is not met.
@@ -1309,7 +1290,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
      * called while the write lock is hold or in a disaster condition ie. if the engine
      * is failed.
      */
-    private void closeNoLock(String reason, CountDownLatch closedLatch) {
+    protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread()
                 || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";

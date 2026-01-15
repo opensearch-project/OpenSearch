@@ -82,7 +82,8 @@ public class CatalogSnapshotManager {
                 latestCatalogSnapshot.getVersion() + 1,
                 refreshResult.getRefreshedSegments(),
                 catalogSnapshotMap,
-                indexFileDeleter::get)
+                indexFileDeleter::get
+            )
         );
     }
 
