@@ -1004,20 +1004,11 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
         assertThat(ClusterFormationFailureHelper.formatListForLog(null, 10), is("[]"));
         assertThat(ClusterFormationFailureHelper.formatListForLog(emptyList(), 10), is("[]"));
 
-        assertThat(
-            ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 0),
-            is("[... omitted; size=4]")
-        );
+        assertThat(ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 0), is("[... omitted; size=4]"));
 
-        assertThat(
-            ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 2),
-            is("[a, b] ... (+2 more)")
-        );
+        assertThat(ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 2), is("[a, b] ... (+2 more)"));
 
-        assertThat(
-            ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 4),
-            is("[a, b, c, d]")
-        );
+        assertThat(ClusterFormationFailureHelper.formatListForLog(Arrays.asList("a", "b", "c", "d"), 4), is("[a, b, c, d]"));
     }
 
     public void testDescriptionWithLongHostsProviderAddressesListTruncates() {
