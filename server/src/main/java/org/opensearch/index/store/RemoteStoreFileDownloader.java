@@ -199,11 +199,20 @@ public final class RemoteStoreFileDownloader {
                 logger.trace("Downloading file {}", file);
                 try {
                     cancellableThreads.executeIO(() -> {
-                        destination.copyFrom(source, file, file, IOContext.DEFAULT);
-                        logger.trace("Downloaded file {} of size {}", file, destination.fileLength(file));
+                        String localFileName;
+                        if (isOptimizedIndex) {
+                            // Optimized indices use FileMetadata for proper routing
+                            localFileName = file;
+                        } else {
+                            // Non-optimized indices: extract plain filename, stripping format suffix
+                            FileMetadata fm = new FileMetadata(file);
+                            localFileName = fm.file();
+                        }
+                        destination.copyFrom(source, file, localFileName, IOContext.DEFAULT);
+                        logger.trace("Downloaded file {} as {} of size {}", file, localFileName, destination.fileLength(localFileName));
                         onFileCompletion.run();
                         if (secondDestination != null) {
-                            secondDestination.copyFrom(destination, file, file, IOContext.DEFAULT);
+                            secondDestination.copyFrom(destination, localFileName, localFileName, IOContext.DEFAULT);
                         }
                     });
                 } catch (Exception e) {
