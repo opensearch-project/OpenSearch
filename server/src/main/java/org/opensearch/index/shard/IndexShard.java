@@ -5915,10 +5915,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 fileExistsLocally = localDirectoryContains(
                     (CompositeStoreDirectory) ((StoreRecovery.StatsDirectoryWrapper) storeDirectory).getDelegate(),
                     fileMetadata, checksum);
-            } else {
-                // Standard Lucene indices use codec-based checksum validation
-                fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
-            }
+    } else {
+        FileMetadata fm = new FileMetadata(file);
+        fileExistsLocally = localDirectoryContainsFile(storeDirectory, fm.file(), checksum);
+    }
 
             if (overrideLocal || !fileExistsLocally) {
                 toDownloadSegments.add(file);
