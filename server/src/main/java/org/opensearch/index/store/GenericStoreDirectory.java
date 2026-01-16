@@ -28,6 +28,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.stream.StreamSupport;
+import java.util.zip.CRC32;
 
 /**
  * Generic FormatStoreDirectory implementation for non-Lucene formats.
@@ -115,15 +116,14 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
     @Override
     public long fileLength(String name) throws IOException {
-        Path filePath = directoryPath.resolve(name);
-        try {
-            return Files.size(filePath);
+        try (IndexInput input = openIndexInput(name, IOContext.READONCE)) {
+            return input.length();
         } catch (IOException e) {
             throw new MultiFormatStoreException(
                 "Failed to get file length: " + name,
                 dataFormat,
                 "fileLength",
-                filePath,
+                directoryPath.resolve(name),
                 e
             );
         }
@@ -204,33 +204,35 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
     @Override
     public long calculateChecksum(String fileName) throws IOException {
-        Path filePath = directoryPath.resolve(fileName);
-        try (InputStream inputStream = Files.newInputStream(filePath, StandardOpenOption.READ)) {
-            return calculateGenericChecksum(inputStream);
+        try (IndexInput indexInput = openIndexInput(fileName, IOContext.READONCE)) {
+            return calculateGenericChecksum(indexInput);
         } catch (IOException e) {
             throw new MultiFormatStoreException(
                 "Failed to calculate checksum for file: " + fileName,
                 dataFormat,
                 "calculateChecksum",
-                filePath,
+                directoryPath.resolve(fileName),
                 e
             );
         }
     }
 
     /**
-     * Calculates a generic CRC32 checksum for the given input stream
-     * @param inputStream the input stream to calculate checksum for
+     * Calculates a generic CRC32 checksum for the given index input
+     * @param indexInput the input stream to calculate checksum for
      * @return the checksum as a string representation
      * @throws IOException if reading from the stream fails
      */
-    private long calculateGenericChecksum(InputStream inputStream) throws IOException {
-        java.util.zip.CRC32 crc32 = new java.util.zip.CRC32();
+    private long calculateGenericChecksum(IndexInput indexInput) throws IOException {
+        CRC32 crc32 = new CRC32();
         byte[] buffer = new byte[8192];
-        int bytesRead;
+        long remaining = indexInput.length();
 
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            crc32.update(buffer, 0, bytesRead);
+        while (remaining > 0) {
+            int toRead = (int) Math.min(buffer.length, remaining);
+            indexInput.readBytes(buffer, 0, toRead);
+            crc32.update(buffer, 0, toRead);
+            remaining -= toRead;
         }
 
         return crc32.getValue();
@@ -255,8 +257,8 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
         long startTime = System.nanoTime();
 
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            long checksum = calculateGenericChecksum(inputStream);
+        try (IndexInput indexInput = openIndexInput(fileName, IOContext.READONCE)) {
+            long checksum = calculateGenericChecksum(indexInput);
             String checksumString = Long.toString(checksum);
 
             long calculationDurationMs = (System.nanoTime() - startTime) / 1_000_000;
