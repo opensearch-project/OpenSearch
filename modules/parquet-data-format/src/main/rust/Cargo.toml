@@ -57,7 +57,12 @@ tempfile = "3.0"
 lazy_static = "1.4.0"
 dashmap = "7.0.0-rc2"
 chrono = "0.4"
+mimalloc = { version = "0.1.48", default-features = false }
 
 
 [build-dependencies]
 cbindgen = "0.27"
+
+[profile.release]
+debug = "line-tables-only"
+strip = false

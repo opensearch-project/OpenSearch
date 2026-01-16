@@ -1,4 +1,8 @@
 use std::cell::RefCell;
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::num::NonZeroUsize;
 /*
  * SPDX-License-Identifier: Apache-2.0
