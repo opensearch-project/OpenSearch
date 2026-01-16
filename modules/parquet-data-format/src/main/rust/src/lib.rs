@@ -17,11 +17,13 @@ use std::sync::{Arc, Mutex};
 
 pub mod logger;
 // pub mod parquet_merge;
-pub mod parquet_merge_polars;
+// pub mod parquet_merge_polars;
+pub mod parquet_merge_hybrid;
 pub mod rate_limited_writer;
 
 // pub use parquet_merge::*;
-pub use parquet_merge_polars::*;
+// pub use parquet_merge_polars::*;
+pub use parquet_merge_hybrid::*;
 
 // Re-export macros from the shared crate for logging
 pub use vectorized_exec_spi::{log_info, log_error, log_debug};
