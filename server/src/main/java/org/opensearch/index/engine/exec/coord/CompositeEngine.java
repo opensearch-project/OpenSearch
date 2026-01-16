@@ -128,8 +128,6 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOS
 @ExperimentalApi
 public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
 
-    // Flag to indicate if this engine is in read-only mode (for replicas with segment replication)
-    private volatile boolean isReadOnlyReplica;
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -225,7 +223,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         this.eventListener = engineConfig.getEventListener();
         this.store = engineConfig.getStore();
         this.shardId = engineConfig.getShardId();
-        this.isReadOnlyReplica = engineConfig.isReadOnlyReplica();
         final TranslogDeletionPolicy translogDeletionPolicy = getTranslogDeletionPolicy(engineConfig);
         Committer committerRef = null;
         TranslogManager translogManagerRef = null;
@@ -487,14 +484,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return localCheckpointTracker;
     }
 
-    /**
-     * Returns true if this engine is in read-only mode (for replicas with segment replication).
-     * Read-only engines do not generate parquet files during refresh - they only serve reads
-     * from files downloaded via segment replication.
-     */
-    public boolean isReadOnlyReplica() {
-        return isReadOnlyReplica;
-    }
 
     public void updateSearchEngine() throws IOException {
             catalogSnapshotAwareRefreshListeners.forEach(ref -> {
@@ -780,11 +769,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         boolean refreshed = false;
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
             refreshListeners.forEach(PRE_REFRESH_LISTENER_CONSUMER);
-
-            if (isReadOnlyReplica) {
-                invokeRefreshListeners(false);
-                return;
-            }
 
             RefreshInput refreshInput = new RefreshInput();
             refreshInput.setExistingSegments(new ArrayList<>(catalogSnapshotReleasableRef.getRef().getSegments()));
