@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 
@@ -25,6 +26,7 @@ public interface RemoteStoreUploader {
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener,
         Function<Map<String, Long>, UploadListener> uploadListenerFunction,
-        boolean isLowPriorityUpload
+        boolean isLowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     );
 }
