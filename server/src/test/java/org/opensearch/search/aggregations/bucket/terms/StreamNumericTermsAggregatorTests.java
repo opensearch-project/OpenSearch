@@ -78,21 +78,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .order(BucketOrder.key(true));
+                        .order(BucketOrder.key(true));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -127,20 +128,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -166,21 +168,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .order(BucketOrder.count(false));
+                        .order(BucketOrder.count(false));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -198,23 +201,23 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     // value 1 appears in docs 1,4,7 = 3 times
                     // value 2 appears in docs 2,5,8 = 3 times
                     LongTerms.Bucket term0Bucket = buckets.stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 0L)
-                            .findFirst()
-                            .orElse(null);
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 0L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(term0Bucket, notNullValue());
                     assertThat(term0Bucket.getDocCount(), equalTo(4L));
 
                     LongTerms.Bucket term1Bucket = buckets.stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                            .findFirst()
-                            .orElse(null);
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(term1Bucket, notNullValue());
                     assertThat(term1Bucket.getDocCount(), equalTo(3L));
 
                     LongTerms.Bucket term2Bucket = buckets.stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                            .findFirst()
-                            .orElse(null);
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(term2Bucket, notNullValue());
                     assertThat(term2Bucket.getDocCount(), equalTo(3L));
                 }
@@ -234,21 +237,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .size(5);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -294,21 +297,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .order(BucketOrder.count(false));
+                        .order(BucketOrder.count(false));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -341,20 +345,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -390,20 +395,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -439,25 +445,26 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
-                            "category",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price",
-                            NumberFieldMapper.NumberType.LONG);
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category")
-                            .subAggregation(new MaxAggregationBuilder("max_price").field("price"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .subAggregation(new MaxAggregationBuilder("max_price").field("price"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            categoryFieldType,
-                            priceFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        priceFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -470,20 +477,20 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     LongTerms.Bucket category1Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(category1Bucket, notNullValue());
                     assertThat(category1Bucket.getDocCount(), equalTo(2L));
                     Max maxPrice = category1Bucket.getAggregations().get("max_price");
                     assertThat(maxPrice.getValue(), equalTo(200.0));
 
                     LongTerms.Bucket category2Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(category2Bucket, notNullValue());
                     assertThat(category2Bucket.getDocCount(), equalTo(1L));
                     maxPrice = category2Bucket.getAggregations().get("max_price");
@@ -514,25 +521,26 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
-                            "category",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType salesFieldType = new NumberFieldMapper.NumberFieldType("sales",
-                            NumberFieldMapper.NumberType.LONG);
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType salesFieldType = new NumberFieldMapper.NumberFieldType("sales", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category")
-                            .subAggregation(new SumAggregationBuilder("total_sales").field("sales"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .subAggregation(new SumAggregationBuilder("total_sales").field("sales"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            categoryFieldType,
-                            salesFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        salesFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -545,19 +553,19 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     LongTerms.Bucket category1Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(category1Bucket, notNullValue());
                     InternalSum totalSales = category1Bucket.getAggregations().get("total_sales");
                     assertThat(totalSales.getValue(), equalTo(3000.0));
 
                     LongTerms.Bucket category2Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(category2Bucket, notNullValue());
                     totalSales = category2Bucket.getAggregations().get("total_sales");
                     assertThat(totalSales.getValue(), equalTo(500.0));
@@ -586,25 +594,24 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType productFieldType = new NumberFieldMapper.NumberFieldType("product",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType ratingFieldType = new NumberFieldMapper.NumberFieldType("rating",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType productFieldType = new NumberFieldMapper.NumberFieldType("product", NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType ratingFieldType = new NumberFieldMapper.NumberFieldType("rating", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("products")
-                            .field("product")
-                            .subAggregation(new AvgAggregationBuilder("avg_rating").field("rating"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("products").field("product")
+                        .subAggregation(new AvgAggregationBuilder("avg_rating").field("rating"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            productFieldType,
-                            ratingFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        productFieldType,
+                        ratingFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -617,19 +624,19 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     LongTerms.Bucket product100Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 100L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 100L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(product100Bucket, notNullValue());
                     Avg avgRating = product100Bucket.getAggregations().get("avg_rating");
                     assertThat(avgRating.getValue(), equalTo(4.5));
 
                     LongTerms.Bucket product200Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 200L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 200L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(product200Bucket, notNullValue());
                     avgRating = product200Bucket.getAggregations().get("avg_rating");
                     assertThat(avgRating.getValue(), equalTo(3.0));
@@ -658,26 +665,28 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType storeFieldType = new NumberFieldMapper.NumberFieldType("store",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType storeFieldType = new NumberFieldMapper.NumberFieldType("store", NumberFieldMapper.NumberType.LONG);
                     MappedFieldType inventoryFieldType = new NumberFieldMapper.NumberFieldType(
-                            "inventory",
-                            NumberFieldMapper.NumberType.LONG);
+                        "inventory",
+                        NumberFieldMapper.NumberType.LONG
+                    );
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("stores").field("store")
-                            .subAggregation(new MinAggregationBuilder("min_inventory").field("inventory"))
-                            .subAggregation(new ValueCountAggregationBuilder("inventory_count").field("inventory"));
+                        .subAggregation(new MinAggregationBuilder("min_inventory").field("inventory"))
+                        .subAggregation(new ValueCountAggregationBuilder("inventory_count").field("inventory"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            storeFieldType,
-                            inventoryFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        storeFieldType,
+                        inventoryFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -690,10 +699,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     LongTerms.Bucket store1Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(store1Bucket, notNullValue());
                     assertThat(store1Bucket.getDocCount(), equalTo(2L));
 
@@ -704,10 +713,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(inventoryCount.getValue(), equalTo(2L));
 
                     LongTerms.Bucket store2Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(store2Bucket, notNullValue());
                     assertThat(store2Bucket.getDocCount(), equalTo(1L));
 
@@ -744,31 +753,32 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType regionFieldType = new NumberFieldMapper.NumberFieldType("region",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType tempFieldType = new NumberFieldMapper.NumberFieldType("temperature",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType regionFieldType = new NumberFieldMapper.NumberFieldType("region", NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType tempFieldType = new NumberFieldMapper.NumberFieldType("temperature", NumberFieldMapper.NumberType.LONG);
                     MappedFieldType humidityFieldType = new NumberFieldMapper.NumberFieldType(
-                            "humidity",
-                            NumberFieldMapper.NumberType.LONG);
+                        "humidity",
+                        NumberFieldMapper.NumberType.LONG
+                    );
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("regions").field("region")
-                            .subAggregation(new AvgAggregationBuilder("avg_temp").field("temperature"))
-                            .subAggregation(new MaxAggregationBuilder("max_temp").field("temperature"))
-                            .subAggregation(new MinAggregationBuilder("min_humidity").field("humidity"))
-                            .subAggregation(new SumAggregationBuilder("total_humidity").field("humidity"));
+                        .subAggregation(new AvgAggregationBuilder("avg_temp").field("temperature"))
+                        .subAggregation(new MaxAggregationBuilder("max_temp").field("temperature"))
+                        .subAggregation(new MinAggregationBuilder("min_humidity").field("humidity"))
+                        .subAggregation(new SumAggregationBuilder("total_humidity").field("humidity"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            regionFieldType,
-                            tempFieldType,
-                            humidityFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        regionFieldType,
+                        tempFieldType,
+                        humidityFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -781,10 +791,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     LongTerms.Bucket region1Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(region1Bucket, notNullValue());
                     assertThat(region1Bucket.getDocCount(), equalTo(2L));
 
@@ -801,10 +811,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(totalHumidity.getValue(), equalTo(125.0));
 
                     LongTerms.Bucket region2Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(region2Bucket, notNullValue());
                     assertThat(region2Bucket.getDocCount(), equalTo(1L));
 
@@ -840,11 +850,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category", NumberFieldMapper.NumberType.LONG);
                     aggs.add(
-                            buildInternalStreamingAggregation(
-                                    new TermsAggregationBuilder("categories").field("category"), fieldType, searcher1));
+                        buildInternalStreamingAggregation(new TermsAggregationBuilder("categories").field("category"), fieldType, searcher1)
+                    );
                 }
             }
 
@@ -860,21 +869,20 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category", NumberFieldMapper.NumberType.LONG);
                     aggs.add(
-                            buildInternalStreamingAggregation(
-                                    new TermsAggregationBuilder("categories").field("category"), fieldType, searcher2));
+                        buildInternalStreamingAggregation(new TermsAggregationBuilder("categories").field("category"), fieldType, searcher2)
+                    );
                 }
             }
 
             // Reduce the aggregations
             InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
-                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                    getMockScriptService(),
-                    b -> {
-                    },
-                    PipelineTree.EMPTY);
+                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                getMockScriptService(),
+                b -> {},
+                PipelineTree.EMPTY
+            );
 
             InternalAggregation reduced = aggs.get(0).reduce(aggs, ctx);
             assertThat(reduced, instanceOf(LongTerms.class));
@@ -884,27 +892,27 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
             // Check that category 1 bucket has count 2 (from both aggregations)
             LongTerms.Bucket category1Bucket = terms.getBuckets()
-                    .stream()
-                    .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
-                    .findFirst()
-                    .orElse(null);
+                .stream()
+                .filter(bucket -> bucket.getKeyAsNumber().longValue() == 1L)
+                .findFirst()
+                .orElse(null);
             assertThat(category1Bucket, notNullValue());
             assertThat(category1Bucket.getDocCount(), equalTo(2L));
 
             // Check that categories 2 and 3 buckets each have count 1
             LongTerms.Bucket category2Bucket = terms.getBuckets()
-                    .stream()
-                    .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
-                    .findFirst()
-                    .orElse(null);
+                .stream()
+                .filter(bucket -> bucket.getKeyAsNumber().longValue() == 2L)
+                .findFirst()
+                .orElse(null);
             assertThat(category2Bucket, notNullValue());
             assertThat(category2Bucket.getDocCount(), equalTo(1L));
 
             LongTerms.Bucket category3Bucket = terms.getBuckets()
-                    .stream()
-                    .filter(bucket -> bucket.getKeyAsNumber().longValue() == 3L)
-                    .findFirst()
-                    .orElse(null);
+                .stream()
+                .filter(bucket -> bucket.getKeyAsNumber().longValue() == 3L)
+                .findFirst()
+                .orElse(null);
             assertThat(category3Bucket, notNullValue());
             assertThat(category3Bucket.getDocCount(), equalTo(1L));
         }
@@ -929,17 +937,15 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
                     MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
-                            "category",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price",
-                            NumberFieldMapper.NumberType.LONG);
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category")
-                            .subAggregation(new SumAggregationBuilder("total_price").field("price"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .subAggregation(new SumAggregationBuilder("total_price").field("price"));
 
-                    aggs.add(buildInternalStreamingAggregation(aggregationBuilder, categoryFieldType, priceFieldType,
-                            searcher1));
+                    aggs.add(buildInternalStreamingAggregation(aggregationBuilder, categoryFieldType, priceFieldType, searcher1));
                 }
             }
 
@@ -953,28 +959,26 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
                     MappedFieldType categoryFieldType = new NumberFieldMapper.NumberFieldType(
-                            "category",
-                            NumberFieldMapper.NumberType.LONG);
-                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price",
-                            NumberFieldMapper.NumberType.LONG);
+                        "category",
+                        NumberFieldMapper.NumberType.LONG
+                    );
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category")
-                            .order(BucketOrder.key(false))
-                            .subAggregation(new SumAggregationBuilder("total_price").field("price"));
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .order(BucketOrder.key(false))
+                        .subAggregation(new SumAggregationBuilder("total_price").field("price"));
 
-                    aggs.add(buildInternalStreamingAggregation(aggregationBuilder, categoryFieldType, priceFieldType,
-                            searcher2));
+                    aggs.add(buildInternalStreamingAggregation(aggregationBuilder, categoryFieldType, priceFieldType, searcher2));
                 }
             }
 
             // Reduce the aggregations
             InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
-                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                    getMockScriptService(),
-                    b -> {
-                    },
-                    PipelineTree.EMPTY);
+                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                getMockScriptService(),
+                b -> {},
+                PipelineTree.EMPTY
+            );
 
             InternalAggregation reduced = aggs.get(0).reduce(aggs, ctx);
             assertThat(reduced, instanceOf(LongTerms.class));
@@ -1006,11 +1010,9 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader1 = maybeWrapReaderEs(DirectoryReader.open(indexWriter1))) {
                     IndexSearcher searcher1 = newIndexSearcher(reader1);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category").size(3);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category").size(3);
 
                     aggs.add(buildInternalStreamingAggregation(aggregationBuilder, fieldType, searcher1));
                 }
@@ -1026,11 +1028,9 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader2 = maybeWrapReaderEs(DirectoryReader.open(indexWriter2))) {
                     IndexSearcher searcher2 = newIndexSearcher(reader2);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category").size(3);
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category").size(3);
 
                     aggs.add(buildInternalStreamingAggregation(aggregationBuilder, fieldType, searcher2));
                 }
@@ -1038,11 +1038,11 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
             // Reduce the aggregations
             InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
-                    new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                    getMockScriptService(),
-                    b -> {
-                    },
-                    PipelineTree.EMPTY);
+                new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+                getMockScriptService(),
+                b -> {},
+                PipelineTree.EMPTY
+            );
 
             InternalAggregation reduced = aggs.get(0).reduce(aggs, ctx);
             assertThat(reduced, instanceOf(LongTerms.class));
@@ -1093,22 +1093,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader reader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher searcher = newIndexSearcher(reader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("category", NumberFieldMapper.NumberType.LONG);
 
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories")
-                            .field("category")
-                            .order(BucketOrder.count(false)); // Order by count descending
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .order(BucketOrder.count(false)); // Order by count descending
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            searcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        searcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     // Execute the aggregator
                     aggregator.preCollection();
@@ -1120,14 +1120,17 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     LongTerms topLevel = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
 
                     // Now perform the reduce operation
-                    MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer =
+                        new MultiBucketConsumerService.MultiBucketConsumer(
                             Integer.MAX_VALUE,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        );
                     InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                            aggregator.context().bigArrays(),
-                            getMockScriptService(),
-                            reduceBucketConsumer,
-                            PipelineTree.EMPTY);
+                        aggregator.context().bigArrays(),
+                        getMockScriptService(),
+                        reduceBucketConsumer,
+                        PipelineTree.EMPTY
+                    );
 
                     LongTerms reduced = (LongTerms) topLevel.reduce(Collections.singletonList(topLevel), context);
 
@@ -1153,12 +1156,11 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     // Verify that categories 1 and 2 are the first two (order may vary for equal
                     // counts)
                     assertTrue(
-                            "First two buckets should be categories 1 and 2",
-                            (firstBucket.getKeyAsNumber().longValue() == 1L
-                                    || firstBucket.getKeyAsNumber().longValue() == 2L)
-                                    && (secondBucket.getKeyAsNumber().longValue() == 1L
-                                            || secondBucket.getKeyAsNumber().longValue() == 2L)
-                                    && !firstBucket.getKeyAsNumber().equals(secondBucket.getKeyAsNumber()));
+                        "First two buckets should be categories 1 and 2",
+                        (firstBucket.getKeyAsNumber().longValue() == 1L || firstBucket.getKeyAsNumber().longValue() == 2L)
+                            && (secondBucket.getKeyAsNumber().longValue() == 1L || secondBucket.getKeyAsNumber().longValue() == 2L)
+                            && !firstBucket.getKeyAsNumber().equals(secondBucket.getKeyAsNumber())
+                    );
 
                     // Verify total document count across all buckets
                     long totalDocs = buckets.stream().mapToLong(LongTerms.Bucket::getDocCount).sum();
@@ -1169,39 +1171,45 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
     }
 
     private InternalAggregation buildInternalStreamingAggregation(
-            TermsAggregationBuilder builder,
-            MappedFieldType fieldType1,
-            IndexSearcher searcher) throws IOException {
+        TermsAggregationBuilder builder,
+        MappedFieldType fieldType1,
+        IndexSearcher searcher
+    ) throws IOException {
         return buildInternalStreamingAggregation(builder, fieldType1, null, searcher);
     }
 
     private InternalAggregation buildInternalStreamingAggregation(
-            TermsAggregationBuilder builder,
-            MappedFieldType fieldType1,
-            MappedFieldType fieldType2,
-            IndexSearcher searcher) throws IOException {
+        TermsAggregationBuilder builder,
+        MappedFieldType fieldType1,
+        MappedFieldType fieldType2,
+        IndexSearcher searcher
+    ) throws IOException {
         StreamNumericTermsAggregator aggregator;
         if (fieldType2 != null) {
             aggregator = createStreamAggregator(
-                    null,
-                    builder,
-                    searcher,
-                    createIndexSettings(),
-                    new MultiBucketConsumerService.MultiBucketConsumer(
-                            DEFAULT_MAX_BUCKETS,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                    fieldType1,
-                    fieldType2);
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                fieldType1,
+                fieldType2
+            );
         } else {
             aggregator = createStreamAggregator(
-                    null,
-                    builder,
-                    searcher,
-                    createIndexSettings(),
-                    new MultiBucketConsumerService.MultiBucketConsumer(
-                            DEFAULT_MAX_BUCKETS,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                    fieldType1);
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                new MultiBucketConsumerService.MultiBucketConsumer(
+                    DEFAULT_MAX_BUCKETS,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                ),
+                fieldType1
+            );
         }
 
         aggregator.preCollection();
@@ -1228,21 +1236,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .order(BucketOrder.key(true));
+                        .order(BucketOrder.key(true));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1284,25 +1293,27 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price",
-                            NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType priceFieldType = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.DOUBLE);
                     MappedFieldType quantityFieldType = new NumberFieldMapper.NumberFieldType(
-                            "quantity",
-                            NumberFieldMapper.NumberType.LONG);
+                        "quantity",
+                        NumberFieldMapper.NumberType.LONG
+                    );
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("prices").field("price")
-                            .subAggregation(new SumAggregationBuilder("total_quantity").field("quantity"));
+                        .subAggregation(new SumAggregationBuilder("total_quantity").field("quantity"));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            priceFieldType,
-                            quantityFieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        priceFieldType,
+                        quantityFieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1315,10 +1326,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(result.getBuckets().size(), equalTo(2));
 
                     DoubleTerms.Bucket price999Bucket = result.getBuckets()
-                            .stream()
-                            .filter(bucket -> bucket.getKeyAsNumber().doubleValue() == 9.99)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(bucket -> bucket.getKeyAsNumber().doubleValue() == 9.99)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(price999Bucket, notNullValue());
                     assertThat(price999Bucket.getDocCount(), equalTo(2L));
 
@@ -1346,20 +1357,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.UNSIGNED_LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1373,10 +1385,10 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                     // Verify we have the expected buckets with correct doc counts
                     UnsignedLongTerms.Bucket maxValueBucket = result.getBuckets()
-                            .stream()
-                            .filter(b -> b.getKeyAsNumber().longValue() == Long.MAX_VALUE)
-                            .findFirst()
-                            .orElse(null);
+                        .stream()
+                        .filter(b -> b.getKeyAsNumber().longValue() == Long.MAX_VALUE)
+                        .findFirst()
+                        .orElse(null);
                     assertThat(maxValueBucket, notNullValue());
                     assertThat(maxValueBucket.getDocCount(), equalTo(2L));
                 }
@@ -1400,21 +1412,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("tags",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("tags", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("tags")
-                            .order(BucketOrder.key(true));
+                        .order(BucketOrder.key(true));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1451,21 +1464,22 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
-                            .order(BucketOrder.key(false));
+                        .order(BucketOrder.key(false));
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1505,9 +1519,9 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                     NumberFieldMapper.NumberType[] types = {
-                            NumberFieldMapper.NumberType.INTEGER,
-                            NumberFieldMapper.NumberType.SHORT,
-                            NumberFieldMapper.NumberType.BYTE };
+                        NumberFieldMapper.NumberType.INTEGER,
+                        NumberFieldMapper.NumberType.SHORT,
+                        NumberFieldMapper.NumberType.BYTE };
 
                     for (NumberFieldMapper.NumberType type : types) {
                         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", type);
@@ -1515,14 +1529,16 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                         StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                                null,
-                                aggregationBuilder,
-                                indexSearcher,
-                                createIndexSettings(),
-                                new MultiBucketConsumerService.MultiBucketConsumer(
-                                        DEFAULT_MAX_BUCKETS,
-                                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                                fieldType);
+                            null,
+                            aggregationBuilder,
+                            indexSearcher,
+                            createIndexSettings(),
+                            new MultiBucketConsumerService.MultiBucketConsumer(
+                                DEFAULT_MAX_BUCKETS,
+                                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                            ),
+                            fieldType
+                        );
 
                         aggregator.preCollection();
                         assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1556,20 +1572,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.FLOAT);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.FLOAT);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1590,20 +1607,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.DOUBLE);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1623,20 +1641,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.UNSIGNED_LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1664,20 +1683,21 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                 try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field",
-                            NumberFieldMapper.NumberType.LONG);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
 
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field");
 
                     StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                            null,
-                            aggregationBuilder,
-                            indexSearcher,
-                            createIndexSettings(),
-                            new MultiBucketConsumerService.MultiBucketConsumer(
-                                    DEFAULT_MAX_BUCKETS,
-                                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                            fieldType);
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
 
                     aggregator.preCollection();
                     assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
@@ -1711,19 +1731,20 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number",
-                        NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
 
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("number");
                 StreamNumericTermsAggregator aggregator = createStreamAggregator(
-                        null,
-                        aggregationBuilder,
-                        indexSearcher,
-                        createIndexSettings(),
-                        new MultiBucketConsumerService.MultiBucketConsumer(
-                                DEFAULT_MAX_BUCKETS,
-                                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
-                        fieldType);
+                    null,
+                    aggregationBuilder,
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
+                    fieldType
+                );
 
                 Map<String, Object> debugInfo = new HashMap<>();
                 BiConsumer<String, Object> debugCollector = debugInfo::put;
@@ -1735,16 +1756,13 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 assertTrue("Should contain total_buckets", debugInfo.containsKey("total_buckets"));
                 assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
                 assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
-                assertTrue("Should contain streaming_estimated_buckets",
-                        debugInfo.containsKey("streaming_estimated_buckets"));
-                assertTrue("Should contain streaming_estimated_docs",
-                        debugInfo.containsKey("streaming_estimated_docs"));
+                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
+                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
                 assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
 
                 assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
                 assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
-                assertTrue("streaming_segment_count should be positive",
-                        (Integer) debugInfo.get("streaming_segment_count") > 0);
+                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
             }
         }
     }
