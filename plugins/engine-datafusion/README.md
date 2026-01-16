@@ -5,15 +5,15 @@
 
 2. Publish OpenSearch to maven local
 ```
-./gradlew publishToMavenLocal
+./gradlew publishToMavenLocal -Dbuild.snapshot=false
 ```
 3. Publish SQL plugin to maven local
 ```
-./gradlew publishToMavenLocal
+./gradlew publishToMavenLocal -Dbuild.snapshot=false
 ```
 4. Run opensearch with following parameters
 ```
- ./gradlew run --preserve-data -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0-SNAPSHOT', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0-SNAPSHOT']" -PinstalledPlugins="['engine-datafusion']" --debug-jvm
+ ./gradlew run --preserve-data -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0']" -PinstalledPlugins="['engine-datafusion']" -Dbuild.snapshot=false --debug-jvm
 ```
 
 
@@ -34,7 +34,8 @@ curl --location --request PUT 'http://localhost:9200/index-7' \
     "settings": {
         "number_of_shards": 1,
         "number_of_replicas": 0,
-        "refresh_interval": -1
+        "refresh_interval": -1,
+        "optimized.enabled": true
     },
     "mappings": {
         "properties": {

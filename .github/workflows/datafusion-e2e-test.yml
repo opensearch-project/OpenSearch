@@ -51,18 +51,18 @@ jobs:
 
       - name: Publish OpenSearch to Maven Local
         working-directory: OpenSearch
-        run: ./gradlew publishToMavenLocal -x test -PrustDebug=true
+        run: ./gradlew publishToMavenLocal -x test -PrustDebug=true  -Dbuild.snapshot=false
 
       - name: Checkout SQL Plugin
         uses: actions/checkout@v4
         with:
-          repository: vinaykpud/sql
-          ref: feature/substrait-plan
+          repository: bharath-techie/sql
+          ref: vinay-tracking-branch
           path: opensearch-sql
 
       - name: Publish SQL Plugin to Maven Local
         working-directory: opensearch-sql
-        run: ./gradlew publishToMavenLocal -x test
+        run: ./gradlew publishToMavenLocal -x test  -Dbuild.snapshot=false
 
       - name: Run DataFusionReaderManager Tests
         working-directory: OpenSearch
@@ -81,8 +81,8 @@ jobs:
         run: |
           ./gradlew run \
             --preserve-data \
-            -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0-SNAPSHOT', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0-SNAPSHOT']" \
-            -PinstalledPlugins="['engine-datafusion']" &
+            -PremotePlugins="['org.opensearch.plugin:opensearch-job-scheduler:3.3.0.0', 'org.opensearch.plugin:opensearch-sql-plugin:3.3.0.0']" \
+            -PinstalledPlugins="['engine-datafusion']"  -PrustDebug=true   -Dbuild.snapshot=false &
 
           # Wait for OpenSearch to start
           timeout 300 bash -c 'until curl -s http://localhost:9200; do sleep 5; done'

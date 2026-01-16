@@ -1,4 +1,8 @@
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
+
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
 use jni::objects::{JClass, JString, JObject};

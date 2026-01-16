@@ -61,7 +61,7 @@ validateNebulaPom.enabled = false
 
 buildscript {
   ext {
-    opensearch_version = System.getProperty("opensearch.version", "3.3.0-SNAPSHOT")
+    opensearch_version = System.getProperty("opensearch.version", "3.3.0")
   }
 
   repositories {
@@ -140,7 +140,7 @@ dependencies {
 
   // Netty4 transport for HTTP in tests
   testImplementation project(':modules:transport-netty4')
-  
+
   // DataFusion plugin for internalClusterTest
   internalClusterTestImplementation project(':plugins:engine-datafusion')
 }
@@ -178,23 +178,23 @@ integTest {
 
 testClusters.integTest {
   testDistribution = "INTEG_TEST"
-  
+
   // Configure 2 nodes for replication testing
   numberOfNodes = 2
-  
+
   // Whitelist repository path
   setting 'path.repo', "${buildDir}/testclusters/integTest-remote-store"
-  
+
   // Configure remote store node attributes
   setting 'node.attr.remote_store.segment.repository', 'test-rs-repo'
   setting 'node.attr.remote_store.translog.repository', 'test-rs-repo'
   setting 'node.attr.remote_store.state.repository', 'test-rs-repo'
-  
+
   // Configure remote store repository type and location
   setting 'node.attr.remote_store.repository.test-rs-repo.type', 'fs'
   setting 'node.attr.remote_store.repository.test-rs-repo.settings.location', "${buildDir}/testclusters/integTest-remote-store"
   setting 'node.attr.remote_store.repository.test-rs-repo.settings.system_repository', 'false'
-  
+
   // Enable debug logging for replication
   setting 'logger.org.opensearch.indices.replication', 'DEBUG'
   setting 'logger.org.opensearch.index.shard.RemoteStoreRefreshListener', 'DEBUG'
