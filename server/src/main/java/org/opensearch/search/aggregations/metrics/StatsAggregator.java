@@ -159,7 +159,7 @@ class StatsAggregator extends NumericMetricsAggregator.MultiValue {
 
                 double minimum = mins.get(0);
                 double maximum = maxes.get(0);
-                for (int doc = min; doc < maximum; doc++) {
+                for (int doc = min; doc < max; doc++) {
                     if (values.advanceExact(doc)) {
                         final int valuesCount = values.docValueCount();
                         counts.increment(0, valuesCount);
