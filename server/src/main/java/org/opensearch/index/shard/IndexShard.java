@@ -1542,8 +1542,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws AlreadyClosedException if shard is closed
      */
     public CommitStats commitStats() {
-        return getStatsHolder().commitStats();
+        final StatsHolder statsHolder = getStatsHolderOrNull();
+        if (statsHolder == null) {
+            throw new AlreadyClosedException("engine is closed");
+        }
+        return statsHolder.commitStats();
     }
+
 
     /**
      * @return {@link SeqNoStats}
@@ -5563,9 +5568,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
         newEngineReference.set(newEngine);
 
-
         if (!indexSettings.isOptimizedIndex()) {
-            onNewEngine(newEngineReference.get());
+            synchronized (engineMutex) {
+                onNewEngine(newEngineReference.get());
+            }
             final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
                 newEngineReference.get(),
                 snapshot,
@@ -5585,8 +5591,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()), currentCompositeEngineReference.getAndSet(newCompositeEngine));
 
             // onNewEngine must be called inside synchronized(engineMutex) block for both optimized and non-optimized indices
-
-
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);
@@ -5723,11 +5727,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     long checksum = Long.parseLong(filteredSegments.get(file).getChecksum());
                     boolean fileExistsLocally;
 
+                    // Parse FileMetadata from serialized key to get actual filename
+                    FileMetadata fileMetadata = new FileMetadata(file);
                     if (isOptimizedIndex() && directory instanceof CompositeStoreDirectory) {
-                        FileMetadata fileMetadata = new FileMetadata(file);
                         fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) directory, fileMetadata, checksum);
                     } else {
-                        fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
+                        // For non-optimized indices, use the actual filename from FileMetadata
+                        fileExistsLocally = localDirectoryContainsFile(storeDirectory, fileMetadata.file(), checksum);
                     }
 
                     if (overrideLocal || !fileExistsLocally) {

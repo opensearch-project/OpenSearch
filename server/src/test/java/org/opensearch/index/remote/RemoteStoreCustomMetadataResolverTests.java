@@ -286,7 +286,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
 
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
             remoteStoreSettings,
-            () -> Version.V_3_4_0,
+            () -> Version.V_3_3_0,
             () -> repositoriesService,
             settings
         );
@@ -304,7 +304,7 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
 
         RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
             remoteStoreSettings,
-            () -> Version.V_3_4_0,
+            () -> Version.V_3_3_0,
             () -> repositoriesService,
             settings
         );
