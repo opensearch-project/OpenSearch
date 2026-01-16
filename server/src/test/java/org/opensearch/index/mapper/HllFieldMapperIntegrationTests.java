@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import static org.opensearch.common.util.BitMixer.mix64;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.bucket.terms.Terms.Bucket;
@@ -400,6 +401,178 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
             sketch1.close();
             sketch2.close();
             expected.close();
+        }
+    }
+
+    public void testSparseHllFieldWithMixedDocuments() throws IOException {
+        // Test that HLL fields work correctly when some documents have the field and others don't
+        // This is a scenario where not all documents may have pre-aggregated sketches
+
+        String indexName = "test-sparse-hll";
+        int precision = 11;
+
+        // Create index with HLL field and other fields
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("category")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("timestamp")
+            .field("type", "date")
+            .endObject()
+            .startObject("user_sketch")
+            .field("type", "hll")
+            .field("precision", precision)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        client().admin().indices().prepareCreate(indexName).setMapping(mapping).get();
+
+        // Index documents: some with HLL field, some without
+        int docsWithHll = 3;
+        int docsWithoutHll = 2;
+        int valuesPerSketch = 50;
+
+        HyperLogLogPlusPlus expectedMerged = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
+
+        try {
+            // Index documents WITH HLL field
+            for (int i = 0; i < docsWithHll; i++) {
+                HyperLogLogPlusPlus sketch = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
+                try {
+                    // Each sketch has unique values
+                    for (int j = 0; j < valuesPerSketch; j++) {
+                        long value = (long) i * valuesPerSketch + j;
+                        long hash = mix64(value);
+                        sketch.collect(0, hash);
+                        expectedMerged.collect(0, hash);
+                    }
+
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    sketch.writeTo(0, out);
+                    org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+                    byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
+
+                    client().prepareIndex(indexName)
+                        .setSource(
+                            XContentFactory.jsonBuilder()
+                                .startObject()
+                                .field("category", "with_hll")
+                                .field("timestamp", "2024-01-0" + (i + 1) + "T00:00:00Z")
+                                .field("user_sketch", sketchBytes)
+                                .endObject()
+                        )
+                        .get();
+                } finally {
+                    sketch.close();
+                }
+            }
+
+            // Index documents WITHOUT HLL field
+            for (int i = 0; i < docsWithoutHll; i++) {
+                client().prepareIndex(indexName)
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field("category", "without_hll")
+                            .field("timestamp", "2024-01-0" + (docsWithHll + i + 1) + "T00:00:00Z")
+                            // No user_sketch field
+                            .endObject()
+                    )
+                    .get();
+            }
+
+            client().admin().indices().prepareRefresh(indexName).get();
+
+            // Test 1: Verify all documents are indexed
+            SearchResponse allDocsResponse = client().prepareSearch(indexName).setSize(0).get();
+            assertEquals("All documents should be indexed", docsWithHll + docsWithoutHll, allDocsResponse.getHits().getTotalHits().value());
+
+            // Test 2: Search for documents with HLL field using exists query
+            SearchResponse withHllResponse = client().prepareSearch(indexName)
+                .setQuery(org.opensearch.index.query.QueryBuilders.existsQuery("user_sketch"))
+                .setSize(0)
+                .get();
+            assertEquals("Should find only documents with HLL field", docsWithHll, withHllResponse.getHits().getTotalHits().value());
+
+            // Test 3: Search for documents without HLL field
+            SearchResponse withoutHllResponse = client().prepareSearch(indexName)
+                .setQuery(
+                    org.opensearch.index.query.QueryBuilders.boolQuery()
+                        .mustNot(org.opensearch.index.query.QueryBuilders.existsQuery("user_sketch"))
+                )
+                .setSize(0)
+                .get();
+            assertEquals(
+                "Should find only documents without HLL field",
+                docsWithoutHll,
+                withoutHllResponse.getHits().getTotalHits().value()
+            );
+
+            // Test 4: Cardinality aggregation across all documents (should only aggregate docs with HLL field)
+            SearchResponse cardinalityResponse = client().prepareSearch(indexName)
+                .addAggregation(cardinality("total_users").field("user_sketch"))
+                .get();
+
+            Cardinality cardinalityAgg = cardinalityResponse.getAggregations().get("total_users");
+            assertNotNull("Cardinality aggregation should return a result", cardinalityAgg);
+
+            long aggregatedCardinality = cardinalityAgg.getValue();
+            long expectedCardinality = expectedMerged.cardinality(0);
+
+            assertEquals("Cardinality should only aggregate documents with HLL field", expectedCardinality, aggregatedCardinality);
+
+            // Test 5: Terms aggregation by category with cardinality sub-aggregation
+            SearchResponse termsResponse = client().prepareSearch(indexName)
+                .addAggregation(
+                    terms("by_category").field("category").subAggregation(cardinality("users_per_category").field("user_sketch"))
+                )
+                .get();
+
+            Terms termsAgg = termsResponse.getAggregations().get("by_category");
+            assertNotNull("Terms aggregation should return results", termsAgg);
+            assertEquals("Should have 2 category buckets", 2, termsAgg.getBuckets().size());
+
+            // Verify the bucket with HLL field has cardinality
+            Terms.Bucket withHllBucket = termsAgg.getBucketByKey("with_hll");
+            assertNotNull("Should have bucket for 'with_hll' category", withHllBucket);
+            assertEquals("Bucket should have correct doc count", docsWithHll, withHllBucket.getDocCount());
+
+            Cardinality withHllCardinality = withHllBucket.getAggregations().get("users_per_category");
+            assertNotNull("Bucket should have cardinality aggregation", withHllCardinality);
+            assertEquals("Cardinality should match expected", expectedCardinality, withHllCardinality.getValue());
+
+            // Verify the bucket without HLL field has zero cardinality
+            Terms.Bucket withoutHllBucket = termsAgg.getBucketByKey("without_hll");
+            assertNotNull("Should have bucket for 'without_hll' category", withoutHllBucket);
+            assertEquals("Bucket should have correct doc count", docsWithoutHll, withoutHllBucket.getDocCount());
+
+            Cardinality withoutHllCardinality = withoutHllBucket.getAggregations().get("users_per_category");
+            assertNotNull("Bucket should have cardinality aggregation", withoutHllCardinality);
+            assertEquals("Cardinality should be 0 for documents without HLL field", 0L, withoutHllCardinality.getValue());
+
+            // Test 6: Retrieve a document with HLL field and verify it's in the response
+            SearchResponse getDocWithHll = client().prepareSearch(indexName).setQuery(termQuery("category", "with_hll")).setSize(1).get();
+            assertEquals("Should find document with HLL field", 1, getDocWithHll.getHits().getHits().length);
+            assertTrue(
+                "Document should contain user_sketch field",
+                getDocWithHll.getHits().getAt(0).getSourceAsMap().containsKey("user_sketch")
+            );
+
+            // Test 7: Retrieve a document without HLL field and verify it's not in the response
+            SearchResponse getDocWithoutHll = client().prepareSearch(indexName)
+                .setQuery(termQuery("category", "without_hll"))
+                .setSize(1)
+                .get();
+            assertEquals("Should find document without HLL field", 1, getDocWithoutHll.getHits().getHits().length);
+            assertFalse(
+                "Document should not contain user_sketch field",
+                getDocWithoutHll.getHits().getAt(0).getSourceAsMap().containsKey("user_sketch")
+            );
+        } finally {
+            expectedMerged.close();
         }
     }
 }

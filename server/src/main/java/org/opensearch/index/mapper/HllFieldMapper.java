@@ -19,18 +19,18 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.HllFieldData;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.metrics.AbstractHyperLogLog;
 import org.opensearch.search.aggregations.metrics.AbstractHyperLogLogPlusPlus;
 import org.opensearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import static java.util.Base64.getEncoder;
 
 /**
  * A {@link FieldMapper} for HyperLogLog++ sketch fields.
@@ -147,16 +147,15 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
-            return new SourceValueFetcher(name(), context) {
-                @Override
-                protected Object parseSourceValue(Object value) {
-                    // Return the binary sketch data as base64 for readability
-                    if (value instanceof BytesRef) {
-                        return getEncoder().encodeToString(((BytesRef) value).bytes);
-                    }
-                    return value;
-                }
-            };
+            // Support derived source by fetching from doc values
+            // This enables storage optimization when _source is disabled
+            return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            // HLL sketches are stored as binary data and formatted as base64
+            return DocValueFormat.BINARY;
         }
 
         @Override
