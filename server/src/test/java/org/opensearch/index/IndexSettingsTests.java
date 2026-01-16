@@ -1173,4 +1173,36 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         assertEquals(TimeValue.MINUS_ONE, settings.getPeriodicFlushInterval());
     }
+
+    public void testPrefetchDocsEnabledDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.EMPTY);
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isPrefetchDocsEnabled());
+    }
+
+    public void testPrefetchDocsEnabledExplicitValue() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexSettings.PREFETCH_DOCS_DURING_FETCH_ENABLED.getKey(), false).build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertFalse(settings.isPrefetchDocsEnabled());
+    }
+
+    public void testPrefetchDocsEnabledDynamicUpdate() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.EMPTY);
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+
+        assertTrue(settings.isPrefetchDocsEnabled());
+
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.PREFETCH_DOCS_DURING_FETCH_ENABLED.getKey(), false).build())
+        );
+        assertFalse(settings.isPrefetchDocsEnabled());
+
+        settings.updateIndexMetadata(
+            newIndexMeta("index", Settings.builder().put(IndexSettings.PREFETCH_DOCS_DURING_FETCH_ENABLED.getKey(), true).build())
+        );
+        assertTrue(settings.isPrefetchDocsEnabled());
+    }
 }
