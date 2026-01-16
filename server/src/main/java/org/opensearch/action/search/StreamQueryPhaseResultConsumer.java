@@ -24,13 +24,17 @@ import java.util.function.Consumer;
  * Supports progressive batch reduction with configurable scoring modes.
  *
  * Batch reduction frequency is controlled by per-mode multipliers:
- * - NO_SCORING: Immediate reduction (batch size = 1) for fastest time-to-first-byte
+ * - NO_SCORING: Immediate reduction (batch size = 1) for fastest
+ * time-to-first-byte
  * - SCORED_UNSORTED: Small batches (minBatchReduceSize * 2)
  * - SCORED_SORTED: Larger batches (minBatchReduceSize * 10)
  *
- * These multipliers are applied to the base batch reduce size (typically 5) to determine
- * how many shard results are accumulated before triggering a partial reduction. Lower values
- * mean more frequent reductions and faster streaming, but higher coordinator CPU usage.
+ * These multipliers are applied to the base batch reduce size (typically 5) to
+ * determine
+ * how many shard results are accumulated before triggering a partial reduction.
+ * Lower values
+ * mean more frequent reductions and faster streaming, but higher coordinator
+ * CPU usage.
  *
  * @opensearch.internal
  */
@@ -80,11 +84,12 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
      * Controls partial reduction frequency based on scoring mode.
      *
      * @param requestBatchedReduceSize request batch size
-     * @param minBatchReduceSize minimum batch size
+     * @param minBatchReduceSize       minimum batch size
      */
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
-        // Handle null during construction (parent constructor calls this before our constructor body runs)
+        // Handle null during construction (parent constructor calls this before our
+        // constructor body runs)
         if (scoringMode == null) {
             return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
         }
@@ -97,7 +102,8 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
                 // Small batches for quick emission without sorting overhead
                 return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 2);
             case SCORED_SORTED:
-                // Higher batch size to collect more results before reducing (sorting is expensive)
+                // Higher batch size to collect more results before reducing (sorting is
+                // expensive)
                 return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
             default:
                 return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
@@ -107,6 +113,7 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
     /**
      * Consume streaming results with frequency-based emission
      */
+
     public void consumeStreamResult(SearchPhaseResult result, Runnable next) {
         // Keep streaming: coordinator receives partials and forwards to client,
         // but the coordinator reducer should only see the final per-shard result.

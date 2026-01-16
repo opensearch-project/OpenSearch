@@ -168,32 +168,42 @@ public class BucketCollectorProcessor {
             return internalAggregations;
         }
 
-        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
+        final Queue<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
-            Collector currentCollector = allCollectors.pop();
+            Collector currentCollector = allCollectors.poll();
 
             if (currentCollector == null) {
                 continue;
             }
 
-            while (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                currentCollector = internalProfileCollector.getCollector();
-                if (currentCollector == null) {
-                    break;
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                allCollectors.offer(internalProfileCollector.getCollector());
+                continue;
+            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
+                allCollectors.offer(minimumScoreCollector.getCollector());
+                continue;
+            } else if (currentCollector instanceof MultiCollector multiCollector) {
+                for (Collector innerCollector : multiCollector.getCollectors()) {
+                    allCollectors.offer(innerCollector);
                 }
-            }
-
-            if (currentCollector == null) {
                 continue;
             }
 
-            if (currentCollector instanceof Aggregator aggregator) {
-                InternalAggregation ia = aggregator.getPostCollectionAggregation();
-                if (ia != null) {
-                    internalAggregations.add(ia);
+            if (currentCollector instanceof BucketCollector bucketCollector) {
+                if (currentCollector instanceof Aggregator aggregator) {
+                    bucketCollector.postCollection();
+                    InternalAggregation ia = aggregator.getPostCollectionAggregation();
+                    if (ia == null) {
+                        aggregator.buildTopLevel();
+                        ia = aggregator.getPostCollectionAggregation();
+                    }
+                    if (ia != null) {
+                        internalAggregations.add(ia);
+                    }
+                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                    bucketCollector.postCollection();
+                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
                 }
-            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
             }
         }
         return internalAggregations;

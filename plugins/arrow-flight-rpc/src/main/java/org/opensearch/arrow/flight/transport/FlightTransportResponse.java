@@ -33,8 +33,11 @@ import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRE
 /**
  * Arrow Flight implementation of streaming transport responses.
  *
- * <p>Handles streaming responses from Arrow Flight servers with lazy batch processing.
- * Headers are extracted when first accessed, and responses are deserialized on demand.
+ * <p>
+ * Handles streaming responses from Arrow Flight servers with lazy batch
+ * processing.
+ * Headers are extracted when first accessed, and responses are deserialized on
+ * demand.
  */
 class FlightTransportResponse<T extends TransportResponse> implements StreamTransportResponse<T> {
     private static final Logger logger = LogManager.getLogger(FlightTransportResponse.class);
@@ -229,7 +232,11 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
     private T deserializeResponse() {
         try (VectorStreamInput input = new VectorStreamInput(currentRoot, namedWriteableRegistry)) {
-            return handler.read(input);
+            T response = handler.read(input);
+            if (response instanceof org.opensearch.search.query.QuerySearchResult) {
+                logger.info("Received QuerySearchResult hasAggs: {}", ((org.opensearch.search.query.QuerySearchResult) response).hasAggs());
+            }
+            return response;
         } catch (IOException e) {
             throw new StreamException(StreamErrorCode.INTERNAL, "Failed to deserialize response", e);
         }
