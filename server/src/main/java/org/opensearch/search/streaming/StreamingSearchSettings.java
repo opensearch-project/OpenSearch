@@ -19,7 +19,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Production-ready settings for streaming search with comprehensive configuration options.
+ * Production-ready settings for streaming search with comprehensive
+ * configuration options.
  * All settings are dynamically updateable for runtime tuning.
  */
 public final class StreamingSearchSettings {
@@ -110,15 +111,6 @@ public final class StreamingSearchSettings {
         0.2f,
         0.1f,
         0.9f,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Float> STREAMING_OUTLIER_THRESHOLD_SIGMA = Setting.floatSetting(
-        "search.streaming.outlier_threshold_sigma",
-        2.0f,
-        1.0f,
-        4.0f,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -225,13 +217,6 @@ public final class StreamingSearchSettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> STREAMING_PREDICTIVE_SCORING = Setting.boolSetting(
-        "search.streaming.predictive_scoring.enabled",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /**
      * Returns all streaming search settings
      */
@@ -249,7 +234,7 @@ public final class StreamingSearchSettings {
 
             STREAMING_MIN_DOCS_FOR_STREAMING,
             STREAMING_MIN_SHARD_RESPONSE_RATIO,
-            STREAMING_OUTLIER_THRESHOLD_SIGMA,
+
             STREAMING_MAX_BUFFER_SIZE,
             STREAMING_MAX_CONCURRENT_STREAMS,
             STREAMING_CLIENT_TIMEOUT,
@@ -261,8 +246,7 @@ public final class StreamingSearchSettings {
             STREAMING_BLOCK_SKIP_THRESHOLD_RATIO,
             STREAMING_MIN_COMPETITIVE_DOCS,
             STREAMING_SCORE_MODE,
-            STREAMING_ADAPTIVE_BATCHING,
-            STREAMING_PREDICTIVE_SCORING
+            STREAMING_ADAPTIVE_BATCHING
         );
     }
 
@@ -342,10 +326,6 @@ public final class StreamingSearchSettings {
             return STREAMING_MIN_SHARD_RESPONSE_RATIO.get(settings);
         }
 
-        public float getOutlierThresholdSigma() {
-            return STREAMING_OUTLIER_THRESHOLD_SIGMA.get(settings);
-        }
-
         public ByteSizeValue getMaxBufferSize() {
             return STREAMING_MAX_BUFFER_SIZE.get(settings);
         }
@@ -356,10 +336,6 @@ public final class StreamingSearchSettings {
 
         public boolean isAdaptiveBatchingEnabled() {
             return STREAMING_ADAPTIVE_BATCHING.get(settings);
-        }
-
-        public boolean isPredictiveScoringEnabled() {
-            return STREAMING_PREDICTIVE_SCORING.get(settings);
         }
 
         public boolean isMetricsEnabled() {

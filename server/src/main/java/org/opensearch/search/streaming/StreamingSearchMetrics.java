@@ -36,7 +36,6 @@ public class StreamingSearchMetrics {
     private final MeanMetric timeToFirstResult = new MeanMetric();
     private final MeanMetric totalSearchTime = new MeanMetric();
     private final MeanMetric emissionLatency = new MeanMetric();
-    private final MeanMetric confidenceAtEmission = new MeanMetric();
 
     // Efficiency metrics
     private final LongAdder totalDocsEvaluated = new LongAdder();
@@ -54,7 +53,6 @@ public class StreamingSearchMetrics {
     // Quality metrics
     private final MeanMetric precisionRate = new MeanMetric();
     private final MeanMetric recallRate = new MeanMetric();
-    private final CounterMetric confidenceViolations = new CounterMetric();
     private final CounterMetric reorderingRequired = new CounterMetric();
 
     // Resource metrics
@@ -78,7 +76,6 @@ public class StreamingSearchMetrics {
     // OpenTelemetry metrics
     private Counter streamingSearchCounter;
     private Histogram timeToFirstResultHistogram;
-    private Histogram confidenceHistogram;
     private Counter emissionCounter;
 
     public StreamingSearchMetrics(MetricsRegistry metricsRegistry) {
@@ -99,12 +96,6 @@ public class StreamingSearchMetrics {
             "streaming_search_time_to_first_result",
             "Time to first result in streaming search",
             "milliseconds"
-        );
-
-        this.confidenceHistogram = registry.createHistogram(
-            "streaming_search_confidence_at_emission",
-            "Confidence level when emitting results",
-            "ratio"
         );
 
         this.emissionCounter = registry.createCounter("streaming_search_emissions_total", "Total number of result emissions", "emissions");
@@ -169,11 +160,10 @@ public class StreamingSearchMetrics {
     /**
      * Record emission event
      */
-    public void recordEmission(StreamingSearchContext context, int docsEmitted, float confidence) {
+    public void recordEmission(StreamingSearchContext context, int docsEmitted) {
         totalEmissions.inc();
         docsPerEmission.inc(docsEmitted);
         totalDocsEmitted.addAndGet(docsEmitted);
-        confidenceAtEmission.inc((long) (confidence * 100));
 
         if (context.firstResultTime == 0) {
             context.firstResultTime = System.nanoTime();
@@ -194,10 +184,6 @@ public class StreamingSearchMetrics {
                 docsEmitted,
                 Tags.create().addTag("index", context.index).addTag("batch", String.valueOf(context.totalEmissions))
             );
-        }
-
-        if (confidenceHistogram != null) {
-            confidenceHistogram.record((long) (confidence * 100), Tags.create().addTag("index", context.index));
         }
     }
 
@@ -259,10 +245,6 @@ public class StreamingSearchMetrics {
     public void recordQualityMetrics(float precision, float recall) {
         precisionRate.inc((long) (precision * 100));
         recallRate.inc((long) (recall * 100));
-    }
-
-    public void recordConfidenceViolation() {
-        confidenceViolations.inc();
     }
 
     public void recordReordering() {
@@ -338,7 +320,7 @@ public class StreamingSearchMetrics {
         public final long fallbacks;
         public final double avgTimeToFirstResult;
         public final double avgTotalSearchTime;
-        public final double avgConfidenceAtEmission;
+
         public final long totalEmissions;
         public final double avgDocsPerEmission;
         public final long totalDocsEmitted;
@@ -361,7 +343,7 @@ public class StreamingSearchMetrics {
             this.fallbacks = metrics.fallbackToNormalSearches.count();
             this.avgTimeToFirstResult = metrics.timeToFirstResult.mean();
             this.avgTotalSearchTime = metrics.totalSearchTime.mean();
-            this.avgConfidenceAtEmission = metrics.confidenceAtEmission.mean() / 100.0;
+
             this.totalEmissions = metrics.totalEmissions.count();
             this.avgDocsPerEmission = metrics.docsPerEmission.mean();
             this.totalDocsEmitted = metrics.totalDocsEmitted.get();

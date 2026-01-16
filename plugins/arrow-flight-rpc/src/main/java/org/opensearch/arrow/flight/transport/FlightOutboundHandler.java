@@ -9,8 +9,8 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightRuntimeException;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -34,10 +34,13 @@ import java.util.Set;
 
 /**
  * Outbound handler for Arrow Flight streaming responses.
- * It must invoke messageListener and relay any exception back to the caller and not supress them
+ * It must invoke messageListener and relay any exception back to the caller and
+ * not supress them
+ *
  * @opensearch.internal
  */
 class FlightOutboundHandler extends ProtocolOutboundHandler {
+    private static final Logger logger = LogManager.getLogger(FlightOutboundHandler.class);
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
     private final String nodeName;
     private final Version version;
@@ -167,8 +170,19 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             } else {
                 out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
                 task.response().writeTo(out);
-            }
-            try (out) {
+                if (task.response() instanceof org.opensearch.search.query.QuerySearchResult) {
+                    logger.info(
+                        "QuerySearchResult hasAggs: {}",
+                        ((org.opensearch.search.query.QuerySearchResult) task.response()).hasAggs()
+                    );
+                }
+                logger.info(
+                    "Sending batch for requestId [{}], action [{}], items [{}], rows [{}]",
+                    task.requestId(),
+                    task.action(),
+                    task.response(),
+                    out.getRoot().getRowCount()
+                );
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }
@@ -298,7 +312,8 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
     }
 
     private ByteBuffer getHeaderBuffer(long requestId, Version nodeVersion, Set<String> features) throws IOException {
-        // Just a way( probably inefficient) to serialize header to reuse existing logic present in
+        // Just a way( probably inefficient) to serialize header to reuse existing logic
+        // present in
         // NativeOutboundMessage.Response#writeVariableHeader()
         NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
             threadPool.getThreadContext(),

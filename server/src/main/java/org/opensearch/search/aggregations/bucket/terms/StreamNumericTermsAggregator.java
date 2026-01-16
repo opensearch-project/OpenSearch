@@ -75,7 +75,8 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
-        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do
+                                                          // its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
@@ -84,13 +85,16 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
 
     @Override
     public void doReset() {
-        super.doReset();
-        // DO NOT close/null bucketOrds - preserve cumulative bucket state for final reduction
-        // This keeps all bucket mappings intact across batches so final buildAggregation() is correct
+        // super.doReset(); // Prevent clearing doc counts which explains why we verify
+        // buckets but 0 doc counts
+        // DO NOT close/null bucketOrds - preserve cumulative bucket state for final
+        // reduction
+        // This keeps all bucket mappings intact across batches so final
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        preGetSubLeafCollectors(ctx); // Initialize docCountProvider and other standard cleanup
         // Only create bucketOrds if it doesn't exist (first segment)
         // Reuse existing bucketOrds for subsequent segments to preserve all buckets
         if (bucketOrds == null) {
@@ -345,7 +349,8 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         abstract R buildEmptyResult();
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         * Build a final bucket directly with the provided data, skipping temporary
+         * bucket creation.
          */
         abstract B buildFinalBucket(long ord, long value, long docCount, long owningBucketOrd) throws IOException;
     }
