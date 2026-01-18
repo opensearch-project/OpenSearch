@@ -376,10 +376,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+            this(transport, handlingSettings, HttpResponseHeadersFactories.newDefault());
+        }
+
+        protected HttpChannelHandler(
+            final Netty4HttpServerTransport transport,
+            final HttpHandlingSettings handlingSettings,
+            final HttpResponseHeadersFactory responseHeadersFactory
+        ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
-            this.requestCreator = new Netty4HttpRequestCreator();
+            this.requestCreator = new Netty4HttpRequestCreator(responseHeadersFactory);
             this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }
