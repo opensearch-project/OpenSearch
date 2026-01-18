@@ -51,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix stats aggregation returning zero results with `size:0`. ([20427](https://github.com/opensearch-project/OpenSearch/pull/20427))
 - Remove child level directory on refresh for CompositeIndexWriter ([#20326](https://github.com/opensearch-project/OpenSearch/pull/20326))
 - Fix node local term and version being truncated in logs when host providers return very long IP or host strings ([19249](https://github.com/opensearch-project/OpenSearch/pull/19249))
+- Fix node local term and version being truncated in logs when host providers return very long IP or host strings ([20432](https://github.com/opensearch-project/OpenSearch/pull/20432))
 
 
 ### Dependencies
