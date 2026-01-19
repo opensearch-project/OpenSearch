@@ -5819,11 +5819,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 boolean fileExistsLocally;
 
                 // Fix: Use format-aware checksum for optimized indices
+                FileMetadata fileMetadata = new FileMetadata(file);
                 if (isOptimizedIndex() && directory instanceof CompositeStoreDirectory) {
-                    FileMetadata fileMetadata = new FileMetadata(file);
                     fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) directory, fileMetadata, checksum);
                 } else {
-                    fileExistsLocally = localDirectoryContainsFile(storeDirectory, file, checksum);
+                    fileExistsLocally = localDirectoryContainsFile(storeDirectory, fileMetadata.file(), checksum);
                 }
 
                 if (overrideLocal || !fileExistsLocally) {
@@ -5920,20 +5920,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             // For optimized indices with multiformat support (e.g., Parquet files),
             // use format-aware checksum validation since Parquet files don't have Lucene codec footers
+            FileMetadata fileMetadata = new FileMetadata(file);
             if (isOptimizedIndex() && storeDirectory instanceof CompositeStoreDirectory) {
-                FileMetadata fileMetadata = new FileMetadata(file);
                 fileExistsLocally = localDirectoryContains((CompositeStoreDirectory) storeDirectory, fileMetadata, checksum);
             } else if (storeDirectory instanceof StoreRecovery.StatsDirectoryWrapper
                        && ((StoreRecovery.StatsDirectoryWrapper) storeDirectory).getDelegate() instanceof CompositeStoreDirectory) {
                 // Handle case where storeDirectory is wrapped in StatsDirectoryWrapper
-                FileMetadata fileMetadata = new FileMetadata(file);
                 fileExistsLocally = localDirectoryContains(
                     (CompositeStoreDirectory) ((StoreRecovery.StatsDirectoryWrapper) storeDirectory).getDelegate(),
                     fileMetadata, checksum);
-    } else {
-        FileMetadata fm = new FileMetadata(file);
-        fileExistsLocally = localDirectoryContainsFile(storeDirectory, fm.file(), checksum);
-    }
+            } else {
+                fileExistsLocally = localDirectoryContainsFile(storeDirectory, fileMetadata.file(), checksum);
+            }
 
             if (overrideLocal || !fileExistsLocally) {
                 toDownloadSegments.add(file);
