@@ -5315,10 +5315,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         try {
                             if (exception != null) {
                                 FutureUtils.cancel(translogRecoveryFuture);
-                                continue;
                             }
-                            int recoveredOps = translogRecoveryFuture.get();
-                            totalRecovered += recoveredOps;
+                            if (false == translogRecoveryFuture.isCancelled()) {
+                                int recoveredOps = translogRecoveryFuture.get();
+                                totalRecovered += recoveredOps;
+                            }
                         } catch (Exception e) {
                             if (exception == null) {
                                 exception = e;
