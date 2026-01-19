@@ -73,7 +73,8 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, textSearchInfo, meta);
+        this(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        setBloomFilterEnabled(bloomFilterEnabled);
     }
 
     /** Returns the indexed value used to construct search "values".

@@ -1938,22 +1938,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             Number nullValue,
             Map<String, String> meta
         ) {
-            this(name, type, isSearchable, isStored, hasDocValues, skiplist, coerce, nullValue, false, meta);
-        }
-
-        public NumberFieldType(
-            String name,
-            NumberType type,
-            boolean isSearchable,
-            boolean isStored,
-            boolean hasDocValues,
-            boolean skiplist,
-            boolean coerce,
-            Number nullValue,
-            boolean bloomFilterEnabled,
-            Map<String, String> meta
-        ) {
-            super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.skiplist = skiplist;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
@@ -1971,9 +1956,9 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 builder.skiplist.getValue(),
                 builder.coerce.getValue().value(),
                 builder.nullValue.getValue(),
-                builder.getBloomFilterEnabled(),
                 builder.meta.getValue()
             );
+            setBloomFilterEnabled(builder.getBloomFilterEnabled());
         }
 
         public NumberFieldType(String name, NumberType type) {

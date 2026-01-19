@@ -157,17 +157,19 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            IpFieldType fieldType = new IpFieldType(
+                buildFullName(context),
+                indexed.getValue(),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                parseNullValue(),
+                meta.getValue()
+            );
+            fieldType.setBloomFilterEnabled(getBloomFilterEnabled());
+            
             return new IpFieldMapper(
                 name,
-                new IpFieldType(
-                    buildFullName(context),
-                    indexed.getValue(),
-                    stored.getValue(),
-                    hasDocValues.getValue(),
-                    getBloomFilterEnabled(),
-                    parseNullValue(),
-                    meta.getValue()
-                ),
+                fieldType,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this
@@ -225,19 +227,7 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             InetAddress nullValue,
             Map<String, String> meta
         ) {
-            this(name, indexed, stored, hasDocValues, false, nullValue, meta);
-        }
-
-        public IpFieldType(
-            String name,
-            boolean indexed,
-            boolean stored,
-            boolean hasDocValues,
-            boolean bloomFilterEnabled,
-            InetAddress nullValue,
-            Map<String, String> meta
-        ) {
-            super(name, indexed, stored, hasDocValues, bloomFilterEnabled, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
         }
 

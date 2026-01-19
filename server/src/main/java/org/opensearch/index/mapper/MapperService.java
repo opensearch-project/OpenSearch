@@ -124,7 +124,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         MAPPING_RECOVERY;
     }
-
+    public static final String BLOOM_FILTER_ENABLE_PARAM="bloom_filter_enable";
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
@@ -723,60 +723,53 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Generic method to extract field-level configuration parameters.
-     * Returns a map of field names to their parameter values for fields where the parameter
-     * is explicitly configured and differs from the default value.
-     * The default value is automatically fetched from the parameter definition.
+     * Extracts field-level configuration parameters across all fields in the mapping.
+     * Returns only fields with non-default values for the specified parameter.
+     * <p>
+     * Parameters are accessed directly from MappedFieldType to avoid creating builder instances.
      *
-     * @param parameterName the name of the parameter to extract (e.g., "bloom_filter_enable", "index", "doc_values")
-     * @param parameterType the type of the parameter (e.g., Boolean.class, String.class)
+     * @param parameterName the name of the parameter to extract (e.g., "bloom_filter_enable")
+     * @param parameterType the type of the parameter (e.g., Boolean.class)
+     * @param <T> the type of the parameter value
      * @return map of field names to parameter values (only non-default values)
+     * @throws IllegalArgumentException if the parameter is not supported
      */
+    @SuppressWarnings("unchecked")
     public <T> Map<String, T> getFieldConfigurations(String parameterName, Class<T> parameterType) {
+        if (parameterName == null || parameterType == null) {
+            throw new IllegalArgumentException("Parameter name and type must not be null");
+        }
+
         Map<String, T> fieldConfigs = new HashMap<>();
 
         if (this.mapper == null) {
-            logger.debug("No mapper available for field configurations");
             return fieldConfigs;
         }
 
-        logger.debug("Extracting field configurations for parameter: {}", parameterName);
+        if (BLOOM_FILTER_ENABLE_PARAM.equals(parameterName)) {
+            if (parameterType != Boolean.class) {
+                throw new IllegalArgumentException(
+                    "Parameter 'bloom_filter_enable' requires Boolean.class, but got " + parameterType.getName()
+                );
+            }
 
-        T defaultValue = null;
-        boolean defaultValueFound = false;
+            for (Mapper mapper : this.mapper.mapping().root()) {
+                if (!(mapper instanceof FieldMapper)) {
+                    continue;
+                }
 
-        for (Mapper mapper : this.mapper.mapping().root()) {
-            logger.debug("Processing mapper: {} (type: {})", mapper.simpleName(), mapper.getClass().getSimpleName());
+                FieldMapper fieldMapper = (FieldMapper) mapper;
+                MappedFieldType fieldType = fieldMapper.fieldType();
 
-            if (mapper instanceof ParametrizedFieldMapper) {
-                ParametrizedFieldMapper fieldMapper = (ParametrizedFieldMapper) mapper;
-                ParametrizedFieldMapper.Builder builder = fieldMapper.getMergeBuilder();
-
-                if (builder != null) {
-                    if (!defaultValueFound) {
-                        defaultValue = builder.getParameterDefaultValue(parameterName, parameterType);
-                        defaultValueFound = true;
-                        logger.debug("Found default value for parameter '{}': {}", parameterName, defaultValue);
-                    }
-
-                    T parameterValue = builder.getParameterValue(parameterName, parameterType);
-                    logger.debug("Field '{}': parameter '{}' = {} (default: {})",
-                        fieldMapper.simpleName(), parameterName, parameterValue, defaultValue);
-
-                    if (parameterValue != null && !parameterValue.equals(defaultValue)) {
-                        fieldConfigs.put(fieldMapper.simpleName(), parameterValue);
-                        logger.debug("Added field '{}' to configurations (non-default value: {})",
-                            fieldMapper.simpleName(), parameterValue);
-                    }
-                } else {
-                    logger.warn("No builder available for field mapper: {}", fieldMapper.simpleName());
+                if (fieldType != null && fieldType.isBloomFilterEnabled()) {
+                    fieldConfigs.put(fieldMapper.simpleName(), (T) Boolean.TRUE);
                 }
             }
+
+            return fieldConfigs;
         }
 
-        logger.debug("Found {} fields with non-default values for parameter '{}'", fieldConfigs.size(), parameterName);
-
-        return fieldConfigs;
+        throw new IllegalArgumentException("Parameter '" + parameterName + "' is not supported for extraction");
     }
 
     /**

@@ -3,6 +3,7 @@ package com.parquet.parquetdataformat.bridge;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 /**
  * JNI bridge to the native Rust Parquet writer implementation.
@@ -29,8 +30,7 @@ public class RustBridge {
     public static native void initLogger();
 
     // Enhanced native methods that handle validation and provide better error reporting
-    public static native void createWriter(String file, long schemaAddress) throws IOException;
-    public static native void setBloomFilterConfig(String file, String fieldName, boolean enabled, double fpp, long ndv) throws IOException;
+    public static native void createWriter(String file, long schemaAddress, Map<String, Boolean> bloomFilterFields) throws IOException;
     public static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
     public static native ParquetFileMetadata closeWriter(String file) throws IOException;
     public static native void flushToDisk(String file) throws IOException;
@@ -40,5 +40,5 @@ public class RustBridge {
 
 
     // Native method declarations - these will be implemented in the JNI library
-    public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile);
+    public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, Map<String, Boolean> bloomFilterFields);
 }

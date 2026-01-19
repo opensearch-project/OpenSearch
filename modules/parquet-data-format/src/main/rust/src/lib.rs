@@ -1,8 +1,8 @@
 use arrow::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
-use jni::objects::{JClass, JString, JObject};
-use jni::sys::{jint, jlong, jboolean, jdouble};
+use jni::objects::{JClass, JString, JObject, JMap};
+use jni::sys::{jint, jlong, jobject};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
@@ -23,35 +23,19 @@ pub use parquet_merge::*;
 // Re-export macros from the shared crate for logging
 pub use vectorized_exec_spi::{log_info, log_error, log_debug};
 
+const DEFAULT_BLOOM_FILTER_FPP: f64 = 0.1;
+const DEFAULT_BLOOM_FILTER_NDV: u64 = 100000;
+
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
-    static ref BLOOM_FILTER_CONFIGS: DashMap<String, DashMap<String, BloomFilterConfig>> = DashMap::new();
-}
-
-#[derive(Clone, Debug)]
-struct BloomFilterConfig {
-    enabled: bool,
-    fpp: f64,
-    ndv: u64,
 }
 
 struct NativeParquetWriter;
 
 impl NativeParquetWriter {
 
-    fn set_bloom_filter_config(filename: String, field_name: String, enabled: bool, fpp: f64, ndv: u64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] set_bloom_filter_config called for file: {}, field: {}, enabled: {}, fpp: {}, ndv: {}", filename, field_name, enabled, fpp, ndv);
-
-        let field_configs = BLOOM_FILTER_CONFIGS.entry(filename.clone()).or_insert_with(DashMap::new);
-        field_configs.insert(field_name.clone(), BloomFilterConfig { enabled, fpp, ndv });
-
-        Ok(())
-    }
-
-
-
-    fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_writer(filename: String, schema_address: i64, bloom_filter_fields: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
 
         if (schema_address as *mut u8).is_null() {
@@ -77,36 +61,28 @@ impl NativeParquetWriter {
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
 
-        let props = Self::build_writer_properties(&filename, &schema)?;
+        let props = Self::build_writer_properties(&schema, &bloom_filter_fields)?;
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
         WRITER_MANAGER.insert(filename.clone(), Arc::new(Mutex::new(writer)));
 
         Ok(())
     }
 
-    fn build_writer_properties(filename: &str, schema: &Arc<arrow::datatypes::Schema>) -> Result<WriterProperties, Box<dyn std::error::Error>> {
+    fn build_writer_properties(schema: &Arc<arrow::datatypes::Schema>, bloom_filter_fields: &[String]) -> Result<WriterProperties, Box<dyn std::error::Error>> {
         let mut props_builder = WriterProperties::builder()
             .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()));
 
-        if let Some(field_configs) = BLOOM_FILTER_CONFIGS.get(filename) {
-            log_debug!("[RUST] Found {} bloom filter configs for file: {}", field_configs.len(), filename);
+        if !bloom_filter_fields.is_empty() {
+            let bloom_set: std::collections::HashSet<&String> = bloom_filter_fields.iter().collect();
+            
             for field in schema.fields().iter() {
-                if let Some(config) = field_configs.get(field.name()) {
-                    if config.enabled {
-                        log_debug!("[RUST] Adding bloom filter for field: {} (enabled via config)", field.name());
-                        props_builder = props_builder
-                            .set_column_bloom_filter_enabled(field.name().clone().into(), true)
-                            .set_column_bloom_filter_fpp(field.name().clone().into(), config.fpp)
-                            .set_column_bloom_filter_ndv(field.name().clone().into(), config.ndv);
-                    } else {
-                        log_debug!("[RUST] Skipping bloom filter for field: {} (disabled via config)", field.name());
-                    }
-                } else {
-                    log_debug!("[RUST] No bloom filter config found for field: {}", field.name());
+                if bloom_set.contains(field.name()) {
+                    props_builder = props_builder
+                        .set_column_bloom_filter_enabled(field.name().clone().into(), true)
+                        .set_column_bloom_filter_fpp(field.name().clone().into(), DEFAULT_BLOOM_FILTER_FPP)
+                        .set_column_bloom_filter_ndv(field.name().clone().into(), DEFAULT_BLOOM_FILTER_NDV);
                 }
             }
-        } else {
-            log_debug!("[RUST] No bloom filter configurations found for file: {}", filename);
         }
 
         Ok(props_builder.build())
@@ -333,35 +309,18 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
-    schema_address: jlong
+    schema_address: jlong,
+    bloom_filter_map: JObject
 ) -> jint {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
+    
+    let bloom_fields = if !bloom_filter_map.is_null() { let map = JMap::from_env(&mut env, &bloom_filter_map).expect("Couldn't get Java Map!"); let mut iter = map.iter(&mut env).expect("Couldn't get map iterator!"); let mut fields = Vec::new(); while let Some((key, value)) = iter.next(&mut env).expect("Error iterating map") { let field_name: String = env.get_string(&JString::from(key)).expect("Couldn't get field name!").into(); let boolean_class = env.find_class("java/lang/Boolean").expect("Couldn't find Boolean class"); let boolean_value_method = env.get_method_id(&boolean_class, "booleanValue", "()Z").expect("Couldn't find booleanValue method"); let is_enabled = unsafe { env.call_method_unchecked(&value, boolean_value_method, jni::signature::ReturnType::Primitive(jni::signature::Primitive::Boolean), &[]).expect("Couldn't call booleanValue").z().expect("Couldn't get boolean value") }; if is_enabled { fields.push(field_name); } } fields } else { Vec::new() };
+    
+    match NativeParquetWriter::create_writer(filename, schema_address as i64, bloom_fields) {
         Ok(_) => 0,
         Err(_) => -1,
     }
 }
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_setBloomFilterConfig(
-    mut env: JNIEnv,
-    _class: JClass,
-    file: JString,
-    field_name: JString,
-    enabled: jboolean,
-    fpp: jdouble,
-    ndv: jlong
-) -> jint {
-    let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    let field_name_str: String = env.get_string(&field_name).expect("Couldn't get java string!").into();
-
-    match NativeParquetWriter::set_bloom_filter_config(filename, field_name_str, enabled != 0, fpp, ndv as u64) {
-        Ok(_) => 0,
-        Err(_) => -1
-    }
-}
-
-
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_write(
@@ -551,7 +510,7 @@ mod tests {
 
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
+        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr, Vec::new());
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -584,7 +543,7 @@ mod tests {
         let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
         let (_schema, schema_ptr) = create_test_ffi_schema();
 
-        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
+        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr, Vec::new());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
 
@@ -596,7 +555,7 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let result = NativeParquetWriter::create_writer(filename, 0);
+        let result = NativeParquetWriter::create_writer(filename, 0, Vec::new());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
@@ -607,7 +566,7 @@ mod tests {
         let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
 
         // Second writer creation for same file should fail
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr, Vec::new());
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
@@ -780,7 +739,7 @@ mod tests {
                 let filename = file_path.to_string_lossy().to_string();
                 let (_schema, schema_ptr) = create_test_ffi_schema();
 
-                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
+                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr, Vec::new()).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                     let _ = NativeParquetWriter::close_writer(filename);
                 }
@@ -905,5 +864,21 @@ mod tests {
         for (i, filename) in filenames.iter().enumerate() {
             close_writer_and_cleanup_schema(filename, schema_ptrs[i]);
         }
+    }
+
+    #[test]
+    fn test_bloom_filter_config_cleanup() {
+        let (_temp_dir, filename) = get_temp_file_path("bloom_cleanup.parquet");
+        
+        let bloom_fields = vec!["id".to_string()];
+        
+        let (_schema, schema_ptr) = create_test_ffi_schema();
+        let result = NativeParquetWriter::create_writer(filename.clone(), schema_ptr, bloom_fields);
+        assert!(result.is_ok());
+        
+        let close_result = NativeParquetWriter::close_writer(filename.clone());
+        assert!(close_result.is_ok());
+        
+        cleanup_ffi_schema(schema_ptr);
     }
 }

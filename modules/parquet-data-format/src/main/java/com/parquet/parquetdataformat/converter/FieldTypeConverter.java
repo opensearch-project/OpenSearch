@@ -14,12 +14,12 @@ import java.util.Map;
 
 /**
  * Utility class for converting between OpenSearch field types and Arrow/Parquet types.
- *
+ * 
  * <p>This converter provides bidirectional mapping between OpenSearch's field type system
  * and Apache Arrow's type system, which serves as the bridge to Parquet data representation.
  * It handles the complete conversion pipeline from OpenSearch indexed data to columnar
  * Parquet storage format.
- *
+ * 
  * <p>Supported type conversions:
  * <ul>
  *   <li>OpenSearch numeric types (long, integer, short, byte, double, float) → Arrow Int/FloatingPoint</li>
@@ -27,37 +27,37 @@ import java.util.Map;
  *   <li>OpenSearch date → Arrow Timestamp</li>
  *   <li>OpenSearch text/keyword → Arrow Utf8</li>
  * </ul>
- *
+ * 
  * <p>The converter also provides reverse mapping capabilities to reconstruct OpenSearch
  * field types from Arrow types, enabling proper schema reconstruction during read operations.
- *
+ * 
  * <p>All conversion methods are static and thread-safe, making them suitable for concurrent
  * use across multiple writer instances.
  */
 public class FieldTypeConverter {
-
+    
     public static Map<FieldType, Object> convertToArrowFieldMap(MappedFieldType mappedFieldType, Object value) {
         Map<FieldType, Object> fieldMap = new HashMap<>();
         FieldType arrowFieldType = convertToArrowFieldType(mappedFieldType);
         fieldMap.put(arrowFieldType, value);
         return fieldMap;
     }
-
+    
     public static FieldType convertToArrowFieldType(MappedFieldType mappedFieldType) {
         ArrowType arrowType = getArrowType(mappedFieldType.typeName());
         return new FieldType(true, arrowType, null);
     }
-
+    
     public static ParquetFieldType convertToParquetFieldType(MappedFieldType mappedFieldType) {
         ArrowType arrowType = getArrowType(mappedFieldType.typeName());
-        return new ParquetFieldType(mappedFieldType.name(), arrowType, mappedFieldType.isBloomFilterEnabled());
+        return new ParquetFieldType(mappedFieldType.name(), arrowType);
     }
-
+    
     public static MappedFieldType convertToMappedFieldType(String name, ArrowType arrowType) {
         String opensearchType = getOpenSearchType(arrowType);
         return new MockMappedFieldType(name, opensearchType);
     }
-
+    
     private static ArrowType getArrowType(String opensearchType) {
         switch (opensearchType) {
             case "long":
@@ -80,7 +80,7 @@ public class FieldTypeConverter {
                 return new ArrowType.Utf8();
         }
     }
-
+    
     private static String getOpenSearchType(ArrowType arrowType) {
         switch (arrowType) {
             case ArrowType.Int intType -> {
@@ -106,27 +106,27 @@ public class FieldTypeConverter {
             }
         }
     }
-
+    
     private static class MockMappedFieldType extends MappedFieldType {
         private final String type;
-
+        
         public MockMappedFieldType(String name, String type) {
-            super(name, true, false, false, false, TextSearchInfo.NONE, null);
+            super(name, true, false, false, TextSearchInfo.NONE, null);
             this.type = type;
         }
-
+        
         @Override
         public String typeName() {
             return type;
         }
-
+        
         @Override
         public ValueFetcher valueFetcher(org.opensearch.index.query.QueryShardContext context,
                                          org.opensearch.search.lookup.SearchLookup searchLookup,
                                          String format) {
             return null;
         }
-
+        
         @Override
         public Query termQuery(Object value, org.opensearch.index.query.QueryShardContext context) {
             return null;

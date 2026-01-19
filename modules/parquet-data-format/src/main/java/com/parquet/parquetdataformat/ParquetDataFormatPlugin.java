@@ -33,8 +33,6 @@ import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import org.opensearch.index.mapper.ParametrizedFieldMapper;
 
-import static org.opensearch.index.mapper.ParametrizedFieldMapper.BLOOM_FILTER_ENABLE_PARAM;
-
 import java.util.HashMap;
 import java.util.Map;
 import org.opensearch.index.shard.ShardPath;
@@ -92,6 +90,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     private Settings settings;
 
     public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
+    public static final String BLOOM_FILTER_ENABLE_PARAM = "bloom_filter_enable";
 
     public static final Setting<String> INDEX_MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "index.parquet.max_native_allocation",
@@ -111,15 +110,9 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         );
     }
 
-    /**
-     * Collects all field configurations in a structured format.
-     * Returns a map where keys are parameter names and values are maps of field names to their values.
-     * 
-     * @param mapperService the mapper service to extract configurations from
-     * @return Map&lt;ParameterName, Map&lt;FieldName, ParameterValue&gt;&gt;
-     */
+
     private Map<String, Map<String, Boolean>> collectAllFieldConfigurations(MapperService mapperService) {
-        logger.info("Starting comprehensive field configuration collection");
+        logger.debug("Starting comprehensive field configuration collection");
 
         Map<String, Map<String, Boolean>> allConfigs = new HashMap<>();
 

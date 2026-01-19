@@ -623,10 +623,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Initialises all parameters from an existing mapper
          */
         public Builder init(FieldMapper initializer) {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.init(initializer);
             }
-            bloomFilterEnabled.init(initializer);
             for (Mapper subField : initializer.multiFields) {
                 multiFieldsBuilder.add(subField);
             }
@@ -634,10 +633,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void merge(FieldMapper in, Conflicts conflicts) {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.merge(in, conflicts);
             }
-            bloomFilterEnabled.merge(in, conflicts);
             for (Mapper newSubField : in.multiFields) {
                 multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
             }
@@ -646,10 +644,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void validate() {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.validate();
             }
-            bloomFilterEnabled.validate();
         }
 
         /**
@@ -671,44 +668,19 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return bloomFilterEnabled.getValue();
         }
 
-
-        public final <T> T getParameterValue(String parameterName, Class<T> parameterType) {
-            for (Parameter<?> param : getAllParametersForParsing()) {
-                if (param.name.equals(parameterName)) {
-                    Object value = param.getValue();
-                    if (parameterType.isInstance(value)) {
-                        return parameterType.cast(value);
-                    }
-                }
-            }
-            return null;
-        }
-
-
-        public final <T> T getParameterDefaultValue(String parameterName, Class<T> parameterType) {
-            for (Parameter<?> param : getAllParametersForParsing()) {
-                if (param.name.equals(parameterName)) {
-                    Object defaultValue = param.getDefaultValue();
-                    if (parameterType.isInstance(defaultValue)) {
-                        return parameterType.cast(defaultValue);
-                    }
-                }
-            }
-            return null;
-        }
-
         /**
          * Writes the current builder parameter values as XContent
          */
         public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            for (Parameter<?> parameter : getParameters()) {
+            for (Parameter<?> parameter : getAllParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
-            bloomFilterEnabled.toXContent(builder, includeDefaults);
         }
 
-     
-        private List<Parameter<?>> getAllParametersForParsing() {
+        /**
+         * @return all parameters including bloom filter parameter from base class
+         */
+        private List<Parameter<?>> getAllParameters() {
             List<Parameter<?>> allParams = new ArrayList<>(getParameters());
             allParams.add(bloomFilterEnabled);
             return allParams;
@@ -723,7 +695,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
-            for (Parameter<?> param : getAllParametersForParsing()) {
+            for (Parameter<?> param : getAllParameters()) {
                 paramsMap.put(param.name, param);
                 for (String deprecatedName : param.deprecatedNames) {
                     deprecatedParamsMap.put(deprecatedName, param);

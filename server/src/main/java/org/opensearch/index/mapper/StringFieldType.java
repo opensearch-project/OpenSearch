@@ -88,7 +88,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, bloomFilterEnabled, textSearchInfo, meta);
+        this(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        setBloomFilterEnabled(bloomFilterEnabled);
     }
 
     @Override
