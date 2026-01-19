@@ -80,14 +80,25 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
 
     @Override
     public void doReset() {
-        super.doReset();
-        // Clean up the stream collector for the next batch, but preserve cumulative HLL counts
+        // super.doReset(); // Prevent resetting counts
+        // Clean up the stream collector for the next batch, but preserve cumulative HLL
+        // counts
         if (streamCollector != null) {
             streamCollector.close();
             streamCollector = null;
         }
-        // DO NOT close/recreate counts - preserve cumulative cardinality state for final reduction
-        // This keeps the HyperLogLog registers intact across batches so final buildAggregation() is correct
+        // DO NOT close/recreate counts - preserve cumulative cardinality state for
+        // final reduction
+        // This keeps the HyperLogLog registers intact across batches so final
+        // buildAggregation() is correct
+    }
+
+    @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
     }
 
     @Override
@@ -114,5 +125,45 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
+        add.accept("total_buckets", 1);
+        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
+        add.accept("streaming_precision", precision);
+        add.accept("streaming_top_n_size", metrics.topNSize());
+        add.accept("streaming_estimated_cardinality", metrics.estimatedBucketCount());
+        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
+        add.accept("streaming_segment_count", metrics.segmentCount());
+    }
+
+    @Override
+    public StreamingCostMetrics getStreamingCostMetrics() {
+        try {
+            // For cardinality, we don't have a fixed topN size like terms aggregations
+            // Instead, we use the precision parameter to estimate memory requirements
+            int topNSize = 1 << precision; // HyperLogLog register count is 2^precision
+
+            // Only support ordinal value sources (strings/keywords)
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+
+            ValuesSource.Bytes.WithOrdinals ordinalValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long maxCardinality = 0;
+            long totalDocsWithField = 0;
+
+            for (LeafReaderContext leaf : leaves) {
+                SortedSetDocValues docValues = ordinalValuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                    totalDocsWithField += docValues.cost();
+                }
+            }
+
+            return new StreamingCostMetrics(true, topNSize, maxCardinality, leaves.size(), totalDocsWithField);
+        } catch (IOException e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
     }
 }

@@ -21,7 +21,16 @@ import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import java.util.Collection;
 
 /**
- * Determines optimal {@link FlushMode} for streaming aggregations based on cost metrics.
+ * Analyzes collector trees to determine optimal {@link FlushMode} for streaming
+ * aggregations.
+ *
+ * <p>
+ * Performs cost-benefit analysis by examining all collectors in the tree.
+ * Streaming is only
+ * enabled when all collectors implement {@link Streamable} and the combined
+ * cost metrics
+ * indicate streaming will be beneficial compared to traditional shard-level
+ * processing.
  *
  * @opensearch.internal
  */
@@ -47,7 +56,8 @@ public final class FlushModeResolver {
      * Maximum estimated bucket count allowed for streaming aggregations.
      * If an aggregation is estimated to produce more buckets than this threshold,
      * traditional shard-level processing will be used instead of streaming.
-     * This prevents coordinator overload from processing too many streaming buckets.
+     * This prevents coordinator overload from processing too many streaming
+     * buckets.
      */
     public static final Setting<Long> STREAMING_MAX_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.max_estimated_bucket_count",
@@ -76,7 +86,8 @@ public final class FlushModeResolver {
     /**
      * Minimum estimated bucket count required for streaming aggregations.
      * If an aggregation is estimated to produce fewer buckets than this threshold,
-     * traditional processing is used to avoid streaming overhead for small result sets.
+     * traditional processing is used to avoid streaming overhead for small result
+     * sets.
      */
     public static final Setting<Long> STREAMING_MIN_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.min_estimated_bucket_count",
@@ -89,12 +100,13 @@ public final class FlushModeResolver {
     /**
      * Determines the optimal flush mode for the given collector tree.
      *
-     * @param collector the root collector to analyze
-     * @param defaultMode fallback mode if streaming is not supported
-     * @param maxBucketCount maximum bucket count threshold
+     * @param collector           the root collector to analyze
+     * @param defaultMode         fallback mode if streaming is not supported
+     * @param maxBucketCount      maximum bucket count threshold
      * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @param minBucketCount minimum estimated bucket count threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
+     * @param minBucketCount      minimum estimated bucket count threshold
+     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise
+     *         the default mode
      */
     public static FlushMode resolve(
         Collector collector,
@@ -105,26 +117,16 @@ public final class FlushModeResolver {
     ) {
         StreamingCostMetrics metrics = collectMetrics(collector);
         FlushMode decision = decideFlushMode(metrics, defaultMode, maxBucketCount, minCardinalityRatio, minBucketCount);
-        logger.debug(
-            "Streaming decision: {} - Metrics: buckets={}, docs={}, topN={}, segments={}, cardinality_ratio={}, thresholds: max_buckets={}, min_buckets={}, min_cardinality_ratio={}",
-            decision,
-            metrics.estimatedBucketCount(),
-            metrics.estimatedDocCount(),
-            metrics.topNSize(),
-            metrics.segmentCount(),
-            metrics.estimatedDocCount() > 0 ? (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount() : 0.0,
-            maxBucketCount,
-            minBucketCount,
-            minCardinalityRatio
-        );
         return decision;
+
     }
 
     /**
      * Collects and combines streaming metrics from the collector tree.
      *
      * @param collector the collector to analyze
-     * @return combined metrics if all collectors support streaming, nonStreamable otherwise
+     * @return combined metrics if all collectors support streaming, nonStreamable
+     *         otherwise
      */
     private static StreamingCostMetrics collectMetrics(Collector collector) {
         if (!(collector instanceof Streamable
@@ -177,10 +179,12 @@ public final class FlushModeResolver {
     /**
      * Evaluates cost metrics to determine if streaming is beneficial.
      *
-     * @param metrics combined cost metrics from the factory tree
-     * @param defaultMode fallback mode when streaming is not beneficial
-     * @param maxBucketCount maximum bucket count threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
+     * @param metrics             combined cost metrics from the collector tree
+     * @param defaultMode         fallback mode when streaming is not beneficial
+     * @param maxBucketCount      maximum bucket count threshold
+     * @param minCardinalityRatio minimum cardinality ratio threshold
+     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise
+     *         the default mode
      */
     public static FlushMode decideFlushMode(StreamingCostMetrics metrics, FlushMode defaultMode, long maxBucketCount) {
         if (!metrics.streamable()) {

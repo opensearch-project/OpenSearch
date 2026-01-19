@@ -77,9 +77,17 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public void doReset() {
-        super.doReset();
+        // super.doReset(); // Prevent clearing doc counts
         valueCount = 0;
         sortedDocValuesPerBatch = null;
+    }
+
+    @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
     }
 
     @Override
@@ -341,7 +349,8 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract R buildNoValuesResult(long owningBucketOrdinal);
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         * Build a final bucket directly with the provided data, skipping temporary
+         * bucket creation.
          */
         abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
     }
@@ -429,10 +438,14 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
-    }
+        add.accept("total_buckets", valueCount);
 
-    @Override
-    public void doClose() {
-        Releasables.close(resultStrategy);
+        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
+        add.accept("streaming_top_n_size", metrics.topNSize());
+        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
+        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
+        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 }
