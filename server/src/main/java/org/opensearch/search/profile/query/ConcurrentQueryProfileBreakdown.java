@@ -44,6 +44,7 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     static final String MAX_PREFIX = "max_";
     static final String MIN_PREFIX = "min_";
     static final String AVG_PREFIX = "avg_";
+    static final String SLICES_INFO = "slices_info";
     private long queryNodeTime = Long.MIN_VALUE;
     private long maxSliceNodeTime = Long.MIN_VALUE;
     private long minSliceNodeTime = Long.MAX_VALUE;
@@ -59,12 +60,17 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
     private final Set<String> timingMetrics;
     private final Set<String> nonTimingMetrics;
 
+    private final SlicesInformation slicesInformation;
+
     public ConcurrentQueryProfileBreakdown(Collection<Supplier<ProfileMetric>> metricSuppliers) {
         super(metricSuppliers);
         this.metricSuppliers = metricSuppliers;
         this.timingMetrics = getTimingMetrics();
         this.nonTimingMetrics = getNonTimingMetrics();
+        this.slicesInformation = new SlicesInformation();
     }
+
+
 
     @Override
     public AbstractProfileBreakdown context(Object context) {
@@ -479,6 +485,11 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
 
     long getAvgSliceNodeTime() {
         return avgSliceNodeTime;
+    }
+
+    @Override
+    public Map<String, Object> toDebugMap() {
+        return Map.of(SLICES_INFO, slicesInformation.toMap());
     }
 
 }
