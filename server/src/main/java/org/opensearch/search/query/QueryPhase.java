@@ -165,9 +165,9 @@ public class QueryPhase {
                 );
         }
 
-        if (searchContext.getDFResults() != null && searchContext.getDFResults().isEmpty() == false) {
+        if (searchContext.getDFResults() != null) {
             SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
-        } else {
+        } else if(searchContext.request().source().queryPlanIR() == null) {
             boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
              if (rescore) { // only if we do a regular search
              rescoreProcessor.process(searchContext);

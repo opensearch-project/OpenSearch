@@ -769,6 +769,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (hlls == null) {
             hlls = shardResult.get(name);
         }
+        if(hlls == null || hlls[row] == null) {
+            return buildEmptyAggregation();
+        }
         HyperLogLogPlusPlus sketch = DataFusionHLLWrapper.getHyperLogLogPlusPlus((byte[]) hlls[row]);
         return new InternalCardinality(name, sketch, null);
     }
