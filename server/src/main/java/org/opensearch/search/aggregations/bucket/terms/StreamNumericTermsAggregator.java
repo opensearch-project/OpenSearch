@@ -540,13 +540,22 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     }
 
     @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
+    }
+
+    @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
 
         StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
         add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
         add.accept("streaming_estimated_docs", metrics.estimatedDocCount());

@@ -493,23 +493,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // streaming
                 if (context.isStreamingModeRequested()
                     && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
-                    // Streaming aggregators only support single-segment readers
-                    int numSegments = context.searcher().getIndexReader().leaves().size();
-                    if (numSegments <= 1) {
-                        return createStreamStringTermsAggregator(
-                            name,
-                            factories,
-                            valuesSource,
-                            order,
-                            format,
-                            bucketCountThresholds,
-                            context,
-                            parent,
-                            showTermDocCountError,
-                            metadata
-                        );
-                    }
-                    // Fall through to classic aggregator selection for multi-segment readers
+                    // Streaming aggregators support multi-segment readers now
+                    return createStreamStringTermsAggregator(
+                        name,
+                        factories,
+                        valuesSource,
+                        order,
+                        format,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        showTermDocCountError,
+                        metadata
+                    );
                 }
 
                 if (factories == AggregatorFactories.EMPTY

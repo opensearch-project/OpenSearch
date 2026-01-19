@@ -355,7 +355,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Should be called before executing the main query and after all other parameters have been set.
+     * Should be called before executing the main query and after all other
+     * parameters have been set.
      */
     @Override
     public void preProcess(boolean rewrite) {
@@ -556,8 +557,10 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
-        // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
+        // it's ok to use the writeable name here given that we enforce it to be the
+        // same as the name of the element that gets
+        // parsed by the corresponding parser. There is one single name and one single
+        // way to retrieve the parsed object from the context.
         searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
     }
 
@@ -616,7 +619,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
+     * A shortcut function to see whether there is a fetchSourceContext and it says
+     * the source is requested.
      */
     @Override
     public boolean sourceRequested() {
@@ -997,7 +1001,9 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Returns concurrent segment search status for the search context. This should only be used after request parsing, during which requestShouldUseConcurrentSearch will be set.
+     * Returns concurrent segment search status for the search context. This should
+     * only be used after request parsing, during which
+     * requestShouldUseConcurrentSearch will be set.
      */
     @Override
     public boolean shouldUseConcurrentSearch() {
@@ -1046,7 +1052,8 @@ final class DefaultSearchContext extends SearchContext {
 
         final ConcurrentSearchDecision pluginDecision = ConcurrentSearchDecision.getCompositeDecision(decisions);
         if (pluginDecision.getDecisionStatus().equals(ConcurrentSearchDecision.DecisionStatus.NO_OP)) {
-            // plugins don't have preference, decide based on whether request has aggregations or not.
+            // plugins don't have preference, decide based on whether request has
+            // aggregations or not.
             if (aggregations() != null) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("request has supported aggregations, using concurrent search");
@@ -1070,7 +1077,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Evaluate if request should use concurrent search based on request and concurrent search deciders
+     * Evaluate if request should use concurrent search based on request and
+     * concurrent search deciders
      */
     public void evaluateRequestShouldUseConcurrentSearch() {
         if (sort != null && sort.isSortOnTimeSeriesField()) {
@@ -1130,26 +1138,34 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Determines the appropriate concurrent segment search mode for the current search request.
+     * Determines the appropriate concurrent segment search mode for the current
+     * search request.
      * <p>
-     * This method evaluates both index-level and cluster-level settings to decide whether
-     * concurrent segment search should be enabled. The resolution logic is as follows:
+     * This method evaluates both index-level and cluster-level settings to decide
+     * whether
+     * concurrent segment search should be enabled. The resolution logic is as
+     * follows:
      * <ol>
-     *     <li>If the request targets a system index or uses search throttling, concurrent segment search is disabled.</li>
-     *     <li>If a legacy boolean setting is present (cluster or index level), it is honored:
-     *         <ul>
-     *             <li><code>true</code> → enables concurrent segment search ("all")</li>
-     *             <li><code>false</code> → disables it ("none")</li>
-     *         </ul>
-     *     </li>
-     *     <li>Otherwise, the modern string-based setting is used. Allowed values are: "none", "auto", or "all".</li>
+     * <li>If the request targets a system index or uses search throttling,
+     * concurrent segment search is disabled.</li>
+     * <li>If a legacy boolean setting is present (cluster or index level), it is
+     * honored:
+     * <ul>
+     * <li><code>true</code> → enables concurrent segment search ("all")</li>
+     * <li><code>false</code> → disables it ("none")</li>
+     * </ul>
+     * </li>
+     * <li>Otherwise, the modern string-based setting is used. Allowed values are:
+     * "none", "auto", or "all".</li>
      * </ol>
      *
-     * @param concurrentSearchExecutor the executor used for concurrent segment search; if null, disables the feature
+     * @param concurrentSearchExecutor the executor used for concurrent segment
+     *                                 search; if null, disables the feature
      * @return the resolved concurrent segment search mode: "none", "auto", or "all"
      */
     private String evaluateConcurrentSearchMode(Executor concurrentSearchExecutor) {
-        // Skip concurrent search for system indices, throttled requests, or if dependencies are missing
+        // Skip concurrent search for system indices, throttled requests, or if
+        // dependencies are missing
         if (indexShard.isSystem()
             || indexShard.indexSettings().isSearchThrottled()
             || clusterService == null
@@ -1188,14 +1204,19 @@ final class DefaultSearchContext extends SearchContext {
     /**
      * Returns the target maximum slice count to use for concurrent segment search.
      *
-     * If concurrent segment search is disabled (either due to system index, throttled search,
-     * missing executor, or explicitly disabled settings), then we return a slice count of 1.
-     * This effectively disables concurrent slicing and ensures that the search is performed
+     * If concurrent segment search is disabled (either due to system index,
+     * throttled search,
+     * missing executor, or explicitly disabled settings), then we return a slice
+     * count of 1.
+     * This effectively disables concurrent slicing and ensures that the search is
+     * performed
      * in a single-threaded manner.
      *
-     * Otherwise, fetch the configured slice count from index or cluster-level settings.
+     * Otherwise, fetch the configured slice count from index or cluster-level
+     * settings.
      *
-     * @return number of slices to use for concurrent segment search; returns 1 if concurrent search is disabled.
+     * @return number of slices to use for concurrent segment search; returns 1 if
+     *         concurrent search is disabled.
      */
     @Override
     public int getTargetMaxSliceCount() {
@@ -1341,7 +1362,8 @@ final class DefaultSearchContext extends SearchContext {
 
     /**
      * Disables streaming for this search context.
-     * Used when streaming cost analysis determines traditional processing is more efficient.
+     * Used when streaming cost analysis determines traditional processing is more
+     * efficient.
      */
     @Override
     public FlushMode getFlushMode() {
@@ -1356,6 +1378,11 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
         return cachedFlushMode.trySet(flushMode);
+    }
+
+    @Override
+    public boolean hasCachedFlushMode() {
+        return cachedFlushMode.get() != null;
     }
 
     @Override
