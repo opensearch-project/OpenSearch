@@ -540,7 +540,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         final RecoverySettings recoverySettings = new RecoverySettings(
             Settings.builder()
                 .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE.getKey(), true)
-                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 10)
+                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 11000)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -554,7 +554,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 MergedSegmentPublisher.EMPTY
             )
         ) {
-            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(200, 300));
+            doPrimaryPromotion(shards, randomInt(10), randomIntBetween(30000, 40000));
         }
     }
 

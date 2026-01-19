@@ -237,10 +237,10 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    public static final Setting<Long> INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE = Setting.longSetting(
+    public static final Setting<Integer> INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE = Setting.intSetting(
         "indices.translog_concurrent_recovery.batch_size",
         500000,
-        1,
+        10000,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -268,7 +268,7 @@ public class RecoverySettings {
     private volatile TimeValue mergedSegmentReplicationTimeout;
 
     private volatile boolean isTranslogConcurrentRecoveryEnable;
-    private volatile long translogConcurrentRecoveryBatchSize;
+    private volatile int translogConcurrentRecoveryBatchSize;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -527,11 +527,11 @@ public class RecoverySettings {
         isTranslogConcurrentRecoveryEnable = translogConcurrentRecoveryEnable;
     }
 
-    public long getTranslogConcurrentRecoveryBatchSize() {
+    public int getTranslogConcurrentRecoveryBatchSize() {
         return translogConcurrentRecoveryBatchSize;
     }
 
-    private void setTranslogConcurrentRecoveryBatchSize(long translogConcurrentRecoveryBatchSize) {
+    private void setTranslogConcurrentRecoveryBatchSize(int translogConcurrentRecoveryBatchSize) {
         this.translogConcurrentRecoveryBatchSize = translogConcurrentRecoveryBatchSize;
     }
 }

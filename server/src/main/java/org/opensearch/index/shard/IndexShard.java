@@ -103,7 +103,6 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
-import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -242,6 +241,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -396,6 +396,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
+    private final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
     @InternalApi
     public IndexShard(
@@ -5277,19 +5278,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onNewEngine(newEngineReference.get());
         }
         final TranslogRecoveryRunner translogRunner = (snapshot) -> {
+            long startTime = System.currentTimeMillis();
             Engine engine = newEngineReference.get();
             assert null != engine;
+            int translogRecoveryOperations;
             int totalOperations = snapshot.totalOperations();
-            long batchSize = recoverySettings.getTranslogConcurrentRecoveryBatchSize();
-            boolean threadPoolNotBusy = ((OpenSearchThreadPoolExecutor) threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)).getQueue()
-                .isEmpty();
+            int batchSize = recoverySettings.getTranslogConcurrentRecoveryBatchSize();
+            long localCheckpoint = engine.getProcessedLocalCheckpoint();
+            final int batches = (totalOperations + batchSize - 1) / batchSize;
             // When the total totalOperations <= batchSize, there is no need to use concurrent execution.
-            if (recoverySettings.isTranslogConcurrentRecoveryEnable()
+            boolean isConcurrentRecovery = recoverySettings.isTranslogConcurrentRecoveryEnable()
                 && indexSettings.isSegRepEnabledOrRemoteNode()
                 && totalOperations > batchSize
-                && threadPoolNotBusy) {
-                long localCheckpoint = engine.getProcessedLocalCheckpoint();
-                final long batches = (totalOperations + batchSize - 1) / batchSize;
+                && translogConcurrentRecoverySemaphore.tryAcquire(batches);
+            if (isConcurrentRecovery) {
                 List<Translog.Snapshot> translogSnapshotList = new ArrayList<>();
                 List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
                 try {
@@ -5310,6 +5312,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     int totalRecovered = 0;
                     for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
                         try {
+                            if (exception != null) {
+                                translogRecoveryFuture.cancel(true);
+                                continue;
+                            }
                             int recoveredOps = translogRecoveryFuture.get();
                             totalRecovered += recoveredOps;
                         } catch (Exception e) {
@@ -5323,15 +5329,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (exception != null) {
                         throw new IOException("Failed to concurrent recovery translog", exception);
                     }
-                    return totalRecovered;
+                    translogRecoveryOperations = totalRecovered;
                 } finally {
                     IOUtils.closeWhileHandlingException(translogSnapshotList);
+                    translogConcurrentRecoverySemaphore.release(batches);
                 }
             } else {
-                return runTranslogRecovery(newEngineReference.get(), snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
-                    // TODO: add a dedicate recovery stats for the reset translog
-                });
+                translogRecoveryOperations = runTranslogRecovery(
+                    newEngineReference.get(),
+                    snapshot,
+                    Engine.Operation.Origin.LOCAL_RESET,
+                    () -> {
+                        // TODO: add a dedicate recovery stats for the reset translog
+                    }
+                );
             }
+
+            logger.info(
+                "translog recovery complete, isConcurrentRecovery {}, cost {}ms, totalRecovered {}",
+                isConcurrentRecovery,
+                System.currentTimeMillis() - startTime,
+                translogRecoveryOperations
+            );
+
+            return translogRecoveryOperations;
         };
 
         // When the new engine is created, translogs are synced from remote store onto local. Since remote store is the source
