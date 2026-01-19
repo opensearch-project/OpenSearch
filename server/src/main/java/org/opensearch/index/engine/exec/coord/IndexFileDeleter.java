@@ -85,6 +85,7 @@ public class IndexFileDeleter {
             for (WriterFileSet fileSet : fileSets) {
                 Path directory = Path.of(fileSet.getDirectory());
                 for (String file : fileSet.getFiles()) {
+                    // ToDo: @Shreyansh update this to relative path
                     dfFiles.add(directory.resolve(file).toAbsolutePath().normalize().toString());
                 }
             }
@@ -103,7 +104,8 @@ public class IndexFileDeleter {
             Collection<String> filesToDelete = new HashSet<>();
             Path dataFormatPath = shardPath.getDataPath().resolve(dataFormat);
             if (!Files.exists(dataFormatPath)) continue;
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataFormatPath, "*.parquet")) {
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataFormatPath, "*." + dataFormat)) {
                 StreamSupport.stream(stream.spliterator(), false)
                         .map(p -> p.toAbsolutePath().normalize().toString())
                         .filter((file) -> (!referencedFiles.contains(file)))
