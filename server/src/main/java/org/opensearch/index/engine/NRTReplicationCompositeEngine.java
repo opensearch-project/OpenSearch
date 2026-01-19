@@ -346,11 +346,6 @@ public class NRTReplicationCompositeEngine extends CompositeEngine {
     // Metadata methods
 
     @Override
-    public String getHistoryUUID() {
-        return null; // Replicas don't track history UUID
-    }
-
-    @Override
     public long getIndexThrottleTimeInMillis() {
         return 0;
     }
