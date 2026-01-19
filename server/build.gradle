@@ -31,7 +31,7 @@
 import groovy.xml.XmlParser
 
 plugins {
-  id('com.google.protobuf') version 'latest.release'
+  id('com.google.protobuf') version '0.9.6'
   id('opensearch.build')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')
@@ -98,6 +98,10 @@ dependencies {
   api libs.log4japi
   api libs.log4jjul
   api libs.log4jcore, optional
+
+  compileOnlyApi "org.jspecify:jspecify:1.0.0"
+  compileOnlyApi "com.google.errorprone:error_prone_annotations:${versions.error_prone_annotations}"
+
   annotationProcessor libs.log4jcore
   annotationProcessor project(':libs:opensearch-common')
 
@@ -238,6 +242,7 @@ tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
+            'com.fasterxml.jackson.databind.util.ClassUtil',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
@@ -261,8 +266,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
             'com.fasterxml.jackson.databind.node.ObjectNode',
-            'org.fusesource.jansi.Ansi',
-            'org.fusesource.jansi.AnsiRenderer$Code',
             'io.micrometer.context.ContextAccessor',
             'io.micrometer.context.ContextRegistry',
             'io.micrometer.context.ContextSnapshot',
@@ -287,6 +290,7 @@ tasks.named("thirdPartyAudit").configure {
             'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
             'io.micrometer.core.instrument.search.Search',
             'com.lmax.disruptor.EventFactory',
+            'com.lmax.disruptor.EventHandler',
             'com.lmax.disruptor.EventTranslator',
             'com.lmax.disruptor.EventTranslatorTwoArg',
             'com.lmax.disruptor.EventTranslatorVararg',
@@ -337,6 +341,7 @@ tasks.named("thirdPartyAudit").configure {
             'org.osgi.framework.ServiceReference',
             'org.osgi.framework.ServiceRegistration',
             'org.osgi.framework.SynchronousBundleListener',
+            'org.osgi.framework.wiring.BundleRevision',
             'org.osgi.framework.wiring.BundleWire',
             'org.osgi.framework.wiring.BundleWiring',
             'org.slf4j.Logger',

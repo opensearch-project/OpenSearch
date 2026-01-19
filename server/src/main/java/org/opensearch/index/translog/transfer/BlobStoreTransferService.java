@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -22,20 +23,16 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
-import org.opensearch.index.translog.ChannelFactory;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -70,13 +67,14 @@ public class BlobStoreTransferService implements TransferService {
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(threadPoolName).execute(ActionRunnable.wrap(listener, l -> {
             try {
-                uploadBlob(fileSnapshot, blobPath, writePriority);
+                uploadBlob(fileSnapshot, blobPath, writePriority, cryptoMetadata);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
@@ -86,11 +84,16 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath, WritePriority writePriority)
-        throws IOException {
+    public void uploadBlob(
+        final TransferFileSnapshot fileSnapshot,
+        Iterable<String> remoteTransferPath,
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
+    ) throws IOException {
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
-            blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
+            blobStore.blobContainer(blobPath)
+                .writeBlobWithMetadata(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true, null, cryptoMetadata);
         }
     }
 
@@ -99,14 +102,15 @@ public class BlobStoreTransferService implements TransferService {
         Set<TransferFileSnapshot> fileSnapshots,
         final Map<Long, BlobPath> blobPaths,
         ActionListener<TransferFileSnapshot> listener,
-        WritePriority writePriority
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
     ) {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
             if (!(blobStore.blobContainer(blobPath) instanceof AsyncMultiStreamBlobContainer)) {
-                uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority);
+                uploadBlob(ThreadPool.Names.TRANSLOG_TRANSFER, fileSnapshot, blobPath, listener, writePriority, cryptoMetadata);
             } else {
-                uploadBlob(fileSnapshot, listener, blobPath, writePriority);
+                uploadBlob(fileSnapshot, listener, blobPath, writePriority, cryptoMetadata);
             }
         });
 
@@ -140,6 +144,7 @@ public class BlobStoreTransferService implements TransferService {
             (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDescription, bytes), size, position),
             expectedChecksum,
             listener,
+            null,
             null
         );
     }
@@ -172,20 +177,23 @@ public class BlobStoreTransferService implements TransferService {
         TransferFileSnapshot fileSnapshot,
         ActionListener<TransferFileSnapshot> listener,
         BlobPath blobPath,
-        WritePriority writePriority
+        WritePriority writePriority,
+        CryptoMetadata cryptoMetadata
     ) {
 
         try {
-            ChannelFactory channelFactory = FileChannel::open;
             Map<String, String> metadata = null;
             if (fileSnapshot.getMetadataFileInputStream() != null) {
                 metadata = buildTransferFileMetadata(fileSnapshot.getMetadataFileInputStream());
             }
 
-            long contentLength;
-            try (FileChannel channel = channelFactory.open(fileSnapshot.getPath(), StandardOpenOption.READ)) {
-                contentLength = channel.size();
+            // Read content once using inputStream() to invoke any overrides (e.g., decryption)
+            byte[] fileContent;
+            try (InputStream inputStream = fileSnapshot.inputStream()) {
+                fileContent = inputStream.readAllBytes();
             }
+            long contentLength = fileContent.length;
+
             ActionListener<Void> completionListener = ActionListener.wrap(resp -> listener.onResponse(fileSnapshot), ex -> {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), ex);
                 listener.onFailure(new FileTransferException(fileSnapshot, ex));
@@ -193,16 +201,20 @@ public class BlobStoreTransferService implements TransferService {
 
             // Only the first generation doesn't have checksum
             assert (fileSnapshot.getChecksum() != null || fileSnapshot.getName().contains("-1."));
+
+            // Use ByteArrayIndexInput for async upload with the content from inputStream()
+            String resourceDesc = "FileSnapshot[" + fileSnapshot.getName() + "]";
             uploadBlobAsyncInternal(
                 fileSnapshot.getName(),
                 fileSnapshot.getName(),
                 contentLength,
                 blobPath,
                 writePriority,
-                (size, position) -> new OffsetRangeFileInputStream(fileSnapshot.getPath(), size, position),
+                (size, position) -> new OffsetRangeIndexInputStream(new ByteArrayIndexInput(resourceDesc, fileContent), size, position),
                 fileSnapshot.getChecksum(),
                 completionListener,
-                metadata
+                metadata,
+                cryptoMetadata
             );
 
         } catch (Exception e) {
@@ -228,7 +240,8 @@ public class BlobStoreTransferService implements TransferService {
         RemoteTransferContainer.OffsetRangeInputStreamSupplier inputStreamSupplier,
         Long expectedChecksum,
         ActionListener<Void> completionListener,
-        Map<String, String> metadata
+        Map<String, String> metadata,
+        CryptoMetadata cryptoMetadata
     ) throws IOException {
         BlobContainer blobContainer = blobStore.blobContainer(blobPath);
         assert blobContainer instanceof AsyncMultiStreamBlobContainer;
@@ -243,7 +256,8 @@ public class BlobStoreTransferService implements TransferService {
                 inputStreamSupplier,
                 expectedChecksum,
                 remoteIntegrityEnabled,
-                metadata
+                metadata,
+                cryptoMetadata
             )
         ) {
             ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(

@@ -84,6 +84,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lucene.index.DerivedSourceLeafReader;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.Strings;
@@ -197,7 +198,8 @@ public class Lucene {
      * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
      * the given segments file.
      */
-    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory, boolean isParentFieldEnabled)
+        throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             int foundSegmentFiles = 0;
@@ -222,16 +224,15 @@ public class Lucene {
             }
         }
         final IndexCommit cp = getIndexCommit(si, directory);
-        try (
-            IndexWriter writer = new IndexWriter(
-                directory,
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setIndexCommit(cp)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setIndexCommit(cp)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (isParentFieldEnabled) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(directory, iwc)) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
         }
         return si;
@@ -951,11 +952,35 @@ public class Lucene {
                     }
 
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                    if (isDerivedSourceEnabled(leaf)) {
+                        return new LeafReaderWithLiveDocs(leaf, hardLiveDocs, numDocs);
+                    } else {
+                        return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                    }
                 }
 
                 private boolean isContextAwareEnabled(SegmentReader reader) {
                     return reader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME) != null;
+                }
+
+                /**
+                 * A FilterCodecReader can never accept a DerivedSourceLeafReader as a delegate as it is IndexReader.
+                 * DerivedSourceLeafReader can be wrapped up by only FilterLeafReader.
+                 * @param reader the underlying leafReader.
+                 *
+                 * @return whether derived source is enabled or not.
+                 */
+                public boolean isDerivedSourceEnabled(LeafReader reader) {
+                    if (reader instanceof SegmentReader) {
+                        return false;
+                    } else if (reader instanceof DerivedSourceLeafReader) {
+                        return true;
+                    } else if (reader instanceof FilterLeafReader) {
+                        FilterLeafReader filterLeafReader = (FilterLeafReader) reader;
+                        return isDerivedSourceEnabled(filterLeafReader.getDelegate());
+                    }
+
+                    return false;
                 }
             });
         }

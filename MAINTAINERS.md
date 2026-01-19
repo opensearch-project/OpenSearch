@@ -20,6 +20,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Binlong Gao       | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
 | Gaurav Bafna      | [gbbafna](https://github.com/gbbafna)                   | Amazon      |
 | Jay Deng          | [jed326](https://github.com/jed326)                     | Amazon      |
+| Jialiang          | [guojialiang92](https://github.com/guojialiang92)       | ByteDance   |
 | Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
