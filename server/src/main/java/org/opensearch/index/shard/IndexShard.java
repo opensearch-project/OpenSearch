@@ -103,6 +103,7 @@ import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
 import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
@@ -5313,7 +5314,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
                         try {
                             if (exception != null) {
-                                translogRecoveryFuture.cancel(true);
+                                FutureUtils.cancel(translogRecoveryFuture);
                                 continue;
                             }
                             int recoveredOps = translogRecoveryFuture.get();
