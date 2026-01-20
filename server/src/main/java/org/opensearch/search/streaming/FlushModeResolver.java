@@ -171,7 +171,7 @@ public final class FlushModeResolver {
             return ((MultiBucketCollector) collector).getCollectors();
         }
         if (collector instanceof ProfilingAggregator) {
-            return getChildren(((ProfilingAggregator) collector).getDelegate());
+            return getChildren(((ProfilingAggregator) collector).unwrapAggregator());
         }
         return new Collector[0];
     }
