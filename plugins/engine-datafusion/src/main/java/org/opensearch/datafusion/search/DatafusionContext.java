@@ -840,7 +840,8 @@ public class DatafusionContext extends SearchContext {
             case Text text -> rawValue.toString();
             case Boolean b -> (Comparable<?>) rawValue;
             case LocalDateTime dateTime -> rawValue.toString();
-            case null, default ->
+            case null -> "NULL";
+            default ->
                 throw new IllegalArgumentException("Conversion to Comparable not supported for type " + rawValue.getClass());
         };
     }

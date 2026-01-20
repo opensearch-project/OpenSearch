@@ -214,40 +214,45 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
             @Override
             public Object convert(Object value) {
-                if(value instanceof Integer) {
-                    Integer val = (Integer) value;
-
-                    return switch (type) {
-                        case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
-                        case FLOAT -> NumericUtils.sortableIntToFloat(val);
-                        case DOUBLE -> NumericUtils.sortableLongToDouble(val);
-                        case BYTE, SHORT, INTEGER, LONG -> val;
-                        case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
-                    };
-                } else if (value instanceof Short) {
-                    Short val = (Short) value;
-
-                    return switch (type) {
-                        case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val);
-                        case FLOAT -> val.floatValue();
-                        case DOUBLE -> val.doubleValue();
-                        case BYTE, SHORT -> val;
-                        case INTEGER, LONG -> val.longValue();
-                        case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
-                    };
-                }
-                Long val = (Long) value;
-                if (val == null) {
+                if (value == null) {
                     return null;
                 }
+
+                if (!(value instanceof Number number)) {
+                    throw new IllegalArgumentException(
+                        "Unsupported value type: " + value.getClass().getName()
+                    );
+                }
+
                 return switch (type) {
-                    case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(val.shortValue());
-                    case FLOAT -> NumericUtils.sortableIntToFloat(val.intValue());
-                    case DOUBLE -> NumericUtils.sortableLongToDouble(val);
-                    case BYTE, SHORT, INTEGER, LONG -> val;
-                    case UNSIGNED_LONG -> Numbers.toUnsignedBigInteger(val);
+                    case BYTE -> number.byteValue();
+
+                    case SHORT -> number.shortValue();
+
+                    case INTEGER -> number.intValue();
+
+                    case LONG -> number.longValue();
+
+                    case UNSIGNED_LONG ->
+                        Numbers.toUnsignedBigInteger(number.longValue());
+
+                    case FLOAT ->
+                        NumericUtils.sortableIntToFloat(
+                            NumericUtils.floatToSortableInt(number.floatValue())
+                        );
+
+                    case DOUBLE ->
+                        NumericUtils.sortableLongToDouble(
+                            NumericUtils.doubleToSortableLong(number.doubleValue())
+                        );
+
+                    case HALF_FLOAT ->
+                        HalfFloatPoint.halfFloatToSortableShort(
+                            number.floatValue()
+                        );
                 };
             }
+
 
             // Unsigned long is sorted according to it's long value, as it is getting ingested as long, so we need to
             // sort it again as per its unsigned long value to keep the behavior consistent

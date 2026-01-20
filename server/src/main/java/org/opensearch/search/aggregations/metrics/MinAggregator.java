@@ -279,6 +279,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
         Object[] values = shardResult.get(name);
+        if (values == null || values[row] == null) {
+            return buildEmptyAggregation();
+        }
         if (values[row].getClass().equals(LocalDateTime.class)) {
             LocalDateTime value = (LocalDateTime) values[row];
             return new InternalMin(name, convertLocalDateTimeToEpochMillis(value), format, metadata());
