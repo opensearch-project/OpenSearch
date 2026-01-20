@@ -22,27 +22,18 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.http.netty4.http3.Http3Utils;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
-import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
-import org.opensearch.plugins.SecureSettingsFactory;
-import org.opensearch.plugins.SecureTransportSettingsProvider;
-import org.opensearch.plugins.TransportExceptionHandler;
-import org.opensearch.test.KeyStoreUtils;
+import org.opensearch.test.AbstractSecureSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.NettyAllocator;
-import org.opensearch.transport.netty4.ssl.SslUtils;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManagerFactory;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -52,10 +43,8 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.netty.pkitesting.CertificateBuilder.Algorithm;
 import io.netty.util.ReferenceCounted;
 
-import static org.opensearch.test.KeyStoreUtils.KEYSTORE_PASSWORD;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -65,87 +54,17 @@ import static org.junit.Assume.assumeThat;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
 public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
-    public static final class SecureSettingsPlugin extends Plugin {
+    public static final class SecureSettingsPlugin extends AbstractSecureSettingsPlugin {
+        public SecureSettingsPlugin() {
+            super(InsecureTrustManagerFactory.INSTANCE, Http2SecurityUtil.CIPHERS);
+        }
+
         @Override
-        public Optional<SecureSettingsFactory> getSecureSettingFactory(Settings settings) {
-            try {
-                final KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
-                keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(Algorithm.ecp384), KEYSTORE_PASSWORD);
-
-                return Optional.of(new SecureSettingsFactory() {
-                    @Override
-                    public Optional<SecureTransportSettingsProvider> getSecureTransportSettingsProvider(Settings settings) {
-                        return Optional.empty();
-                    }
-
-                    @Override
-                    public Optional<SecureHttpTransportSettingsProvider> getSecureHttpTransportSettingsProvider(Settings settings) {
-                        return Optional.of(new SecureHttpTransportSettingsProvider() {
-                            @Override
-                            public Optional<SecureHttpTransportParameters> parameters(Settings settings) {
-                                return Optional.of(new SecureHttpTransportParameters() {
-                                    @Override
-                                    public Optional<KeyManagerFactory> keyManagerFactory() {
-                                        return Optional.of(keyManagerFactory);
-                                    }
-
-                                    @Override
-                                    public Optional<String> sslProvider() {
-                                        return Optional.empty();
-                                    }
-
-                                    @Override
-                                    public Optional<String> clientAuth() {
-                                        return Optional.empty();
-                                    }
-
-                                    @Override
-                                    public Collection<String> protocols() {
-                                        return Arrays.asList(SslUtils.DEFAULT_SSL_PROTOCOLS);
-                                    }
-
-                                    @Override
-                                    public Collection<String> cipherSuites() {
-                                        return Http2SecurityUtil.CIPHERS;
-                                    }
-
-                                    @Override
-                                    public Optional<TrustManagerFactory> trustManagerFactory() {
-                                        return Optional.of(InsecureTrustManagerFactory.INSTANCE);
-                                    }
-                                });
-                            }
-
-                            @Override
-                            public Optional<TransportExceptionHandler> buildHttpServerExceptionHandler(
-                                Settings settings,
-                                HttpServerTransport transport
-                            ) {
-                                return Optional.empty();
-                            }
-
-                            @Override
-                            public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport)
-                                throws SSLException {
-                                final SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                                    .build()
-                                    .newEngine(NettyAllocator.getAllocator());
-                                return Optional.of(engine);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public Optional<SecureAuxTransportSettingsProvider> getSecureAuxTransportSettingsProvider(Settings settings) {
-                        return Optional.empty();
-                    }
-                });
-            } catch (RuntimeException | Error ex) {
-                throw ex;
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
+        protected SSLEngine newSSLEngine(KeyManagerFactory keyManagerFactory) throws SSLException {
+            return SslContextBuilder.forServer(keyManagerFactory)
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                .build()
+                .newEngine(NettyAllocator.getAllocator());
         }
     }
 
