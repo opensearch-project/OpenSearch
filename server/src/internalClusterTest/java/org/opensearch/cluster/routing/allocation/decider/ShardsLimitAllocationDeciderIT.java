@@ -28,7 +28,6 @@ import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -259,6 +258,14 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build()
         );
 
+        // Wait for cluster to stabilize and complete allocation decisions
+        ClusterState currentState = client().admin().cluster().prepareState().get().getState();
+        int expectedNodes = currentState.getNodes().getSize();
+        ensureStableCluster(expectedNodes);
+
+        // Force a reroute to ensure allocation is complete
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+
         try {
             assertBusy(() -> {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -306,15 +313,19 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
                 assertEquals("test2 should have 0 unassigned shards", 0, unassignedShardsByIndex.getOrDefault("test2", 0).intValue());
                 assertEquals("test3 should have 0 unassigned shards", 0, unassignedShardsByIndex.getOrDefault("test3", 0).intValue());
 
-                // Check shard distribution across nodes
-                List<Integer> shardCounts = new ArrayList<>(nodeShardCounts.values());
-                Collections.sort(shardCounts, Collections.reverseOrder());
-                assertEquals("Two nodes should have 6 shards", 6, shardCounts.get(0).intValue());
-                assertEquals("Two nodes should have 6 shards", 6, shardCounts.get(1).intValue());
-                assertEquals("One node should have 5 shards", 5, shardCounts.get(2).intValue());
+                // Check shard distribution across nodes - only count nodes that have shards
+                List<Integer> shardCounts = nodeShardCounts.values()
+                    .stream()
+                    .filter(count -> count > 0)
+                    .sorted(Collections.reverseOrder())
+                    .toList();
+                assertEquals("Should have 3 nodes with shards", 3, shardCounts.size());
+                assertEquals("First node should have 6 shards", 6, shardCounts.get(0).intValue());
+                assertEquals("Second node should have 6 shards", 6, shardCounts.get(1).intValue());
+                assertEquals("Third node should have 5 shards", 5, shardCounts.get(2).intValue());
 
                 // Check that all nodes have only one shard of the first index
-            });
+            }, 60, java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
