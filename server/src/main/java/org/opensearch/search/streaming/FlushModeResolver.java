@@ -146,13 +146,19 @@ public final class FlushModeResolver {
     }
 
     private static Collector[] getChildren(Collector collector) {
-        return switch (collector) {
-            case AggregatorBase aggregatorBase -> aggregatorBase.subAggregators();
-            case MultiCollector multiCollector -> multiCollector.getCollectors();
-            case MultiBucketCollector multiBucketCollector -> multiBucketCollector.getCollectors();
-            case ProfilingAggregator profilingAggregator -> getChildren(profilingAggregator.unwrapAggregator());
-            default -> new Collector[0];
-        };
+        if (collector instanceof AggregatorBase) {
+            return ((AggregatorBase) collector).subAggregators();
+        }
+        if (collector instanceof MultiCollector) {
+            return ((MultiCollector) collector).getCollectors();
+        }
+        if (collector instanceof MultiBucketCollector) {
+            return ((MultiBucketCollector) collector).getCollectors();
+        }
+        if (collector instanceof ProfilingAggregator) {
+            return getChildren(((ProfilingAggregator) collector).unwrapAggregator());
+        }
+        return new Collector[0];
     }
 
     /**
