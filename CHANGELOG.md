@@ -71,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.wiremock:wiremock-standalone` from 3.6.0 to 3.13.2 ([#20406](https://github.com/opensearch-project/OpenSearch/pull/20406))
 - Bump `tj-actions/changed-files` from 47.0.0 to 47.0.1 ([#20408](https://github.com/opensearch-project/OpenSearch/pull/20408))
 - Bump `reactor-netty` to 1.3.2, `reactor` to 3.8.2 ([#20419](https://github.com/opensearch-project/OpenSearch/pull/20419))
+- Bump `org.apache.maven:maven-model` from 3.9.6 to 3.9.12 ([#20438](https://github.com/opensearch-project/OpenSearch/pull/20438))
 - Bump `dnsjava:dnsjava` from 3.6.3 to 3.6.4 ([#20440](https://github.com/opensearch-project/OpenSearch/pull/20440))
 - Bump `com.netflix.nebula.ospackage-base` from 12.1.1 to 12.2.0 ([#20439](https://github.com/opensearch-project/OpenSearch/pull/20439))
 - Bump OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
