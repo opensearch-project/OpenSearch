@@ -81,7 +81,8 @@ public class ParquetWriterCreateBenchmark {
     @Benchmark
     public void benchmarkCreate() throws IOException {
         // This is what we're benchmarking - just writer creation
-        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress(), true);
+        String configJson = "{\"compression\":true,\"compressionType\":\"ZSTD\",\"compressionLevel\":3}";
+        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress(), configJson);
     }
 
     private String generateTempFilePath() {

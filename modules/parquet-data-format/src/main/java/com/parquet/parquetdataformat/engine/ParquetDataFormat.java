@@ -1,5 +1,6 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.ParquetSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.DataFormat;
@@ -24,9 +25,10 @@ import org.opensearch.index.engine.exec.DataFormat;
  * the system to recognize and utilize Parquet-based storage operations.
  */
 public class ParquetDataFormat implements DataFormat {
+    
     @Override
     public Setting<Settings> dataFormatSettings() {
-        return null;
+        return ParquetSettings.PARQUET_SETTINGS;
     }
 
     @Override
