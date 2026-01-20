@@ -112,17 +112,15 @@ fi
 # now make OPENSEARCH_PATH_CONF absolute
 OPENSEARCH_PATH_CONF=`cd "$OPENSEARCH_PATH_CONF"; pwd`
 
-# Check if any bc-fips jar exists on classpath
-# run in FIPS JVM if jar is found
-if ls "$OPENSEARCH_HOME/lib" | grep -E -q "bc-fips.*\.jar"; then
-  echo "BouncyCastle FIPS library found, setting FIPS JVM options."
-  export OPENSEARCH_JAVA_OPTS="-Dorg.bouncycastle.fips.approved_only=true \
-    -Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security \
-    ${OPENSEARCH_JAVA_OPTS}"
+OPENSEARCH_FIPS_MODE=${opensearch.fips.mode}
+
+if [[ "$OPENSEARCH_FIPS_MODE" == "true" ]]; then
+  echo "FIPS mode enabled, setting FIPS JVM options."
+  export OPENSEARCH_JAVA_OPTS="-Djava.security.properties=${OPENSEARCH_PATH_CONF}/fips_java.security ${OPENSEARCH_JAVA_OPTS}"
 fi
 
 OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
-OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
+OPENSEARCH_BUNDLED_JDK=${opensearch.bundled.jdk}
 
 if [[ "$OPENSEARCH_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -141,7 +139,7 @@ if [[ "$OPENSEARCH_DISTRIBUTION_TYPE" == "docker" ]]; then
   #
   # will cause OpenSearch to be invoked with -Ecluster.name=testcluster
   #
-  # see https://opensearch.org/docs/opensearch/configuration/ 
+  # see https://opensearch.org/docs/opensearch/configuration/
 
   declare -a opensearch_arg_array
 

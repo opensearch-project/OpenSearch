@@ -26,6 +26,8 @@ dependencies {
   // This dependency is used only by :libs:core for null-checking interop with other tools
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
+  api libs.bundles.bouncycastle
+
   /*******
    *  !!!! NO THIRD PARTY DEPENDENCIES !!!!
    *******/
@@ -49,6 +51,10 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
   failOnMissingClasses = false
   ignoreSignaturesOfMissingClasses = true
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 compileJava {

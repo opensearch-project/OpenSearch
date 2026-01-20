@@ -49,3 +49,7 @@ afterEvaluate {
 }
 
 test.enabled = false
+
+javaRestTest {
+  systemProperty 'org.bouncycastle.fips.approved_only', 'true'
+}

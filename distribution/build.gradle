@@ -331,8 +331,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
-
-    bcFips libs.bundles.bouncycastle
   }
 
   project.ext {
@@ -344,9 +342,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
-        if ( BuildParams.isInFipsJvm() ) {
-          from(configurations.bcFips)
-        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }
@@ -638,8 +633,12 @@ subprojects {
         'zip': 'zip'
       ],
 
-      'opensearch.bundled_jdk': [
+      'opensearch.bundled.jdk': [
         'def': jdk != JavaPackageType.NONE ? true : false
+      ],
+
+      'opensearch.fips.mode': [
+        'def': System.getProperty('org.bouncycastle.fips.approved_only', 'false')
       ],
 
       'license.name': [

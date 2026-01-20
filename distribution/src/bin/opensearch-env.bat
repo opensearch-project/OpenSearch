@@ -30,16 +30,14 @@ if not defined OPENSEARCH_PATH_CONF (
 rem now make OPENSEARCH_PATH_CONF absolute
 for %%I in ("%OPENSEARCH_PATH_CONF%..") do set OPENSEARCH_PATH_CONF=%%~dpfI
 
-rem Check if any bc-fips jar exists on classpath
-rem run in FIPS JVM if jar is found
-set "FOUND_BC_FIPS="
-if exist "%OPENSEARCH_HOME%\lib\bc-fips*.jar" (
-    echo BouncyCastle FIPS library found, setting FIPS JVM options.
-    set OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
+set OPENSEARCH_FIPS_MODE=${opensearch.fips.mode}
+if "%OPENSEARCH_FIPS_MODE%" == "true" (
+    echo FIPS mode enabled, setting FIPS JVM options.
+    set OPENSEARCH_JAVA_OPTS=-Djava.security.properties="%OPENSEARCH_PATH_CONF%\fips_java.security" %OPENSEARCH_JAVA_OPTS%
 )
 
 set OPENSEARCH_DISTRIBUTION_TYPE=${opensearch.distribution.type}
-set OPENSEARCH_BUNDLED_JDK=${opensearch.bundled_jdk}
+set OPENSEARCH_BUNDLED_JDK=${opensearch.bundled.jdk}
 
 if "%OPENSEARCH_BUNDLED_JDK%" == "false" (
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -54,10 +52,10 @@ if "%1" == "nojava" (
 
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching OpenSearch
-rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME= 
+rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME=
 if not "%OPENSEARCH_JAVA_HOME%" == "" (
   set "JAVA=%OPENSEARCH_JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=OPENSEARCH_JAVA_HOME 
+  set JAVA_TYPE=OPENSEARCH_JAVA_HOME
 ) else if not "%JAVA_HOME%" == "" (
   set "JAVA=%JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=JAVA_HOME

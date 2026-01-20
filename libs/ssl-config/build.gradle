@@ -35,10 +35,6 @@ apply from: "$rootDir/gradle/fips.gradle"
 
 dependencies {
   api project(':libs:opensearch-common')
-  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  fipsOnly "org.bouncycastle:bcpkix-fips:${versions.bouncycastle_pkix}"
-  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'
@@ -51,10 +47,6 @@ dependencies {
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
-}
-
-tasks.named("dependencyLicenses").configure {
-    mapping from: /bc.*/, to: 'bouncycastle'
 }
 
 tasks.test {
