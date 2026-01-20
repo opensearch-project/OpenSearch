@@ -230,12 +230,28 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             .collect(Collectors.toList());
 
         for (TaskCancellation taskCancellation : taskCancellations) {
-            logger.warn(
-                "[{} mode] cancelling task [{}] due to high resource consumption [{}]",
-                mode.getName(),
-                taskCancellation.getTask().getId(),
-                taskCancellation.getReasonString()
-            );
+            Task task = taskCancellation.getTask();
+            String taskTypeLabel = task instanceof SearchTask ? "search"
+                : task instanceof SearchShardTask ? "search_shard"
+                : task.getClass().getSimpleName();
+            if (task instanceof SearchTask) {
+                logger.warn(
+                    "[{} mode] cancelling task [{}] type [{}] due to high resource consumption [{}], query [{}]",
+                    mode.getName(),
+                    task.getId(),
+                    taskTypeLabel,
+                    taskCancellation.getReasonString(),
+                    task.getDescription()
+                );
+            } else {
+                logger.warn(
+                    "[{} mode] cancelling task [{}] type [{}] due to high resource consumption [{}]",
+                    mode.getName(),
+                    task.getId(),
+                    taskTypeLabel,
+                    taskCancellation.getReasonString()
+                );
+            }
 
             if (mode != SearchBackpressureMode.ENFORCED) {
                 continue;

@@ -8,6 +8,8 @@
 
 package org.opensearch.search.backpressure;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
@@ -15,6 +17,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
@@ -35,6 +38,7 @@ import org.opensearch.tasks.TaskCancellationService;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -596,6 +600,88 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         verify(mockTaskManager, times(0)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(0, service.getSearchBackpressureState(SearchTask.class).getCancellationCount());
         assertEquals(0, service.getSearchBackpressureState(SearchShardTask.class).getCancellationCount());
+    }
+
+    public void testCancellationLogIncludesQueryOnlyForSearchTask() throws IllegalAccessException {
+        TaskManager mockTaskManager = mock(TaskManager.class);
+        TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
+        LongSupplier mockTimeNanosSupplier = () -> 123L;
+
+        TaskResourceUsageTracker mockTaskResourceUsageTracker = getMockedTaskResourceUsageTracker(
+            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+            (task) -> Optional.of(new TaskCancellation.Reason("limits exceeded", 1))
+        );
+        TaskResourceUsageTrackers searchTaskTrackers = new TaskResourceUsageTrackers();
+        TaskResourceUsageTrackers searchShardTaskTrackers = new TaskResourceUsageTrackers();
+        searchTaskTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        searchShardTaskTrackers.addTracker(mockTaskResourceUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+
+        NodeDuressTracker cpuUsageTracker = new NodeDuressTracker(() -> true, () -> 1);
+        NodeDuressTracker heapUsageTracker = new NodeDuressTracker(() -> true, () -> 1);
+        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+            {
+                put(ResourceType.MEMORY, heapUsageTracker);
+                put(ResourceType.CPU, cpuUsageTracker);
+            }
+        };
+        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
+
+        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 5.0);
+
+        SearchTask searchTask = new SearchTask(1, "test", "test", () -> "search_query", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        SearchShardTask shardTask = new SearchShardTask(2, "test", "test", "shard_desc", TaskId.EMPTY_TASK_ID, new HashMap<>());
+
+        Map<Long, Task> tasks = new HashMap<>();
+        tasks.put(1L, searchTask);
+        tasks.put(2L, shardTask);
+        doReturn(tasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
+
+        SearchBackpressureService service = spy(
+            new SearchBackpressureService(
+                settings,
+                mockTaskResourceTrackingService,
+                threadPool,
+                mockTimeNanosSupplier,
+                nodeDuressTrackers,
+                searchTaskTrackers,
+                searchShardTaskTrackers,
+                mockTaskManager,
+                workloadGroupService
+            )
+        );
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
+        doReturn(true).when(service).isHeapUsageDominatedBySearch(anyList(), anyDouble());
+
+        try (MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getLogger(SearchBackpressureService.class))) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "search_task_query_logged",
+                    "org.opensearch.search.backpressure.SearchBackpressureService",
+                    Level.WARN,
+                    "*type [search]*query [search_query]*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "search_shard_logged_without_query",
+                    "org.opensearch.search.backpressure.SearchBackpressureService",
+                    Level.WARN,
+                    "*type [search_shard]*"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "search_shard_query_not_logged",
+                    "org.opensearch.search.backpressure.SearchBackpressureService",
+                    Level.WARN,
+                    "*type [search_shard]*query [*"
+                )
+            );
+
+            service.doRun();
+
+            appender.assertAllExpectationsMatched();
+        }
     }
 
     private SearchBackpressureSettings getBackpressureSettings(String mode, double ratio, double rate, double burst) {
