@@ -43,14 +43,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.nio.file.Path;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,12 +58,6 @@ import java.util.stream.Collectors;
  */
 @PublicApi(since = "2.3.0")
 public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentStoreDirectory {
-
-    /**
-     * Each segment file is uploaded with unique suffix.
-     * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
-     */
-    public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
 
     /**
      * compositeRemoteDirectory is used to store segment files with format-specific routing
@@ -470,8 +458,14 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
         return null;
     }
 
-    private String getNewRemoteSegmentFilename(String localFilename) {
-        return localFilename + SEGMENT_NAME_UUID_SEPARATOR + UUIDs.base64UUID();
+    @Override
+    protected String getNewRemoteSegmentFilename(String localFilename) {
+        String[] fileNameAndExtension = extractFileExtension(localFilename);
+        return fileNameAndExtension[0] + SEGMENT_NAME_UUID_SEPARATOR + UUIDs.base64UUID() + "." + fileNameAndExtension[1];
+    }
+
+    private static String[] extractFileExtension(String localFilename) {
+        return localFilename.split("\\.");
     }
 
     public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {

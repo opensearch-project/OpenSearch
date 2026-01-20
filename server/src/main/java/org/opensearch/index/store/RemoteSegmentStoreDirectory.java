@@ -698,7 +698,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         return null;
     }
 
-    private String getNewRemoteSegmentFilename(String localFilename) {
+    protected String getNewRemoteSegmentFilename(String localFilename) {
         return localFilename + SEGMENT_NAME_UUID_SEPARATOR + UUIDs.base64UUID();
     }
 
