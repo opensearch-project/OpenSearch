@@ -127,6 +127,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.CriteriaBasedMergePolicy;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.codec.CodecService;
@@ -210,6 +211,7 @@ import java.util.stream.LongStream;
 
 import static java.util.Collections.shuffle;
 import static org.opensearch.common.util.FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG;
+import static org.opensearch.index.codec.CriteriaBasedCodec.BUCKET_NAME;
 import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_RESET;
 import static org.opensearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.opensearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -3809,6 +3811,49 @@ public class InternalEngineTests extends EngineTestCase {
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
+    }
+
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testCriteriaBasedGrouping() throws Exception {
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        try (
+            Store store = createStore();
+            Engine engine = createEngine(indexSettings, store, createTempDir(), newCriteriaBasedMergePolicy(), null, null, null, null, null)
+        ) {
+            List<Segment> segments = engine.segments(true);
+            assertThat(segments.isEmpty(), equalTo(true));
+            for (int i = 1; i <= 100; i++) {
+                String groupingCriteria;
+                if (i % 3 == 0) {
+                    groupingCriteria = "grouping_criteria1";
+                } else if (i % 3 == 1) {
+                    groupingCriteria = "grouping_criteria2";
+                } else {
+                    groupingCriteria = "grouping_criteria3";
+                }
+
+                final ParsedDocument doc = testParsedDocument("1", null, testContextSpecificDocument(groupingCriteria), B_1, null);
+                engine.index(indexForDoc(doc));
+                if (i % 5 == 0) {
+                    engine.refresh("test");
+                }
+            }
+
+            engine.refresh("test");
+            segments = engine.segments(true);
+            Set<String> attributes = segments.stream().map(segment -> segment.getAttributes().get(BUCKET_NAME)).collect(Collectors.toSet());
+            assertThat(attributes, Matchers.containsInAnyOrder("grouping_criteria1", "grouping_criteria2", "grouping_criteria3"));
+        }
+    }
+
+    private CriteriaBasedMergePolicy newCriteriaBasedMergePolicy() {
+        return new CriteriaBasedMergePolicy(newMergePolicy());
     }
 
     public void testSettings() {
@@ -8693,9 +8738,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
 
             AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
@@ -8738,9 +8783,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "test",
                 Settings.builder()
