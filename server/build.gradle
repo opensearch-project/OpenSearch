@@ -31,7 +31,7 @@
 import groovy.xml.XmlParser
 
 plugins {
-  id('com.google.protobuf') version 'latest.release'
+  id('com.google.protobuf') version '0.9.6'
   id('opensearch.build')
   id('opensearch.publish')
   id('opensearch.internal-cluster-test')

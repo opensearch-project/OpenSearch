@@ -34,6 +34,7 @@ package org.opensearch.http;
 import org.apache.hc.client5.http.entity.GzipDecompressingEntity;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
@@ -59,39 +60,41 @@ public class HttpCompressionIT extends OpenSearchRestTestCase {
         }
         """;
 
-    public void testCompressesResponseIfRequested() throws IOException, ParseException {
+    public void testUncompressesResponseIfRequested() throws IOException, ParseException {
+        // See please https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
+                .addHeader(HttpHeaders.ACCEPT_ENCODING, "identity")
+                .build();
+
         Request request = new Request("POST", "/company/_doc/2");
+        request.setOptions(requestOptions);
         request.setJsonEntity(SAMPLE_DOCUMENT);
+        
         Response response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
         assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
         assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
 
         request = new Request("GET", "/company/_doc/2");
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader(HttpHeaders.ACCEPT_ENCODING, GZIP_ENCODING)
-            .build();
-
-        request.setOptions(requestOptions);
         response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
-        assertThat(response.getEntity(), instanceOf(GzipDecompressingEntity.class));
+        assertThat(response.getEntity(), instanceOf(ByteArrayEntity.class));
 
         String body = EntityUtils.toString(response.getEntity());
         assertThat(body, containsString(SAMPLE_DOCUMENT));
     }
 
-    public void testUncompressedResponseByDefault() throws IOException {
+    public void testCompressedResponseByDefault() throws IOException {
         Response response = client().performRequest(new Request("GET", "/"));
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
 
         Request request = new Request("POST", "/company/_doc/1");
         request.setJsonEntity(SAMPLE_DOCUMENT);
         response = client().performRequest(request);
         assertEquals(201, response.getStatusLine().getStatusCode());
-        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
         assertThat(response.getEntity(), is(not(instanceOf(GzipDecompressingEntity.class))));
     }
 
