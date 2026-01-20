@@ -93,6 +93,7 @@ public abstract class MappedFieldType {
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
+    private boolean bloomFilterEnabled;
 
     public MappedFieldType(
         String name,
@@ -109,6 +110,7 @@ public abstract class MappedFieldType {
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
+        this.bloomFilterEnabled = false;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
     }
@@ -157,6 +159,14 @@ public abstract class MappedFieldType {
 
     public boolean hasDocValues() {
         return docValues;
+    }
+
+    public boolean isBloomFilterEnabled() {
+        return bloomFilterEnabled;
+    }
+
+    public void setBloomFilterEnabled(boolean bloomFilterEnabled) {
+        this.bloomFilterEnabled = bloomFilterEnabled;
     }
 
     public NamedAnalyzer indexAnalyzer() {

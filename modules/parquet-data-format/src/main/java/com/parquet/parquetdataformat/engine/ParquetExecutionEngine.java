@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -71,11 +72,17 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final ShardPath shardPath;
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
     private final ArrowBufferPool arrowBufferPool;
+    private final Supplier<Map<String, Map<String, Boolean>>> fieldConfigSupplier;
 
     public ParquetExecutionEngine(Settings settings, Supplier<Schema> schema, ShardPath shardPath) {
+        this(settings, schema, shardPath, () -> new HashMap<>());
+    }
+
+    public ParquetExecutionEngine(Settings settings, Supplier<Schema> schema, ShardPath shardPath, Supplier<Map<String, Map<String, Boolean>>> fieldConfigSupplier) {
         this.schema = schema;
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
+        this.fieldConfigSupplier = fieldConfigSupplier;
     }
 
     @Override
@@ -108,7 +115,11 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
         String fileName = Path.of(shardPath.getDataPath().toString(), getDataFormat().name(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
-        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool);
+
+        // Collect all field configurations
+        Map<String, Map<String, Boolean>> fieldConfigs = fieldConfigSupplier.get();
+
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, fieldConfigs);
     }
 
     @Override

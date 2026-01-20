@@ -101,9 +101,17 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
+            BinaryFieldType fieldType = new BinaryFieldType(
+                buildFullName(context),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                meta.getValue()
+            );
+            fieldType.setBloomFilterEnabled(getBloomFilterEnabled());
+            
             return new BinaryFieldMapper(
                 name,
-                new BinaryFieldType(buildFullName(context), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                fieldType,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this

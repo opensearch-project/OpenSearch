@@ -20,6 +20,8 @@ import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -37,16 +39,24 @@ public class VSRManager implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(VSRManager.class);
 
+    private final String BLOOM_FILTER_ENABLE_PARAM = "bloom_filter_enable";
+
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
     private final Schema schema;
     private final String fileName;
     private final VSRPool vsrPool;
+    private final Map<String, Map<String, Boolean>> fieldConfigs;
     private NativeParquetWriter writer;
 
 
     public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
+        this(fileName, schema, arrowBufferPool, Collections.emptyMap());
+    }
+
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool, Map<String, Map<String, Boolean>> fieldConfigs) {
         this.fileName = fileName;
         this.schema = schema;
+        this.fieldConfigs = fieldConfigs;
 
         // Create VSR pool
         this.vsrPool = new VSRPool("pool-" + fileName, schema, arrowBufferPool);
@@ -61,7 +71,9 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         try {
             try (ArrowExport export = managedVSR.get().exportSchema()) {
-                writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+
+                Map<String, Boolean> bloomFilterFields = fieldConfigs.getOrDefault(BLOOM_FILTER_ENABLE_PARAM, Collections.emptyMap());
+                writer = new NativeParquetWriter(fileName, export.getSchemaAddress(), bloomFilterFields);
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);

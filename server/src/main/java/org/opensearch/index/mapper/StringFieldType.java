@@ -79,6 +79,19 @@ public abstract class StringFieldType extends TermBasedFieldType {
         super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
+    public StringFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        boolean bloomFilterEnabled,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
+        this(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        setBloomFilterEnabled(bloomFilterEnabled);
+    }
+
     @Override
     public Query fuzzyQuery(
         Object value,

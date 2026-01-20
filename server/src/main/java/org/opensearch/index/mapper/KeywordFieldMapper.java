@@ -320,6 +320,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 fieldType.indexOptions() != IndexOptions.NONE,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
+                builder.getBloomFilterEnabled(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, searchAnalyzer),
                 builder.meta.getValue()
             );

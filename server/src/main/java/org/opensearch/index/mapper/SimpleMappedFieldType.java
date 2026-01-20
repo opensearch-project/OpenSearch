@@ -58,6 +58,19 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
         super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
+    protected SimpleMappedFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        boolean bloomFilterEnabled,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
+        this(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        setBloomFilterEnabled(bloomFilterEnabled);
+    }
+
     @Override
     public final Query rangeQuery(
         Object lowerTerm,

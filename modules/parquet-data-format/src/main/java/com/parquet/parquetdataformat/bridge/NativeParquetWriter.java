@@ -10,6 +10,8 @@ package com.parquet.parquetdataformat.bridge;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -27,8 +29,12 @@ public class NativeParquetWriter implements Closeable {
      * @throws IOException if writer creation fails
      */
     public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
+        this(filePath, schemaAddress, Collections.emptyMap());
+    }
+
+    public NativeParquetWriter(String filePath, long schemaAddress, Map<String, Boolean> bloomFilterFields) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress);
+        RustBridge.createWriter(filePath, schemaAddress, bloomFilterFields);
     }
 
     /**

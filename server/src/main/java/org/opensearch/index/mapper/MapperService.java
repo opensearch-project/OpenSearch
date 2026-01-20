@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -122,7 +124,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         MAPPING_RECOVERY;
     }
-
+    public static final String BLOOM_FILTER_ENABLE_PARAM="bloom_filter_enable";
     public static final String SINGLE_MAPPING_NAME = "_doc";
     public static final Setting<Long> INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.nested_fields.limit",
@@ -208,6 +210,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     );
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MapperService.class);
+    private static final Logger logger = LogManager.getLogger(MapperService.class);
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -717,6 +720,56 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
+    }
+
+    /**
+     * Extracts field-level configuration parameters across all fields in the mapping.
+     * Returns only fields with non-default values for the specified parameter.
+     * <p>
+     * Parameters are accessed directly from MappedFieldType to avoid creating builder instances.
+     *
+     * @param parameterName the name of the parameter to extract (e.g., "bloom_filter_enable")
+     * @param parameterType the type of the parameter (e.g., Boolean.class)
+     * @param <T> the type of the parameter value
+     * @return map of field names to parameter values (only non-default values)
+     * @throws IllegalArgumentException if the parameter is not supported
+     */
+    @SuppressWarnings("unchecked")
+    public <T> Map<String, T> getFieldConfigurations(String parameterName, Class<T> parameterType) {
+        if (parameterName == null || parameterType == null) {
+            throw new IllegalArgumentException("Parameter name and type must not be null");
+        }
+
+        Map<String, T> fieldConfigs = new HashMap<>();
+
+        if (this.mapper == null) {
+            return fieldConfigs;
+        }
+
+        if (BLOOM_FILTER_ENABLE_PARAM.equals(parameterName)) {
+            if (parameterType != Boolean.class) {
+                throw new IllegalArgumentException(
+                    "Parameter 'bloom_filter_enable' requires Boolean.class, but got " + parameterType.getName()
+                );
+            }
+
+            for (Mapper mapper : this.mapper.mapping().root()) {
+                if (!(mapper instanceof FieldMapper)) {
+                    continue;
+                }
+
+                FieldMapper fieldMapper = (FieldMapper) mapper;
+                MappedFieldType fieldType = fieldMapper.fieldType();
+
+                if (fieldType != null && fieldType.isBloomFilterEnabled()) {
+                    fieldConfigs.put(fieldMapper.simpleName(), (T) Boolean.TRUE);
+                }
+            }
+
+            return fieldConfigs;
+        }
+
+        throw new IllegalArgumentException("Parameter '" + parameterName + "' is not supported for extraction");
     }
 
     /**

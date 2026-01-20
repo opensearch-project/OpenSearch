@@ -53,8 +53,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         String mergedFileName = getMergedFileName(writerGeneration);
 
         try {
-            // Merge files in Rust
-            mergeParquetFilesInRust(filePaths, mergedFilePath);
+            mergeParquetFilesInRust(filePaths, mergedFilePath, Collections.emptyMap());
 
             // Build row ID mapping
             Map<RowId, Long> rowIdMapping = new HashMap<>();

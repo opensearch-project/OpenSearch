@@ -411,6 +411,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
             TextFieldType ft = new TextFieldType(buildFullName(context), index.getValue(), store.getValue(), tsi, meta.getValue());
+            ft.setBloomFilterEnabled(getBloomFilterEnabled());
             ft.setIndexAnalyzer(indexAnalyzer);
             ft.setEagerGlobalOrdinals(eagerGlobalOrdinals.getValue());
             ft.setBoost(boost.getValue());
@@ -1233,6 +1234,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         mapperBuilder.freqFilter.toXContent(builder, includeDefaults);
         mapperBuilder.indexPrefixes.toXContent(builder, includeDefaults);
         mapperBuilder.indexPhrases.toXContent(builder, includeDefaults);
+        mapperBuilder.bloomFilterEnabled.toXContent(builder, includeDefaults);
     }
 
     @Override

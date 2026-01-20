@@ -1963,6 +1963,7 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 builder.nullValue.getValue(),
                 builder.meta.getValue()
             );
+            setBloomFilterEnabled(builder.getBloomFilterEnabled());
         }
 
         public NumberFieldType(String name, NumberType type) {

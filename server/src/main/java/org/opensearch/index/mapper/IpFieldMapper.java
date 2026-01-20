@@ -157,16 +157,19 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            IpFieldType fieldType = new IpFieldType(
+                buildFullName(context),
+                indexed.getValue(),
+                stored.getValue(),
+                hasDocValues.getValue(),
+                parseNullValue(),
+                meta.getValue()
+            );
+            fieldType.setBloomFilterEnabled(getBloomFilterEnabled());
+            
             return new IpFieldMapper(
                 name,
-                new IpFieldType(
-                    buildFullName(context),
-                    indexed.getValue(),
-                    stored.getValue(),
-                    hasDocValues.getValue(),
-                    parseNullValue(),
-                    meta.getValue()
-                ),
+                fieldType,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 this

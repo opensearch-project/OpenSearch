@@ -1,5 +1,5 @@
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{JClass, JObject, JString, JMap};
 use jni::sys::jint;
 use std::fs::File;
 use std::error::Error;
@@ -15,7 +15,7 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 
-use crate::{log_info, log_error};
+use crate::{log_info, log_error, DEFAULT_BLOOM_FILTER_FPP, DEFAULT_BLOOM_FILTER_NDV};
 
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
@@ -60,6 +60,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
     _class: JClass,
     input_files: JObject,
     output_file: JString,
+    bloom_filter_map: JObject,
 ) -> jint {
     let result = catch_unwind(|| {
         let input_files_vec = convert_java_list_to_vec(&mut env, input_files)
@@ -70,9 +71,12 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             .map_err(|e| format!("Failed to get output file string: {}", e))?
             .into();
 
-        log_info!("Starting merge of {} files to {}", input_files_vec.len(), output_path);
+        let bloom_fields = convert_bloom_filter_map(&mut env, bloom_filter_map);
 
-        process_parquet_files(&input_files_vec, &output_path)?;
+        log_info!("Starting merge of {} files to {} with {} bloom filter fields", 
+            input_files_vec.len(), output_path, bloom_fields.len());
+
+        process_parquet_files(&input_files_vec, &output_path, &bloom_fields)?;
 
         log_info!("Merge completed successfully");
         Ok(())
@@ -96,7 +100,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 }
 
 // Main processing function
-pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn process_parquet_files(input_files: &[String], output_path: &str, bloom_filter_fields: &[String]) -> Result<(), Box<dyn Error>> {
     // Validate input
     validate_input(input_files)?;
 
@@ -105,7 +109,7 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     log_info!("Schema read successfully: {:?}", schema);
 
     // Create writer
-    let mut writer = create_writer(output_path, schema.clone())?;
+    let mut writer = create_writer(output_path, schema.clone(), bloom_filter_fields)?;
 
     // Process files
     let stats = process_files(input_files, &schema, &mut writer)?;
@@ -149,11 +153,8 @@ fn read_schema_from_file(file_path: &str) -> Result<SchemaRef, Box<dyn Error>> {
 }
 
 // Writer creation
-fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
-    let props = WriterProperties::builder()
-        .set_write_batch_size(WRITER_BATCH_SIZE)
-        .set_compression(Compression::ZSTD(Default::default()))
-        .build();
+fn create_writer(output_path: &str, schema: SchemaRef, bloom_filter_fields: &[String]) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
+    let props = build_merge_writer_properties(&schema, bloom_filter_fields)?;
 
     let out_file = File::create(output_path)
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create output file: {}", e)))?;
@@ -163,6 +164,34 @@ fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<Rat
 
     ArrowWriter::try_new(throttled_writer, schema, Some(props))
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create writer: {}", e)).into())
+}
+
+// Writer properties configuration
+fn build_merge_writer_properties(schema: &SchemaRef, bloom_filter_fields: &[String]) -> Result<WriterProperties, Box<dyn Error>> {
+    let mut props_builder = WriterProperties::builder()
+        .set_write_batch_size(WRITER_BATCH_SIZE)
+        .set_compression(Compression::ZSTD(Default::default()));
+
+    if !bloom_filter_fields.is_empty() {
+        log_info!("Configuring {} bloom filter fields for merge output", bloom_filter_fields.len());
+        
+        let bloom_set: std::collections::HashSet<&String> = bloom_filter_fields.iter().collect();
+        
+        for field in schema.fields().iter() {
+            if bloom_set.contains(field.name()) {
+                log_info!("Adding bloom filter for field during merge: {} (fpp={}, ndv={})", 
+                    field.name(), DEFAULT_BLOOM_FILTER_FPP, DEFAULT_BLOOM_FILTER_NDV);
+                props_builder = props_builder
+                    .set_column_bloom_filter_enabled(field.name().clone().into(), true)
+                    .set_column_bloom_filter_fpp(field.name().clone().into(), DEFAULT_BLOOM_FILTER_FPP)
+                    .set_column_bloom_filter_ndv(field.name().clone().into(), DEFAULT_BLOOM_FILTER_NDV);
+            }
+        }
+    } else {
+        log_info!("No bloom filter configurations provided for merge output");
+    }
+
+    Ok(props_builder.build())
 }
 
 // File processing
@@ -265,6 +294,11 @@ fn convert_java_list_to_vec(env: &mut JNIEnv, list: JObject) -> Result<Vec<Strin
     }
 
     Ok(result)
+}
+
+fn convert_bloom_filter_map(env: &mut JNIEnv, bloom_filter_map: JObject) -> Vec<String> {
+    if bloom_filter_map.is_null() { return Vec::new(); }
+    let mut bloom_fields = Vec::new(); let map = JMap::from_env(env, &bloom_filter_map).expect("Couldn't get Java Map!"); let mut iter = map.iter(env).expect("Couldn't get map iterator!"); while let Some((k, v)) = iter.next(env).expect("Error iterating map") { let field_name: String = env.get_string(&JString::from(k)).expect("Couldn't get field name!").into(); let boolean_class = env.find_class("java/lang/Boolean").expect("Couldn't find Boolean class"); let boolean_value_method = env.get_method_id(&boolean_class, "booleanValue", "()Z").expect("Couldn't find booleanValue method"); let is_enabled = unsafe { env.call_method_unchecked(&v, boolean_value_method, jni::signature::ReturnType::Primitive(jni::signature::Primitive::Boolean), &[]).expect("Couldn't call booleanValue").z().expect("Couldn't get boolean value") }; if is_enabled { bloom_fields.push(field_name); } } bloom_fields
 }
 
 fn catch_unwind<F: FnOnce() -> Result<(), Box<dyn Error>>>(

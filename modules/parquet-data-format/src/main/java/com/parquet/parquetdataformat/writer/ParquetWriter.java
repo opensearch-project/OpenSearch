@@ -14,6 +14,8 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Map;
 
 import static com.parquet.parquetdataformat.engine.ParquetDataFormat.PARQUET_DATA_FORMAT;
 
@@ -44,11 +46,17 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final Schema schema;
     private final VSRManager vsrManager;
     private final long writerGeneration;
+    private final Map<String, Map<String, Boolean>> fieldConfigs;
 
     public ParquetWriter(String file, Schema schema, long writerGeneration, ArrowBufferPool arrowBufferPool) {
+        this(file, schema, writerGeneration, arrowBufferPool, Collections.emptyMap());
+    }
+
+    public ParquetWriter(String file, Schema schema, long writerGeneration, ArrowBufferPool arrowBufferPool, Map<String, Map<String, Boolean>> fieldConfigs) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, schema, arrowBufferPool);
+        this.fieldConfigs = fieldConfigs;
+        this.vsrManager = new VSRManager(file, schema, arrowBufferPool, fieldConfigs);
         this.writerGeneration = writerGeneration;
     }
 

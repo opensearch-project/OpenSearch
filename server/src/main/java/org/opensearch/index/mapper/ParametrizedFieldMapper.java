@@ -79,6 +79,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
+
+    public static final String BLOOM_FILTER_ENABLE_PARAM = "bloom_filter_enable";
+
     /**
      * Creates a new ParametrizedFieldMapper
      */
@@ -594,6 +597,21 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
 
+        protected final Parameter<Boolean> bloomFilterEnabled = Parameter.boolParam(
+            BLOOM_FILTER_ENABLE_PARAM,
+            false,
+            m -> {
+                if (m instanceof ParametrizedFieldMapper) {
+                    ParametrizedFieldMapper pfm = (ParametrizedFieldMapper) m;
+                    if (pfm.fieldType() != null) {
+                        return pfm.fieldType().isBloomFilterEnabled();
+                    }
+                }
+                return false;
+            },
+            false
+        );
+
         /**
          * Creates a new Builder with a field name
          */
@@ -605,7 +623,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Initialises all parameters from an existing mapper
          */
         public Builder init(FieldMapper initializer) {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.init(initializer);
             }
             for (Mapper subField : initializer.multiFields) {
@@ -615,7 +633,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void merge(FieldMapper in, Conflicts conflicts) {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.merge(in, conflicts);
             }
             for (Mapper newSubField : in.multiFields) {
@@ -626,7 +644,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void validate() {
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 param.validate();
             }
         }
@@ -646,13 +664,26 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return context.path().pathAsText(name);
         }
 
+        protected final boolean getBloomFilterEnabled() {
+            return bloomFilterEnabled.getValue();
+        }
+
         /**
          * Writes the current builder parameter values as XContent
          */
         public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            for (Parameter<?> parameter : getParameters()) {
+            for (Parameter<?> parameter : getAllParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
+        }
+
+        /**
+         * @return all parameters including bloom filter parameter from base class
+         */
+        private List<Parameter<?>> getAllParameters() {
+            List<Parameter<?>> allParams = new ArrayList<>(getParameters());
+            allParams.add(bloomFilterEnabled);
+            return allParams;
         }
 
         /**
@@ -664,7 +695,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
-            for (Parameter<?> param : getParameters()) {
+            for (Parameter<?> param : getAllParameters()) {
                 paramsMap.put(param.name, param);
                 for (String deprecatedName : param.deprecatedNames) {
                     deprecatedParamsMap.put(deprecatedName, param);
