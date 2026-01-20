@@ -239,8 +239,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionService;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -397,7 +399,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
-    private final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
+    private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
     @InternalApi
     public IndexShard(
@@ -5297,29 +5299,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
                 try {
                     // Since the translog does not change at this time, it is safe to re-partition the translog snapshot here.
+                    CompletionService<Integer> completionService = new ExecutorCompletionService<>(
+                        threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)
+                    );
                     for (int i = 0; i < batches; i++) {
                         long start = localCheckpoint + 1 + (long) i * batchSize;
                         long end = (i == batches - 1) ? Long.MAX_VALUE : start + batchSize - 1;
-                        Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
-                        translogSnapshotList.add(translogSnapshot);
-                        translogRecoveryFutureList.add(
-                            threadPool.executor(ThreadPool.Names.TRANSLOG_RECOVERY)
-                                .submit(() -> runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
-                                    // TODO: add a dedicate recovery stats for the reset translog
-                                }))
-                        );
+                        translogRecoveryFutureList.add(completionService.submit(() -> {
+                            Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
+                            translogSnapshotList.add(translogSnapshot);
+                            return runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                                // TODO: add a dedicate recovery stats for the reset translog
+                            });
+                        }));
                     }
                     Exception exception = null;
                     int totalRecovered = 0;
-                    for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
+                    for (int i = 0; i < batches; i++) {
                         try {
                             if (exception != null) {
-                                FutureUtils.cancel(translogRecoveryFuture);
+                                for (Future<Integer> translogRecoveryFuture : translogRecoveryFutureList) {
+                                    FutureUtils.cancel(translogRecoveryFuture);
+                                    if (false == translogRecoveryFuture.isCancelled()) {
+                                        translogRecoveryFuture.get();
+                                    }
+                                }
+                                break;
                             }
-                            if (false == translogRecoveryFuture.isCancelled()) {
-                                int recoveredOps = translogRecoveryFuture.get();
-                                totalRecovered += recoveredOps;
-                            }
+                            totalRecovered += completionService.take().get();
                         } catch (Exception e) {
                             if (exception == null) {
                                 exception = e;

@@ -237,10 +237,15 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    // Limiting the maximum value to 1 million is to avoid excessive memory usage of the bitset in LocalCheckpointTracker during
+    // out-of-order execution of concurrent recovery of translog.
+    // Considering the worst-case scenario, with 1000 concurrent recovery tasks, each task recovering 1 million translogs, the bitset
+    // occupancy is approximately 125MB
     public static final Setting<Integer> INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE = Setting.intSetting(
         "indices.translog_concurrent_recovery.batch_size",
         500000,
         10000,
+        1000000,
         Property.Dynamic,
         Property.NodeScope
     );
