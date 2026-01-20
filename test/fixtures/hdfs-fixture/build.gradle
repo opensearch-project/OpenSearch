@@ -60,7 +60,7 @@ dependencies {
     exclude group: "org.jsonschema2pojo"
     exclude group: "com.microsoft.sqlserver"
   }
-  api "dnsjava:dnsjava:3.6.3"
+  api "dnsjava:dnsjava:3.6.4"
   api "org.codehaus.jettison:jettison:${versions.jettison}"
   api "org.apache.commons:commons-compress:${versions.commonscompress}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
