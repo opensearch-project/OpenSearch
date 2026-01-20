@@ -37,6 +37,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.DerivedFieldType;
+import org.opensearch.index.mapper.HistogramFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
@@ -188,6 +189,20 @@ public class ValuesSourceConfig {
         // If we are aggregating on derived field set the agg script.
         if (fieldType != null && fieldType.unwrap() instanceof DerivedFieldType) {
             aggregationScript = ((DerivedFieldType) fieldType).getAggregationScript(context);
+        }
+
+        if (fieldType instanceof HistogramFieldMapper.HistogramFieldType) {
+            return new ValuesSourceConfig(
+                CoreValuesSourceType.HISTOGRAM,  // ValuesSourceType
+                fieldContext,                    // FieldContext
+                unmapped,                        // boolean unmapped
+                aggregationScript,               // AggregationScript.LeafFactory script
+                ValueType.DOUBLE,                // ValueType scriptValueType (use DOUBLE for histogram)
+                missing,                         // Object missing
+                timeZone,                        // ZoneId timeZone
+                docValueFormat,                  // DocValueFormat format
+                context::nowInMillis             // LongSupplier nowSupplier
+            );
         }
 
         config = new ValuesSourceConfig(

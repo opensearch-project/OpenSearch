@@ -44,8 +44,13 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.Aggregator;
@@ -93,7 +98,9 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             maxes = context.bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
-        this.formatter = config.format();
+        this.formatter = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
@@ -148,7 +155,6 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             if (parent != null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
                 throw new CollectionTerminatedException();
             }
         }
@@ -200,7 +206,56 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 }
             }
         };
+
+        // Check if we're dealing with histogram values
+        if (valuesSource instanceof HistogramValuesSource) {
+            HistogramIndexFieldData indexFieldData = ((HistogramValuesSource) valuesSource).getHistogramFieldData();
+            HistogramLeafFieldData leafFieldData = indexFieldData.load(ctx);
+            HistogramValues histogramValues = leafFieldData.getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, allValues) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (bucket >= maxes.size()) {
+                        long from = maxes.size();
+                        maxes = bigArrays.grow(maxes, bucket + 1);
+                        maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                    }
+
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        double[] values = histogram.getValues();
+                        if (values.length > 0) {
+                            // For max aggregation, use the last value since values are sorted
+                            double value = values[values.length - 1];
+                            double max = maxes.get(bucket);
+                            maxes.set(bucket, Math.max(max, value));
+                        }
+                    }
+                }
+            };
+        } else {
+            // Original logic for non-histogram fields
+            // final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
+            return new LeafBucketCollectorBase(sub, allValues) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (bucket >= maxes.size()) {
+                        long from = maxes.size();
+                        maxes = bigArrays.grow(maxes, bucket + 1);
+                        maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                    }
+                    if (values.advanceExact(doc)) {
+                        final double value = values.doubleValue();
+                        double max = maxes.get(bucket);
+                        max = Math.max(max, value);
+                        maxes.set(bucket, max);
+                    }
+                }
+            };
+        }
     }
+
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> max = new AtomicReference<>(maxes.get(0));

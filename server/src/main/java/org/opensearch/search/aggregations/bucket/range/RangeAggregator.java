@@ -51,8 +51,13 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -346,39 +351,70 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                        final double value = values.nextValue();
-                        lo = collect(doc, value, bucket, lo);
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+
+        // Check if we're dealing with histogram values
+        if (valuesSource instanceof HistogramValuesSource) {
+            final HistogramValues histogramValues = ((HistogramValuesSource) valuesSource).getHistogramFieldData()
+                .load(ctx)
+                .getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        double[] values = histogram.getValues();
+                        long[] counts = histogram.getCounts();
+
+                        for (int i = 0; i < values.length; i++) {
+                            double value = values[i];
+                            long count = counts[i];
+
+                            // Use existing MatchedRange logic
+                            MatchedRange matchedRange = new MatchedRange(ranges, 0, value, maxTo);
+
+                            for (int j = matchedRange.startLo; j <= matchedRange.endHi; ++j) {
+                                if (ranges[j].matches(value)) {
+                                    long bucketOrd = subBucketOrdinal(owningBucketOrd, j);
+                                    collectBucket(sub, doc, bucketOrd);
+
+                                    // If we need to count more than once for the histogram counts
+                                    for (long k = 0; k < count; k++) {
+                                        collectExistingBucket(sub, doc, bucketOrd);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            }
-
-            @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
-            }
-
-            @Override
-            public void collectRange(int min, int max) throws IOException {
-                super.collectRange(min, max);
-            }
-
-            private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
-                MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
-                for (int i = range.startLo; i <= range.endHi; ++i) {
-                    if (ranges[i].matches(value)) {
-                        collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+            };
+        } else {
+            final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (values.advanceExact(doc)) {
+                        final int valuesCount = values.docValueCount();
+                        for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                            final double value = values.nextValue();
+                            lo = collect(doc, value, bucket, lo);
+                        }
                     }
                 }
-                return range.endHi + 1;
-            }
-        };
+                private int collect(int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
+                    MatchedRange range = new MatchedRange(ranges, lowBound, value, maxTo);
+                    for (int i = range.startLo; i <= range.endHi; ++i) {
+                        if (ranges[i].matches(value)) {
+                            collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                        }
+                    }
+                    return range.endHi + 1;
+                }
+            };
+        }
     }
 
     private void preComputeWithStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {

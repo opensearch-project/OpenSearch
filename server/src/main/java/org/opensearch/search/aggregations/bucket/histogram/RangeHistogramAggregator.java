@@ -35,9 +35,11 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.mapper.RangeFieldMapper;
 import org.opensearch.index.mapper.RangeType;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.BucketOrder;
@@ -86,7 +88,9 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             minDocCount,
             extendedBounds,
             hardBounds,
-            valuesSourceConfig.format(),
+            valuesSourceConfig.getValuesSource() instanceof HistogramValuesSource
+                ? DocValueFormat.RAW
+                : valuesSourceConfig.format(),
             context,
             parent,
             cardinality,

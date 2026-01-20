@@ -72,7 +72,7 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             ExtendedStatsAggregationBuilder.REGISTRY_KEY,
-            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            Arrays.asList(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.HISTOGRAM),
             ExtendedStatsAggregator::new,
             true
         );

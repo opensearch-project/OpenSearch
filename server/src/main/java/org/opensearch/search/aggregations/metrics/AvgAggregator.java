@@ -46,7 +46,12 @@ import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -89,7 +94,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         super(name, context, parent, metadata);
         // TODO Stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
-        this.format = valuesSourceConfig.format();
+        this.format = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : valuesSourceConfig.format();
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
@@ -194,7 +201,74 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 kahanSummation.reset(sum, compensation);
             }
         };
+        // Check if we're dealing with histogram values
+        if (valuesSource instanceof HistogramValuesSource) {
+            HistogramIndexFieldData indexFieldData = ((HistogramValuesSource) valuesSource).getHistogramFieldData();
+            HistogramLeafFieldData leafFieldData = indexFieldData.load(ctx);
+            HistogramValues histogramValues = leafFieldData.getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    sums = bigArrays.grow(sums, bucket + 1);
+                    compensations = bigArrays.grow(compensations, bucket + 1);
+
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        double[] histValues = histogram.getValues();
+                        long[] histCounts = histogram.getCounts();
+
+                        // Use Kahan summation for better accuracy
+                        double sum = sums.get(bucket);
+                        double compensation = compensations.get(bucket);
+                        kahanSummation.reset(sum, compensation);
+
+                        long totalCount = 0;
+                        // Calculate weighted sum (value * count) for each bucket
+                        for (int i = 0; i < histValues.length; i++) {
+                            kahanSummation.add(histValues[i] * histCounts[i]);
+                            totalCount += histCounts[i];
+                        }
+
+                        counts.increment(bucket, totalCount);
+                        sums.set(bucket, kahanSummation.value());
+                        compensations.set(bucket, kahanSummation.delta());
+                    }
+                }
+            };
+        } else {
+            // Original logic for non-histogram fields
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+                    sums = bigArrays.grow(sums, bucket + 1);
+                    compensations = bigArrays.grow(compensations, bucket + 1);
+
+                    if (values.advanceExact(doc)) {
+                        final int valueCount = values.docValueCount();
+                        counts.increment(bucket, valueCount);
+                        // Compute the sum of double values with Kahan summation algorithm which is more
+                        // accurate than naive summation.
+                        double sum = sums.get(bucket);
+                        double compensation = compensations.get(bucket);
+
+                        kahanSummation.reset(sum, compensation);
+
+                        for (int i = 0; i < valueCount; i++) {
+                            double value = values.nextValue();
+                            kahanSummation.add(value);
+                        }
+
+                        sums.set(bucket, kahanSummation.value());
+                        compensations.set(bucket, kahanSummation.delta());
+                    }
+                }
+            };
+        }
     }
+
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);

@@ -41,6 +41,8 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.utils.WellKnownText;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -156,6 +158,33 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             } else {
                 return MissingValues.replaceMissing((ValuesSource.Bytes) valuesSource, missing);
             }
+        }
+    },
+    HISTOGRAM() {
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.Numeric.EMPTY;
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("Histogram fields do not support scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (!(fieldContext.indexFieldData() instanceof HistogramIndexFieldData)) {
+                throw new IllegalArgumentException(
+                    "Expected histogram field data but got " + fieldContext.indexFieldData().getClass()
+                );
+            }
+
+            return new HistogramValuesSource((HistogramIndexFieldData) fieldContext.indexFieldData());
+        }
+
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            throw new IllegalArgumentException("Missing values not supported for histogram fields");
         }
     },
     GEOPOINT() {

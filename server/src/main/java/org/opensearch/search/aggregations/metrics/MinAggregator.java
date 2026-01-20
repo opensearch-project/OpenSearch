@@ -44,8 +44,13 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.NumericDoubleValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.Aggregator;
@@ -93,7 +98,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
-        this.format = config.format();
+        this.format = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
@@ -148,23 +155,78 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             if (parent == null) {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                // we have no parent and the values source is empty so we can skip collecting hits.
                 throw new CollectionTerminatedException();
             }
         }
 
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
+
+        // Check if we're dealing with histogram values
+        if (valuesSource instanceof HistogramValuesSource) {
+            HistogramIndexFieldData indexFieldData = ((HistogramValuesSource) valuesSource).getHistogramFieldData();
+            HistogramLeafFieldData leafFieldData = indexFieldData.load(ctx);
+            HistogramValues histogramValues = leafFieldData.getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, allValues) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (bucket >= mins.size()) {
+                        long from = mins.size();
+                        mins = bigArrays.grow(mins, bucket + 1);
+                        mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                    }
+
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        double[] values = histogram.getValues();
+                        if (values.length > 0) {
+                            // For min aggregation, use the first value since values are sorted
+                            double value = values[0];
+                            double min = mins.get(bucket);
+                            mins.set(bucket, Math.min(min, value));
+                        }
+                    }
+                }
+            };
+        } else {
+            // Original logic for non-histogram fields
+            final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
+            return new LeafBucketCollectorBase(sub, allValues) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    if (bucket >= mins.size()) {
+                        long from = mins.size();
+                        mins = bigArrays.grow(mins, bucket + 1);
+                        mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                    }
+
+                    if (values.advanceExact(doc)) {
+                        final double value = values.doubleValue();
+                        double min = mins.get(bucket);
+                        mins.set(bucket, Math.min(min, value));
+                    }
+                }
+            };
+        }
+    }
+
+    private LeafBucketCollector getRegularLeafCollector(BigArrays bigArrays, SortedNumericDoubleValues allValues, LeafBucketCollector sub) {
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 growMins(bucket);
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays.grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                }
+
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double min = mins.get(bucket);
-                    min = Math.min(min, value);
-                    mins.set(bucket, min);
+                    mins.set(bucket, Math.min(min, value));
                 }
             }
 
@@ -201,6 +263,8 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
         };
     }
+
+
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         AtomicReference<Double> min = new AtomicReference<>(mins.get(0));

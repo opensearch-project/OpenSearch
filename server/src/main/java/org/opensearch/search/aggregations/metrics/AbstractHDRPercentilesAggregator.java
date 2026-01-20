@@ -38,7 +38,12 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -83,7 +88,9 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
-        this.format = formatter;
+        this.format = valuesSource instanceof HistogramValuesSource
+            ? DocValueFormat.RAW
+            : formatter;
         this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
@@ -101,21 +108,47 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         }
         final BigArrays bigArrays = context.bigArrays();
 
-        final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
-                if (values.advanceExact(doc)) {
-                    final int valueCount = values.docValueCount();
-                    for (int i = 0; i < valueCount; i++) {
-                        state.recordValue(values.nextValue());
+        // Check if we're dealing with histogram values
+        if (valuesSource instanceof HistogramValuesSource) {
+            HistogramIndexFieldData indexFieldData = ((HistogramValuesSource) valuesSource).getHistogramFieldData();
+            HistogramLeafFieldData leafFieldData = indexFieldData.load(ctx);
+            HistogramValues histogramValues = leafFieldData.getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
+
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        double[] histValues = histogram.getValues();
+                        long[] counts = histogram.getCounts();
+
+                        // Record each value with its count using recordValueWithCount
+                        for (int i = 0; i < histValues.length; i++) {
+                            state.recordValueWithCount(histValues[i], counts[i]);
+                        }
                     }
                 }
-            }
-        };
-
+            };
+        } else {
+            // Original logic for non-histogram fields
+            final SortedNumericDoubleValues values = ((ValuesSource.Numeric) valuesSource).doubleValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
+                    if (values.advanceExact(doc)) {
+                        final int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; i++) {
+                            state.recordValue(values.nextValue());
+                        }
+                    }
+                }
+            };
+        }
     }
+
 
     private DoubleHistogram getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
         states = bigArrays.grow(states, bucket + 1);

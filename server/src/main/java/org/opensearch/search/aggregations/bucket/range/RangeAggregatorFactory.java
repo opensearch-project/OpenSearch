@@ -32,12 +32,18 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregator.Range;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
+import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;

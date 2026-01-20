@@ -39,8 +39,13 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.fielddata.HistogramIndexFieldData;
+import org.opensearch.index.fielddata.HistogramLeafFieldData;
+import org.opensearch.index.fielddata.HistogramValues;
+import org.opensearch.index.fielddata.HistogramValuesSource;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.indices.fielddata.Histogram;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -111,10 +116,33 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
         }
         final BigArrays bigArrays = context.bigArrays();
 
-        if (valuesSource instanceof ValuesSource.Numeric) {
+        if (valuesSource instanceof HistogramValuesSource) {
+            HistogramIndexFieldData indexFieldData = ((HistogramValuesSource) valuesSource).getHistogramFieldData();
+            HistogramLeafFieldData leafFieldData = indexFieldData.load(ctx);
+            HistogramValues histogramValues = leafFieldData.getHistogramValues();
+
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
+
+                    if (histogramValues.advanceExact(doc)) {
+                        Histogram histogram = histogramValues.histogram();
+                        long[] histCounts = histogram.getCounts();
+
+                        // Sum up all counts in the histogram
+                        long totalCount = 0;
+                        for (long count : histCounts) {
+                            totalCount += count;
+                        }
+
+                        counts.increment(bucket, totalCount);
+                    }
+                }
+            };
+        } else if (valuesSource instanceof ValuesSource.Numeric) {
             final SortedNumericDocValues values = ((ValuesSource.Numeric) valuesSource).longValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
-
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     counts = bigArrays.grow(counts, bucket + 1);
@@ -123,11 +151,9 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
                     }
                 }
             };
-        }
-        if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
+        } else if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
             MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(ctx);
             return new LeafBucketCollectorBase(sub, null) {
-
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     counts = bigArrays.grow(counts, bucket + 1);
@@ -140,7 +166,6 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
         // The following is default collector. Including the keyword FieldType
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
@@ -150,6 +175,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
             }
         };
     }
+
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
         StarTreeQueryHelper.precomputeLeafUsingStarTree(

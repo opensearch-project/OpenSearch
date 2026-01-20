@@ -32,6 +32,8 @@
 
 package org.opensearch.index.fielddata;
 
+import org.opensearch.indices.fielddata.Histogram;
+
 import java.io.IOException;
 
 /**
@@ -51,6 +53,6 @@ public abstract class HistogramValues {
      * Get the {@link HistogramValue} associated with the current document.
      * The returned {@link HistogramValue} might be reused across calls.
      */
-    public abstract HistogramValue histogram() throws IOException;
+    public abstract Histogram histogram() throws IOException;
 
 }
