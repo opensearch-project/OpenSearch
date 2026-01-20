@@ -105,6 +105,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngine;
@@ -2908,7 +2909,11 @@ public class IndexShardTests extends IndexShardTestCase {
         RemoteSegmentStoreDirectory remoteStoreDirectory = ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) target
             .remoteStore()
             .directory()).getDelegate()).getDelegate());
-        Collection<String> uploadFiles = new ArrayList<>(remoteStoreDirectory.getSegmentsUploadedToRemoteStore().keySet());
+        Collection<String> uploadFiles = remoteStoreDirectory.getSegmentsUploadedToRemoteStore()
+            .keySet()
+            .stream()
+            .map(key -> new FileMetadata(key).file())
+            .collect(Collectors.toList());
         assertTrue(uploadFiles.containsAll(lastCommitedSegmentsInSource));
         assertTrue(
             "Failed to sync all files to new shard",

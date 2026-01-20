@@ -2541,9 +2541,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
-                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
+                try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
+                    Collection<FileMetadata> localFileMetadataList = catalogSnapshotRef.getRef().getFileMetadataList();
+                    Set<String> localFiles = localFileMetadataList.stream()
+                        .filter(fm -> !RemoteStoreRefreshListener.EXCLUDE_FILES.contains(fm.file()))
+                        .map(FileMetadata::serialize)
+                        .collect(Collectors.toSet());
                     // verifying that all files except EXCLUDE_FILES are uploaded to the remote
                     localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
                     if (uploadFiles.containsAll(localFiles)) {
@@ -4202,25 +4205,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
-
     public Indexer getIndexer() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getCurrentEngineOrThrowIfClosed();
     }
 
     public CheckpointState getCheckpointState() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getCurrentEngineOrThrowIfClosed();
     }
 
     public StatsHolder getStatsHolder() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getCurrentEngineOrThrowIfClosed();
     }
 
     public IndexingThrottler getIndexingThrottler() {
-        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : getCurrentEngineOrThrowIfClosed();
     }
 
     public Engine getEngine() {
         Engine engine = getEngineOrNull();
+        if (engine == null) {
+            throw new AlreadyClosedException("engine is closed");
+        }
+        return engine;
+    }
+
+    /**
+     * Returns the current Engine reference, throwing AlreadyClosedException if the engine is null or closed.
+     * This method provides explicit handling for cases where a valid engine reference is required.
+     *
+     * @return the current Engine reference
+     * @throws AlreadyClosedException if the engine is null or has been closed
+     */
+    public Engine getCurrentEngineOrThrowIfClosed() {
+        Engine engine = currentEngineReference.get();
         if (engine == null) {
             throw new AlreadyClosedException("engine is closed");
         }
@@ -5941,7 +5958,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    segmentNFile = file;
+                    if(isOptimizedIndex())
+                    {
+                        segmentNFile = file;
+                    }
+                    else
+                    {
+                        segmentNFile = fileMetadata.file();
+                    }
                 }
             }
 
