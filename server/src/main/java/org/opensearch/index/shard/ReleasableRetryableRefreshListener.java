@@ -73,7 +73,6 @@ public abstract class ReleasableRetryableRefreshListener implements ReferenceMan
         if (closed.get()) {
             return;
         }
-
         runAfterRefreshExactlyOnce(didRefresh);
         runAfterRefreshWithPermit(didRefresh, () -> {});
     }

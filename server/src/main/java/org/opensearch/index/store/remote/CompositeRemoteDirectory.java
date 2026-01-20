@@ -34,9 +34,7 @@ import org.opensearch.index.engine.MergedSegmentWarmer;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.Any;
-import org.opensearch.index.store.CompositeStoreDirectory;
-import org.opensearch.index.store.RemoteIndexInput;
-import org.opensearch.index.store.RemoteIndexOutput;
+import org.opensearch.index.store.*;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
@@ -47,11 +45,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
+
 
 /**
  * CompositeRemoteDirectory with direct BlobContainer access per format.
@@ -65,7 +66,7 @@ import java.util.function.UnaryOperator;
  * @opensearch.api
  */
 @PublicApi(since = "3.0.0")
-public class CompositeRemoteDirectory implements Closeable {
+public class CompositeRemoteDirectory extends RemoteDirectory {
 
     /**
      * Metadata stream wrapper for reading/writing RemoteSegmentMetadata
@@ -88,7 +89,6 @@ public class CompositeRemoteDirectory implements Closeable {
     final Map<FileMetadata, String> pendingDownloadMergedSegments;
 
     private final Map<String, BlobContainer> formatBlobContainers;
-    private  final BlobContainer metadataBlobContainer;
     private final BlobStore blobStore;
     private final BlobPath baseBlobPath;
     private final Logger logger;
@@ -107,6 +107,19 @@ public class CompositeRemoteDirectory implements Closeable {
         Logger logger,
         PluginsService pluginsService
     ) {
+        super(
+            blobStore.blobContainer(baseBlobPath),
+            uploadRateLimiter,
+            lowPriorityUploadRateLimiter,
+            downloadRateLimiter,
+            lowPriorityDownloadRateLimiter,
+            pendingDownloadMergedSegments.entrySet().stream().collect(
+                Collectors.toMap(
+                    e -> e.getKey().serialize(),
+                    Map.Entry::getValue
+                )
+            )
+        );
         this.formatBlobContainers = new ConcurrentHashMap<>();
         this.blobStore = blobStore;
         this.baseBlobPath = baseBlobPath;
@@ -115,9 +128,6 @@ public class CompositeRemoteDirectory implements Closeable {
         this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
         this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
         this.logger = logger;
-
-        BlobPath metadataBlobPath = Objects.requireNonNull(baseBlobPath.parent()).add("metadata");
-        this.metadataBlobContainer = blobStore.blobContainer(metadataBlobPath);
 
         try {
             pluginsService.filterPlugins(DataSourcePlugin.class).forEach(
@@ -304,6 +314,13 @@ public class CompositeRemoteDirectory implements Closeable {
         return from.calculateChecksum(fileMetadata);
     }
 
+    @Override
+    public void deleteFile(UploadedSegmentMetadata uploadedSegmentMetadata) throws IOException {
+        FileMetadata fileMetadata = new FileMetadata(uploadedSegmentMetadata.getDataFormat(), uploadedSegmentMetadata.getUploadedFilename());
+        BlobContainer blobContainer = getBlobContainer(fileMetadata.dataFormat());
+        blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(fileMetadata.file()));
+    }
+
     /**
 
      /**
@@ -352,9 +369,6 @@ public class CompositeRemoteDirectory implements Closeable {
             if (blobContainer!=null) {
                 logger.debug("File {} already exists, using existing container", remoteFileName);
                 return new RemoteIndexOutput(remoteFileName, blobContainer);
-            }
-            else if(df !=null && df.equals("TempMetadata")) {
-                return new RemoteIndexOutput(remoteFileName, metadataBlobContainer);
             }
 
             throw new IOException(
@@ -407,52 +421,6 @@ public class CompositeRemoteDirectory implements Closeable {
             container.delete();
         }
         logger.debug("Deleted all format containers from CompositeRemoteDirectory");
-    }
-
-
-    /**
-     * Read the latest metadata file from the metadata blob container.
-     * This method provides compatibility with RemoteSegmentStoreDirectory.readLatestMetadataFile()
-     */
-    public RemoteSegmentMetadata readLatestMetadataFile() throws IOException {
-        try {
-            List<BlobMetadata> metadataFiles = metadataBlobContainer.listBlobsByPrefixInSortedOrder(
-                "metadata", 10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
-
-            if (metadataFiles.isEmpty()) {
-                logger.debug("No metadata files found in composite remote directory");
-                return null;
-            }
-
-            // Get the latest (first in reverse lexicographic order)
-            String latestMetadataFile = metadataFiles.get(0).name();
-            logger.debug("Reading latest metadata file: {}", latestMetadataFile);
-            return readMetadataFile(latestMetadataFile);
-        } catch (Exception e) {
-            logger.error("Failed to read latest metadata file from composite directory", e);
-            throw new IOException("Failed to read latest metadata file", e);
-        }
-    }
-
-    /**
-     * Read a specific metadata file by name from the metadata blob container.
-     * This method provides compatibility with RemoteSegmentStoreDirectory.readMetadataFile()
-     */
-    public RemoteSegmentMetadata readMetadataFile(String metadataFileName) throws IOException {
-        try (InputStream inputStream = metadataBlobContainer.readBlob(metadataFileName)) {
-            byte[] metadataBytes = inputStream.readAllBytes();
-
-            // Use our own metadata stream wrapper
-            return metadataStreamWrapper.readStream(
-                new ByteArrayIndexInput(metadataFileName, metadataBytes)
-            );
-        } catch (NoSuchFileException e) {
-            logger.debug("Metadata file not found: {}", metadataFileName);
-            return null;
-        } catch (Exception e) {
-            logger.error("Failed to read metadata file: {}", metadataFileName, e);
-            throw new IOException("Failed to read metadata file: " + metadataFileName, e);
-        }
     }
 
     @Override

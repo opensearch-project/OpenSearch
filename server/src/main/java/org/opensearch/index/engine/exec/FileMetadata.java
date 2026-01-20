@@ -15,6 +15,7 @@ import java.util.Objects;
 public class FileMetadata {
 
     public static final String DELIMITER = ":::";
+    private static final String METADATA_KEY = "metadata";
 
     private final String file;
     private final String dataFormat;
@@ -25,12 +26,16 @@ public class FileMetadata {
     }
 
     public FileMetadata(String dataFormatAwareFile) {
-        String[] parts = dataFormatAwareFile.split(DELIMITER);
-        if (parts.length != 2) {
-            throw new IllegalArgumentException("Expected FileMetadata string to have 2 parts: " + dataFormatAwareFile);
+        if (!dataFormatAwareFile.contains(DELIMITER) && dataFormatAwareFile.startsWith(METADATA_KEY)) {
+            this.dataFormat = "metadata";
+            this.file = dataFormatAwareFile;
+            return;
         }
+        String[] parts = dataFormatAwareFile.split(DELIMITER);
+        this.dataFormat = (parts.length == 1)
+            ? "lucene"
+            : parts[1];
         this.file = parts[0];
-        this.dataFormat = parts[1];
     }
 
     public String serialize() {

@@ -60,6 +60,7 @@ public class WriterFileSet implements Serializable, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(directory);
         out.writeLong(writerGeneration);
+        out.writeVInt((int) numRows);
         out.writeVInt(files.size());
         for (String file : files) {
             out.writeString(file);

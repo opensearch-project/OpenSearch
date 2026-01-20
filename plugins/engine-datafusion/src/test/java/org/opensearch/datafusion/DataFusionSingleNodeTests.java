@@ -31,12 +31,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     private static final String INDEX_MAPPING_JSON = "clickbench_index_mapping.json";
     private static final String DATA = "clickbench.json";
     private final String indexName = "hits";
+    private static final String REPOSITORY_NAME = "test-remote-store-repo";
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -54,6 +56,8 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.refresh_interval", -1)
+                .put("index.replication.type", "SEGMENT")
+                .put("index.optimized.enabled", true)// Enable segment replication for remote store
                 .build(),
             mappings
         );
@@ -76,8 +80,8 @@ public class DataFusionSingleNodeTests extends OpenSearchSingleNodeTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent,
             sourceFile);
         source.parseXContent(parser);
+
         SearchResponse response = client().prepareSearch(indexName).setSource(source).get();
-        // TODO: Match expected results...
         System.out.println(response);
     }
 

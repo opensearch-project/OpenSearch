@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.opensearch.indices.RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -175,8 +176,8 @@ public class RemoteSegmentStoreDirectoryWithPinnedTimestampTests extends RemoteS
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
         assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
-        verify(remoteDataDirectory, times(0)).deleteFile(any());
-        verify(remoteMetadataDirectory, times(0)).deleteFile(any());
+        verify(remoteDataDirectory, times(0)).deleteFile(anyString());
+        verify(remoteMetadataDirectory, times(0)).deleteFile(anyString());
     }
 
     public void testDeleteStaleCommitsPinnedTimestampMdFile() throws Exception {

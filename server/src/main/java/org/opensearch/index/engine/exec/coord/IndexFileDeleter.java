@@ -83,8 +83,10 @@ public class IndexFileDeleter {
             Collection<String> dfFiles = new HashSet<>();
             Collection<WriterFileSet> fileSets = snapshot.getSearchableFiles(dataFormat);
             for (WriterFileSet fileSet : fileSets) {
+                Path directory = Path.of(fileSet.getDirectory());
                 for (String file : fileSet.getFiles()) {
-                    dfFiles.add(fileSet.getDirectory() + "/" + file);
+                    // ToDo: @Shreyansh update this to relative path
+                    dfFiles.add(directory.resolve(file).toAbsolutePath().normalize().toString());
                 }
             }
             dfSegregatedFiles.put(dataFormat, dfFiles);
@@ -100,15 +102,18 @@ public class IndexFileDeleter {
             String dataFormat = entry.getKey();
             Collection<String> referencedFiles = entry.getValue().keySet();
             Collection<String> filesToDelete = new HashSet<>();
-            // TODO - Currently hardcoding to get all parquet files in data path. Fix this
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(shardPath.getDataPath(), "*.parquet")) {
+            Path dataFormatPath = shardPath.getDataPath().resolve(dataFormat);
+            if (!Files.exists(dataFormatPath)) continue;
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(dataFormatPath, "*." + dataFormat)) {
                 StreamSupport.stream(stream.spliterator(), false)
-                        .map(Path::toString)
+                        .map(p -> p.toAbsolutePath().normalize().toString())
                         .filter((file) -> (!referencedFiles.contains(file)))
                         .forEach(filesToDelete::add);
             }
-            filesToDelete = filesToDelete.stream().map(file -> shardPath.getDataPath().resolve(file).toString()).collect(Collectors.toSet());
-            dfFilesToDelete.put(dataFormat, filesToDelete);
+            if (!filesToDelete.isEmpty()) {
+                dfFilesToDelete.put(dataFormat, filesToDelete);
+            }
         }
         deleteUnreferencedFiles(dfFilesToDelete);
     }

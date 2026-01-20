@@ -176,6 +176,12 @@ test {
   systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
 }
 
+internalClusterTest {
+    // Add same JVM arguments for integration tests
+    jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+    systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
+}
+
 yamlRestTest {
     systemProperty 'tests.security.manager', 'false'
     // Disable yamlRestTest since this plugin doesn't have REST API endpoints

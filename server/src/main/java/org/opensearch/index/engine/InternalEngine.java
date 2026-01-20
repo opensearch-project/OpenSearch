@@ -559,7 +559,7 @@ public class InternalEngine extends Engine {
                 case "segments_stats":
                     break;
                 default:
-//                    assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
+                   // assert externalReaderManager.isWarmedUp : "searcher was not warmed up yet for source[" + source + "]";
             }
         }
         return true;

@@ -40,8 +40,8 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     private IndexFileDeleter indexFileDeleter;
     private CompositeEngine mockEngine;
     private ShardPath shardPath;
-    private CatalogSnapshot catalogSnapshot;
-    private Map<Long, CatalogSnapshot> catalogSnapshotMap;
+    private CompositeEngineCatalogSnapshot catalogSnapshot;
+    private Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap;
     private AtomicLong catalogSnapshotId;
     private AtomicLong lastCommittedSnapshotId;
     private Set<String> deletedFiles;
@@ -82,8 +82,8 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").size());
         assertEquals(1, indexFileDeleter.getFileRefCounts().get("lucene").size());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet").get());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("lucene").get("dir2/file1.lucene").get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")).get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("lucene").get(getAbsolutePath("dir2", "file1.lucene")).get());
     }
 
     public void testRefreshCreatesNewSnapshotAndAddsReferences() {
@@ -91,7 +91,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file1.parquet")));
 
         assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").size());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet").get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")).get());
     }
 
     public void testMultipleSnapshotsWithOverlappingFiles() {
@@ -103,10 +103,10 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         // After first refresh refCounts: file1(1), file2 (1)
         // After second refresh refcounts: file1(0, delete should be called), file2(1), file3(1)
-        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet"));
-        assertTrue(deletedFiles.contains("dir1/file1.parquet"));
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file2.parquet").get());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file3.parquet").get());
+        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")));
+        assertTrue(deletedFiles.contains(getAbsolutePath("dir1", "file1.parquet")));
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file2.parquet")).get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file3.parquet")).get());
     }
 
     public void testFileDeletionDuringSearch() throws IOException {
@@ -119,17 +119,17 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file2.parquet", "file3.parquet")));
 
         // since we have a active search request, files from previous snapshot won't be deleted
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet").get());
-        assertEquals(2, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file2.parquet").get());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file3.parquet").get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")).get());
+        assertEquals(2, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file2.parquet")).get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file3.parquet")).get());
 
         searchContext.close();
 
         // After search is closed, files from previous snapshot should be deleted
-        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet"));
-        assertTrue(deletedFiles.contains("dir1/file1.parquet"));
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file2.parquet").get());
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file3.parquet").get());
+        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")));
+        assertTrue(deletedFiles.contains(getAbsolutePath("dir1", "file1.parquet")));
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file2.parquet")).get());
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file3.parquet")).get());
     }
 
     public void testDeletionsWthFlush() {
@@ -141,20 +141,20 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         simulateRefresh(Map.of("parquet", createWriterFileSet("dir1", "file2.parquet", "file3.parquet")));
 
         // Since file1 is part of last commited data(flushed) it will not be deleted even if it is not part of current snapshot
-        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet").get());
-        assertFalse(deletedFiles.contains("dir1/file1.parquet"));
+        assertEquals(1, indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")).get());
+        assertFalse(deletedFiles.contains(getAbsolutePath("dir1", "file1.parquet")));
 
         simulateFlush();
         // After flush, file1 should be deleted since it is now no more part of last commited data and neither current snapshot as well
-        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get("dir1/file1.parquet"));
-        assertTrue(deletedFiles.contains("dir1/file1.parquet"));
+        assertNull(indexFileDeleter.getFileRefCounts().get("parquet").get(getAbsolutePath("dir1", "file1.parquet")));
+        assertTrue(deletedFiles.contains(getAbsolutePath("dir1", "file1.parquet")));
     }
 
 
     private void simulateRefresh(Map<String, List<WriterFileSet>> files) {
         // Create RefreshResult with segments
         RefreshResult refreshResult = new RefreshResult();
-        CatalogSnapshot.Segment segment = new CatalogSnapshot.Segment(catalogSnapshotId.get() + 1);
+        Segment segment = new Segment(catalogSnapshotId.get() + 1);
 
         files.forEach((formatName, fileSets) -> {
             fileSets.forEach(fileSet -> {
@@ -164,11 +164,11 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         refreshResult.setRefreshedSegments(List.of(segment));
 
-        CatalogSnapshot prevSnap = catalogSnapshot;
+        CompositeEngineCatalogSnapshot prevSnap = catalogSnapshot;
 
         // Create new snapshot
         long id = catalogSnapshotId.incrementAndGet();
-        catalogSnapshot = new CatalogSnapshot(id, id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
+        catalogSnapshot = new CompositeEngineCatalogSnapshot(id, id, List.of(segment), catalogSnapshotMap, () -> indexFileDeleter);
         catalogSnapshotMap.put(id, catalogSnapshot);
 
         // Release previous snapshot if exists
@@ -207,5 +207,14 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         }
 
         return Collections.singletonList(builder.build());
+    }
+
+    /**
+     * Helper method to compute absolute path for test assertions.
+     * This matches the behavior in IndexFileDeleter.segregateFilesByFormat()
+     * which uses directory.resolve(file).toAbsolutePath().normalize().toString()
+     */
+    private String getAbsolutePath(String directory, String file) {
+        return Path.of(directory).resolve(file).toAbsolutePath().normalize().toString();
     }
 }

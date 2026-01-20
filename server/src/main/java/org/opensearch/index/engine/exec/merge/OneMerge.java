@@ -9,23 +9,25 @@
 package org.opensearch.index.engine.exec.merge;
 
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.Segment;
+
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.Collections;
 import java.util.List;
 
 public class OneMerge {
-    private final List<CatalogSnapshot.Segment> segmentsToMerge;
+    private final List<Segment> segmentsToMerge;
     private final long totalSize;
     private final long totalNumDocs;
 
-    public OneMerge(List<CatalogSnapshot.Segment> segmentsToMerge) {
+    public OneMerge(List<Segment> segmentsToMerge) {
         this.segmentsToMerge = Collections.unmodifiableList(segmentsToMerge);
         this.totalSize = calculateTotalSizeInBytes();
         this.totalNumDocs = calculateTotalNumDocs();
     }
 
-    public List<CatalogSnapshot.Segment> getSegmentsToMerge() {
+    public List<Segment> getSegmentsToMerge() {
         return segmentsToMerge;
     }
 

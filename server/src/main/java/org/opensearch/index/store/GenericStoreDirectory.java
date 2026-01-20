@@ -10,9 +10,7 @@ package org.opensearch.index.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.store.*;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.ShardPath;
@@ -30,6 +28,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.stream.StreamSupport;
+import java.util.zip.CRC32;
 
 /**
  * Generic FormatStoreDirectory implementation for non-Lucene formats.
@@ -117,15 +116,14 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
     @Override
     public long fileLength(String name) throws IOException {
-        Path filePath = directoryPath.resolve(name);
-        try {
-            return Files.size(filePath);
+        try (IndexInput input = openIndexInput(name, IOContext.READONCE)) {
+            return input.length();
         } catch (IOException e) {
             throw new MultiFormatStoreException(
                 "Failed to get file length: " + name,
                 dataFormat,
                 "fileLength",
-                filePath,
+                directoryPath.resolve(name),
                 e
             );
         }
@@ -206,33 +204,35 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
     @Override
     public long calculateChecksum(String fileName) throws IOException {
-        Path filePath = directoryPath.resolve(fileName);
-        try (InputStream inputStream = Files.newInputStream(filePath, StandardOpenOption.READ)) {
-            return calculateGenericChecksum(inputStream);
+        try (IndexInput indexInput = openIndexInput(fileName, IOContext.READONCE)) {
+            return calculateGenericChecksum(indexInput);
         } catch (IOException e) {
             throw new MultiFormatStoreException(
                 "Failed to calculate checksum for file: " + fileName,
                 dataFormat,
                 "calculateChecksum",
-                filePath,
+                directoryPath.resolve(fileName),
                 e
             );
         }
     }
 
     /**
-     * Calculates a generic CRC32 checksum for the given input stream
-     * @param inputStream the input stream to calculate checksum for
+     * Calculates a generic CRC32 checksum for the given index input
+     * @param indexInput the input stream to calculate checksum for
      * @return the checksum as a string representation
      * @throws IOException if reading from the stream fails
      */
-    private long calculateGenericChecksum(InputStream inputStream) throws IOException {
-        java.util.zip.CRC32 crc32 = new java.util.zip.CRC32();
+    private long calculateGenericChecksum(IndexInput indexInput) throws IOException {
+        CRC32 crc32 = new CRC32();
         byte[] buffer = new byte[8192];
-        int bytesRead;
+        long remaining = indexInput.length();
 
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            crc32.update(buffer, 0, bytesRead);
+        while (remaining > 0) {
+            int toRead = (int) Math.min(buffer.length, remaining);
+            indexInput.readBytes(buffer, 0, toRead);
+            crc32.update(buffer, 0, toRead);
+            remaining -= toRead;
         }
 
         return crc32.getValue();
@@ -257,8 +257,8 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
 
         long startTime = System.nanoTime();
 
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            long checksum = calculateGenericChecksum(inputStream);
+        try (IndexInput indexInput = openIndexInput(fileName, IOContext.READONCE)) {
+            long checksum = calculateGenericChecksum(indexInput);
             String checksumString = Long.toString(checksum);
 
             long calculationDurationMs = (System.nanoTime() - startTime) / 1_000_000;
@@ -306,7 +306,7 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
             long fileSize = channel.size();
 
             // Create FileChannel-based IndexInput
-            return new GenericFileChannelIndexInput(name, channel, fileSize, context);
+            return new NIOFSIndexInput(name, channel, context);
 
         } catch (IOException e) {
             logger.error("Failed to create IndexInput for generic format: file={}, format={}, filePath={}, error={}",
@@ -319,6 +319,130 @@ public class GenericStoreDirectory<T extends DataFormat> implements FormatStoreD
                 filePath,
                 e
             );
+        }
+    }
+
+    /** Reads bytes with {@link FileChannel#read(ByteBuffer, long)} */
+    static final class NIOFSIndexInput extends BufferedIndexInput {
+        /** The maximum chunk size for reads of 16384 bytes. */
+        private static final int CHUNK_SIZE = 16384;
+
+        /** the file channel we will read from */
+        protected final FileChannel channel;
+
+        /** is this instance a clone and hence does not own the file to close it */
+        boolean isClone = false;
+
+        /** start offset: non-zero in the slice case */
+        protected final long off;
+
+        /** end offset (start+length) */
+        protected final long end;
+
+        public NIOFSIndexInput(String resourceDesc, FileChannel fc, IOContext context)
+            throws IOException {
+            super(resourceDesc, context);
+            this.channel = fc;
+            this.off = 0L;
+            this.end = fc.size();
+        }
+
+        public NIOFSIndexInput(
+            String resourceDesc, FileChannel fc, long off, long length, int bufferSize) {
+            super(resourceDesc, bufferSize);
+            this.channel = fc;
+            this.off = off;
+            this.end = off + length;
+            this.isClone = true;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (!isClone) {
+                channel.close();
+            }
+        }
+
+        @Override
+        public NIOFSIndexInput clone() {
+            NIOFSIndexInput clone = (NIOFSIndexInput) super.clone();
+            clone.isClone = true;
+            return clone;
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            if ((length | offset) < 0 || length > this.length() - offset) {
+                throw new IllegalArgumentException(
+                    "slice() "
+                        + sliceDescription
+                        + " out of bounds: offset="
+                        + offset
+                        + ",length="
+                        + length
+                        + ",fileLength="
+                        + this.length()
+                        + ": "
+                        + this);
+            }
+            return new NIOFSIndexInput(
+                getFullSliceDescription(sliceDescription),
+                channel,
+                off + offset,
+                length,
+                getBufferSize());
+        }
+
+        @Override
+        public final long length() {
+            return end - off;
+        }
+
+        @Override
+        protected void readInternal(ByteBuffer b) throws IOException {
+            long pos = getFilePointer() + off;
+
+            if (pos + b.remaining() > end) {
+                throw new EOFException("read past EOF: " + this);
+            }
+
+            try {
+                int readLength = b.remaining();
+                while (readLength > 0) {
+                    final int toRead = Math.min(CHUNK_SIZE, readLength);
+                    b.limit(b.position() + toRead);
+                    assert b.remaining() == toRead;
+                    final int i = channel.read(b, pos);
+                    if (i < 0) {
+                        // be defensive here, even though we checked before hand, something could have changed
+                        throw new EOFException(
+                            "read past EOF: "
+                                + this
+                                + " buffer: "
+                                + b
+                                + " chunkLen: "
+                                + toRead
+                                + " end: "
+                                + end);
+                    }
+                    assert i > 0
+                        : "FileChannel.read with non zero-length bb.remaining() must always read at least "
+                        + "one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+                    pos += i;
+                    readLength -= i;
+                }
+                assert readLength == 0;
+            } catch (IOException ioe) {
+                throw new IOException(ioe.getMessage() + ": " + this, ioe);
+            }
+        }
+
+        @Override
+        protected void seekInternal(long pos) throws IOException {
+            if (pos > length()) {
+                throw new EOFException(
+                    "read past EOF: pos=" + pos + " vs length=" + length() + ": " + this);
+            }
         }
     }
 

@@ -52,11 +52,10 @@ public class RemoteIndexShardCorruptionTests extends IndexShardTestCase {
                     CorruptionUtils.corruptAt(shardPath.resolve(file), raf, (int) (raf.size() - 8));
                 }
             }
-            org.opensearch.index.engine.exec.FileMetadata fileMetadata = new org.opensearch.index.engine.exec.FileMetadata("lucene", file);
             if (corrupted == false) {
-                assertTrue(indexShard.localDirectoryContains(localDirectory, fileMetadata, checksum));
+                assertTrue(indexShard.localDirectoryContainsFile(localDirectory, file, checksum));
             } else {
-                assertFalse(indexShard.localDirectoryContains(localDirectory, fileMetadata, checksum));
+                assertFalse(indexShard.localDirectoryContainsFile(localDirectory, file, checksum));
                 assertFalse(Files.exists(shardPath.resolve(file)));
             }
         }
