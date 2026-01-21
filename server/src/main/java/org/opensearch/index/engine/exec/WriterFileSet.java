@@ -110,8 +110,12 @@ public class WriterFileSet implements Serializable, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        WriterFileSet other = (WriterFileSet) o;
-        return this.directory.equals(other.directory) && this.files.equals(other.files) && this.getWriterGeneration() == other.getWriterGeneration();
+        if (this == o) return true;
+        if (!(o instanceof WriterFileSet other)) return false;
+
+        return this.getWriterGeneration() == other.getWriterGeneration()
+            && this.directory.equals(other.directory)
+            && this.files.equals(other.files);
     }
 
     @Override
