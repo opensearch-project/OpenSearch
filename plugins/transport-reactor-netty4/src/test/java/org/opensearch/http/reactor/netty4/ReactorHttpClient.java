@@ -18,7 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.http.reactor.netty4.http3.Http3Utils;
+import org.opensearch.http.netty4.http3.Http3Utils;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
