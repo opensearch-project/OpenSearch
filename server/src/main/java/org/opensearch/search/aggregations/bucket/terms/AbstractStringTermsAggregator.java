@@ -121,6 +121,9 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
 
     @Override
     public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        if(shardResult.isEmpty()) {
+            return Collections.singletonList(buildEmptyTermsAggregation());
+        }
         int rowCount = shardResult.get(shardResult.keySet().stream().findFirst().get()).length;
         List<StringTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int row = 0; row < rowCount; row++) {

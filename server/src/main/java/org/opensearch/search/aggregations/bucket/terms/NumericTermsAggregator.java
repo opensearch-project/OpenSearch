@@ -641,6 +641,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
         @Override
         public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+            if(shardResult.isEmpty()) {
+                return Collections.singletonList(buildEmptyAggregation());
+            }
             int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).length ;
             List<DoubleTerms.Bucket> buckets = new ArrayList<>(rowCount);
             for (int i = 0; i < rowCount; i++) {
@@ -875,6 +878,9 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
     @Override
     public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        if(shardResult.isEmpty()) {
+            return Collections.singletonList(buildEmptyAggregation());
+        }
         if (resultStrategy instanceof ShardResultConvertor) {
             return ((ShardResultConvertor) resultStrategy).convert(shardResult, searchContext);
         } else {
