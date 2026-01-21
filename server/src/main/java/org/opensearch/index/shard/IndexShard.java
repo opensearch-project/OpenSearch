@@ -5534,6 +5534,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         // Only create CompositeEngine for optimized indices
         CompositeEngine newCompositeEngine;
+        CompositeEngine oldCompositeEngine;
         if (indexSettings.isOptimizedIndex()) {
             // Create NEW CompositeEngine OUTSIDE synchronized block with fresh translog
             newCompositeEngine = new CompositeEngine(
@@ -5545,6 +5546,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 LocalCheckpointTracker::new,
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
             );
+            oldCompositeEngine = currentCompositeEngineReference.getAndSet(newCompositeEngine);
 
             final TranslogRecoveryRunner translogRunner = (snapshot) -> runTranslogRecovery(
                 newCompositeEngine,
@@ -5562,6 +5564,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             newCompositeEngine.refresh("reset_engine");
         } else {
             newCompositeEngine = null;
+            oldCompositeEngine = null;
         }
 
         // Create InternalEngine AFTER translog recovery so it reads the updated commit with correct checkpoints
@@ -5588,7 +5591,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         synchronized (engineMutex) {
             verifyNotClosed();
-            IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()), currentCompositeEngineReference.getAndSet(newCompositeEngine));
+            IOUtils.close(currentEngineReference.getAndSet(newEngineReference.get()), oldCompositeEngine);
 
             // onNewEngine must be called inside synchronized(engineMutex) block for both optimized and non-optimized indices
             // We set active because we are now writing operations to the engine; this way,
