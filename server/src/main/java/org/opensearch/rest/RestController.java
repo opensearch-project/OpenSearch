@@ -54,7 +54,6 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.telemetry.tracing.channels.TraceableRestChannel;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 
