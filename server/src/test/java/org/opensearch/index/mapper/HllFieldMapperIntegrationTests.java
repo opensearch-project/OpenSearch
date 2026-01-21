@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.BigArrays;
@@ -574,5 +575,100 @@ public class HllFieldMapperIntegrationTests extends OpenSearchSingleNodeTestCase
         } finally {
             expectedMerged.close();
         }
+    }
+
+    public void testPrecisionMismatchAcrossIndices() throws IOException {
+        // Test aggregating across multiple indices with same field name but different precisions
+        // This validates that OpenSearch properly rejects aggregations across indices with
+        // mismatched HLL precision configurations
+
+        String index1 = "test-hll-precision-12";
+        String index2 = "test-hll-precision-14";
+        int precision1 = 12;
+        int precision2 = 14;
+
+        // Create first index with precision 12
+        XContentBuilder mapping1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("user_sketch")
+            .field("type", "hll")
+            .field("precision", precision1)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        client().admin().indices().prepareCreate(index1).setMapping(mapping1).get();
+
+        // Create second index with precision 14 (different precision, same field name)
+        XContentBuilder mapping2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("user_sketch")
+            .field("type", "hll")
+            .field("precision", precision2)
+            .endObject()
+            .endObject()
+            .endObject();
+
+        client().admin().indices().prepareCreate(index2).setMapping(mapping2).get();
+
+        // Create and index sketch with precision 12 in first index
+        HyperLogLogPlusPlus sketch1 = new HyperLogLogPlusPlus(precision1, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        try {
+            for (int i = 0; i < 50; i++) {
+                sketch1.collect(0, mix64(i));
+            }
+
+            BytesStreamOutput out = new BytesStreamOutput();
+            sketch1.writeTo(0, out);
+            org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
+
+            client().prepareIndex(index1)
+                .setId("1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("user_sketch", sketchBytes).endObject())
+                .get();
+        } finally {
+            sketch1.close();
+        }
+
+        // Create and index sketch with precision 14 in second index
+        HyperLogLogPlusPlus sketch2 = new HyperLogLogPlusPlus(precision2, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        try {
+            for (int i = 0; i < 50; i++) {
+                sketch2.collect(0, mix64(i + 100));
+            }
+
+            BytesStreamOutput out = new BytesStreamOutput();
+            sketch2.writeTo(0, out);
+            org.apache.lucene.util.BytesRef bytesRef = out.bytes().toBytesRef();
+            byte[] sketchBytes = Arrays.copyOfRange(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
+
+            client().prepareIndex(index2)
+                .setId("1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("user_sketch", sketchBytes).endObject())
+                .get();
+        } finally {
+            sketch2.close();
+        }
+
+        client().admin().indices().prepareRefresh(index1, index2).get();
+
+        // Attempt to aggregate across both indices using wildcard pattern
+        // This should fail because the indices have different precisions for the same field
+        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("test-hll-precision-*").addAggregation(cardinality("total_users").field("user_sketch")).get();
+        });
+
+        // Verify the error mentions precision mismatch
+        String errorMessage = exception.getMessage();
+        Throwable cause = exception.getCause();
+        String fullMessage = errorMessage + (cause != null ? " " + cause.getMessage() : "");
+
+        assertTrue(
+            "Error should mention precision mismatch. Got: " + fullMessage,
+            fullMessage.contains("Cannot merge HLL++ sketches with different precision")
+        );
     }
 }
