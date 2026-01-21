@@ -74,7 +74,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
     }
 
     /**
-     * Override the extension point to create streaming listeners instead of regular listeners
+     * Override the extension point to create streaming listeners instead of regular
+     * listeners
      */
     @Override
     SearchActionListener<SearchPhaseResult> createShardActionListener(
@@ -114,7 +115,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             public void onFailure(Exception t) {
                 try {
-                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails
+                    // hard with an exception.
                     if (totalOps.get() == expectedTotalOps) {
                         onPhaseFailure(phase, "The phase has failed", t);
                     } else {
@@ -137,7 +139,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             getLogger().trace("got streaming result from {}", result != null ? result.getSearchShardTarget() : null);
         }
         this.setPhaseResourceUsages();
-        ((StreamQueryPhaseResultConsumer) results).consumeStreamResult(result, next);
+        results.consumeResult(result, next);
     }
 
     /**
@@ -157,7 +159,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 expectedTotalOps
             );
         }
-        // Always delegate to the parent to ensure shard accounting and phase transitions.
+        // Always delegate to the parent to ensure shard accounting and phase
+        // transitions.
         super.onShardResult(result, shardIt);
     }
 
@@ -190,10 +193,12 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
 
     /**
      * Handle successful stream execution callback
-     * Since partials are no longer fed into the reducer, this callback is not needed for coordination.
+     * Since partials are no longer fed into the reducer, this callback is not
+     * needed for coordination.
      */
     private void successfulStreamExecution() {
-        // No-op: partials are bypassed from reducer, completion is handled by successfulShardExecution only
+        // No-op: partials are bypassed from reducer, completion is handled by
+        // successfulShardExecution only
     }
 
 }

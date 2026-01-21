@@ -8,8 +8,6 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
@@ -39,8 +37,6 @@ import java.util.function.Consumer;
  * @opensearch.internal
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
-
-    private static final Logger logger = LogManager.getLogger(StreamQueryPhaseResultConsumer.class);
 
     private final StreamingSearchMode scoringMode;
     private int resultsReceived = 0;
@@ -114,16 +110,18 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
      * Consume streaming results with frequency-based emission
      */
 
-    public void consumeStreamResult(SearchPhaseResult result, Runnable next) {
+    @Override
+    public void consumeResult(SearchPhaseResult result, Runnable next) {
         // Keep streaming: coordinator receives partials and forwards to client,
         // but the coordinator reducer should only see the final per-shard result.
         // Do not enqueue partials into pendingReduces.
+        if (result.queryResult().isPartial()) {
+            // Immediately continue the pipeline
+            next.run();
+            return;
+        }
 
-        // Optional: cheap debug log if needed
-        logger.debug("Dropping partial from reducer, shard={}, partial={}", result.getShardIndex(), result.queryResult().isPartial());
-
-        // Immediately continue the pipeline
-        next.run();
+        super.consumeResult(result, next);
     }
 
     /**
