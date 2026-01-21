@@ -139,6 +139,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             getLogger().trace("got streaming result from {}", result != null ? result.getSearchShardTarget() : null);
         }
         this.setPhaseResourceUsages();
+        if (result.queryResult() != null) {
+            result.queryResult().setPartial(true);
+        }
         results.consumeResult(result, next);
     }
 
