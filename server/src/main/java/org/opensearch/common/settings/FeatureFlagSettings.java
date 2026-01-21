@@ -38,6 +38,7 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
         FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING,
         FeatureFlags.TERM_VERSION_PRECOMMIT_ENABLE_SETTING,
         FeatureFlags.ARROW_STREAMS_SETTING,
-        FeatureFlags.STREAM_TRANSPORT_SETTING
+        FeatureFlags.STREAM_TRANSPORT_SETTING,
+        FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_SETTING
     );
 }

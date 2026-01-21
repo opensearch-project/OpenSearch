@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -217,7 +218,7 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         String dataNode = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000L, -1));
         int numberOfIterations = randomIntBetween(1, 5);
-        indexData(numberOfIterations, true, INDEX_NAME);
+        Map<String, Long> indexingStats = indexData(numberOfIterations, true, INDEX_NAME);
         String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         String shardPath = getShardLevelBlobPath(
             client(),
@@ -233,8 +234,16 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         // Delete is async.
         assertBusy(() -> {
             int actualFileCount = getActualFileCount(segmentRepoPath, shardPath);
+            int extraMetadataFilesDueToFlush = 0;
+            String isCASEnabled = client().admin().indices().prepareGetSettings(INDEX_NAME).get()
+                .getSetting(INDEX_NAME, IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey());
+            if (isCASEnabled != null && isCASEnabled.equals("true")) {
+                // For CAS enabled domains, there will be an extra refresh for each OpenSearch flush call.
+                extraMetadataFilesDueToFlush += indexingStats.get(FLUSHED_OPERATIONS);
+            }
             if (numberOfIterations <= lastNMetadataFilesToKeep) {
-                MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
+                MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1 + extraMetadataFilesDueToFlush,
+                    numberOfIterations + extraMetadataFilesDueToFlush, numberOfIterations + 1 + extraMetadataFilesDueToFlush)));
             } else {
                 // As delete is async its possible that the file gets created before the deletion or after
                 // deletion.
@@ -244,7 +253,8 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
                 } else {
                     MatcherAssert.assertThat(
                         actualFileCount,
-                        is(oneOf(lastNMetadataFilesToKeep - 1, lastNMetadataFilesToKeep, lastNMetadataFilesToKeep + 1))
+                        is(oneOf(lastNMetadataFilesToKeep - 1 + extraMetadataFilesDueToFlush,
+                            lastNMetadataFilesToKeep + extraMetadataFilesDueToFlush, lastNMetadataFilesToKeep + 1 + extraMetadataFilesDueToFlush))
                     );
                 }
             }
@@ -263,7 +273,7 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
         internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(1, 5);
-        indexData(numberOfIterations, false, INDEX_NAME);
+        Map<String, Long> indexingStats = indexData(numberOfIterations, false, INDEX_NAME);
         String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         String shardPath = getShardLevelBlobPath(
             client(),
@@ -275,8 +285,16 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             segmentsPathFixedPrefix
         ).buildAsString();
         int actualFileCount = getActualFileCount(segmentRepoPath, shardPath);
+        int extraMetadataFilesDueToFlush = 0;
+        String isCASEnabled = client().admin().indices().prepareGetSettings(INDEX_NAME).get()
+            .getSetting(INDEX_NAME, IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey());
+        if (isCASEnabled != null && isCASEnabled.equals("true")) {
+            // For CAS enabled domains, there will be an extra refresh for each OpenSearch flush call.
+            extraMetadataFilesDueToFlush += indexingStats.get(FLUSHED_OPERATIONS);
+        }
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1, numberOfIterations, numberOfIterations + 1)));
+        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations - 1 + extraMetadataFilesDueToFlush,
+            numberOfIterations + extraMetadataFilesDueToFlush, numberOfIterations + 1 + extraMetadataFilesDueToFlush)));
     }
 
     public void testStaleCommitDeletionWithMinSegmentFiles_3() throws Exception {
@@ -317,7 +335,7 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
 
         createIndex(INDEX_NAME, remoteStoreIndexSettings(1, 10000l, -1));
         int numberOfIterations = randomIntBetween(2, 5);
-        indexData(numberOfIterations, true, INDEX_NAME);
+        Map<String, Long> indexingStats = indexData(numberOfIterations, true, INDEX_NAME);
         String segmentsPathFixedPrefix = RemoteStoreSettings.CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(getNodeSettings());
         String shardPath = getShardLevelBlobPath(
             client(),
@@ -329,8 +347,15 @@ public class RemoteStoreCoreTestCase extends RemoteStoreBaseIntegTestCase {
             segmentsPathFixedPrefix
         ).buildAsString();
         int actualFileCount = getActualFileCount(segmentRepoPath, shardPath);
+        int extraMetadataFilesDueToFlush = 0;
+        String isCASEnabled = client().admin().indices().prepareGetSettings(INDEX_NAME).get()
+            .getSetting(INDEX_NAME, IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey());
+        if (isCASEnabled != null && isCASEnabled.equals("true")) {
+            // For CAS enabled domains, there will be an extra refresh for each OpenSearch flush call.
+            extraMetadataFilesDueToFlush += indexingStats.get(FLUSHED_OPERATIONS);
+        }
         // We also allow (numberOfIterations + 1) as index creation also triggers refresh.
-        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations, numberOfIterations + 1)));
+        MatcherAssert.assertThat(actualFileCount, is(oneOf(numberOfIterations + extraMetadataFilesDueToFlush, numberOfIterations + 1 + extraMetadataFilesDueToFlush)));
     }
 
     protected int getActualFileCount(Path segmentRepoPath, String shardPath) throws IOException {

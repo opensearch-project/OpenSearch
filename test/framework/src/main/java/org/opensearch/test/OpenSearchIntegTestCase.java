@@ -134,13 +134,16 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.CompletionFieldMapper;
 import org.opensearch.index.mapper.MockFieldFilterPlugin;
+import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.remote.RemoteStoreEnums;
 import org.opensearch.index.remote.RemoteStoreEnums.PathType;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
@@ -224,9 +227,7 @@ import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.core.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING;
-import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
+import static org.opensearch.index.IndexSettings.*;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm.FNV_1A_COMPOSITE_1;
 import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
@@ -692,6 +693,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             builder.put(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING.getKey(), randomDoubleBetween(0.01, 0.50, true));
         }
 
+        if (randomBoolean()) {
+            builder.put(INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true);
+        }
+
         return builder.build();
     }
 
@@ -709,6 +714,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         // Enabling Telemetry setting by default
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG, true);
 
         return featureSettings.build();
     }
@@ -2010,7 +2016,19 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Returns a collection of plugins that should be loaded on each node.
      */
     protected Collection<PluginInfo> additionalNodePlugins() {
-        return Collections.emptyList();
+        return Collections.singletonList(
+            new PluginInfo(
+                ContextAwareIndexPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                org.opensearch.Version.CURRENT,
+                "1.8",
+                ContextAwareIndexPlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
+            )
+        );
     }
 
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
@@ -2989,5 +3007,29 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RemoteStoreEnums.PathHashAlgorithm pathHashAlgorithm = pathType != PathType.FIXED ? FNV_1A_COMPOSITE_1 : null;
         BlobPath blobPath = pathType.path(shardPathInput, pathHashAlgorithm);
         return blobPath.buildAsString();
+    }
+
+    public static class ContextAwareIndexPlugin extends Plugin {
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            Settings settings = indexModule.getSettings();
+            boolean isContextAwareEnabled = settings.getAsBoolean(INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), false);
+            if (isContextAwareEnabled == true) {
+                indexModule.addIndexOperationListener(new ContextAwareIndexOperationListener());
+            }
+        }
+    }
+
+    public static class ContextAwareIndexOperationListener implements IndexingOperationListener {
+        @Override
+        public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
+            final List<ParseContext.Document> docs = index.docs();
+            for (ParseContext.Document doc : docs) {
+                doc.setGroupingCriteria("-1");
+            }
+
+            return index;
+        }
     }
 }

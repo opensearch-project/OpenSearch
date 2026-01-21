@@ -77,6 +77,7 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
         featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
+        featureSettings.put(FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 

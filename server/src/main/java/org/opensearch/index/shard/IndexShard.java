@@ -4995,7 +4995,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // refresh. If the index is context aware enabled, search idle is not supported. This will ensure periodic sync
         // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
-        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
+        if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;

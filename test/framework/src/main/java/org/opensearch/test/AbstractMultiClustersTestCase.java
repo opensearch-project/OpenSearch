@@ -78,7 +78,7 @@ public abstract class AbstractMultiClustersTestCase extends OpenSearchTestCase {
     }
 
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return Collections.emptyList();
+        return Collections.singletonList(OpenSearchIntegTestCase.ContextAwareIndexPlugin.class);
     }
 
     protected final Client client() {
