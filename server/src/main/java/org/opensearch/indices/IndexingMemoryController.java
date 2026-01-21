@@ -266,7 +266,11 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     }
 
     private long getNativeBytesUsed(IndexShard shard) {
-        return shard.getNativeBytesUsed();
+        try {
+            return shard.getNativeBytesUsed();
+        } catch (AlreadyClosedException e) {
+            return 0;
+        }
     }
 
     /** returns how many bytes this shard is currently writing to disk */
