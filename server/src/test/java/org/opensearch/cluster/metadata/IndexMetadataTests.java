@@ -59,6 +59,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.metadata.index.model.IndexMetadataModel;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -754,5 +755,374 @@ public class IndexMetadataTests extends OpenSearchTestCase {
 
         isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
         assertFalse(isAllActiveIngestionEnabled);
+    }
+
+    public void testModelAccessor() {
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 1)
+                    .build()
+            )
+            .creationDate(System.currentTimeMillis())
+            .primaryTerm(0, 1)
+            .primaryTerm(1, 2)
+            .build();
+
+        // Verify model() accessor returns the underlying model
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertEquals("test-index", model.index());
+        // Settings stores numeric values as strings
+        assertEquals("2", model.settings().getSettings().get("index.number_of_shards"));
+        assertArrayEquals(new long[] { 1, 2 }, model.primaryTerms());
+    }
+
+    public void testModelWithAliases() {
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .putAlias(AliasMetadata.builder("alias1").routing("routing1").build())
+            .putAlias(AliasMetadata.builder("alias2").writeIndex(true).build())
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertEquals(2, model.aliases().size());
+        assertNotNull(model.aliases().get("alias1"));
+        assertNotNull(model.aliases().get("alias2"));
+    }
+
+    public void testModelWithMappings() throws IOException {
+        String mappings = "{ \"_doc\": { \"properties\": { \"field1\": { \"type\": \"text\" } } } }";
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .putMapping(mappings)
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertFalse(model.mappings().isEmpty());
+    }
+
+    public void testModelWithContext() {
+        Context context = new Context("test-context", "1.0", Map.of("key", "value"));
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .context(context)
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertNotNull(model.context());
+        assertEquals("test-context", model.context().name());
+        assertEquals("1.0", model.context().version());
+    }
+
+    public void testModelWithInSyncAllocationIds() {
+        Set<String> allocationIds = Set.of("alloc-1", "alloc-2", "alloc-3");
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .putInSyncAllocationIds(0, allocationIds)
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertEquals(allocationIds, model.inSyncAllocationIds().get(0));
+    }
+
+    public void testModelPreservesVersionInfo() {
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .version(5)
+            .mappingVersion(2)
+            .settingsVersion(3)
+            .aliasesVersion(4)
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertEquals(5, model.version());
+        assertEquals(2, model.mappingVersion());
+        assertEquals(3, model.settingsVersion());
+        assertEquals(4, model.aliasesVersion());
+    }
+
+    public void testModelWithSystemIndex() {
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .system(true)
+            .build();
+
+        IndexMetadataModel model = metadata.model();
+        assertNotNull(model);
+        assertTrue(model.isSystem());
+    }
+
+    public void testModelDeserializationWithMinimalValues() throws IOException {
+        // Create IndexMetadata with minimal required fields only
+        IndexMetadata metadata = IndexMetadata.builder("minimal-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .build();
+
+        // Serialize using IndexMetadata
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+
+        // Deserialize using IndexMetadataModel with readers
+        final StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        final IndexMetadataModel model = new IndexMetadataModel(
+            in,
+            DiffableStringMap.METADATA_READER,
+            RolloverInfo.METADATA_READER,
+            rolloverInfo -> ((RolloverInfo) rolloverInfo).getAlias()
+        );
+
+        // Verify minimal fields
+        assertEquals("minimal-index", model.index());
+        assertEquals(1, model.version());
+        assertEquals(1, model.mappingVersion());
+        assertEquals(1, model.settingsVersion());
+        assertEquals(1, model.aliasesVersion());
+        assertFalse(model.isSystem());
+        assertTrue(model.aliases().isEmpty());
+        assertNull(model.context());
+        assertTrue(model.rolloverInfos().isEmpty());
+    }
+
+    public void testModelDeserialization() throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 1)
+                    .build()
+            )
+            .creationDate(System.currentTimeMillis())
+            .primaryTerm(0, 1)
+            .primaryTerm(1, 2)
+            .putAlias(AliasMetadata.builder("test-alias").routing("routing").build())
+            .version(5)
+            .system(true)
+            .build();
+
+        // Serialize using IndexMetadata
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+
+        // Deserialize using IndexMetadataModel with readers
+        final StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        final IndexMetadataModel model = new IndexMetadataModel(
+            in,
+            DiffableStringMap.METADATA_READER,
+            RolloverInfo.METADATA_READER,
+            rolloverInfo -> ((RolloverInfo) rolloverInfo).getAlias()
+        );
+
+        // Verify all fields match
+        assertEquals(metadata.getIndex().getName(), model.index());
+        assertEquals(metadata.getVersion(), model.version());
+        assertEquals(metadata.getMappingVersion(), model.mappingVersion());
+        assertEquals(metadata.getSettingsVersion(), model.settingsVersion());
+        assertEquals(metadata.getAliasesVersion(), model.aliasesVersion());
+        assertEquals(metadata.getRoutingNumShards(), model.routingNumShards());
+        assertEquals(metadata.getState().id(), model.state());
+        assertEquals(metadata.primaryTerm(0), model.primaryTerms()[0]);
+        assertEquals(metadata.primaryTerm(1), model.primaryTerms()[1]);
+        assertEquals(metadata.isSystem(), model.isSystem());
+        assertEquals(metadata.getAliases().size(), model.aliases().size());
+    }
+
+    public void testModelDeserializationWithMappingsAndContext() throws IOException {
+        String mappings = "{ \"_doc\": { \"properties\": { \"field1\": { \"type\": \"text\" } } } }";
+        Context context = new Context("test-context", "1.0", Map.of("key", "value"));
+
+        IndexMetadata metadata = IndexMetadata.builder("test-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .putMapping(mappings)
+            .context(context)
+            .build();
+
+        // Serialize using IndexMetadata
+        final BytesStreamOutput out = new BytesStreamOutput();
+        metadata.writeTo(out);
+
+        // Deserialize using IndexMetadataModel with readers
+        final StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        final IndexMetadataModel model = new IndexMetadataModel(
+            in,
+            DiffableStringMap.METADATA_READER,
+            RolloverInfo.METADATA_READER,
+            rolloverInfo -> ((RolloverInfo) rolloverInfo).getAlias()
+        );
+
+        // Verify mappings and context
+        assertFalse(model.mappings().isEmpty());
+        assertNotNull(model.context());
+        assertEquals("test-context", model.context().name());
+    }
+
+    public void testModelToIndexMetadataSerialization() throws IOException {
+        IndexMetadata original = IndexMetadata.builder("roundtrip-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 2)
+                    .put("index.number_of_replicas", 1)
+                    .build()
+            )
+            .creationDate(System.currentTimeMillis())
+            .primaryTerm(0, 1)
+            .primaryTerm(1, 2)
+            .putAlias(AliasMetadata.builder("alias1").routing("routing1").build())
+            .version(5)
+            .mappingVersion(2)
+            .settingsVersion(3)
+            .aliasesVersion(4)
+            .build();
+
+        // Serialize IndexMetadata
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as IndexMetadataModel
+        final StreamInput in1 = new NamedWriteableAwareStreamInput(out1.bytes().streamInput(), writableRegistry());
+        final IndexMetadataModel model = new IndexMetadataModel(
+            in1,
+            DiffableStringMap.METADATA_READER,
+            RolloverInfo.METADATA_READER,
+            rolloverInfo -> ((RolloverInfo) rolloverInfo).getAlias()
+        );
+
+        // Serialize the model
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        model.writeTo(out2);
+
+        // Deserialize as IndexMetadata
+        final StreamInput in2 = new NamedWriteableAwareStreamInput(out2.bytes().streamInput(), writableRegistry());
+        final IndexMetadata restored = IndexMetadata.readFrom(in2);
+
+        // Verify round-trip preserves data
+        assertEquals(original.getIndex().getName(), restored.getIndex().getName());
+        assertEquals(original.getVersion(), restored.getVersion());
+        assertEquals(original.getMappingVersion(), restored.getMappingVersion());
+        assertEquals(original.getSettingsVersion(), restored.getSettingsVersion());
+        assertEquals(original.getAliasesVersion(), restored.getAliasesVersion());
+        assertEquals(original.getRoutingNumShards(), restored.getRoutingNumShards());
+        assertEquals(original.getState(), restored.getState());
+        assertEquals(original.primaryTerm(0), restored.primaryTerm(0));
+        assertEquals(original.primaryTerm(1), restored.primaryTerm(1));
+        assertEquals(original.getAliases().keySet(), restored.getAliases().keySet());
+    }
+
+    public void testModelRoundTripWithAllFields() throws IOException {
+        Map<String, String> customMap = new HashMap<>();
+        customMap.put("custom_key", "custom_value");
+
+        IndexMetadata original = IndexMetadata.builder("full-index")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 4)
+                    .put("index.number_of_replicas", 2)
+                    .build()
+            )
+            .creationDate(System.currentTimeMillis())
+            .primaryTerm(0, 1)
+            .primaryTerm(1, 2)
+            .primaryTerm(2, 3)
+            .primaryTerm(3, 4)
+            .setRoutingNumShards(32)
+            .putAlias(AliasMetadata.builder("alias1").routing("r1").writeIndex(true).build())
+            .putAlias(AliasMetadata.builder("alias2").filter("{\"term\":{\"user\":\"test\"}}").build())
+            .putCustom("my_custom", customMap)
+            .putInSyncAllocationIds(0, Set.of("alloc-1", "alloc-2"))
+            .putInSyncAllocationIds(1, Set.of("alloc-3"))
+            .version(10)
+            .mappingVersion(5)
+            .settingsVersion(3)
+            .aliasesVersion(2)
+            .system(true)
+            .context(new Context("ctx", "1.0", Map.of("param", "value")))
+            .build();
+
+        // Get model from original
+        IndexMetadataModel model = original.model();
+
+        // Serialize the model
+        final BytesStreamOutput out = new BytesStreamOutput();
+        model.writeTo(out);
+
+        // Deserialize as IndexMetadata
+        final StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry());
+        final IndexMetadata restored = IndexMetadata.readFrom(in);
+
+        // Verify all fields
+        assertEquals(original.getIndex().getName(), restored.getIndex().getName());
+        assertEquals(original.getVersion(), restored.getVersion());
+        assertEquals(original.getMappingVersion(), restored.getMappingVersion());
+        assertEquals(original.getSettingsVersion(), restored.getSettingsVersion());
+        assertEquals(original.getAliasesVersion(), restored.getAliasesVersion());
+        assertEquals(original.getRoutingNumShards(), restored.getRoutingNumShards());
+        assertEquals(original.getState(), restored.getState());
+        assertEquals(original.primaryTerm(0), restored.primaryTerm(0));
+        assertEquals(original.primaryTerm(1), restored.primaryTerm(1));
+        assertEquals(original.primaryTerm(2), restored.primaryTerm(2));
+        assertEquals(original.primaryTerm(3), restored.primaryTerm(3));
+        assertEquals(original.isSystem(), restored.isSystem());
+        assertEquals(original.getAliases().size(), restored.getAliases().size());
+        assertEquals(original.getInSyncAllocationIds(), restored.getInSyncAllocationIds());
+        assertEquals(original.getCustomData(), restored.getCustomData());
+        assertEquals(original.context(), restored.context());
     }
 }

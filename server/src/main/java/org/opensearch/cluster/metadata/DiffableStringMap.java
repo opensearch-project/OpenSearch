@@ -37,6 +37,7 @@ import org.opensearch.cluster.Diffable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.metadata.stream.MetadataWriteable;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -54,9 +55,14 @@ import java.util.Set;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
+public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap>, MetadataWriteable {
 
     public static final DiffableStringMap EMPTY = new DiffableStringMap(Collections.emptyMap());
+
+    /**
+     * MetadataReader for deserializing DiffableStringMap from a metadata stream.
+     */
+    public static final MetadataReader<DiffableStringMap> METADATA_READER = DiffableStringMap::readFrom;
 
     private final Map<String, String> innerMap;
 
@@ -79,6 +85,11 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap((Map<String, Object>) (Map) innerMap);
+    }
+
+    @Override
+    public void writeToMetadataStream(StreamOutput out) throws IOException {
+        writeTo(out);
     }
 
     @Override

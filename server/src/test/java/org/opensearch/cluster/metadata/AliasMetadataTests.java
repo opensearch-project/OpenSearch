@@ -198,6 +198,85 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         assertFalse(restored.filteringRequired());
     }
 
+    public void testModelAccessor() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        // Verify model() accessor returns the underlying model
+        AliasMetadataModel model = aliasMetadata.model();
+        assertNotNull(model);
+        assertThat(model.alias(), equalTo("test-alias"));
+        assertThat(model.indexRouting(), equalTo("indexRouting"));
+        assertThat(model.searchRouting(), equalTo("routing1,routing2"));
+        assertThat(model.writeIndex(), equalTo(true));
+        assertThat(model.isHidden(), equalTo(false));
+        assertTrue(model.filteringRequired());
+    }
+
+    public void testConstructorFromModel() throws IOException {
+        // Create a model directly
+        final AliasMetadata original = AliasMetadata.builder("model-alias")
+            .filter("{ \"term\": \"bar\"}")
+            .indexRouting("idx-routing")
+            .searchRouting("search1,search2")
+            .writeIndex(false)
+            .isHidden(true)
+            .build();
+
+        // Get the model and create new AliasMetadata from it
+        AliasMetadataModel model = original.model();
+        AliasMetadata fromModel = new AliasMetadata.Builder(model).build();
+
+        // Verify all fields match
+        assertThat(fromModel.alias(), equalTo(original.alias()));
+        assertThat(fromModel.indexRouting(), equalTo(original.indexRouting()));
+        assertThat(fromModel.searchRouting(), equalTo(original.searchRouting()));
+        assertThat(fromModel.searchRoutingValues(), equalTo(original.searchRoutingValues()));
+        assertThat(fromModel.writeIndex(), equalTo(original.writeIndex()));
+        assertThat(fromModel.isHidden(), equalTo(original.isHidden()));
+        assertThat(fromModel.filteringRequired(), equalTo(original.filteringRequired()));
+
+        // Verify equals
+        assertThat(fromModel, equalTo(original));
+    }
+
+    public void testModelRoundTrip() throws IOException {
+        final AliasMetadata original = AliasMetadata.builder("roundtrip-alias")
+            .filter("{ \"match\": { \"field\": \"value\" }}")
+            .indexRouting("idx")
+            .searchRouting("s1,s2,s3")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        // Serialize AliasMetadata
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as AliasMetadataModel
+        final StreamInput in1 = out1.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in1);
+
+        // Create new AliasMetadata from model
+        AliasMetadata fromModel = new AliasMetadata.Builder(model).build();
+
+        // Serialize the new AliasMetadata
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        fromModel.writeTo(out2);
+
+        // Deserialize back to AliasMetadata
+        final StreamInput in2 = out2.bytes().streamInput();
+        final AliasMetadata restored = new AliasMetadata(in2);
+
+        // Verify round-trip preserves all data
+        assertThat(restored, equalTo(original));
+    }
+
     @Override
     protected void assertEqualInstances(AliasMetadata expectedInstance, AliasMetadata newInstance) {
         assertNotSame(newInstance, expectedInstance);

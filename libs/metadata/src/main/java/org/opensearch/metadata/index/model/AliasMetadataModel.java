@@ -269,6 +269,20 @@ public final class AliasMetadataModel implements Writeable {
         }
 
         /**
+         * Creates a new builder from an existing {@link AliasMetadataModel}.
+         *
+         * @param model the model to copy from
+         */
+        public Builder(AliasMetadataModel model) {
+            this.alias = model.alias();
+            this.filter = model.filter();
+            this.indexRouting = model.indexRouting();
+            this.searchRouting = model.searchRouting();
+            this.writeIndex = model.writeIndex();
+            this.isHidden = model.isHidden();
+        }
+
+        /**
          * Returns the alias name from builder.
          *
          * @return the alias name

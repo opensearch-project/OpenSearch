@@ -126,6 +126,10 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return model.isHidden();
     }
 
+    public AliasMetadataModel model() {
+        return model;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -192,6 +196,15 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         public Builder(String alias) {
             this.modelBuilder = new AliasMetadataModel.Builder(alias);
+        }
+
+        /**
+         * Creates a builder from an {@link AliasMetadataModel}.
+         *
+         * @param model the AliasMetadataModel to create from
+         */
+        public Builder(AliasMetadataModel model) {
+            this.modelBuilder = new AliasMetadataModel.Builder(model);
         }
 
         public String alias() {

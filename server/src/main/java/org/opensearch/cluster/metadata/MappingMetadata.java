@@ -68,6 +68,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
 
     private final MappingMetadataModel model;
 
+    public MappingMetadata(MappingMetadataModel model) {
+        this.model = model;
+    }
+
     public MappingMetadata(DocumentMapper docMapper) {
         this.model = new MappingMetadataModel(
             docMapper.type(),
@@ -157,6 +161,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> implement
 
     public boolean routingRequired() {
         return model.routingRequired();
+    }
+
+    public MappingMetadataModel model() {
+        return model;
     }
 
     @Override

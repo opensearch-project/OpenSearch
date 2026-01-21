@@ -45,6 +45,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.metadata.stream.MetadataWriteable;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,10 +57,15 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
+public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment, MetadataWriteable {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
+
+    /**
+     * MetadataReader for deserializing RolloverInfo from a metadata stream.
+     */
+    public static final MetadataReader<RolloverInfo> METADATA_READER = RolloverInfo::new;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>(
@@ -117,6 +123,11 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
         out.writeString(alias);
         out.writeVLong(time);
         out.writeNamedWriteableList(metConditions);
+    }
+
+    @Override
+    public void writeToMetadataStream(StreamOutput out) throws IOException {
+        writeTo(out);
     }
 
     @Override

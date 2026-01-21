@@ -760,4 +760,89 @@ public class SettingsTests extends OpenSearchTestCase {
         assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", builder.toString());
     }
 
+    public void testModelDeserialization() throws IOException {
+        Settings settings = Settings.builder()
+            .put("test.key1", "value1")
+            .put("test.key2", "value2")
+            .putList("test.list", "a", "b", "c")
+            .build();
+
+        // Serialize using Settings
+        BytesStreamOutput out = new BytesStreamOutput();
+        Settings.writeSettingsToStream(settings, out);
+
+        // Deserialize using SettingsModel
+        StreamInput in = out.bytes().streamInput();
+        org.opensearch.metadata.settings.SettingsModel model = new org.opensearch.metadata.settings.SettingsModel(in);
+
+        // Verify all fields match
+        assertThat(model.getSettings().get("test.key1"), equalTo("value1"));
+        assertThat(model.getSettings().get("test.key2"), equalTo("value2"));
+        assertEquals(Arrays.asList("a", "b", "c"), model.getSettings().get("test.list"));
+    }
+
+    public void testModelDeserializationWithNumericTypes() throws IOException {
+        Settings settings = Settings.builder()
+            .put("int.key", 42)
+            .put("long.key", 9876543210L)
+            .put("double.key", 3.14159)
+            .put("bool.key", true)
+            .build();
+
+        // Serialize using Settings
+        BytesStreamOutput out = new BytesStreamOutput();
+        Settings.writeSettingsToStream(settings, out);
+
+        // Deserialize using SettingsModel
+        StreamInput in = out.bytes().streamInput();
+        org.opensearch.metadata.settings.SettingsModel model = new org.opensearch.metadata.settings.SettingsModel(in);
+
+        // Note: Settings stores numeric values as strings internally
+        assertNotNull(model.getSettings().get("int.key"));
+        assertNotNull(model.getSettings().get("long.key"));
+        assertNotNull(model.getSettings().get("double.key"));
+        assertNotNull(model.getSettings().get("bool.key"));
+    }
+
+    public void testModelToSettingsSerialization() throws IOException {
+        // Create Settings, serialize it
+        Settings original = Settings.builder().put("key1", "value1").put("key2", 42).putList("list", "x", "y").build();
+
+        BytesStreamOutput out1 = new BytesStreamOutput();
+        Settings.writeSettingsToStream(original, out1);
+
+        // Deserialize as SettingsModel
+        StreamInput in1 = out1.bytes().streamInput();
+        org.opensearch.metadata.settings.SettingsModel model = new org.opensearch.metadata.settings.SettingsModel(in1);
+
+        // Serialize the model
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        model.writeTo(out2);
+
+        // Deserialize as Settings
+        StreamInput in2 = out2.bytes().streamInput();
+        Settings restored = Settings.readSettingsFromStream(in2);
+
+        // Verify round-trip preserves data
+        assertThat(restored.get("key1"), equalTo(original.get("key1")));
+        assertThat(restored.get("key2"), equalTo(original.get("key2")));
+        assertThat(restored.getAsList("list"), equalTo(original.getAsList("list")));
+    }
+
+    public void testSettingsModelAccess() {
+        Settings settings = Settings.builder().put("foo", "bar").put("baz", "qux").build();
+
+        org.opensearch.metadata.settings.SettingsModel model = settings.model();
+        assertNotNull(model);
+        assertThat(model.getSettings().get("foo"), equalTo("bar"));
+        assertThat(model.getSettings().get("baz"), equalTo("qux"));
+    }
+
+    public void testEmptySettingsModel() {
+        Settings settings = Settings.EMPTY;
+        org.opensearch.metadata.settings.SettingsModel model = settings.model();
+        assertNotNull(model);
+        assertTrue(model.getSettings().isEmpty());
+    }
+
 }
