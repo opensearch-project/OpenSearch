@@ -719,16 +719,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean getIntraSegmentSearchEnabled() {
-        return false;
-    }
-
-    @Override
-    public int getIntraSegmentMinSegmentSize() {
-        return 500000;
-    }
-
-    @Override
     public boolean shouldUseIntraSegmentSearch() {
         return false;
     }
