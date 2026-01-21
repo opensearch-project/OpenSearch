@@ -308,10 +308,13 @@ class HighlightBuilderProtoUtils {
      */
     private static void applyTagsSchemaToField(HighlightBuilder.Field fieldBuilder, HighlighterTagsSchema tagsSchema) {
         switch (tagsSchema) {
-            // TODO add HIGHLIGHTER_TAGS_SCHEMA_DEFAULT once new protobufs are published after spec fix
             case HIGHLIGHTER_TAGS_SCHEMA_STYLED:
                 fieldBuilder.preTags(HighlightBuilder.DEFAULT_STYLED_PRE_TAG);
                 fieldBuilder.postTags(HighlightBuilder.DEFAULT_STYLED_POST_TAGS);
+                break;
+            case HIGHLIGHTER_TAGS_SCHEMA_DEFAULT:
+                fieldBuilder.preTags(HighlightBuilder.DEFAULT_PRE_TAGS);
+                fieldBuilder.postTags(HighlightBuilder.DEFAULT_POST_TAGS);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown tags schema: " + tagsSchema);

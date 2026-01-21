@@ -113,5 +113,14 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.logging.log4j.util.StackLocatorUtil',
   //commons-logging provided dependencies
   'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
+  'javax.servlet.ServletContextListener',
+  //optional compression
+  'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+  'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+  'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+  'com.aayushatharva.brotli4j.encoder.EncoderJNI$Operation',
+  'com.aayushatharva.brotli4j.encoder.EncoderJNI$Wrapper',
+  'com.github.luben.zstd.ZstdDecompressCtx',
+  'com.github.luben.zstd.ZstdDirectBufferCompressingStream',
+  'org.apache.commons.compress.compressors.CompressorStreamFactory'
 )

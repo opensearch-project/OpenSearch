@@ -611,24 +611,6 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Exception message should mention ext param", exception.getMessage().contains("ext param is not supported yet"));
     }
 
-    public void testParseProtoWithAggregationsThrowsUnsupportedOperationException() throws IOException {
-        // Create a protobuf SearchRequestBody with aggregations
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .putAggregations("test_agg", org.opensearch.protobufs.AggregationContainer.newBuilder().build())
-            .build();
-
-        // Create a SearchSourceBuilder to populate
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-        // Call the method under test, should throw UnsupportedOperationException
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils)
-        );
-
-        assertEquals("aggregations param is not supported yet", exception.getMessage());
-    }
-
     public void testScriptFieldProtoUtilsFromProto() throws IOException {
         // Create a protobuf ScriptField
         ScriptField scriptFieldProto = ScriptField.newBuilder()
@@ -744,18 +726,15 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testParseProtoWithSuggest() throws IOException {
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .setSuggest(org.opensearch.protobufs.Suggester.newBuilder().setText("opensearch").build())
-            .build();
+        // Suggester field was removed from SearchRequestBody in protobufs 1.0.0
+        // Suggest functionality is now handled via SearchRequest URL parameters (suggest_field, suggest_text, etc.)
+        // This test is no longer applicable as the field doesn't exist
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().build();
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
 
-        // suggest is not yet implemented, should throw UnsupportedOperationException
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils)
-        );
-        assertEquals("suggest param is not supported yet", exception.getMessage());
+        // Should not throw exception as suggest field no longer exists
+        SearchSourceBuilderProtoUtils.parseProto(searchSourceBuilder, protoRequest, queryUtils);
     }
 
     public void testParseProtoWithXSourceIncludes() throws IOException {

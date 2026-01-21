@@ -155,6 +155,14 @@ public class NettyAllocator {
         }
     }
 
+    public static ByteBufAllocator getAllocator(boolean directBuffers) {
+        if (directBuffers == true && ALLOCATOR instanceof NoDirectBuffers ndb) {
+            return ndb.delegate; /* Http3/Quic only supports direct buffers */
+        } else {
+            return ALLOCATOR;
+        }
+    }
+
     public static ByteBufAllocator getAllocator() {
         return ALLOCATOR;
     }

@@ -134,7 +134,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
+            () -> blobContainer.executeSingleUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null, null)
         );
         assertEquals("Upload request size [" + blobSize + "] can't be larger than 5gb", e.getMessage());
     }
@@ -153,6 +153,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
                 blobName,
                 new ByteArrayInputStream(new byte[0]),
                 ByteSizeUnit.MB.toBytes(2),
+                null,
                 null
             )
         );
@@ -636,15 +637,21 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final boolean useSseKms = randomBoolean();
         final String kmsKeyId = randomAlphaOfLength(10);
-        final String kmsContext = randomAlphaOfLength(10);
         final boolean useBucketKey = randomBoolean();
+        final String expectedEncodedContext;
         if (useSseKms) {
             when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
             when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
             when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            // Mock a properly formatted JSON encryption context
+            final String kmsContext = "{\"repo\":\"test\"}";
             when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            // Calculate expected Base64-encoded result
+            expectedEncodedContext = java.util.Base64.getEncoder()
+                .encodeToString(kmsContext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } else {
             when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            expectedEncodedContext = null;
         }
         when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
@@ -665,7 +672,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         when(client.putObject(putReqCaptor.capture(), bodyCaptor.capture())).thenReturn(PutObjectResponse.builder().build());
 
         // Pass the known-length stream + tell the code the exact size
-        blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize, metadata);
+        blobContainer.executeSingleUpload(blobStore, blobName, inputStream, blobSize, metadata, null);
 
         final PutObjectRequest request = putReqCaptor.getValue();
         final RequestBody requestBody = bodyCaptor.getValue();
@@ -689,7 +696,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         if (useSseKms) {
             assertEquals(ServerSideEncryption.AWS_KMS, request.serverSideEncryption());
             assertEquals(kmsKeyId, request.ssekmsKeyId());
-            assertEquals(kmsContext, request.ssekmsEncryptionContext());
+            assertEquals(expectedEncodedContext, request.ssekmsEncryptionContext());
             assertEquals(useBucketKey, request.bucketKeyEnabled());
         } else {
             assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
@@ -703,7 +710,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
+            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null, null)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be larger than 5tb", e.getMessage());
     }
@@ -715,7 +722,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null)
+            () -> blobContainer.executeMultipartUpload(blobStore, randomAlphaOfLengthBetween(1, 10), null, blobSize, null, null)
         );
         assertEquals("Multipart upload request size [" + blobSize + "] can't be smaller than 5mb", e.getMessage());
     }
@@ -743,15 +750,21 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final boolean useSseKms = randomBoolean();
         final String kmsKeyId = randomAlphaOfLength(10);
-        final String kmsContext = randomAlphaOfLength(10);
         final boolean useBucketKey = randomBoolean();
+        final String expectedEncodedContext;
         if (useSseKms) {
             when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AWS_KMS.toString());
             when(blobStore.serverSideEncryptionKmsKey()).thenReturn(kmsKeyId);
             when(blobStore.serverSideEncryptionBucketKey()).thenReturn(useBucketKey);
+            // Mock a properly formatted JSON encryption context
+            final String kmsContext = "{\"repo\":\"test\"}";
             when(blobStore.serverSideEncryptionEncryptionContext()).thenReturn(kmsContext);
+            // Calculate expected Base64-encoded result
+            expectedEncodedContext = java.util.Base64.getEncoder()
+                .encodeToString(kmsContext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         } else {
             when(blobStore.serverSideEncryptionType()).thenReturn(ServerSideEncryption.AES256.toString());
+            expectedEncodedContext = null;
         }
         when(blobStore.expectedBucketOwner()).thenReturn(randomAlphaOfLength(12));
 
@@ -803,7 +816,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final ByteArrayInputStream inputStream = new ByteArrayInputStream(new byte[0]);
         final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-        blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize, metadata);
+        blobContainer.executeMultipartUpload(blobStore, blobName, inputStream, blobSize, metadata, null);
 
         final CreateMultipartUploadRequest initRequest = createMultipartUploadRequestArgumentCaptor.getValue();
         assertEquals(bucketName, initRequest.bucket());
@@ -815,7 +828,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         if (useSseKms) {
             assertEquals(ServerSideEncryption.AWS_KMS, initRequest.serverSideEncryption());
             assertEquals(kmsKeyId, initRequest.ssekmsKeyId());
-            assertEquals(kmsContext, initRequest.ssekmsEncryptionContext());
+            assertEquals(expectedEncodedContext, initRequest.ssekmsEncryptionContext());
             assertEquals(useBucketKey, initRequest.bucketKeyEnabled());
         } else {
             assertEquals(ServerSideEncryption.AES256, initRequest.serverSideEncryption());
@@ -933,7 +946,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final IOException e = expectThrows(IOException.class, () -> {
             final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
-            blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize, null);
+            blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize, null, null);
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());

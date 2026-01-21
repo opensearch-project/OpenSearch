@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
@@ -50,7 +51,8 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
         Map<String, Long> localSegmentsSizeMap,
         ActionListener<Void> listener,
         Function<Map<String, Long>, UploadListener> uploadListenerFunction,
-        boolean isLowPriorityUpload
+        boolean isLowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) {
         if (localSegments.isEmpty()) {
             logger.debug("No new segments to upload in uploadNewSegments");
@@ -82,8 +84,14 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                 batchUploadListener.onFailure(ex);
             });
             statsListener.beforeUpload(localSegment);
-            // Place where the actual upload is happening
-            remoteDirectory.copyFrom(storeDirectory, localSegment, IOContext.DEFAULT, aggregatedListener, isLowPriorityUpload);
+            remoteDirectory.copyFrom(
+                storeDirectory,
+                localSegment,
+                IOContext.DEFAULT,
+                aggregatedListener,
+                isLowPriorityUpload,
+                cryptoMetadata
+            );
         }
     }
 }

@@ -117,7 +117,7 @@ dependencies {
   api 'de.thetaphi:forbiddenapis:3.10'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.17.12'
   api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
-  api 'org.apache.maven:maven-model:3.9.6'
+  api 'org.apache.maven:maven-model:3.9.12'
   api 'com.networknt:json-schema-validator:1.2.0'
   api 'org.jruby.jcodings:jcodings:1.0.58'
   api 'org.jruby.joni:joni:2.2.3'
@@ -128,7 +128,7 @@ dependencies {
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testImplementation 'org.wiremock:wiremock-standalone:3.6.0'
+  testImplementation 'org.wiremock:wiremock-standalone:3.13.2'
   testImplementation "org.mockito:mockito-core:${props.getProperty('mockito')}"
   integTestImplementation('org.spockframework:spock-core:2.4-M6-groovy-4.0') {
     exclude module: "groovy"
