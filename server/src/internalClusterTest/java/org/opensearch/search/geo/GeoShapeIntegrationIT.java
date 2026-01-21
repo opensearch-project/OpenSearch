@@ -202,14 +202,16 @@ public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearch
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
-        String update = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"shape\": {\n"
-            + "      \"type\": \"geo_shape\",\n"
-            + "      \"strategy\": \"recursive\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String update = """
+            {
+              "properties": {
+                "shape": {
+                  "type": "geo_shape",
+                  "strategy": "recursive"
+                }
+              }
+            }
+            """;
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -222,27 +224,31 @@ public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearch
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n"
-            + "    \"_routing\": {\n"
-            + "      \"required\": true\n"
-            + "    },\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mapping = """
+            {
+                "_routing": {
+                  "required": true
+                },
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape"
+                  }
+                }
+              }
+            """;
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
-        String source = "{\n"
-            + "    \"shape\" : {\n"
-            + "        \"type\" : \"bbox\",\n"
-            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "shape" : {
+                    "type" : "bbox",
+                    "coordinates" : [[-45.0, 45.0], [45.0, -45.0]]
+                }
+            }
+            """;
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, MediaTypeRegistry.JSON).setRouting("ABC"));
 
@@ -254,22 +260,26 @@ public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearch
     }
 
     public void testIndexPolygonDateLine() throws Exception {
-        String mappingVector = "{\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mappingVector = """
+            {
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape"
+                  }
+                }
+              }
+            """;
 
-        String mappingQuad = "{\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\",\n"
-            + "        \"tree\": \"quadtree\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mappingQuad = """
+            {
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape",
+                    "tree": "quadtree"
+                  }
+                }
+              }
+            """;
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
@@ -278,7 +288,11 @@ public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearch
         assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
         ensureGreen();
 
-        String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
+        String source = """
+            {
+                "shape" : "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
+            }
+            """;
 
         indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, MediaTypeRegistry.JSON));
         indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, MediaTypeRegistry.JSON));

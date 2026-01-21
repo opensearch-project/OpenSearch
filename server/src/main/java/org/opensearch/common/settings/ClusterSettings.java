@@ -162,6 +162,7 @@ import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -424,6 +425,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
                 HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
                 HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
+                HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED,
                 HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
                 HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                 HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -587,7 +589,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.AGGREGATION_REWRITE_FILTER_SEGMENT_THRESHOLD,
                 SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
+                SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
+                CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
+                CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,

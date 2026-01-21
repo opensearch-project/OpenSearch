@@ -49,6 +49,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -74,9 +75,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -296,14 +295,11 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
      * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
-    @SuppressWarnings("removal")
     private static String getProtocol() {
         if (Runtime.version().compareTo(Version.parse("12")) < 0) {
             return "TLSv1.2";
         } else {
-            Version full = AccessController.doPrivileged(
-                (PrivilegedAction<Version>) () -> Version.parse(System.getProperty("java.version"))
-            );
+            Version full = AccessController.doPrivileged(() -> Version.parse(System.getProperty("java.version")));
             if (full.compareTo(Version.parse("12.0.1")) < 0) {
                 return "TLSv1.2";
             }

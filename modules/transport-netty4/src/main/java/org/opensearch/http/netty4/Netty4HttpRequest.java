@@ -219,6 +219,8 @@ public class Netty4HttpRequest implements HttpRequest {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else if (request.protocolVersion().equals("HTTP/2.0")) {
             return HttpRequest.HttpVersion.HTTP_2_0;
+        } else if (request.protocolVersion().equals("HTTP/3.0")) {
+            return HttpRequest.HttpVersion.HTTP_3_0;
         } else {
             throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
         }
@@ -285,17 +287,17 @@ public class Netty4HttpRequest implements HttpRequest {
 
         @Override
         public boolean containsKey(Object key) {
-            return key instanceof String && httpHeaders.contains((String) key);
+            return key instanceof String string && httpHeaders.contains(string);
         }
 
         @Override
         public boolean containsValue(Object value) {
-            return value instanceof List && httpHeaders.names().stream().map(httpHeaders::getAll).anyMatch(value::equals);
+            return value instanceof List<?> && httpHeaders.names().stream().map(httpHeaders::getAll).anyMatch(value::equals);
         }
 
         @Override
         public List<String> get(Object key) {
-            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+            return key instanceof String keyString ? httpHeaders.getAll(keyString) : null;
         }
 
         @Override

@@ -6,7 +6,7 @@ jobs:
   detect-breaking-change:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - uses: actions/setup-java@v5
       with:
         distribution: temurin # Temurin is a distribution of adoptium
@@ -20,7 +20,7 @@ jobs:
     - if: failure()
       run: cat server/build/reports/java-compatibility/report.txt
     - if: failure()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: java-compatibility-report.html
         path: ${{ github.workspace }}/server/build/reports/java-compatibility/report.html

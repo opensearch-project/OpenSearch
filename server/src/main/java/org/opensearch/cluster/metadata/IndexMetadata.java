@@ -72,6 +72,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -668,8 +669,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         -1,
         -1,
         Property.IndexScope,
-        Property.PrivateIndex,
-        Property.UnmodifiableOnRestore
+        Property.Final
     );
 
     /**
@@ -922,6 +922,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines how the incoming ingestion message payload is mapped to the internal message format.
+     */
+    public static final String SETTING_INGESTION_SOURCE_MAPPER_TYPE = "index.ingestion_source.mapper_type";
+    public static final Setting<IngestionMessageMapper.MapperType> INGESTION_SOURCE_MAPPER_TYPE_SETTING = new Setting<>(
+        SETTING_INGESTION_SOURCE_MAPPER_TYPE,
+        IngestionMessageMapper.MapperType.DEFAULT.getName(),
+        IngestionMessageMapper.MapperType::fromString,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Defines if all-active pull-based ingestion is enabled. In this mode, replicas will directly consume from the
      * streaming source and process the updates. In the default document replication mode, this setting must be enabled.
      * This mode is currently not supported with segment replication.
@@ -977,7 +989,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         key -> new Setting<>(key, "", (value) -> {
             // TODO: add ingestion source params validation
             return value;
-        }, Property.IndexScope)
+        }, Property.IndexScope, Property.Dynamic)
     );
 
     /**
@@ -1226,6 +1238,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int blockingQueueSize = INGESTION_SOURCE_INTERNAL_QUEUE_SIZE_SETTING.get(settings);
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
+            final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1236,6 +1249,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setBlockingQueueSize(blockingQueueSize)
                 .setAllActiveIngestion(allActiveIngestionEnabled)
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
+                .setMapperType(mapperType)
                 .build();
         }
         return null;

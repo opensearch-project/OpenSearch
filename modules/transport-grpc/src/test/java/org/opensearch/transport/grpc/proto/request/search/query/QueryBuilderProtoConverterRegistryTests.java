@@ -16,6 +16,7 @@ import org.opensearch.protobufs.DoubleArray;
 import org.opensearch.protobufs.ExistsQuery;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.FieldValueArray;
+import org.opensearch.protobufs.FunctionScoreQuery;
 import org.opensearch.protobufs.Fuzziness;
 import org.opensearch.protobufs.FuzzyQuery;
 import org.opensearch.protobufs.GeoBoundingBoxQuery;
@@ -456,7 +457,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
             .addDoubleArray(40.7589)  // lat
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
             .setXName("location")
@@ -603,7 +604,7 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         FieldValue fv1 = FieldValue.newBuilder().setString("electronics").build();
         FieldValue fv2 = FieldValue.newBuilder().setString("books").build();
         FieldValueArray fva = FieldValueArray.newBuilder().addFieldValueArray(fv1).addFieldValueArray(fv2).build();
-        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setFieldValueArray(fva).build();
+        TermsQueryField termsQueryField = TermsQueryField.newBuilder().setValue(fva).build();
 
         QueryContainer queryContainer = QueryContainer.newBuilder()
             .setTerms(org.opensearch.protobufs.TermsQuery.newBuilder().putTerms("category", termsQueryField).setBoost(1.5f).build())
@@ -739,6 +740,30 @@ public class QueryBuilderProtoConverterRegistryTests extends OpenSearchTestCase 
         assertEquals(
             "Should be a MatchPhrasePrefixQueryBuilder",
             "org.opensearch.index.query.MatchPhrasePrefixQueryBuilder",
+            queryBuilder.getClass().getName()
+        );
+    }
+
+    public void testFunctionScoreQueryConversion() {
+        // Create a FunctionScore query container with a base MatchAll query
+        QueryContainer baseQuery = QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build();
+
+        FunctionScoreQuery functionScoreQuery = FunctionScoreQuery.newBuilder()
+            .setQuery(baseQuery)
+            .setBoost(1.5f)
+            .setXName("test_function_score_query")
+            .build();
+
+        QueryContainer queryContainer = QueryContainer.newBuilder().setFunctionScore(functionScoreQuery).build();
+
+        // Convert using the registry
+        QueryBuilder queryBuilder = registry.fromProto(queryContainer);
+
+        // Verify the result
+        assertNotNull("QueryBuilder should not be null", queryBuilder);
+        assertEquals(
+            "Should be a FunctionScoreQueryBuilder",
+            "org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder",
             queryBuilder.getClass().getName()
         );
     }

@@ -152,8 +152,8 @@ class FlightServerChannel implements TcpChannel {
             if (!open.get()) {
                 throw new IllegalStateException("FlightServerChannel already closed.");
             }
-            if (error instanceof FlightRuntimeException) {
-                flightExc = (FlightRuntimeException) error;
+            if (error instanceof FlightRuntimeException fre) {
+                flightExc = fre;
             } else {
                 flightExc = CallStatus.INTERNAL.withCause(error)
                     .withDescription(error.getMessage() != null ? error.getMessage() : "Stream error")

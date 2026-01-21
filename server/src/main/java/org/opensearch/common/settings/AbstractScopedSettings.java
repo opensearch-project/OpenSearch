@@ -123,6 +123,14 @@ public abstract class AbstractScopedSettings {
         this.keySettings = keySettings;
     }
 
+    /**
+     *  Returns the list of setting updaters registered in this scope.
+     * @return an unmodifiable view of the setting updaters
+     */
+    public List<SettingUpdater<?>> getSettingUpdaters() {
+        return Collections.unmodifiableList(settingUpdaters);
+    }
+
     protected void validateSettingKey(Setting<?> setting) {
         if (isValidKey(setting.getKey()) == false
             && (setting.isGroupSetting() && isValidGroupKey(setting.getKey()) || isValidAffixKey(setting.getKey())) == false

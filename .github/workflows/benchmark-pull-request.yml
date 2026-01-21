@@ -16,7 +16,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Set up required env vars
         run: |
           echo "PR_NUMBER=${{ github.event.issue.number }}" >> $GITHUB_ENV
@@ -28,7 +28,7 @@ jobs:
           echo "USER_TAGS=pull_request_number:${{ github.event.issue.number }},repository:OpenSearch" >> $GITHUB_ENV
       - name: Check comment format
         id: check_comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -68,7 +68,7 @@ jobs:
             }
       - name: Post invalid format comment
         if: steps.check_comment.outputs.invalid == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
@@ -85,7 +85,7 @@ jobs:
           exit 1
       - name: Get PR Details
         id: get_pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const issue = context.payload.issue;
@@ -111,7 +111,7 @@ jobs:
           echo "prHeadRepo=$headRepo" >> $GITHUB_ENV
           echo "prHeadRefSha=$headRefSha" >> $GITHUB_ENV
       - id: get_approvers
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           result-encoding: json
@@ -135,7 +135,7 @@ jobs:
           issue-body: "Please approve or deny the benchmark run for PR #${{ env.PR_NUMBER }}"
           exclude-workflow-initiator-as-approver: false
       - name: Checkout PR Repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: ${{ env.prHeadRepo }}
           ref: ${{ env.prHeadRefSha }}
@@ -159,7 +159,7 @@ jobs:
           aws s3 cp distribution/archives/linux-tar/build/distributions/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz s3://${{ secrets.ARCHIVE_ARTIFACT_BUCKET_NAME }}/PR-$PR_NUMBER/
           echo "DISTRIBUTION_URL=${{ secrets.ARTIFACT_BUCKET_CLOUDFRONT_URL }}/PR-$PR_NUMBER/opensearch-min-$OPENSEARCH_VERSION-linux-x64.tar.gz" >> $GITHUB_ENV
       - name: Checkout opensearch-build repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: opensearch-project/opensearch-build
           ref: main
@@ -169,7 +169,7 @@ jobs:
           cat $GITHUB_ENV
           bash opensearch-build/scripts/benchmark/benchmark-pull-request.sh -t ${{ secrets.JENKINS_PR_BENCHMARK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}}
       - name: Update PR with Job Url
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

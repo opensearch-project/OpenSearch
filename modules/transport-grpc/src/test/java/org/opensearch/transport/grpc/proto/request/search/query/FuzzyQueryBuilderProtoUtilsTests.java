@@ -11,7 +11,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.index.query.FuzzyQueryBuilder;
 import org.opensearch.protobufs.FieldValue;
-import org.opensearch.protobufs.MultiTermQueryRewrite;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class FuzzyQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
@@ -46,7 +45,7 @@ public class FuzzyQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .setPrefixLength(2)
             .setMaxExpansions(100)
             .setTranspositions(false)
-            .setRewrite(MultiTermQueryRewrite.MULTI_TERM_QUERY_REWRITE_CONSTANT_SCORE)
+            .setRewrite("constant_score")
             .setBoost(1.5f)
             .setXName("test_query")
             .build();

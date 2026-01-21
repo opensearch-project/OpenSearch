@@ -46,6 +46,7 @@ import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.admin.indices.create.AutoCreateAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
+import org.opensearch.action.admin.indices.stats.DocStatusStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.ingest.IngestActionForwarder;
 import org.opensearch.action.support.ActionFilters;
@@ -80,7 +81,6 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.shard.IndexingStats.Stats.DocStatusStats;
 import org.opensearch.indices.IndexClosedException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
@@ -223,10 +223,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      */
     public static IndexRequest getIndexWriteRequest(DocWriteRequest<?> docWriteRequest) {
         IndexRequest indexRequest = null;
-        if (docWriteRequest instanceof IndexRequest) {
-            indexRequest = (IndexRequest) docWriteRequest;
-        } else if (docWriteRequest instanceof UpdateRequest) {
-            UpdateRequest updateRequest = (UpdateRequest) docWriteRequest;
+        if (docWriteRequest instanceof IndexRequest indexReq) {
+            indexRequest = indexReq;
+        } else if (docWriteRequest instanceof UpdateRequest updateRequest) {
             indexRequest = updateRequest.docAsUpsert() ? updateRequest.doc() : updateRequest.upsertRequest();
         }
         return indexRequest;

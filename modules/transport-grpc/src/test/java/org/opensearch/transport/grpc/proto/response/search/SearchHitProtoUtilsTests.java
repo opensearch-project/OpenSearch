@@ -221,9 +221,9 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("Hit should not be null", hit);
-        assertTrue("Explanation should be set", hit.hasExplanation());
-        assertEquals("Explanation value should match", 1.0, hit.getExplanation().getValue(), 0.0);
-        assertEquals("Explanation description should match", "explanation", hit.getExplanation().getDescription());
+        assertTrue("Explanation should be set", hit.hasXExplanation());
+        assertEquals("Explanation value should match", 1.0, hit.getXExplanation().getValue(), 0.0);
+        assertEquals("Explanation description should match", "explanation", hit.getXExplanation().getDescription());
     }
 
     public void testToProtoWithInnerHits() throws IOException {
@@ -519,5 +519,27 @@ public class SearchHitProtoUtilsTests extends OpenSearchTestCase {
 
         byte[] expectedBytes = jsonContent.getBytes(StandardCharsets.UTF_8);
         assertArrayEquals("Source bytes should match JSON content", expectedBytes, hit.getXSource().toByteArray());
+    }
+
+    public void testToProtoWithMatchedQueriesWithoutScores() throws IOException {
+        SearchHit searchHit = new SearchHit(1);
+        searchHit.matchedQueries(new String[] { "filter1", "filter2" });
+
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
+
+        assertNotNull("Hit should not be null", hit);
+        assertTrue("matched_queries_2 should be set", hit.hasMatchedQueries2());
+        assertTrue("Should use names (StringArray)", hit.getMatchedQueries2().hasNames());
+        assertFalse("Should not use scores (DoubleMap)", hit.getMatchedQueries2().hasScores());
+        assertEquals("Should have 2 matched query names", 2, hit.getMatchedQueries2().getNames().getStringArrayCount());
+    }
+
+    public void testToProtoWithNoMatchedQueries() throws IOException {
+        SearchHit searchHit = new SearchHit(1);
+
+        HitsMetadataHitsInner hit = SearchHitProtoUtils.toProto(searchHit);
+
+        assertNotNull("Hit should not be null", hit);
+        assertFalse("matched_queries_2 should not be set", hit.hasMatchedQueries2());
     }
 }

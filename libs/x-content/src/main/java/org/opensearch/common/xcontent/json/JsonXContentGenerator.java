@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
+import com.fasterxml.jackson.core.filter.TokenFilter.Inclusion;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
@@ -91,8 +92,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         Objects.requireNonNull(includes, "Including filters must not be null");
         Objects.requireNonNull(excludes, "Excluding filters must not be null");
         this.os = os;
-        if (jsonGenerator instanceof GeneratorBase) {
-            this.base = (GeneratorBase) jsonGenerator;
+        if (jsonGenerator instanceof GeneratorBase generatorBase) {
+            this.base = generatorBase;
         } else {
             this.base = null;
         }
@@ -101,12 +102,22 @@ public class JsonXContentGenerator implements XContentGenerator {
 
         boolean hasExcludes = excludes.isEmpty() == false;
         if (hasExcludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(excludes, false), true, true);
+            generator = new FilteringGeneratorDelegate(
+                generator,
+                new FilterPathBasedFilter(excludes, false),
+                Inclusion.INCLUDE_ALL_AND_PATH,
+                true
+            );
         }
 
         boolean hasIncludes = includes.isEmpty() == false;
         if (hasIncludes) {
-            generator = new FilteringGeneratorDelegate(generator, new FilterPathBasedFilter(includes, true), true, true);
+            generator = new FilteringGeneratorDelegate(
+                generator,
+                new FilterPathBasedFilter(includes, true),
+                Inclusion.INCLUDE_ALL_AND_PATH,
+                true
+            );
         }
 
         if (hasExcludes || hasIncludes) {
@@ -144,10 +155,10 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     private JsonGenerator getLowLevelGenerator() {
         if (isFiltered()) {
-            JsonGenerator delegate = filter.getDelegate();
-            if (delegate instanceof JsonGeneratorDelegate) {
+            JsonGenerator delegate = filter.delegate();
+            if (delegate instanceof JsonGeneratorDelegate jsonGeneratorDelegate) {
                 // In case of combined inclusion and exclusion filters, we have one and only one another delegating level
-                delegate = ((JsonGeneratorDelegate) delegate).getDelegate();
+                delegate = jsonGeneratorDelegate.delegate();
                 assert delegate instanceof JsonGeneratorDelegate == false;
             }
             return delegate;
@@ -439,8 +450,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        if (parser instanceof JsonXContentParser) {
-            generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
+        if (parser instanceof JsonXContentParser jsonXContentParser) {
+            generator.copyCurrentStructure(jsonXContentParser.parser);
         } else {
             copyCurrentStructure(this, parser);
         }

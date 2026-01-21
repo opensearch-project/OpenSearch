@@ -79,39 +79,45 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         );
 
         // Failures are grouped (by default)
-        final String expectedJson = XContentHelper.stripWhitespace(
-            "{"
-                + "  \"type\": \"search_phase_execution_exception\","
-                + "  \"reason\": \"all shards failed\","
-                + "  \"phase\": \"test\","
-                + "  \"grouped\": true,"
-                + "  \"failed_shards\": ["
-                + "    {"
-                + "      \"shard\": 0,"
-                + "      \"index\": \"foo\","
-                + "      \"node\": \"node_1\","
-                + "      \"reason\": {"
-                + "        \"type\": \"parsing_exception\","
-                + "        \"reason\": \"foobar\","
-                + "        \"line\": 1,"
-                + "        \"col\": 2"
-                + "      }"
-                + "    },"
-                + "    {"
-                + "      \"shard\": 1,"
-                + "      \"index\": \"foo\","
-                + "      \"node\": \"node_2\","
-                + "      \"reason\": {"
-                + "        \"type\": \"index_shard_closed_exception\","
-                + "        \"reason\": \"CurrentState[CLOSED] Closed\","
-                + "        \"index\": \"foo\","
-                + "        \"shard\": \"1\","
-                + "        \"index_uuid\": \"_na_\""
-                + "      }"
-                + "    }"
-                + "  ]"
-                + "}"
-        );
+        final String expectedJson = XContentHelper.stripWhitespace("""
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "all shards failed",
+              "phase": "test",
+              "grouped": true,
+              "failed_shards": [
+                {
+                  "shard": 0,
+                  "index": "foo",
+                  "node": "node_1",
+                  "reason": {
+                    "type": "parsing_exception",
+                    "reason": "foobar",
+                    "line": 1,
+                    "col": 2
+                  }
+                },
+                {
+                  "shard": 1,
+                  "index": "foo",
+                  "node": "node_2",
+                  "reason": {
+                    "type": "index_shard_closed_exception",
+                    "reason": "CurrentState[CLOSED] Closed",
+                    "index": "foo",
+                    "shard": "1",
+                    "index_uuid": "_na_"
+                  }
+                }
+              ],
+              "caused_by": {
+                "type": "parsing_exception",
+                "reason": "foobar",
+                "line": 1,
+                "col": 2
+              }
+            }
+            """);
         assertEquals(expectedJson, Strings.toString(MediaTypeRegistry.JSON, exception));
     }
 
@@ -149,8 +155,8 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         assertThat(parsedException.getHeaderKeys(), hasSize(0));
         assertThat(parsedException.getMetadataKeys(), hasSize(1));
         assertThat(parsedException.getMetadata("opensearch.phase"), hasItem(phase));
-        // SearchPhaseExecutionException has no cause field
-        assertNull(parsedException.getCause());
+        // SearchPhaseExecutionException wires up the first shard failure's cause
+        assertNotNull(parsedException.getCause());
     }
 
     public void testPhaseFailureWithoutSearchShardFailure() {

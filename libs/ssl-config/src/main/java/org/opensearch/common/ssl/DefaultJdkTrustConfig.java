@@ -102,11 +102,20 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
                 throw new SslConfigException("failed to load the system PKCS#11 truststore", e);
             }
         }
+        if (KeyStoreUtil.IN_FIPS_MODE && !isBcfksTruststore(systemProperties) && !isPkcs11Truststore(systemProperties)) {
+            throw new SslConfigException(
+                "only [" + KeyStoreUtil.FIPS_COMPLIANT_KEYSTORE_TYPES + "] truststores are supported in a FIPS JVM"
+            );
+        }
         return null;
     }
 
     private static boolean isPkcs11Truststore(BiFunction<String, String, String> systemProperties) {
         return systemProperties.apply("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("PKCS11");
+    }
+
+    private static boolean isBcfksTruststore(BiFunction<String, String, String> systemProperties) {
+        return systemProperties.apply("javax.net.ssl.trustStoreType", "").equalsIgnoreCase("BCFKS");
     }
 
     private static char[] getSystemTrustStorePassword(BiFunction<String, String, String> systemProperties) {

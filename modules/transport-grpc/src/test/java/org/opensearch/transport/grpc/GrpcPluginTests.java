@@ -12,6 +12,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import io.grpc.BindableService;
 import io.grpc.Metadata;
@@ -100,11 +102,14 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Create a real ClusterSettings instance with the plugin's settings
         plugin = new GrpcPlugin();
 
+        // Mock ThreadPool and ThreadContext
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
         // Set the client in the plugin
         plugin.createComponents(
             client,
             null, // ClusterService
-            null, // ThreadPool
+            threadPool, // ThreadPool (now properly mocked)
             null, // ResourceWatcherService
             null, // ScriptService
             null, // NamedXContentRegistry
@@ -254,7 +259,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     public void testGetAuxTransportsWithServiceFactories() {
         GrpcPlugin newPlugin = new GrpcPlugin();
-        newPlugin.createComponents(Mockito.mock(Client.class), null, null, null, null, null, null, null, null, null, null);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        newPlugin.createComponents(Mockito.mock(Client.class), null, mockThreadPool, null, null, null, null, null, null, null, null);
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(List.of(new LoadableMockServiceFactory()));
         plugin.loadExtensions(mockLoader);
@@ -273,7 +280,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     public void testGetSecureAuxTransportsWithServiceFactories() {
         GrpcPlugin newPlugin = new GrpcPlugin();
-        newPlugin.createComponents(Mockito.mock(Client.class), null, null, null, null, null, null, null, null, null, null);
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        newPlugin.createComponents(Mockito.mock(Client.class), null, mockThreadPool, null, null, null, null, null, null, null, null);
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(GrpcServiceFactory.class)).thenReturn(List.of(new LoadableMockServiceFactory()));
         plugin.loadExtensions(mockLoader);
@@ -341,11 +350,15 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         newPlugin.loadExtensions(extensionLoader);
         when(extensionLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(List.of(mockConverter));
 
+        // Mock ThreadPool for createComponents
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
         // Call createComponents
         Collection<Object> components = newPlugin.createComponents(
             client,
             null, // ClusterService
-            null, // ThreadPool
+            mockThreadPool, // ThreadPool
             null, // ResourceWatcherService
             null, // ScriptService
             null, // NamedXContentRegistry
@@ -378,11 +391,15 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Verify the converter was added to the queryConverters list
         assertEquals("Should have 1 query converter loaded", 1, newPlugin.getQueryConverters().size());
 
+        // Mock ThreadPool for createComponents
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
         // Call createComponents to trigger registration of external converters
         Collection<Object> components = newPlugin.createComponents(
             client,
             null, // ClusterService
-            null, // ThreadPool
+            mockThreadPool, // ThreadPool
             null, // ResourceWatcherService
             null, // ScriptService
             null, // NamedXContentRegistry
@@ -421,11 +438,45 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     }
 
     public void testLoadExtensionsWithDuplicateGrpcInterceptorOrder() {
-        testInterceptorLoading(List.of(1, 1), IllegalArgumentException.class);
+        GrpcPlugin plugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = createMockLoader(List.of(1, 1));
+
+        assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+        );
+
+        String errorMessage = exception.getMessage();
+        assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [1]"));
+        assertTrue(errorMessage.contains("ServerInterceptor")); // Mock class name will contain this
+        assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
     public void testLoadExtensionsWithMultipleProvidersAndDuplicateOrder() {
-        testInterceptorLoadingWithMultipleProviders(List.of(List.of(5), List.of(5)), IllegalArgumentException.class);
+        GrpcPlugin plugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = createMockLoaderWithMultipleProviders(List.of(List.of(5), List.of(5)));
+
+        // loadExtensions should succeed
+        assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+
+        // createComponents should fail with duplicate order
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+        );
+
+        String errorMessage = exception.getMessage();
+        assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [5]"));
+        assertTrue(errorMessage.contains("ServerInterceptor"));
+        assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
     public void testLoadExtensionsWithNullGrpcInterceptorProviders() {
@@ -437,7 +488,23 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     }
 
     public void testLoadExtensionsWithSameExplicitOrderInterceptors() {
-        testInterceptorLoading(List.of(5, 5), IllegalArgumentException.class);
+        GrpcPlugin plugin = new GrpcPlugin();
+        ExtensiblePlugin.ExtensionLoader mockLoader = createMockLoader(List.of(5, 5));
+
+        assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+        );
+
+        String errorMessage = exception.getMessage();
+        assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [5]"));
+        assertTrue(errorMessage.contains("ServerInterceptor"));
+        assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
     // Test cases for interceptor chain failure handling
@@ -560,13 +627,15 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(null);
         } else if (orders.isEmpty()) {
             GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
-            when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(new ArrayList<>());
+            when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(new ArrayList<>());
             when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
         } else {
-            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(order -> createMockInterceptor(order)).toList();
+            List<OrderedGrpcInterceptor> interceptors = orders.stream()
+                .map(order -> createMockInterceptor(order))
+                .collect(Collectors.toList());
 
             GrpcInterceptorProvider mockProvider = Mockito.mock(GrpcInterceptorProvider.class);
-            when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+            when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
             when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(mockProvider));
         }
 
@@ -581,11 +650,11 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
 
         List<GrpcInterceptorProvider> providers = providerOrders.stream().map(orders -> {
-            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(this::createMockInterceptor).toList();
+            List<OrderedGrpcInterceptor> interceptors = orders.stream().map(this::createMockInterceptor).collect(Collectors.toList());
             GrpcInterceptorProvider provider = Mockito.mock(GrpcInterceptorProvider.class);
-            when(provider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+            when(provider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
             return provider;
-        }).toList();
+        }).collect(Collectors.toList());
 
         when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(providers);
         return mockLoader;
@@ -817,7 +886,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             createTestInterceptor(20, false),
             createTestInterceptor(30, false)
         );
-        when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+        when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
 
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
@@ -825,8 +894,14 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         GrpcPlugin plugin = new GrpcPlugin();
 
-        // Should not throw exception and should create chain
+        // Should not throw exception and should load providers
         assertDoesNotThrow(() -> plugin.loadExtensions(mockLoader));
+
+        // Need to call createComponents to actually initialize the chain
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
+        assertDoesNotThrow(() -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null));
     }
 
     public void testGrpcInterceptorChainWithDuplicateOrders() {
@@ -836,7 +911,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             createTestInterceptor(10, false),
             createTestInterceptor(10, false) // Duplicate order
         );
-        when(mockProvider.getOrderedGrpcInterceptors()).thenReturn(interceptors);
+        when(mockProvider.getOrderedGrpcInterceptors(Mockito.any())).thenReturn(interceptors);
 
         ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
         when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
@@ -844,15 +919,32 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         GrpcPlugin plugin = new GrpcPlugin();
 
-        // Should throw exception due to duplicate orders
-        expectThrows(IllegalArgumentException.class, () -> plugin.loadExtensions(mockLoader));
+        // Load extensions first
+        plugin.loadExtensions(mockLoader);
+
+        // Mock ThreadPool for createComponents
+        ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
+        when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
+
+        // Should throw exception due to duplicate orders during createComponents
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+        );
+
+        // Verify error message includes order value and interceptor class names
+        String errorMessage = exception.getMessage();
+        assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [10]"));
+        assertTrue(errorMessage.contains("GrpcPluginTests"));
+        assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
     /**
      * Helper method to test GrpcInterceptorChain behavior
      */
     private void testGrpcInterceptorChain(List<OrderedGrpcInterceptor> interceptors, boolean shouldSucceed, String expectedErrorMessage) {
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
 
         @SuppressWarnings("unchecked")
         ServerCall<String, String> mockCall = Mockito.mock(ServerCall.class);

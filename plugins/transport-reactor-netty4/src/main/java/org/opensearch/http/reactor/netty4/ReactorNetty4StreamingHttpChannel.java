@@ -56,7 +56,13 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
 
     @Override
     public void close() {
-        request.withConnection(connection -> connection.channel().close());
+        request.withConnection(connection -> {
+            if (closeContext.isDone() == false) {
+                Netty4Utils.addListener(connection.channel().close(), closeContext);
+            } else {
+                connection.channel().close();
+            }
+        });
     }
 
     @Override
@@ -76,8 +82,10 @@ class ReactorNetty4StreamingHttpChannel implements StreamingHttpChannel {
 
     @Override
     public void prepareResponse(int status, Map<String, List<String>> headers) {
-        this.response.status(status);
-        headers.forEach((k, vs) -> vs.forEach(v -> this.response.addHeader(k, v)));
+        if (this.response.hasSentHeaders() == false) {
+            this.response.status(status);
+            headers.forEach((k, vs) -> vs.forEach(v -> this.response.addHeader(k, v)));
+        }
     }
 
     @Override

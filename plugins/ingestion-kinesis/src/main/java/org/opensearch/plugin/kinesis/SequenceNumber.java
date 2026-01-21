@@ -73,10 +73,9 @@ public class SequenceNumber implements IngestionShardPointer {
         if (o == null) {
             throw new IllegalArgumentException("the pointer is null");
         }
-        if (!(o instanceof SequenceNumber)) {
+        if (!(o instanceof SequenceNumber other)) {
             throw new IllegalArgumentException("the pointer is of type " + o.getClass() + " and not SequenceNumber");
         }
-        SequenceNumber other = (SequenceNumber) o;
         return sequenceNumber.compareTo(other.sequenceNumber);
     }
 

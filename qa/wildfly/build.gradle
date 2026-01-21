@@ -54,8 +54,8 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.dataformat'
     exclude group: 'com.fasterxml.jackson.module'
   }
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-base:${versions.jackson}"
   api "com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-json-provider:${versions.jackson}"
   api "com.github.fge:json-patch:1.9"
@@ -66,6 +66,9 @@ dependencies {
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
+  fipsOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
+  fipsOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
 }
 
 war {

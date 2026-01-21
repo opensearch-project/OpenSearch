@@ -199,7 +199,6 @@ public class RemoteStoreMetadataIT extends RemoteStoreBaseIntegTestCase {
         for (int i = 0; i < refreshCount; i++) {
             indexDocs();
             client().admin().indices().prepareRefresh(INDEX_NAME).get();
-            Thread.sleep(100);
         }
 
         RemoteStoreMetadataResponse response = client().admin().cluster().prepareRemoteStoreMetadata(INDEX_NAME, null).get();
