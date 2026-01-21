@@ -8,11 +8,15 @@
 
 package org.opensearch.action.search;
 
+import org.apache.lucene.search.TopDocs;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
 
+import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -115,7 +119,25 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         // Keep streaming: coordinator receives partials and forwards to client,
         // but the coordinator reducer should only see the final per-shard result.
         // Do not enqueue partials into pendingReduces.
-        if (result.queryResult().isPartial()) {
+        if (result.queryResult() == null || result.queryResult().isPartial()) {
+            // Forward partials directly to listener to maintain stream, bypassing the
+            // reducer queue (OOM prevention)
+            if (result.queryResult() != null) {
+                QuerySearchResult qResult = result.queryResult();
+                TopDocs topDocs = qResult.hasTopDocs() ? qResult.topDocs().topDocs : null;
+                InternalAggregations aggs = qResult.hasAggs() ? qResult.consumeAggs().expand() : null;
+
+                // Manually trigger partial emission on the listener
+                progressListener().onPartialReduceWithTopDocs(
+                    Collections.singletonList(
+                        new SearchShard(qResult.getSearchShardTarget().getClusterAlias(), qResult.getSearchShardTarget().getShardId())
+                    ),
+                    qResult.getTotalHits(),
+                    topDocs,
+                    aggs,
+                    0 // reducePhase (dummy for streaming)
+                );
+            }
             // Immediately continue the pipeline
             next.run();
             return;
