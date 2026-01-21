@@ -22,7 +22,7 @@ on:
         type: string
         required: false
       plugins_ref:
-        description: "Branch, commit or tag for the wazuh-indexer plugins repositories."
+        description: "Branch, commit or tag for the wazuh-indexer plugins repositories and engine."
         type: string
         default: "main"
         required: false
@@ -42,7 +42,7 @@ on:
         type: string
         required: false
       plugins_ref:
-        description: "Branch, commit or tag for the wazuh-indexer plugins repositories."
+        description: "Branch, commit or tag for the wazuh-indexer plugins repositories and engine."
         type: string
         default: "main"
         required: false
@@ -73,6 +73,7 @@ jobs:
       contents: read
       id-token: write
       actions: read
+      packages: read
     uses: ./.github/workflows/5_builderpackage_indexer.yml
     with:
       revision: ${{ inputs.revision }}

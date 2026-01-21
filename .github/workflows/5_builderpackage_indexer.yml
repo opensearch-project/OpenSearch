@@ -3,6 +3,7 @@ name: (5.x) Build packages
 
 permissions:
   contents: read
+  packages: read
 
 # This workflow runs when any of the following occur:
 # - Run manually
@@ -57,9 +58,10 @@ on:
         type: string
         required: false
       plugins_ref:
-        description: "Branch, commit or tag for the wazuh-indexer plugins repositories."
+        description: "Branch, commit or tag for the wazuh-indexer plugins repositories and engine."
         type: string
         default: "main"
+        required: false
   workflow_call:
     inputs:
       revision:
@@ -87,6 +89,7 @@ on:
       plugins_ref:
         type: string
         default: "main"
+        required: false
     secrets:
       CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY:
         required: true
@@ -120,6 +123,7 @@ jobs:
       wazuh_plugins_ref: ${{ steps.branches.outputs.wazuh_indexer_plugins_branch }}
       reporting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_reporting_branch }}
       security_analytics_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_security_analytics_branch }}
+      wazuh_ref: ${{ steps.branches.outputs.wazuh_branch }}
     steps:
       - uses: actions/checkout@v5
       - name: Resolve branches
@@ -248,10 +252,18 @@ jobs:
           CURRENT="$(bash build-scripts/product_version.sh)"
           PREVIOUS=$(curl -s https://api.github.com/repos/wazuh/wazuh-indexer/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | grep -E '^4\.[0-9]+\.[0-9]+$' | \
           grep -v "^${CURRENT}$" | sort -V | awk -v current="$CURRENT" '$0 < current' | tail -n1)
-
+          
           echo "Current version: $CURRENT"
           echo "Latest release detected: $PREVIOUS"
           echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
+
+  build-wazuh-engine:
+    needs: [compatibility-check, branches]
+    uses: wazuh/wazuh/.github/workflows/5_builderpackage_engine-standalone.yml@main
+    secrets: inherit
+    with:
+      wazuh-branch: ${{ needs.branches.outputs.wazuh_ref }}
+      build-type: 'release'
 
   build-wazuh-plugins:
     needs: [compatibility-check, branches]
@@ -417,7 +429,7 @@ jobs:
           if-no-files-found: error
 
   build:
-    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, branches]
+    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, build-wazuh-engine]
     runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
@@ -430,14 +442,21 @@ jobs:
       # Download plugins
       - name: Download plugins
         uses: actions/download-artifact@v5
-        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' || needs.branches.outputs.security_analytics_plugin_ref != '' }}
         with:
+          pattern: wazuh-indexer-*.zip
           path: ./artifacts/plugins
           merge-multiple: true
 
+      # Download Wazuh Engine
+      - name: Download Wazuh Engine
+        uses: actions/download-artifact@v5
+        with:
+          pattern: wazuh-engine-*-linux-${{ matrix.architecture == 'x64' && 'amd64' || 'arm64' }}
+          merge-multiple: true
+          path: ./artifacts/engine
+      
       - name: Display structure of downloaded files
-        if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' || needs.branches.outputs.reporting_plugin_ref != '' || needs.branches.outputs.security_analytics_plugin_ref != '' }}
-        run: ls -lR ./artifacts/plugins
+        run: ls -lR ./artifacts/
 
       - uses: actions/setup-java@v5
         with:
@@ -495,7 +514,8 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
-            -s ${{ needs.build-security-analytics-plugin.outputs.hash }}
+            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -o ${{ github.workspace }}/artifacts
 
       - name: Test RPM package installation
         if: ${{ matrix.distribution == 'rpm' }}

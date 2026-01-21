@@ -7,11 +7,13 @@ REPOS=(
     "wazuh-indexer-plugins"
     "wazuh-indexer-reporting"
     "wazuh-indexer-security-analytics"
+    "wazuh"
 )
 REPO_URLS=(
     "https://github.com/wazuh/wazuh-indexer-plugins.git"
     "https://github.com/wazuh/wazuh-indexer-reporting.git"
     "https://github.com/wazuh/wazuh-indexer-security-analytics.git"
+    "https://github.com/wazuh/wazuh.git"
 )
 
 declare -A BRANCH_EXISTS

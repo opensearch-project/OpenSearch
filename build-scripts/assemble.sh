@@ -248,6 +248,60 @@ function install_plugins() {
 }
 
 # ====
+# Install Wazuh Engine
+# ====
+function install_wazuh_engine() {
+    echo "Installing Wazuh Engine"
+    local target_dir="${1}"
+    
+    # Obtain architecture
+    local engine_arch
+    if [ "$ARCHITECTURE" == "x64" ]; then
+        engine_arch="amd64"
+    elif [ "$ARCHITECTURE" == "arm64" ]; then
+        engine_arch="arm64"
+    else
+        echo "Error: Unsupported architecture for engine: $ARCHITECTURE"
+        exit 1
+    fi
+    
+    local engine_tarball
+    engine_tarball=$(find "${OUTPUT}/engine" -name "wazuh-engine-*-linux-${engine_arch}.tar.gz" | head -n 1)
+
+    if [ -z "$engine_tarball" ]; then
+        echo "Error: Wazuh Engine tarball not found in ${OUTPUT}/engine for arch ${engine_arch}"
+        exit 1
+    fi
+
+    mkdir -p engine_tmp
+    tar -xf "$engine_tarball" -C engine_tmp
+
+    local extracted_dir
+    extracted_dir=$(find engine_tmp -maxdepth 1 -name "wazuh-engine-standalone-*" -type d | head -n 1)
+
+    if [ ! -d "$extracted_dir" ]; then
+        echo "Error: Expected directory '$extracted_dir' was not found after extraction."
+        rm -rf engine_tmp
+        exit 1
+    fi
+
+    # Define destination path
+    local dest_path="${target_dir}/engine"
+    mkdir -p "$dest_path"
+
+    # Move content
+    cp -r "$extracted_dir"/* "$dest_path"
+
+    # Set permissions
+    chmod -R 750 "$dest_path"
+
+    # Cleanup
+    rm -rf engine_tmp
+
+    echo "Wazuh Engine installed successfully to $dest_path"
+}
+
+# ====
 # Clean
 # ====
 function clean() {
@@ -288,6 +342,10 @@ function assemble_tar() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
+    
+    # Install Wazuh Engine
+    install_wazuh_engine "${decompressed_tar_dir}"
+
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
@@ -324,6 +382,10 @@ function assemble_rpm() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
+    
+    # Install Wazuh Engine
+    install_wazuh_engine "${src_path}"
+
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
@@ -374,6 +436,10 @@ function assemble_deb() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
+    
+    # Install Wazuh Engine
+    install_wazuh_engine "${src_path}"
+
     add_demo_certs_installer
     # Swap configuration files
     add_configuration_files
