@@ -106,8 +106,6 @@ class S3Service implements Closeable {
 
     private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
 
-    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
-
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = new ConcurrentHashMap<>();
 
     /**
