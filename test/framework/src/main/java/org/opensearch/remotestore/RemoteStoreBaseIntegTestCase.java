@@ -75,6 +75,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
     protected static int REPLICA_COUNT = 1;
     protected static final String TOTAL_OPERATIONS = "total-operations";
     protected static final String REFRESHED_OR_FLUSHED_OPERATIONS = "refreshed-or-flushed-operations";
+    protected static final String FLUSHED_OPERATIONS = "flushed-operations";
     protected static final String MAX_SEQ_NO_TOTAL = "max-seq-no-total";
     protected static final String MAX_SEQ_NO_REFRESHED_OR_FLUSHED = "max-seq-no-refreshed-or-flushed";
 
@@ -101,10 +102,12 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         long maxSeqNo = -1;
         long maxSeqNoRefreshedOrFlushed = -1;
         int shardId = 0;
+        long flushCount = 0;
         Map<String, Long> indexingStats = new HashMap<>();
         for (int i = 0; i < numberOfIterations; i++) {
             if (invokeFlush) {
                 flushAndRefresh(index);
+                ++flushCount;
             } else {
                 refresh(index);
             }
@@ -133,6 +136,7 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
 
         indexingStats.put(TOTAL_OPERATIONS, totalOperations);
         indexingStats.put(REFRESHED_OR_FLUSHED_OPERATIONS, refreshedOrFlushedOperations);
+        indexingStats.put(FLUSHED_OPERATIONS, flushCount);
         indexingStats.put(MAX_SEQ_NO_TOTAL, maxSeqNo);
         indexingStats.put(MAX_SEQ_NO_REFRESHED_OR_FLUSHED, maxSeqNoRefreshedOrFlushed);
         return indexingStats;

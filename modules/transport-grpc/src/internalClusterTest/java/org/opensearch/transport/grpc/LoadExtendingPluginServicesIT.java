@@ -108,6 +108,17 @@ public class LoadExtendingPluginServicesIT extends GrpcTransportBaseIT {
                 null,
                 List.of(GrpcPlugin.class.getName()),
                 false
+            ),
+            new PluginInfo(
+                ContextAwareIndexPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                org.opensearch.Version.CURRENT,
+                "1.8",
+                ContextAwareIndexPlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
             )
         );
     }

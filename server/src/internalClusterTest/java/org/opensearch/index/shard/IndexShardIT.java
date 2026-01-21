@@ -95,6 +95,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
@@ -664,7 +665,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             getInstanceFromNode(CircuitBreakerService.class),
             env.nodeId(),
             getInstanceFromNode(ClusterService.class),
-            listener
+            listener,
+            new OpenSearchIntegTestCase.ContextAwareIndexOperationListener()
         );
         shardRef.set(newShard);
         recoverShard(newShard);

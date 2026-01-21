@@ -15,6 +15,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchService;
@@ -67,6 +68,8 @@ public class ConcurrentSearchTasksIT extends AbstractTasksIT {
         for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
+
+        featureSettings.put(FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
