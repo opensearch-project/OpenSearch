@@ -11,11 +11,12 @@ package org.opensearch.search.deciders;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 
 import java.util.Optional;
 
 /**
- * Decider for intra-segment search. Evaluates whether queries benefit from
+ * Decider for intra-segment search. Evaluates whether queries and aggregations benefit from
  * intra-segment parallelization (partitioning large segments into doc ID ranges).
  */
 @ExperimentalApi
@@ -28,7 +29,15 @@ public abstract class IntraSegmentSearchRequestDecider {
     public abstract void evaluateForQuery(QueryBuilder queryBuilder, IndexSettings indexSettings);
 
     /**
-     * Returns the final decision after evaluating all query nodes.
+     * Evaluate if the aggregations benefit from intra-segment search.
+     * Called once with the aggregation factories.
+     */
+    public void evaluateForAggregations(AggregatorFactories aggregations, IndexSettings indexSettings) {
+        // Default: no-op, subclasses can override
+    }
+
+    /**
+     * Returns the final decision after evaluating all query nodes and aggregations.
      */
     public abstract IntraSegmentSearchDecision getIntraSegmentSearchDecision();
 

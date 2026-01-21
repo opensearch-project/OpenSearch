@@ -8,6 +8,8 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
@@ -29,6 +31,23 @@ import java.util.Set;
  * @opensearch.internal
  */
 final class MaxTargetSliceSupplier {
+
+    private static final Logger logger = LogManager.getLogger(MaxTargetSliceSupplier.class);
+
+    /**
+     * Calculates imbalance ratio: max(slice_docs) / avg(slice_docs)
+     */
+    private static double calculateImbalanceRatio(long[] sliceDocCounts) {
+        if (sliceDocCounts.length == 0) return 1.0;
+        long total = 0;
+        long max = 0;
+        for (long count : sliceDocCounts) {
+            total += count;
+            max = Math.max(max, count);
+        }
+        double avg = (double) total / sliceDocCounts.length;
+        return avg > 0 ? max / avg : 1.0;
+    }
 
     /**
      * Original method for whole segments - maintains backward compatibility
@@ -55,9 +74,25 @@ final class MaxTargetSliceSupplier {
             minGroup.sum += sortedLeaves.get(i).reader().maxDoc();
             groupQueue.offer(minGroup);
         }
+        // Log for none strategy
+        long[] sliceDocCounts = new long[targetSliceCount];
+        for (int i = 0; i < targetSliceCount; i++) {
+            for (LeafReaderContextPartition p : groupedLeaves.get(i)) {
+                sliceDocCounts[i] += p.ctx.reader().maxDoc();
+            }
+        }
+        logger.info(
+            "Partition strategy=none: segments={}, slices={}, imbalanceRatio={}",
+            leaves.size(),
+            targetSliceCount,
+            String.format("%.2f", calculateImbalanceRatio(sliceDocCounts))
+        );
         return groupedLeaves.stream().map(IndexSearcher.LeafSlice::new).toArray(IndexSearcher.LeafSlice[]::new);
     }
 
+    /**
+     * Balanced partitioning - partition segments exceeding fair slice share and min segment size.
+     */
     static IndexSearcher.LeafSlice[] getSlicesWithAutoPartitioning(List<LeafReaderContext> leaves, int targetMaxSlice, int minSegmentSize) {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
@@ -89,14 +124,48 @@ final class MaxTargetSliceSupplier {
                 partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
             }
         }
-        return distributePartitions(partitions, targetMaxSlice);
+        return distributePartitions(partitions, targetMaxSlice, "balanced", leaves.size());
+    }
+
+    /**
+     * Force partitioning - partition EVERY segment into available slices.
+     * Each segment is split into targetMaxSlice partitions regardless of size.
+     */
+    static IndexSearcher.LeafSlice[] getSlicesWithForcePartitioning(List<LeafReaderContext> leaves, int targetMaxSlice) {
+        if (targetMaxSlice <= 0) {
+            throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
+        }
+        if (leaves.isEmpty()) {
+            return new IndexSearcher.LeafSlice[0];
+        }
+        List<LeafReaderContextPartition> partitions = new ArrayList<>(leaves.size() * targetMaxSlice);
+        for (LeafReaderContext leaf : leaves) {
+            int segmentSize = leaf.reader().maxDoc();
+            int numPartitions = Math.min(targetMaxSlice, segmentSize); // can't have more partitions than docs
+            if (numPartitions > 1) {
+                int docsPerPartition = segmentSize / numPartitions;
+                for (int i = 0; i < numPartitions; i++) {
+                    int startDoc = i * docsPerPartition;
+                    int endDoc = (i == numPartitions - 1) ? segmentSize : startDoc + docsPerPartition;
+                    partitions.add(LeafReaderContextPartition.createFromAndTo(leaf, startDoc, endDoc));
+                }
+            } else {
+                partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
+            }
+        }
+        return distributePartitions(partitions, targetMaxSlice, "force", leaves.size());
     }
 
     /**
      * Distribute partitions using LPT algorithm while respecting Lucene's constraint
      * that same-segment partitions must be in different slices.
      */
-    private static IndexSearcher.LeafSlice[] distributePartitions(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
+    private static IndexSearcher.LeafSlice[] distributePartitions(
+        List<LeafReaderContextPartition> partitions,
+        int targetMaxSlice,
+        String strategy,
+        int segmentCount
+    ) {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
@@ -119,16 +188,28 @@ final class MaxTargetSliceSupplier {
                     targetSlice = slice;
                 }
             }
-            assert targetSlice != null : "No available slice for segment " + segmentOrd;
             targetSlice.addPartition(partition, segmentOrd, docCount);
         }
-        // Collect non-empty slices
+        // Collect non-empty slices and calculate imbalance
         List<IndexSearcher.LeafSlice> result = new ArrayList<>(sliceCount);
+        long[] sliceDocCounts = new long[sliceCount];
+        int idx = 0;
         for (GroupWithSegmentTracking slice : slices) {
             if (!slice.partitions.isEmpty()) {
                 result.add(new IndexSearcher.LeafSlice(slice.partitions));
+                sliceDocCounts[idx++] = slice.docCountSum;
             }
         }
+        long[] nonEmptyDocCounts = new long[result.size()];
+        System.arraycopy(sliceDocCounts, 0, nonEmptyDocCounts, 0, result.size());
+        logger.info(
+            "Partition strategy={}: segments={}, partitions={}, slices={}, imbalanceRatio={}",
+            strategy,
+            segmentCount,
+            partitions.size(),
+            result.size(),
+            String.format("%.2f", calculateImbalanceRatio(nonEmptyDocCounts))
+        );
         return result.toArray(new IndexSearcher.LeafSlice[0]);
     }
 

@@ -137,8 +137,9 @@ import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEA
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
-import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_ENABLED;
-import static org.opensearch.search.SearchService.INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
@@ -1044,13 +1045,23 @@ final class DefaultSearchContext extends SearchContext {
                     logger.debug("request has supported aggregations, using concurrent search");
                 }
                 return true;
-
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("request does not have aggregations, not using concurrent search");
+            } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE.equals(getPartitionStrategy()) == false
+                && request().source() != null
+                && request().source().query() != null
+                && request().source().query().supportsIntraSegmentSearch()) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug(
+                            "request query supports intra-segment search, using concurrent search with partition strategy: {}",
+                            getPartitionStrategy()
+                        );
+                    }
+                    return true;
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("request does not have aggregations, not using concurrent search");
+                    }
+                    return false;
                 }
-                return false;
-            }
 
         } else {
             if (logger.isDebugEnabled()) {
@@ -1342,28 +1353,28 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Returns whether intra-segment search is enabled for this search context.
+     * Returns the partition strategy for this search context.
      */
     @Override
-    public boolean getIntraSegmentSearchEnabled() {
+    public String getPartitionStrategy() {
         return indexService.getIndexSettings()
             .getSettings()
-            .getAsBoolean(
-                IndexSettings.INDEX_INTRA_SEGMENT_SEARCH_ENABLED.getKey(),
-                clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_ENABLED)
+            .get(
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(),
+                clusterService.getClusterSettings().get(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY)
             );
     }
 
     /**
-     * Returns the minimum segment size required to enable intra-segment partitioning.
+     * Returns the minimum segment size required for balanced partitioning.
      */
     @Override
-    public int getIntraSegmentMinSegmentSize() {
+    public int getPartitionMinSegmentSize() {
         return indexService.getIndexSettings()
             .getSettings()
             .getAsInt(
-                IndexSettings.INDEX_INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE.getKey(),
-                clusterService.getClusterSettings().get(INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE)
+                IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(),
+                clusterService.getClusterSettings().get(CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE)
             );
     }
 
@@ -1377,65 +1388,38 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Evaluate if request should use intra-segment search based on query and aggregation analysis.
-     * Uses the composite decision strategy where aggregation benefit can outweigh query regression.
+     * Evaluate if request should use intra-segment search based on partition strategy and query/aggregation analysis.
+     * Both "balanced" and "force" strategies check query/agg support.
+     * "force" skips minSegmentSize and maxDocsPerPartition checks, partitioning all segments.
      */
     public void evaluateRequestShouldUseIntraSegmentSearch() {
-        if (getIntraSegmentSearchEnabled() == false || shouldUseConcurrentSearch() == false) {
+        String partitionStrategy = getPartitionStrategy();
+        // If strategy is "none", no partitioning
+        if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
             requestShouldUseIntraSegmentSearch.set(false);
             return;
         }
-        IntraSegmentSearchDecision queryDecision = evaluateQueryForIntraSegment();
-        IntraSegmentSearchDecision aggDecision = evaluateAggregationsForIntraSegment();
-        boolean hasAggregations = aggregations() != null;
-        IntraSegmentSearchDecision finalDecision = IntraSegmentSearchDecision.getCompositeDecision(
-            queryDecision,
-            aggDecision,
-            hasAggregations
-        );
-        logger.info("intra-segment search decision: query={}, agg={}, final={}", queryDecision, aggDecision, finalDecision);
-        boolean result = finalDecision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.YES
-            || (finalDecision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.NO_OP && hasAggregations);
+        // StarTree precomputes aggregations at index time - intra-segment adds no benefit
+        if (aggregations() != null && StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
+            logger.debug("partition strategy decision: StarTree detected, disabling intra-segment");
+            requestShouldUseIntraSegmentSearch.set(false);
+            return;
+        }
+        // Use decider to evaluate both query and aggregations
+        DefaultIntraSegmentSearchDecider decider = new DefaultIntraSegmentSearchDecider();
+        // Evaluate query
+        if (request().source() != null && request().source().query() != null) {
+            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(Set.of(decider), indexService.getIndexSettings());
+            request().source().query().visit(visitor);
+        }
+        // Evaluate aggregations
+        if (aggregations() != null && aggregations().factories() != null) {
+            decider.evaluateForAggregations(aggregations().factories(), indexService.getIndexSettings());
+        }
+        IntraSegmentSearchDecision decision = decider.getIntraSegmentSearchDecision();
+        logger.info("partition strategy decision: strategy={}, decision={}", partitionStrategy, decision);
+
+        boolean result = decision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.YES;
         requestShouldUseIntraSegmentSearch.set(result);
-    }
-
-    private IntraSegmentSearchDecision evaluateQueryForIntraSegment() {
-        if (request().source() == null || request().source().query() == null) {
-            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no query");
-        }
-        Set<IntraSegmentSearchRequestDecider> deciders = new HashSet<>();
-        deciders.add(new DefaultIntraSegmentSearchDecider());
-        IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(deciders, indexService.getIndexSettings());
-        request().source().query().visit(visitor);
-        List<IntraSegmentSearchDecision> decisions = new ArrayList<>();
-        for (IntraSegmentSearchRequestDecider decider : deciders) {
-            decisions.add(decider.getIntraSegmentSearchDecision());
-        }
-        return IntraSegmentSearchDecision.getCompositeDecision(decisions);
-    }
-
-    private IntraSegmentSearchDecision evaluateAggregationsForIntraSegment() {
-        if (aggregations() == null || aggregations().factories() == null) {
-            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no aggregations");
-        }
-        // StarTree precomputes aggregations at index time - intra-segment adds no benefit and causes duplicate results
-        if (StarTreeQueryHelper.getSupportedStarTree(getQueryShardContext()) != null) {
-            return new IntraSegmentSearchDecision(
-                IntraSegmentSearchDecision.DecisionStatus.NO,
-                "StarTree index detected - precomputed aggregations incompatible with intra-segment"
-            );
-        }
-        boolean allSupport = aggregations().factories().allFactoriesSupportIntraSegmentSearch();
-        if (allSupport) {
-            return new IntraSegmentSearchDecision(
-                IntraSegmentSearchDecision.DecisionStatus.YES,
-                "all aggregations support intra-segment search"
-            );
-        } else {
-            return new IntraSegmentSearchDecision(
-                IntraSegmentSearchDecision.DecisionStatus.NO,
-                "some aggregations do not support intra-segment search"
-            );
-        }
     }
 }

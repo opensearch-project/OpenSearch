@@ -589,13 +589,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean getIntraSegmentSearchEnabled() {
-        return in.getIntraSegmentSearchEnabled();
+    public String getPartitionStrategy() {
+        return in.getPartitionStrategy();
     }
 
     @Override
-    public int getIntraSegmentMinSegmentSize() {
-        return in.getIntraSegmentMinSegmentSize();
+    public int getPartitionMinSegmentSize() {
+        return in.getPartitionMinSegmentSize();
     }
 
     @Override

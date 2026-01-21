@@ -11,38 +11,63 @@ package org.opensearch.search.deciders;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 
 import java.util.Optional;
 
 /**
- * Default implementation that evaluates query support for intra-segment search
- * by delegating to {@link QueryBuilder#supportsIntraSegmentSearch()}.
+ * Default implementation that evaluates query and aggregation support for intra-segment search.
  */
 @ExperimentalApi
 public class DefaultIntraSegmentSearchDecider extends IntraSegmentSearchRequestDecider {
 
-    private boolean allSupport = true;
-    private String reason = "no query evaluated";
+    private boolean querySupport = true;
+    private boolean aggSupport = true;
+    private String queryReason = "no query evaluated";
+    private String aggReason = "no aggregations evaluated";
+    private boolean hasQuery = false;
+    private boolean hasAggregations = false;
 
     @Override
     public void evaluateForQuery(QueryBuilder queryBuilder, IndexSettings indexSettings) {
+        hasQuery = true;
         boolean supports = queryBuilder.supportsIntraSegmentSearch();
-
         if (!supports) {
-            allSupport = false;
-            reason = queryBuilder.getName() + " does not support intra-segment search";
+            querySupport = false;
+            queryReason = queryBuilder.getName() + " does not support intra-segment search";
+        }
+    }
+
+    @Override
+    public void evaluateForAggregations(AggregatorFactories aggregations, IndexSettings indexSettings) {
+        if (aggregations == null) {
+            return;
+        }
+        hasAggregations = true;
+        boolean supports = aggregations.allFactoriesSupportIntraSegmentSearch();
+        if (supports) {
+            aggReason = "all aggregations support intra-segment search";
+        } else {
+            aggSupport = false;
+            aggReason = "some aggregations do not support intra-segment search";
         }
     }
 
     @Override
     public IntraSegmentSearchDecision getIntraSegmentSearchDecision() {
-        if (allSupport) {
-            return new IntraSegmentSearchDecision(
-                IntraSegmentSearchDecision.DecisionStatus.YES,
-                "all queries support intra-segment search"
-            );
+        if (hasQuery && !querySupport) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO, queryReason);
         }
-        return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO, reason);
+        if (hasAggregations && !aggSupport) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO, aggReason);
+        }
+        if (hasAggregations && aggSupport) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.YES, aggReason);
+        }
+        if (hasQuery && querySupport) {
+            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.YES, "all queries support intra-segment search");
+        }
+        return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no preference");
     }
 
     /**

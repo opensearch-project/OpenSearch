@@ -99,6 +99,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE;
+
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
@@ -585,10 +587,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // use the default lucene slice calculation
             return super.slices(leaves);
         }
-        if (searchContext.shouldUseIntraSegmentSearch() == false) {
-            return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        // Check if partitioning is enabled (query/agg support already evaluated)
+        if (searchContext.shouldUseIntraSegmentSearch()) {
+            String partitionStrategy = searchContext.getPartitionStrategy();
+            if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
+                return MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, targetMaxSlice);
+            }
+            // balanced strategy
+            return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getPartitionMinSegmentSize());
         }
-        return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getIntraSegmentMinSegmentSize());
+        // none strategy or query doesn't support partitioning
+        return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
     }
 
     public DirectoryReader getDirectoryReader() {

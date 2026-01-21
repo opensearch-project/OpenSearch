@@ -599,11 +599,11 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    public boolean getIntraSegmentSearchEnabled() {
-        return false;
+    public String getPartitionStrategy() {
+        return "none";
     }
 
-    public int getIntraSegmentMinSegmentSize() {
+    public int getPartitionMinSegmentSize() {
         return 500_000;
     }
 

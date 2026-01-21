@@ -52,26 +52,26 @@ public class IntraSegmentSearchDecision {
 
     /**
      * Combines query and aggregation decisions for intra-segment search.
-     * Strategy: Aggregations typically dominate latency, so if aggregations benefit,
-     * enable intra-segment even if query might regress slightly.
+     * Query NO is a hard veto (safety/correctness) - cannot be overridden by aggregation benefit.
      */
     public static IntraSegmentSearchDecision getCompositeDecision(
         IntraSegmentSearchDecision queryDecision,
         IntraSegmentSearchDecision aggDecision,
         boolean hasAggregations
     ) {
-        // If aggregations present and support intra-segment, prioritize aggregation benefit
-        if (hasAggregations && aggDecision != null && aggDecision.decisionStatus == DecisionStatus.YES) {
-            return new IntraSegmentSearchDecision(DecisionStatus.YES, "aggregations benefit from intra-segment search");
+        // Query NO is a hard veto - respect safety first
+        if (queryDecision != null && queryDecision.decisionStatus == DecisionStatus.NO) {
+            return new IntraSegmentSearchDecision(DecisionStatus.NO, queryDecision.decisionReason);
         }
         // If aggregations explicitly say NO, respect that
         if (hasAggregations && aggDecision != null && aggDecision.decisionStatus == DecisionStatus.NO) {
             return new IntraSegmentSearchDecision(DecisionStatus.NO, aggDecision.decisionReason);
         }
-        // No aggregations or NO_OP - use query decision
-        if (queryDecision != null && queryDecision.decisionStatus == DecisionStatus.NO) {
-            return new IntraSegmentSearchDecision(DecisionStatus.NO, queryDecision.decisionReason);
+        // If aggregations present and support intra-segment, enable it
+        if (hasAggregations && aggDecision != null && aggDecision.decisionStatus == DecisionStatus.YES) {
+            return new IntraSegmentSearchDecision(DecisionStatus.YES, "aggregations benefit from intra-segment search");
         }
+        // No aggregations - use query decision
         if (queryDecision != null && queryDecision.decisionStatus == DecisionStatus.YES) {
             return new IntraSegmentSearchDecision(DecisionStatus.YES, queryDecision.decisionReason);
         }

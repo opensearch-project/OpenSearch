@@ -342,18 +342,32 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    // Intra-segment search settings
-    public static final Setting<Boolean> INTRA_SEGMENT_SEARCH_ENABLED = Setting.boolSetting(
-        "search.intra_segment_search.enabled",
-        true,
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE = "none";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    // Partition strategy setting
+    public static final Setting<String> CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [none, balanced, force]");
+            }
+        },
         Property.Dynamic,
         Property.NodeScope
     );
 
-    // Setting to control minimum segment size for intra-segment partitioning
-    public static final Setting<Integer> INTRA_SEGMENT_SEARCH_MIN_SEGMENT_SIZE = Setting.intSetting(
-        "search.intra_segment_search.min_segment_size",
-        // 10000, // Only partition segments with 10k+ docs
+    // Minimum segment size for balanced partitioning (only applies when partition_strategy = balanced)
+    public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "search.concurrent_segment_search.partition_min_segment_size",
         500_000,
         1000,
         Property.Dynamic,
