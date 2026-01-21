@@ -735,6 +735,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
 
     @Override
     public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        if(shardResult.isEmpty()) {
+            return Collections.singletonList(buildEmptyAggregation());
+        }
         // Generate the composite keys
         List<Comparable<?>> currentCompositeKey = new ArrayList<>(sourceConfigs.length);
         List<CompositeKey> compositeKeys = new ArrayList<>(shardResult.size());
