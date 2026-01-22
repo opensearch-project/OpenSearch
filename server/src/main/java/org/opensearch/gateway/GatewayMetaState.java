@@ -174,8 +174,11 @@ public class GatewayMetaState implements Closeable {
 //                        // If there is a valid state, then restore index metadata using this state
                         String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                         if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
-                            clusterState = remoteClusterStateService.getLatestClusterStateForNewManager(clusterService.getClusterName().value(), clusterService.getNodeName());
-                            lastKnownClusterUUID = clusterState.metadata().clusterUUID();
+                            ClusterState remoteClusterState = remoteClusterStateService.getLatestClusterStateForNewManager(clusterService.getClusterName().value(), clusterService.getNodeName());
+                            if (remoteClusterState != null) {
+                                clusterState = remoteClusterState;
+                                lastKnownClusterUUID = clusterState.metadata().clusterUUID();
+                            }
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
 
