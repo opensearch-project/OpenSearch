@@ -332,8 +332,8 @@ public class ReactorHttpClient implements Closeable {
 
     }
 
-    public boolean useHttp11only() {
-        return protocol == HttpProtocol.HTTP11;
+    public HttpProtocol protocol() {
+        return protocol;
     }
 
     private static HttpProtocol randomProtocol(boolean secure, Settings settings) {
