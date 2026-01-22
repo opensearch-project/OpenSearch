@@ -74,27 +74,6 @@ public class ClusterFormationFailureHelper {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> DISCOVERY_CLUSTER_FORMATION_WARNING_ADDRESS_LIMIT_SETTING = Setting.intSetting(
-        "discovery.cluster_formation_warning_addresses_limit",
-        200,
-        0,
-        Setting.Property.NodeScope
-    );
-
-    /** Package-private for deterministic unit testing of cluster formation warning log formatting. */
-    static String formatListForLog(List<?> items, int limit) {
-        if (items == null || items.isEmpty()) {
-            return "[]";
-        }
-        if (limit <= 0) {
-            return "[... omitted; size=" + items.size() + "]";
-        }
-        if (items.size() <= limit) {
-            return items.toString();
-        }
-        return items.subList(0, limit) + " ... (+" + (items.size() - limit) + " more)";
-    }
-
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
     private final TimeValue clusterFormationWarningTimeout;
@@ -210,15 +189,13 @@ public class ClusterFormationFailureHelper {
                 false
             ).map(n -> n.toString()).collect(Collectors.toList());
 
-            final int addressLimit = DISCOVERY_CLUSTER_FORMATION_WARNING_ADDRESS_LIMIT_SETTING.get(settings);
-
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
                 "node term %d, last-accepted version %d in term %d; discovery will continue using %s from hosts providers and %s from last-known cluster state",
                 currentTerm,
                 clusterState.getVersionOrMetadataVersion(),
                 clusterState.term(),
-                formatListForLog(resolvedAddresses, addressLimit),
+                resolvedAddresses,
                 clusterStateNodes
             );
 
