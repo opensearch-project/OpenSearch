@@ -8,13 +8,10 @@
 
 package org.opensearch.telemetry.tracing.channels;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.http.HttpChunk;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.telemetry.tracing.Span;
