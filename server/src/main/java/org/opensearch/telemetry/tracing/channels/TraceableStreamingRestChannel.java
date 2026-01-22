@@ -17,7 +17,6 @@ import org.opensearch.telemetry.tracing.Tracer;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.reactivestreams.Subscriber;
 
@@ -32,16 +31,8 @@ import org.reactivestreams.Subscriber;
  *       that don't require chunk-by-chunk streaming.</li>
  * </ul>
  *
- * <p><b>Thread Safety:</b> This class is designed to handle concurrent chunk sending from
- * multiple threads (common in reactive streaming scenarios). Each operation establishes
- * its own span scope, and span completion is guarded by an atomic boolean to ensure
- * the span is ended exactly once.
- *
- * @opensearch.internal
  */
 class TraceableStreamingRestChannel extends TraceableRestChannel<StreamingRestChannel> implements StreamingRestChannel {
-
-    private final AtomicBoolean spanEnded = new AtomicBoolean(false);
 
     /**
      * Constructor.
@@ -61,8 +52,8 @@ class TraceableStreamingRestChannel extends TraceableRestChannel<StreamingRestCh
             delegate.sendChunk(chunk);
         }
 
-        // End the span when the last chunk is sent (thread-safe with atomic boolean)
-        if (chunk.isLast() && spanEnded.compareAndSet(false, true)) {
+        // End the span when the last chunk is sent
+        if (chunk.isLast()) {
             span.endSpan();
         }
     }
