@@ -3010,6 +3010,66 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals(translogBufferInterval, indexSettings.get(INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey()));
     }
 
+    /**
+     * test for disable_objects template functionality.
+     * Covers: basic template usage, nested objects, multiple templates, and V1 parsing.
+     */
+    public void testTemplateDisableObjects() throws Exception {
+        // Test 1: Basic template with disable_objects
+        IndexTemplateMetadata basicTemplate = addMatchingTemplate(builder -> {
+            try {
+                builder.putMapping(
+                    "type",
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject(MapperService.SINGLE_MAPPING_NAME)
+                        .field("disable_objects", true)
+                        .startObject("properties")
+                        .startObject("cpu.usage")
+                        .field("type", "float")
+                        .endObject()
+                        .startObject("memory.used")
+                        .field("type", "long")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .toString()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Map<String, Object> parsedMappings = MetadataCreateIndexService.parseV1Mappings(
+            "",
+            Collections.singletonList(basicTemplate.getMappings()),
+            NamedXContentRegistry.EMPTY
+        );
+
+        assertThat(parsedMappings, hasKey(MapperService.SINGLE_MAPPING_NAME));
+        Map<String, Object> doc = (Map<String, Object>) parsedMappings.get(MapperService.SINGLE_MAPPING_NAME);
+        assertEquals("Basic template should have disable_objects=true", true, doc.get("disable_objects"));
+
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        assertThat("Should have dotted field names", properties, hasKey("cpu.usage"));
+        assertThat("Should have dotted field names", properties, hasKey("memory.used"));
+
+        // Test 2: Multiple templates with different disable_objects values
+        CompressedXContent template1 = new CompressedXContent(
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}"
+        );
+        CompressedXContent template2 = new CompressedXContent(
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{\"field2\":{\"type\":\"keyword\"}}}}"
+        );
+
+        List<CompressedXContent> multipleTemplates = Arrays.asList(template1, template2);
+        Map<String, Object> multipleResult = MetadataCreateIndexService.parseV1Mappings("", multipleTemplates, NamedXContentRegistry.EMPTY);
+
+        Map<String, Object> multipleDoc = (Map<String, Object>) multipleResult.get(MapperService.SINGLE_MAPPING_NAME);
+        assertEquals("Later template should override disable_objects", true, multipleDoc.get("disable_objects"));
+    }
+
     private DiscoveryNode getRemoteNode() {
         Map<String, String> attributes = new HashMap<>();
         attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-rep-1");
@@ -3190,6 +3250,547 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // Request setting should take precedence over template
         assertEquals(Long.toString(requestCreationDate), aggregatedSettings.get(IndexMetadata.SETTING_CREATION_DATE));
+    }
+
+    /**
+     * test for disable_objects override helper methods.
+     * Covers: basic override logic, null mappings, no disable_objects scenarios.
+     */
+    public void testDisableObjectsOverrideLogic() throws Exception {
+        // Test 1: Basic override functionality
+        List<Map<String, Object>> mappings = new ArrayList<>();
+
+        Map<String, Object> mapping1 = new HashMap<>();
+        Map<String, Object> doc1 = new HashMap<>();
+        doc1.put("disable_objects", false);
+        doc1.put("properties", new HashMap<>());
+        mapping1.put(MapperService.SINGLE_MAPPING_NAME, doc1);
+        mappings.add(mapping1);
+
+        Map<String, Object> mapping2 = new HashMap<>();
+        Map<String, Object> doc2 = new HashMap<>();
+        doc2.put("disable_objects", true);
+        doc2.put("properties", new HashMap<>());
+        mapping2.put(MapperService.SINGLE_MAPPING_NAME, doc2);
+        mappings.add(mapping2);
+
+        MetadataCreateIndexService.applyDisableObjectsOverrides(mappings);
+
+        // All mappings should now have disable_objects=true (from the last template)
+        for (Map<String, Object> mapping : mappings) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> docMap = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("All mappings should have disable_objects=true", true, docMap.get("disable_objects"));
+        }
+
+        // Test 2: Edge case with null mappings
+        List<Map<String, Object>> nullMappings = new ArrayList<>();
+        nullMappings.add(null);
+        Map<String, Object> validMapping = new HashMap<>();
+        Map<String, Object> validDoc = new HashMap<>();
+        validDoc.put("disable_objects", true);
+        validMapping.put(MapperService.SINGLE_MAPPING_NAME, validDoc);
+        nullMappings.add(validMapping);
+
+        MetadataCreateIndexService.applyDisableObjectsOverrides(nullMappings);
+
+        Map<String, Object> resultDoc = (Map<String, Object>) nullMappings.get(1).get(MapperService.SINGLE_MAPPING_NAME);
+        assertEquals("Should handle null mappings gracefully", true, resultDoc.get("disable_objects"));
+
+        // Test 3: No disable_objects scenario
+        List<Map<String, Object>> noDisableObjectsMappings = new ArrayList<>();
+        Map<String, Object> mapping3 = new HashMap<>();
+        Map<String, Object> doc3 = new HashMap<>();
+        doc3.put("properties", new HashMap<>());
+        mapping3.put(MapperService.SINGLE_MAPPING_NAME, doc3);
+        noDisableObjectsMappings.add(mapping3);
+
+        MetadataCreateIndexService.applyDisableObjectsOverrides(noDisableObjectsMappings);
+
+        Map<String, Object> resultDoc3 = (Map<String, Object>) noDisableObjectsMappings.get(0).get(MapperService.SINGLE_MAPPING_NAME);
+        assertFalse("No disable_objects should be added", resultDoc3.containsKey("disable_objects"));
+    }
+
+    /**
+     * test for V2 template disable_objects functionality.
+     * Covers: collectV2Mappings with override logic, multiple templates, request mapping priority.
+     */
+    public void testV2TemplateDisableObjects() throws Exception {
+        // Test 1: Basic V2 collectV2Mappings with disable_objects override logic
+        String template1 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}";
+        String template2 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}";
+        String requestMapping = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}";
+
+        List<CompressedXContent> templateMappings = Arrays.asList(new CompressedXContent(template1), new CompressedXContent(template2));
+
+        List<Map<String, Object>> result = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping,
+            templateMappings,
+            xContentRegistry()
+        );
+
+        assertEquals("Should have 3 mappings (2 templates + 1 request)", 3, result.size());
+        for (Map<String, Object> mapping : result) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("All mappings should have disable_objects=true", true, doc.get("disable_objects"));
+        }
+
+        // Test 2: Request mapping with disable_objects overrides templates
+        String requestWithDisableObjects = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}";
+
+        List<Map<String, Object>> result2 = MetadataCreateIndexService.collectV2Mappings(
+            requestWithDisableObjects,
+            templateMappings,
+            xContentRegistry()
+        );
+
+        for (Map<String, Object> mapping : result2) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("Request mapping should override template disable_objects", false, doc.get("disable_objects"));
+        }
+
+        // Test 3: Multiple templates with different values, request overrides all
+        String template3a = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}";
+        String template3b = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}";
+        String requestMapping3 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}";
+
+        List<CompressedXContent> templateMappings3 = Arrays.asList(new CompressedXContent(template3a), new CompressedXContent(template3b));
+
+        List<Map<String, Object>> result3 = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping3,
+            templateMappings3,
+            xContentRegistry()
+        );
+
+        assertEquals("Should have 3 mappings (2 templates + 1 request)", 3, result3.size());
+        for (Map<String, Object> mapping : result3) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("All mappings should have disable_objects=false from request", false, doc.get("disable_objects"));
+        }
+
+        // Test 4: Template has disable_objects, request doesn't - template value should be applied
+        String template4 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}";
+        String requestMapping4 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}";
+
+        List<CompressedXContent> templateMappings4 = Arrays.asList(new CompressedXContent(template4));
+
+        List<Map<String, Object>> result4 = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping4,
+            templateMappings4,
+            xContentRegistry()
+        );
+
+        assertEquals("Should have 2 mappings (1 template + 1 request)", 2, result4.size());
+        for (Map<String, Object> mapping : result4) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("All mappings should have disable_objects=true from template", true, doc.get("disable_objects"));
+        }
+    }
+
+    /**
+     * test for V1/V2 equivalence with disable_objects.
+     * Covers: V1/V2 request mapping priority, equivalence validation, edge cases.
+     */
+    public void testV1V2DisableObjectsEquivalence() throws Exception {
+        // Test 1: Basic V1/V2 equivalence with single template
+        validateV1V2Equivalence(
+            Arrays.asList("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}"),
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}"
+        );
+
+        // Test 2: Request mapping priority - template has disable_objects=false, request has disable_objects=true
+        List<CompressedXContent> templateMappings1 = Arrays.asList(
+            new CompressedXContent("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}")
+        );
+        String requestMapping1 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}";
+
+        Map<String, Object> v1Result1 = MetadataCreateIndexService.parseV1Mappings(requestMapping1, templateMappings1, xContentRegistry());
+        List<Map<String, Object>> v2ResultList1 = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping1,
+            templateMappings1,
+            xContentRegistry()
+        );
+
+        Object v1DisableObjects1 = extractDisableObjectsValue(v1Result1);
+        assertEquals("V1 should preserve request mapping disable_objects=true", true, v1DisableObjects1);
+
+        for (Map<String, Object> mapping : v2ResultList1) {
+            Object v2DisableObjects = extractDisableObjectsValue(mapping);
+            assertEquals("V2 should apply request mapping disable_objects=true to all mappings", true, v2DisableObjects);
+        }
+
+        // Test 3: Request mapping priority - template has disable_objects=true, request has disable_objects=false
+        List<CompressedXContent> templateMappings2 = Arrays.asList(
+            new CompressedXContent("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}")
+        );
+        String requestMapping2 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}";
+
+        Map<String, Object> v1Result2 = MetadataCreateIndexService.parseV1Mappings(requestMapping2, templateMappings2, xContentRegistry());
+        List<Map<String, Object>> v2ResultList2 = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping2,
+            templateMappings2,
+            xContentRegistry()
+        );
+
+        Object v1DisableObjects2 = extractDisableObjectsValue(v1Result2);
+        assertEquals("V1 should preserve request mapping disable_objects=false", false, v1DisableObjects2);
+
+        for (Map<String, Object> mapping : v2ResultList2) {
+            Object v2DisableObjects = extractDisableObjectsValue(mapping);
+            assertEquals("V2 should apply request mapping disable_objects=false to all mappings", false, v2DisableObjects);
+        }
+
+        // Test 4: Multiple templates with different values, request overrides all
+        validateV1V2Equivalence(
+            Arrays.asList(
+                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}",
+                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}"
+            ),
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":false,\"properties\":{}}}"
+        );
+
+        // Test 5: Templates without disable_objects
+        validateV1V2Equivalence(
+            Arrays.asList("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}"),
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}"
+        );
+
+        // Test 6: Complex scenario with multiple templates and properties
+        validateV1V2Equivalence(
+            Arrays.asList(
+                "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}",
+                "{\""
+                    + MapperService.SINGLE_MAPPING_NAME
+                    + "\":{\"disable_objects\":true,\"properties\":{\"field2\":{\"type\":\"keyword\"}}}}"
+            ),
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field3\":{\"type\":\"long\"}}}}"
+        );
+    }
+
+    /**
+     * test for backward compatibility with templates without disable_objects.
+     * Covers: default mapping merge behavior, V1 functionality preservation, V2 template integration
+     */
+    public void testBackwardCompatibility() throws Exception {
+        // Test 1: Default mapping merge behavior when no disable_objects is present
+        String template1 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}";
+        String template2 = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}}";
+        String requestMapping = "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{\"field3\":{\"type\":\"long\"}}}}";
+
+        List<CompressedXContent> templateMappings = Arrays.asList(new CompressedXContent(template1), new CompressedXContent(template2));
+
+        // Test V2 collectV2Mappings
+        List<Map<String, Object>> v2Result = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping,
+            templateMappings,
+            xContentRegistry()
+        );
+
+        assertEquals("Should have 3 mappings (2 templates + 1 request)", 3, v2Result.size());
+        for (int i = 0; i < v2Result.size(); i++) {
+            Map<String, Object> mapping = v2Result.get(i);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertFalse("Mapping " + i + " should not contain disable_objects", doc.containsKey("disable_objects"));
+        }
+
+        // Test V1 parseV1Mappings
+        Map<String, Object> v1Result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templateMappings, xContentRegistry());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> v1Doc = (Map<String, Object>) v1Result.get(MapperService.SINGLE_MAPPING_NAME);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> v1Properties = (Map<String, Object>) v1Doc.get("properties");
+
+        assertTrue("V1 result should contain field1", v1Properties.containsKey("field1"));
+        assertTrue("V1 result should contain field2", v1Properties.containsKey("field2"));
+        assertTrue("V1 result should contain field3", v1Properties.containsKey("field3"));
+        assertFalse("V1 should not add disable_objects when none are present", v1Doc.containsKey("disable_objects"));
+
+        // Test 2: Realistic V2 template integration scenario
+        String logTemplate = "{\n"
+            + "  \""
+            + MapperService.SINGLE_MAPPING_NAME
+            + "\": {\n"
+            + "    \"properties\": {\n"
+            + "      \"@timestamp\": {\"type\": \"date\"},\n"
+            + "      \"level\": {\"type\": \"keyword\"},\n"
+            + "      \"message\": {\n"
+            + "        \"type\": \"text\",\n"
+            + "        \"fields\": {\n"
+            + "          \"keyword\": {\"type\": \"keyword\", \"ignore_above\": 256}\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+        String metricTemplate = "{\n"
+            + "  \""
+            + MapperService.SINGLE_MAPPING_NAME
+            + "\": {\n"
+            + "    \"properties\": {\n"
+            + "      \"metric_name\": {\"type\": \"keyword\"},\n"
+            + "      \"value\": {\"type\": \"double\"},\n"
+            + "      \"tags\": {\n"
+            + "        \"type\": \"object\",\n"
+            + "        \"properties\": {\n"
+            + "          \"environment\": {\"type\": \"keyword\"},\n"
+            + "          \"service\": {\"type\": \"keyword\"}\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+        String complexRequestMapping = "{\n"
+            + "  \""
+            + MapperService.SINGLE_MAPPING_NAME
+            + "\": {\n"
+            + "    \"properties\": {\n"
+            + "      \"custom_id\": {\"type\": \"keyword\"},\n"
+            + "      \"created_at\": {\"type\": \"date\"}\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+        List<CompressedXContent> complexTemplates = Arrays.asList(
+            new CompressedXContent(logTemplate),
+            new CompressedXContent(metricTemplate)
+        );
+
+        List<Map<String, Object>> complexResult = MetadataCreateIndexService.collectV2Mappings(
+            complexRequestMapping,
+            complexTemplates,
+            xContentRegistry()
+        );
+
+        assertEquals("Should have 3 mappings (2 templates + 1 request)", 3, complexResult.size());
+
+        // Verify no disable_objects field is added and structure is preserved
+        for (int i = 0; i < complexResult.size(); i++) {
+            Map<String, Object> mapping = complexResult.get(i);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertNull("Mapping " + i + " should not have disable_objects field", doc.get("disable_objects"));
+        }
+
+        // Verify log template structure is preserved
+        Map<String, Object> logResult = complexResult.get(0);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> logDoc = (Map<String, Object>) logResult.get(MapperService.SINGLE_MAPPING_NAME);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> logProperties = (Map<String, Object>) logDoc.get("properties");
+
+        assertTrue("Log template should have @timestamp", logProperties.containsKey("@timestamp"));
+        assertTrue("Log template should have level", logProperties.containsKey("level"));
+        assertTrue("Log template should have message", logProperties.containsKey("message"));
+
+        // Test 3: Mixed scenario - some templates with disable_objects, some without
+        String templateWithDisableObjects = "{\""
+            + MapperService.SINGLE_MAPPING_NAME
+            + "\":{\"disable_objects\":true,\"properties\":{\"field1\":{\"type\":\"text\"}}}}";
+        String templateWithoutDisableObjects = "{\""
+            + MapperService.SINGLE_MAPPING_NAME
+            + "\":{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}}";
+
+        List<CompressedXContent> mixedTemplates = Arrays.asList(
+            new CompressedXContent(templateWithoutDisableObjects),
+            new CompressedXContent(templateWithDisableObjects)
+        );
+
+        List<Map<String, Object>> mixedResult = MetadataCreateIndexService.collectV2Mappings(
+            "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}",
+            mixedTemplates,
+            xContentRegistry()
+        );
+
+        // All mappings should now have disable_objects=true due to override logic
+        assertEquals("Should have 3 mappings", 3, mixedResult.size());
+        for (Map<String, Object> mapping : mixedResult) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            assertEquals("All mappings should have disable_objects=true after override", true, doc.get("disable_objects"));
+        }
+    }
+
+    /**
+     * Test V1/V2 equivalence with edge cases like null mappings and empty templates.
+     */
+    public void testV1V2EquivalenceEdgeCases() throws Exception {
+        // Test case 1: Empty template list
+        validateV1V2Equivalence(Collections.emptyList(), "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}");
+
+        // Test case 2: Empty request mapping
+        validateV1V2Equivalence(
+            Arrays.asList("{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"disable_objects\":true,\"properties\":{}}}"),
+            ""
+        );
+
+        // Test case 3: Template with empty mapping content
+        validateV1V2Equivalence(Arrays.asList("{}"), "{\"" + MapperService.SINGLE_MAPPING_NAME + "\":{\"properties\":{}}}");
+    }
+
+    /**
+     * Utility method to validate that V1 and V2 template processing produce equivalent
+     * disable_objects behavior for the same input templates and request mapping.
+     */
+    private void validateV1V2Equivalence(List<String> templateMappingStrings, String requestMapping) throws Exception {
+        // Convert template strings to CompressedXContent
+        List<CompressedXContent> templateMappings = templateMappingStrings.stream().map(s -> {
+            try {
+                return new CompressedXContent(s);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }).collect(Collectors.toList());
+
+        // Process with V1 method
+        Map<String, Object> v1Result = MetadataCreateIndexService.parseV1Mappings(requestMapping, templateMappings, xContentRegistry());
+
+        // Process with V2 method
+        List<Map<String, Object>> v2ResultList = MetadataCreateIndexService.collectV2Mappings(
+            requestMapping,
+            templateMappings,
+            xContentRegistry()
+        );
+
+        // Extract disable_objects values
+        Object v1DisableObjects = extractDisableObjectsValue(v1Result);
+
+        // For V2, find the disable_objects value from any mapping that has it
+        // After override processing, all mappings with _doc sections should have the same value
+        Object v2DisableObjects = null;
+        for (Map<String, Object> mapping : v2ResultList) {
+            Object mappingDisableObjects = extractDisableObjectsValue(mapping);
+            if (mappingDisableObjects != null) {
+                v2DisableObjects = mappingDisableObjects;
+                break; // Found a disable_objects value, use it for comparison
+            }
+        }
+
+        assertEquals(
+            "V1 and V2 should produce equivalent disable_objects values. "
+                + "V1 result: "
+                + v1DisableObjects
+                + ", V2 result: "
+                + v2DisableObjects,
+            v1DisableObjects,
+            v2DisableObjects
+        );
+
+        // Additional validation: ensure all mappings in V2 result have consistent disable_objects
+        // (only check mappings that have _doc sections)
+        if (v2DisableObjects != null) {
+            for (Map<String, Object> mapping : v2ResultList) {
+                Object mappingDisableObjects = extractDisableObjectsValue(mapping);
+                if (mappingDisableObjects != null) { // Only check mappings that have _doc sections
+                    assertEquals(
+                        "All V2 mappings with _doc sections should have consistent disable_objects values after override processing",
+                        v2DisableObjects,
+                        mappingDisableObjects
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Utility method to extract the disable_objects value from a mapping.
+     * Returns null if disable_objects is not present.
+     */
+    private Object extractDisableObjectsValue(Map<String, Object> mapping) {
+        if (mapping == null) {
+            return null;
+        }
+
+        Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+        if (docObj instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = (Map<String, Object>) docObj;
+            return doc.get("disable_objects");
+        }
+
+        return null;
+    }
+
+    /**
+     * Simple test to verify the V1/V2 equivalence validation utilities work correctly.
+     * This test validates the basic functionality of the comparison methods.
+     */
+    public void testV1V2EquivalenceValidationUtility() throws Exception {
+        // Test the extractDisableObjectsValue utility method
+        Map<String, Object> mappingWithDisableObjects = new HashMap<>();
+        Map<String, Object> docWithDisableObjects = new HashMap<>();
+        docWithDisableObjects.put("disable_objects", true);
+        docWithDisableObjects.put("properties", new HashMap<>());
+        mappingWithDisableObjects.put(MapperService.SINGLE_MAPPING_NAME, docWithDisableObjects);
+
+        Object result = extractDisableObjectsValue(mappingWithDisableObjects);
+        assertEquals("Should extract disable_objects value correctly", true, result);
+
+        // Test with mapping without disable_objects
+        Map<String, Object> mappingWithoutDisableObjects = new HashMap<>();
+        Map<String, Object> docWithoutDisableObjects = new HashMap<>();
+        docWithoutDisableObjects.put("properties", new HashMap<>());
+        mappingWithoutDisableObjects.put(MapperService.SINGLE_MAPPING_NAME, docWithoutDisableObjects);
+
+        Object resultNull = extractDisableObjectsValue(mappingWithoutDisableObjects);
+        assertNull("Should return null when disable_objects is not present", resultNull);
+
+        // Test with null mapping
+        Object resultNullMapping = extractDisableObjectsValue(null);
+        assertNull("Should return null for null mapping", resultNullMapping);
+    }
+
+    /**
+     * Test for field property override behavior in parseV1Mappings.
+     * This test reproduces the exact scenario from SimpleIndexTemplateIT.testSimpleIndexTemplateTests
+     */
+    public void testFieldPropertyOverrideInParseV1Mappings() throws Exception {
+        // Template 1 (order 0): field2 with type=keyword, store=true
+        CompressedXContent template1 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"properties\":{"
+                + "\"field1\":{\"type\":\"text\",\"store\":true},"
+                + "\"field2\":{\"type\":\"keyword\",\"store\":true}"
+                + "}}}"
+        );
+
+        // Template 2 (order 1): field2 with type=text, store=false
+        CompressedXContent template2 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"properties\":{"
+                + "\"field2\":{\"type\":\"text\",\"store\":false}"
+                + "}}}"
+        );
+
+        // Templates are processed in order: template2 (order 1) first, then template1 (order 0)
+        // But template2 should win because it has higher order
+        List<CompressedXContent> templates = Arrays.asList(template2, template1);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("", templates, NamedXContentRegistry.EMPTY);
+
+        // Verify the result
+        Map<String, Object> doc = (Map<String, Object>) result.get(MapperService.SINGLE_MAPPING_NAME);
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        Map<String, Object> field2 = (Map<String, Object>) properties.get("field2");
+
+        // field2 should have the complete definition from template2 (higher priority)
+        assertEquals("field2 type should be from template2", "text", field2.get("type"));
+        assertEquals("field2 store should be from template2", false, field2.get("store"));
+
+        // field1 should be from template1 (only defined there)
+        Map<String, Object> field1 = (Map<String, Object>) properties.get("field1");
+        assertEquals("field1 type should be from template1", "text", field1.get("type"));
+        assertEquals("field1 store should be from template1", true, field1.get("store"));
     }
 
 }

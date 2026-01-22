@@ -329,7 +329,10 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
-            this.requestCreator = new Netty4Http3RequestCreator(transport.maxInitialLineLength);
+            this.requestCreator = new Netty4Http3RequestCreator(
+                transport.maxInitialLineLength,
+                HttpResponseHeadersFactories.newHttp2Aware(transport.settings, transport)
+            );
             this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }

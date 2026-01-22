@@ -32,6 +32,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.HllFieldData;
+import org.opensearch.index.mapper.HllFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -142,6 +146,17 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        // Use HllCardinalityAggregator for HLL fields
+        if (config.fieldContext() != null) {
+            MappedFieldType fieldType = config.fieldContext().fieldType();
+            if (fieldType instanceof HllFieldMapper.HllFieldType hllFieldType) {
+                IndexFieldData<?> indexFieldData = searchContext.getQueryShardContext().getForField(fieldType);
+                if (indexFieldData instanceof HllFieldData hllFieldData) {
+                    return new HllCardinalityAggregator(name, hllFieldData, hllFieldType.precision(), searchContext, parent, metadata);
+                }
+            }
+        }
+
         // Check streaming eligibility first
         if (shouldUseStreaming(searchContext)) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);

@@ -24,6 +24,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.InternalApi;
@@ -592,12 +593,37 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
      * will be called.
      *
-     * @param from     The directory for the file to be uploaded
-     * @param src      File to be uploaded
-     * @param context  IOContext to be used to open IndexInput of file during remote upload
-     * @param listener Listener to handle upload callback events
+     * @param from              The directory for the file to be uploaded
+     * @param src               File to be uploaded
+     * @param context           IOContext to be used to open IndexInput of file during remote upload
+     * @param listener          Listener to handle upload callback events
+     * @param lowPriorityUpload Whether this is a low priority upload
      */
     public void copyFrom(Directory from, String src, IOContext context, ActionListener<Void> listener, boolean lowPriorityUpload) {
+        copyFrom(from, src, context, listener, lowPriorityUpload, null);
+    }
+
+    /**
+     * Copies a file from the source directory to a remote based on multi-stream upload support.
+     * If vendor plugin supports uploading multiple parts in parallel, <code>BlobContainer#writeBlobByStreams</code>
+     * will be used, else, the legacy {@link RemoteSegmentStoreDirectory#copyFrom(Directory, String, String, IOContext)}
+     * will be called.
+     *
+     * @param from              The directory for the file to be uploaded
+     * @param src               File to be uploaded
+     * @param context           IOContext to be used to open IndexInput of file during remote upload
+     * @param listener          Listener to handle upload callback events
+     * @param lowPriorityUpload Whether this is a low priority upload
+     * @param cryptoMetadata    CryptoMetadata for index-level encryption
+     */
+    public void copyFrom(
+        Directory from,
+        String src,
+        IOContext context,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
+    ) {
         try {
             final String remoteFileName = getNewRemoteSegmentFilename(src);
             boolean uploaded = false;
@@ -608,7 +634,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     } catch (IOException e) {
                         throw new RuntimeException("Exception in segment postUpload for file " + src, e);
                     }
-                }, listener, lowPriorityUpload);
+                }, listener, lowPriorityUpload, cryptoMetadata);
             }
             if (uploaded == false) {
                 copyFrom(from, src, src, context);
