@@ -320,21 +320,14 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
 
     public void testSlicesWithMaxTargetSliceSupplier() throws Exception {
         final List<LeafReaderContext> leaves = getLeaves(10);
-
-        // Case 1: Verify the slice count when lucene default slice computation is used (targetMaxSlice=0)
-        // This would use super.slices() in ContextIndexSearcher, but we test MaxTargetSliceSupplier directly
         int expectedSliceCount = 4;
         IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
-
-        // 4 slices with 10 leaves distributed
         assertEquals(expectedSliceCount, slices.length);
         int totalPartitions = 0;
         for (IndexSearcher.LeafSlice slice : slices) {
             totalPartitions += slice.partitions.length;
         }
         assertEquals(10, totalPartitions);
-
-        // Case 2: Verify with different slice count
         expectedSliceCount = 2;
         slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
         assertEquals(expectedSliceCount, slices.length);

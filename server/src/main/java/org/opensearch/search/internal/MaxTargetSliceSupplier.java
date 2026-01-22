@@ -31,9 +31,6 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PART
  */
 final class MaxTargetSliceSupplier {
 
-    /**
-     * Main entry point - selects appropriate slicing strategy based on parameters.
-     */
     static IndexSearcher.LeafSlice[] getSlices(
         List<LeafReaderContext> leaves,
         int targetMaxSlice,

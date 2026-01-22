@@ -77,7 +77,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            // Create 3 segments: 3 docs, 1 doc, 1 doc
             for (int i = 0; i < 3; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
@@ -101,7 +100,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 assertEquals(3, leaves.size());
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, 2);
                 assertEquals(2, slices.length);
-                // LPT distributes: largest (3 docs) to slice 0, then 1+1 to slice 1
                 assertEquals(5, slices[0].getMaxDocs() + slices[1].getMaxDocs());
             }
         }
@@ -126,7 +124,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(1, leaves.size());
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
-                // 1 segment partitioned into 4 → 4 slices (one partition per slice due to constraint)
                 assertEquals(4, slices.length);
                 for (IndexSearcher.LeafSlice slice : slices) {
                     assertEquals(1, slice.partitions.length);
@@ -143,7 +140,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            // Create 2 segments with 50 docs each
             for (int i = 0; i < 50; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
@@ -160,9 +156,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(2, leaves.size());
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
-                // 2 segments × 4 partitions = 8 partitions, distributed across 4 slices
                 assertEquals(4, slices.length);
-                // Each slice should have 2 partitions (one from each segment)
                 for (IndexSearcher.LeafSlice slice : slices) {
                     assertEquals(2, slice.partitions.length);
                 }
@@ -179,7 +173,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            // Create 1 large segment
             for (int i = 0; i < 1000; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
@@ -189,7 +182,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(1, leaves.size());
-                // minSegmentSize=100, targetSlices=4 → segment qualifies for partitioning
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, 4, 100);
                 assertEquals(4, slices.length);
             }
@@ -204,7 +196,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            // Create 1 small segment
             for (int i = 0; i < 50; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
@@ -214,7 +205,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(1, leaves.size());
-                // minSegmentSize=100 → segment too small, stays whole
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, 4, 100);
                 assertEquals(1, slices.length);
                 assertEquals(1, slices[0].partitions.length);
@@ -291,8 +281,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
-                // Verify each slice has partitions from different segments (here only 1 segment)
-                // So each slice should have exactly 1 partition
                 for (IndexSearcher.LeafSlice slice : slices) {
                     assertEquals(1, slice.partitions.length);
                 }
