@@ -5295,7 +5295,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 && totalOperations > batchSize
                 && translogConcurrentRecoverySemaphore.tryAcquire(batches);
             if (isConcurrentRecovery) {
-                List<Translog.Snapshot> translogSnapshotList = new ArrayList<>();
                 List<Future<Integer>> translogRecoveryFutureList = new ArrayList<>();
                 try {
                     // Since the translog does not change at this time, it is safe to re-partition the translog snapshot here.
@@ -5306,11 +5305,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         long start = localCheckpoint + 1 + (long) i * batchSize;
                         long end = (i == batches - 1) ? Long.MAX_VALUE : start + batchSize - 1;
                         translogRecoveryFutureList.add(completionService.submit(() -> {
-                            Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false);
-                            translogSnapshotList.add(translogSnapshot);
-                            return runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
-                                // TODO: add a dedicate recovery stats for the reset translog
-                            });
+                            try (Translog.Snapshot translogSnapshot = engine.translogManager().newChangesSnapshot(start, end, false)) {
+                                return runTranslogRecovery(engine, translogSnapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
+                                    // TODO: add a dedicate recovery stats for the reset translog
+                                });
+                            }
                         }));
                     }
                     Exception exception = null;
@@ -5340,7 +5339,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     translogRecoveryOperations = totalRecovered;
                 } finally {
-                    IOUtils.closeWhileHandlingException(translogSnapshotList);
                     translogConcurrentRecoverySemaphore.release(batches);
                 }
             } else {
