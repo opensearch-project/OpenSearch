@@ -35,6 +35,7 @@ package org.opensearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.Lucene;
@@ -379,6 +380,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         nodeQueueSize = in.readInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setRescoreDocIds(new RescoreDocIds(in));
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            partial = in.readBoolean();
+            if (in.readBoolean()) {
+                docIds = in.readList(StreamInput::readInt);
+            } else {
+                docIds = null;
+            }
+        }
     }
 
     @Override
@@ -430,6 +439,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeBoolean(partial);
+            if (docIds != null) {
+                out.writeBoolean(true);
+                out.writeCollection(docIds, StreamOutput::writeInt);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     public TotalHits getTotalHits() {
