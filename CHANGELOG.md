@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add `Alt-Svc` header support to advertise HTTP/3 availability ([#20434](https://github.com/opensearch-project/OpenSearch/pull/20434))
 
 ### Fixed
+- Fix `addEmptyBuckets` while reducing histograms from consuming too much memory and tripping CircuitBreaker ([#17718](https://github.com/opensearch-project/OpenSearch/pull/17718))
 - Fix bug of warm index: FullFileCachedIndexInput was closed error ([#20055](https://github.com/opensearch-project/OpenSearch/pull/20055))
 - Fix flaky test ClusterMaxMergesAtOnceIT.testClusterLevelDefaultUpdatesMergePolicy ([#18056](https://github.com/opensearch-project/OpenSearch/issues/18056))
 - Fix bug in Assertion framework(Yaml Rest test): numeric comparison fails when comparing Integer vs Long (or Float vs Double) ([#19376](https://github.com/opensearch-project/OpenSearch/pull/19376))
