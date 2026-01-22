@@ -2543,19 +2543,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
                 try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
                     Collection<FileMetadata> localFileMetadataList = catalogSnapshotRef.getRef().getFileMetadataList();
-                    Set<String> localFiles = localFileMetadataList.stream()
+                    Set<String> serializedLocalFiles = localFileMetadataList.stream()
                         .filter(fm -> !RemoteStoreRefreshListener.EXCLUDE_FILES.contains(fm.file()))
                         .map(FileMetadata::serialize)
                         .collect(Collectors.toSet());
-                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
-                    if (uploadFiles.containsAll(localFiles)) {
+
+                    if (uploadFiles.containsAll(serializedLocalFiles)) {
                         return true;
                     }
                     logger.debug(
                         () -> new ParameterizedMessage(
                             "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
-                            localFiles.size(),
+                            serializedLocalFiles.size(),
                             uploadFiles.size()
                         )
                     );
@@ -5958,12 +5957,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    if(isOptimizedIndex())
-                    {
+                    if(isOptimizedIndex()){
                         segmentNFile = file;
                     }
-                    else
-                    {
+                    else{
                         segmentNFile = fileMetadata.file();
                     }
                 }

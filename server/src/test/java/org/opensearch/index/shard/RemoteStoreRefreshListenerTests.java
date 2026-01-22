@@ -31,7 +31,12 @@ import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.bridge.Indexer;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
+import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -755,6 +760,29 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
         when(shard.getLatestReplicationCheckpoint()).thenReturn(indexShard.getLatestReplicationCheckpoint());
 
+        AtomicLong counter = new AtomicLong();
+
+        // Mock indexShard.getCatalogSnapshotFromEngine() - mirrors original getSegmentInfosSnapshot behavior
+        // This increments counter and throws on early attempts, just like the original code did
+        doAnswer(invocation -> {
+            if (counter.incrementAndGet() <= succeedOnAttempt) {
+                logger.error("Failing in getCatalogSnapshotFromEngine {}", counter.get());
+                throw new RuntimeException("Inducing failure in upload");
+            }
+            GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot();
+            SegmentInfos segmentInfos = segmentInfosSnapshot.get();
+            CatalogSnapshot catalogSnapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
+            return new CompositeEngine.ReleasableRef<CatalogSnapshot>(catalogSnapshot) {
+                @Override
+                public void close() throws Exception {
+                    segmentInfosSnapshot.close();
+                }
+            };
+        }).when(shard).getCatalogSnapshotFromEngine();
+
+        // Mock store.readLastCommittedSegmentsInfo() for metadata upload
+        when(store.readLastCommittedSegmentsInfo()).thenReturn(indexShard.store().readLastCommittedSegmentsInfo());
+
         // Mock indexShard.routingEntry().primary()
         when(shard.routingEntry()).thenReturn(indexShard.routingEntry());
 
@@ -769,7 +797,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return true;
         }).when(shard).isStartedPrimary();
 
-        AtomicLong counter = new AtomicLong();
         // Mock indexShard.getSegmentInfosSnapshot()
         doAnswer(invocation -> {
             if (counter.incrementAndGet() <= succeedOnAttempt) {
@@ -799,8 +826,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 successLatch.countDown();
                 logger.info("Value fo latch {}", successLatch.getCount());
             }
-            return indexShard.getEngine();
-        }).when(shard).getEngine();
+            return indexShard.getIndexer();
+        }).when(shard).getIndexer();
 
         SegmentReplicationCheckpointPublisher emptyCheckpointPublisher = spy(SegmentReplicationCheckpointPublisher.EMPTY);
         AtomicLong checkpointPublisherCounter = new AtomicLong();
@@ -876,7 +903,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             for (String file : segmentInfos.files(true)) {
                 if (!RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file)) {
                     FileMetadata fileMetadata = new FileMetadata("lucene", file);
-                    assertTrue(uploadedSegments.containsKey(fileMetadata));
+                    assertTrue(uploadedSegments.containsKey(fileMetadata.toString()));
                 }
                 if (file.startsWith(IndexFileNames.SEGMENTS)) {
                     segmentsNFilename = file;

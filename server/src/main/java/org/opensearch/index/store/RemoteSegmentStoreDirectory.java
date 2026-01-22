@@ -331,10 +331,11 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
      */
     @Override
     public void deleteFile(String name) throws IOException {
-        String remoteFilename = getExistingRemoteFilename(name);
+        String fileName = new FileMetadata(name).toString();
+        String remoteFilename = getExistingRemoteFilename(fileName);
         if (remoteFilename != null) {
             remoteDataDirectory.deleteFile(remoteFilename);
-            segmentsUploadedToRemoteStore.remove(name);
+            segmentsUploadedToRemoteStore.remove(fileName);
         }
     }
 
@@ -690,10 +691,11 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
     }
 
     public String getExistingRemoteFilename(String localFilename) {
-        if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
-            return segmentsUploadedToRemoteStore.get(localFilename).getUploadedFilename();
-        } else if (isMergedSegmentPendingDownload(localFilename)) {
-            return pendingDownloadMergedSegments.get(localFilename);
+        String localFileMetadata = new FileMetadata(localFilename).toString();
+        if (segmentsUploadedToRemoteStore.containsKey(localFileMetadata)) {
+            return segmentsUploadedToRemoteStore.get(localFileMetadata).getUploadedFilename();
+        } else if (isMergedSegmentPendingDownload(localFilename.toString())) {
+            return pendingDownloadMergedSegments.get(localFilename.toString());
         }
         return null;
     }
