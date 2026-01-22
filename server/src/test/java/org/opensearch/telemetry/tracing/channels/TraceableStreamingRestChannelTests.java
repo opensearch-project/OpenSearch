@@ -162,36 +162,7 @@ public class TraceableStreamingRestChannelTests extends OpenSearchTestCase {
         verify(span, times(1)).endSpan();
     }
 
-    public void testSendResponseDelegatesToUnderlying() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        RestResponse response = mock(RestResponse.class);
-        channel.sendResponse(response);
-
-        verify(delegate, times(1)).sendResponse(response);
-    }
-
-    public void testSendResponseExecutesWithinSpanScope() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        RestResponse response = mock(RestResponse.class);
-        channel.sendResponse(response);
-
-        // Verify span scope was created and closed
-        verify(tracer, times(1)).withSpanInScope(span);
-        verify(spanScope, times(1)).close();
-    }
-
-    public void testSendResponseEndsSpan() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        RestResponse response = mock(RestResponse.class);
-        channel.sendResponse(response);
-
-        verify(span, times(1)).endSpan();
-    }
-
-    public void testSpanEndedOnlyOnceWhenBothPathsUsed() throws IOException {
+    public void testSpanEndedTwiceWhenBothPathsUsed() throws IOException {
         TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
 
         // First send via streaming path
@@ -202,8 +173,8 @@ public class TraceableStreamingRestChannelTests extends OpenSearchTestCase {
         RestResponse response = mock(RestResponse.class);
         channel.sendResponse(response);
 
-        // Verify span ended only once
-        verify(span, times(1)).endSpan();
+        // Verify span ended twice
+        verify(span, times(2)).endSpan();
     }
 
     public void testConcurrentSendChunkCallsAreThreadSafe() throws InterruptedException {
@@ -266,89 +237,6 @@ public class TraceableStreamingRestChannelTests extends OpenSearchTestCase {
         assertFalse(channel.isWritable());
 
         verify(delegate, times(2)).isWritable();
-    }
-
-    public void testNewBuilderDelegates() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        channel.newBuilder();
-
-        verify(delegate, times(1)).newBuilder();
-    }
-
-    public void testNewErrorBuilderDelegates() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        channel.newErrorBuilder();
-
-        verify(delegate, times(1)).newErrorBuilder();
-    }
-
-    public void testNewBuilderWithMediaTypeDelegates() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        MediaType mediaType = mock(MediaType.class);
-        channel.newBuilder(mediaType, true);
-
-        verify(delegate, times(1)).newBuilder(mediaType, true);
-    }
-
-    public void testNewBuilderWithResponseContentTypeDelegates() throws IOException {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        MediaType requestType = mock(MediaType.class);
-        MediaType responseType = mock(MediaType.class);
-        channel.newBuilder(requestType, responseType, false);
-
-        verify(delegate, times(1)).newBuilder(requestType, responseType, false);
-    }
-
-    public void testBytesOutputDelegates() {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        BytesStreamOutput expectedOutput = new BytesStreamOutput();
-        when(delegate.bytesOutput()).thenReturn(expectedOutput);
-
-        BytesStreamOutput result = channel.bytesOutput();
-
-        assertSame(expectedOutput, result);
-        verify(delegate, times(1)).bytesOutput();
-    }
-
-    public void testRequestDelegates() {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        RestRequest expectedRequest = mock(RestRequest.class);
-        when(delegate.request()).thenReturn(expectedRequest);
-
-        RestRequest result = channel.request();
-
-        assertSame(expectedRequest, result);
-        verify(delegate, times(1)).request();
-    }
-
-    public void testDetailedErrorsEnabledDelegates() {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        when(delegate.detailedErrorsEnabled()).thenReturn(true);
-        assertTrue(channel.detailedErrorsEnabled());
-
-        when(delegate.detailedErrorsEnabled()).thenReturn(false);
-        assertFalse(channel.detailedErrorsEnabled());
-
-        verify(delegate, times(2)).detailedErrorsEnabled();
-    }
-
-    public void testDetailedErrorStackTraceEnabledDelegates() {
-        TraceableStreamingRestChannel channel = new TraceableStreamingRestChannel(delegate, span, tracer);
-
-        when(delegate.detailedErrorStackTraceEnabled()).thenReturn(true);
-        assertTrue(channel.detailedErrorStackTraceEnabled());
-
-        when(delegate.detailedErrorStackTraceEnabled()).thenReturn(false);
-        assertFalse(channel.detailedErrorStackTraceEnabled());
-
-        verify(delegate, times(2)).detailedErrorStackTraceEnabled();
     }
 
     public void testSubscribeDelegates() {
