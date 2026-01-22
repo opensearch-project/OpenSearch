@@ -5,36 +5,13 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.transport.netty4;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 
@@ -48,11 +25,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
 
-public class Netty4Utils {
-
+/**
+ * Shameless copy of Netty4Utils from transport-netty4 module
+ */
+public final class Netty4Utils {
     private static final AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+
+    /**
+     * Utility class
+     */
+    private Netty4Utils() {}
 
     /**
      * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
@@ -91,6 +76,7 @@ public class Netty4Utils {
     /**
      * Turns the given BytesReference into a ByteBuf. Note: the returned ByteBuf will reference the internal
      * pages of the BytesReference. Don't free the bytes of reference before the ByteBuf goes out of scope.
+     * @param reference reference to convert
      */
     public static ByteBuf toByteBuf(final BytesReference reference) {
         if (reference.length() == 0) {
@@ -119,6 +105,7 @@ public class Netty4Utils {
 
     /**
      * Wraps the given ChannelBuffer with a BytesReference
+     * @param buffer buffer to convert
      */
     public static BytesReference toBytesReference(final ByteBuf buffer) {
         final int readableBytes = buffer.readableBytes();
@@ -130,5 +117,26 @@ public class Netty4Utils {
             final ByteBuffer[] byteBuffers = buffer.nioBuffers();
             return BytesReference.fromByteBuffers(byteBuffers);
         }
+    }
+
+    /**
+     * Add completion listener to ChannelFuture
+     * @param channelFuture ChannelFuture to add listener to
+     * @param context completion listener context
+     */
+    public static void addListener(ChannelFuture channelFuture, CompletableContext<Void> context) {
+        channelFuture.addListener(f -> {
+            if (f.isSuccess()) {
+                context.complete(null);
+            } else {
+                Throwable cause = f.cause();
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    context.completeExceptionally(new Exception(cause));
+                } else {
+                    context.completeExceptionally((Exception) cause);
+                }
+            }
+        });
     }
 }

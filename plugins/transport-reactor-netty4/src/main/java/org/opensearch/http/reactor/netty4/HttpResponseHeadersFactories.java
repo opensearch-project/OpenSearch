@@ -16,7 +16,7 @@ package org.opensearch.http.reactor.netty4;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpRequest.HttpVersion;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.http.reactor.netty4.http3.Http3Utils;
+import org.opensearch.http.netty4.http3.Http3Utils;
 
 import java.util.Arrays;
 import java.util.Locale;

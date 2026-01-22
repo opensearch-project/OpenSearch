@@ -12,7 +12,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.util.AbstractMap;
 import java.util.Collection;
