@@ -169,24 +169,16 @@ public class GatewayMetaState implements Closeable {
                         .build();
 
                     if (DiscoveryNode.isClusterManagerNode(settings) && isRemoteStoreClusterStateEnabled(settings)) {
-                        // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
-                        // If there is no valid state on remote, continue with initial empty state
-                        // If there is a valid state, then restore index metadata using this state
+//                        // If the cluster UUID loaded from local is unknown (_na_) then fetch the best state from remote
+//                        // If there is no valid state on remote, continue with initial empty state
+//                        // If there is a valid state, then restore index metadata using this state
                         String lastKnownClusterUUID = ClusterState.UNKNOWN_UUID;
                         if (ClusterState.UNKNOWN_UUID.equals(clusterState.metadata().clusterUUID())) {
-                            lastKnownClusterUUID = remoteClusterStateService.getLastKnownUUIDFromRemote(
-                                clusterState.getClusterName().value()
-                            );
-                            if (ClusterState.UNKNOWN_UUID.equals(lastKnownClusterUUID) == false) {
-                                // Load state from remote
-                                clusterState = restoreClusterStateWithRetries(
-                                    remoteStoreRestoreService,
-                                    clusterState,
-                                    lastKnownClusterUUID
-                                );
-                            }
+                            clusterState = remoteClusterStateService.getLatestClusterStateForNewManager(clusterService.getClusterName().value(), clusterService.getNodeName());
+                            lastKnownClusterUUID = clusterState.metadata().clusterUUID();
                         }
                         remotePersistedState = new RemotePersistedState(remoteClusterStateService, lastKnownClusterUUID);
+
                     }
 
                     // Recovers Cluster and Index level blocks
