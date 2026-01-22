@@ -39,6 +39,7 @@ import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -152,24 +153,21 @@ public class ReactorNetty4StreamingTracingIT extends OpenSearchReactorNetty4Inte
                         } catch (Exception e) {
                             return Mono.error(e);
                         }
-                    })
-                        .doOnNext(streamingChannel::sendChunk)
-                        .onErrorResume(ex -> {
-                            try {
-                                HttpChunk errorChunk = createHttpChunk("data: {\"error\":\"" + ex.getMessage() + "\"}\n\n", true);
-                                streamingChannel.sendChunk(errorChunk);
-                            } catch (Exception e) {
-                                // Log error
-                            }
-                            return Mono.empty();
-                        })
-                        .subscribe();
+                    }).doOnNext(streamingChannel::sendChunk).onErrorResume(ex -> {
+                        try {
+                            HttpChunk errorChunk = createHttpChunk("data: {\"error\":\"" + ex.getMessage() + "\"}\n\n", true);
+                            streamingChannel.sendChunk(errorChunk);
+                        } catch (Exception e) {
+                            // Log error
+                        }
+                        return Mono.empty();
+                    }).subscribe();
                 }
             };
         }
 
         private HttpChunk createHttpChunk(String sseData, boolean isLast) {
-            BytesReference bytesRef = BytesReference.fromByteBuffer(ByteBuffer.wrap(sseData.getBytes()));
+            BytesReference bytesRef = BytesReference.fromByteBuffer(ByteBuffer.wrap(sseData.getBytes(StandardCharsets.UTF_8)));
             return new HttpChunk() {
                 @Override
                 public void close() {
@@ -201,7 +199,7 @@ public class ReactorNetty4StreamingTracingIT extends OpenSearchReactorNetty4Inte
         List<Tuple<String, CharSequence>> requests = new ArrayList<>();
         requests.add(Tuple.tuple("/test/_stream", "dummy request body"));
 
-        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false)) {
+        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(Settings.EMPTY)) {
             Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests);
             try {
                 Assert.assertEquals(1, singleResponse.size());

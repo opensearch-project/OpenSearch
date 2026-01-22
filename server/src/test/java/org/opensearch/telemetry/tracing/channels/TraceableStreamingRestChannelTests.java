@@ -24,6 +24,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -370,7 +371,7 @@ public class TraceableStreamingRestChannelTests extends OpenSearchTestCase {
 
             @Override
             public BytesReference content() {
-                return new BytesArray("test chunk content".getBytes());
+                return new BytesArray("test chunk content".getBytes(StandardCharsets.UTF_8));
             }
 
             @Override
