@@ -77,4 +77,10 @@ public final class NativeBridge {
 
     // Other methods
     public static native String getVersionInfo();
+
+    /**
+     * Test method: Creates a sliced StringArray and returns FFI pointers.
+     * Used to verify that sliced arrays across FFI boundary are handled correctly
+     **/
+    public static native void createTestSlicedArray(int offset, int length, ActionListener<long[]> listener);
 }

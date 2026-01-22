@@ -351,7 +351,49 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getVersio
         .as_raw()
 }
 
+/// Test JNI method to verify FFI boundary handling of sliced arrays.
+/// Creates a sliced StringArray (simulating `head X from Y`) and returns FFI pointers.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createTestSlicedArray(
+    mut env: JNIEnv,
+    _class: JClass,
+    offset: jint,
+    length: jint,
+    listener: JObject,
+) {
+    use arrow_schema::{Schema, Field, DataType};
+    use arrow_array::StringArray;
 
+    let original = StringArray::from(vec!["zero", "one", "two", "three", "four"]);
+    let sliced = original.slice(offset as usize, length as usize);
+
+    let schema = Arc::new(Schema::new(vec![Field::new("data", DataType::Utf8, false)]));
+    let batch = RecordBatch::try_new(schema, vec![Arc::new(sliced)]).unwrap();
+
+    let struct_array: StructArray = batch.into();
+    let array_data = struct_array.to_data();
+
+    let ffi_schema = FFI_ArrowSchema::try_from(array_data.data_type()).unwrap();
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+
+    let ffi_array = FFI_ArrowArray::new(&array_data);
+    let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
+
+    let result = env.new_long_array(2).unwrap();
+    env.set_long_array_region(&result, 0, &[schema_ptr, array_ptr]).unwrap();
+
+    let listener_class = env.get_object_class(&listener).unwrap();
+    let on_response = env.get_method_id(&listener_class, "onResponse", "(Ljava/lang/Object;)V").unwrap();
+
+    unsafe {
+        env.call_method_unchecked(
+            &listener,
+            on_response,
+            jni::signature::ReturnType::Primitive(jni::signature::Primitive::Void),
+            &[jni::objects::JValue::Object(&result).as_jni()]
+        ).unwrap();
+    }
+}
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDatafusionReader(
@@ -651,58 +693,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_fetchSegm
     });
 }
 
-use arrow_array::{ArrayRef, StringArray, BinaryArray, LargeStringArray, LargeBinaryArray};
-use arrow_schema::DataType;
-
-/// Check if a variable-length array has non-zero starting offset.
-#[inline]
-fn has_nonzero_offset(col: &ArrayRef) -> bool {
-    match col.data_type() {
-        DataType::Utf8 | DataType::Binary => {
-            if col.offset() > 0 { return true; }
-            col.to_data().buffers().first()
-                .map(|b| b.len() >= 4 && unsafe { *(b.as_ptr() as *const i32) } != 0)
-                .unwrap_or(false)
-        }
-        DataType::LargeUtf8 | DataType::LargeBinary => {
-            if col.offset() > 0 { return true; }
-            col.to_data().buffers().first()
-                .map(|b| b.len() >= 8 && unsafe { *(b.as_ptr() as *const i64) } != 0)
-                .unwrap_or(false)
-        }
-        _ => false
-    }
-}
-
-/// Compact a variable-length array by rebuilding with offsets starting at 0.
-#[inline]
-fn compact_array(col: &ArrayRef) -> ArrayRef {
-    match col.data_type() {
-        DataType::Utf8 => Arc::new(col.as_any().downcast_ref::<StringArray>().unwrap().iter().collect::<StringArray>()),
-        DataType::LargeUtf8 => Arc::new(col.as_any().downcast_ref::<LargeStringArray>().unwrap().iter().collect::<LargeStringArray>()),
-        DataType::Binary => Arc::new(col.as_any().downcast_ref::<BinaryArray>().unwrap().iter().collect::<BinaryArray>()),
-        DataType::LargeBinary => Arc::new(col.as_any().downcast_ref::<LargeBinaryArray>().unwrap().iter().collect::<LargeBinaryArray>()),
-        _ => Arc::clone(col)
-    }
-}
-
-/// Normalize batch for FFI. Zero-alloc fast path when no compaction needed.
-#[inline]
-fn maybe_normalize_for_ffi(batch: RecordBatch) -> Result<RecordBatch, DataFusionError> {
-    // Fast path check: any column need compaction?
-    if !batch.columns().iter().any(has_nonzero_offset) {
-        return Ok(batch);
-    }
-
-    // Slow path: rebuild - Arc::clone is just refcount bump, unavoidable for new RecordBatch
-    let columns: Vec<ArrayRef> = batch.columns().iter()
-        .map(|col| if has_nonzero_offset(col) { compact_array(col) } else { Arc::clone(col) })
-        .collect();
-
-    RecordBatch::try_new(batch.schema(), columns)
-        .map_err(|e| DataFusionError::ArrowError(Box::from(e), None))
-}
-
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNext(
     mut env: JNIEnv,
@@ -755,19 +745,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
         with_jni_env(|env| {
             match result {
                 Ok(Some(batch)) => {
-
-                    // Normalize only if batch contains sliced arrays (offset > 0)
-                    // This is necessary because sliced Arrow arrays don't translate
-                    // correctly across FFI boundaries
-                    let batch = match maybe_normalize_for_ffi(batch) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            log_error!("Failed to normalize batch for FFI: {}", e);
-                            set_action_listener_error_global(env, &listener_ref, &e);
-                            return;
-                        }
-                    };
-
                     // Convert to FFI
                     let struct_array: StructArray = batch.into();
                     let array_data = struct_array.into_data();

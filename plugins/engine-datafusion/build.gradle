@@ -39,11 +39,11 @@ dependencies {
     api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 
     // Apache Arrow dependencies for memory management
-    implementation "org.apache.arrow:arrow-memory-core:17.0.0"
-    implementation "org.apache.arrow:arrow-memory-unsafe:17.0.0"
-    implementation "org.apache.arrow:arrow-vector:17.0.0"
-    implementation "org.apache.arrow:arrow-c-data:17.0.0"
-    implementation "org.apache.arrow:arrow-format:17.0.0"
+    implementation "org.apache.arrow:arrow-memory-core:18.3.0"
+    implementation "org.apache.arrow:arrow-memory-unsafe:18.3.0"
+    implementation "org.apache.arrow:arrow-vector:18.3.0"
+    implementation "org.apache.arrow:arrow-c-data:18.3.0"
+    implementation "org.apache.arrow:arrow-format:18.3.0"
     // SLF4J API for Arrow logging compatibility
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
     // CheckerFramework annotations required by Arrow 17.0.0
