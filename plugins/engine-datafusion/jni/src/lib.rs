@@ -17,7 +17,7 @@ use jni::objects::JLongArray;
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::{JNIEnv, JavaVM};
 use std::sync::{Arc, OnceLock};
-use arrow_array::{Array, StructArray};
+use arrow_array::{Array, RecordBatch, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::ffi::FFI_ArrowSchema;
 use datafusion::{
@@ -651,6 +651,57 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_fetchSegm
     });
 }
 
+use arrow_array::{ArrayRef, StringArray, BinaryArray, LargeStringArray, LargeBinaryArray};
+use arrow_schema::DataType;
+
+/// Check if a variable-length array has non-zero starting offset.
+#[inline]
+fn has_nonzero_offset(col: &ArrayRef) -> bool {
+    match col.data_type() {
+        DataType::Utf8 | DataType::Binary => {
+            if col.offset() > 0 { return true; }
+            col.to_data().buffers().first()
+                .map(|b| b.len() >= 4 && unsafe { *(b.as_ptr() as *const i32) } != 0)
+                .unwrap_or(false)
+        }
+        DataType::LargeUtf8 | DataType::LargeBinary => {
+            if col.offset() > 0 { return true; }
+            col.to_data().buffers().first()
+                .map(|b| b.len() >= 8 && unsafe { *(b.as_ptr() as *const i64) } != 0)
+                .unwrap_or(false)
+        }
+        _ => false
+    }
+}
+
+/// Compact a variable-length array by rebuilding with offsets starting at 0.
+#[inline]
+fn compact_array(col: &ArrayRef) -> ArrayRef {
+    match col.data_type() {
+        DataType::Utf8 => Arc::new(col.as_any().downcast_ref::<StringArray>().unwrap().iter().collect::<StringArray>()),
+        DataType::LargeUtf8 => Arc::new(col.as_any().downcast_ref::<LargeStringArray>().unwrap().iter().collect::<LargeStringArray>()),
+        DataType::Binary => Arc::new(col.as_any().downcast_ref::<BinaryArray>().unwrap().iter().collect::<BinaryArray>()),
+        DataType::LargeBinary => Arc::new(col.as_any().downcast_ref::<LargeBinaryArray>().unwrap().iter().collect::<LargeBinaryArray>()),
+        _ => Arc::clone(col)
+    }
+}
+
+/// Normalize batch for FFI. Zero-alloc fast path when no compaction needed.
+#[inline]
+fn maybe_normalize_for_ffi(batch: RecordBatch) -> Result<RecordBatch, DataFusionError> {
+    // Fast path check: any column need compaction?
+    if !batch.columns().iter().any(has_nonzero_offset) {
+        return Ok(batch);
+    }
+
+    // Slow path: rebuild - Arc::clone is just refcount bump, unavoidable for new RecordBatch
+    let columns: Vec<ArrayRef> = batch.columns().iter()
+        .map(|col| if has_nonzero_offset(col) { compact_array(col) } else { Arc::clone(col) })
+        .collect();
+
+    RecordBatch::try_new(batch.schema(), columns)
+        .map_err(|e| DataFusionError::ArrowError(Box::from(e), None))
+}
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNext(
@@ -704,6 +755,19 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
         with_jni_env(|env| {
             match result {
                 Ok(Some(batch)) => {
+
+                    // Normalize only if batch contains sliced arrays (offset > 0)
+                    // This is necessary because sliced Arrow arrays don't translate
+                    // correctly across FFI boundaries
+                    let batch = match maybe_normalize_for_ffi(batch) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            log_error!("Failed to normalize batch for FFI: {}", e);
+                            set_action_listener_error_global(env, &listener_ref, &e);
+                            return;
+                        }
+                    };
+
                     // Convert to FFI
                     let struct_array: StructArray = batch.into();
                     let array_data = struct_array.into_data();
