@@ -5956,15 +5956,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                    assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
-                    if(isOptimizedIndex()){
-                        segmentNFile = file;
-                    }
-                    else{
-                        segmentNFile = fileMetadata.file();
-                    }
+                assert segmentNFile == null : "There should be only one SegmentInfosSnapshot file";
+                if (isOptimizedIndex()) {
+                    segmentNFile = file;
+                } else {
+                    segmentNFile = fileMetadata.file();
                 }
             }
+        }
 
             if (toDownloadSegments.isEmpty() == false) {
                 try {

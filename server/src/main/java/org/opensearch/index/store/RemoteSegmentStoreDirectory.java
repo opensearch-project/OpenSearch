@@ -331,7 +331,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
      */
     @Override
     public void deleteFile(String name) throws IOException {
-        String fileName = new FileMetadata(name).toString();
+        String fileName = new FileMetadata(name).serialize();
         String remoteFilename = getExistingRemoteFilename(fileName);
         if (remoteFilename != null) {
             remoteDataDirectory.deleteFile(remoteFilename);
