@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.search.SearchPhaseResult;
@@ -60,7 +61,7 @@ final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    public static final Version INDICES_IN_SCROLL_ID_VERSION = Version.V_3_3_2;
+    public static final Version INDICES_IN_SCROLL_ID_VERSION = Version.V_3_3_0;
 
     static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Version version) {
         return buildScrollId(searchPhaseResults, null, version);
@@ -90,12 +91,7 @@ final class TransportSearchHelper {
                 // and subsequent SearchScrollRequests, we store exactly the same
                 // index targets that were visible to the indices attribute during
                 // the "search" phase
-                if (originalIndices != null && originalIndices.length > 0) {
-                    out.writeVInt(originalIndices.length);
-                    for (String index : originalIndices) {
-                        out.writeString(index);
-                    }
-                }
+                out.writeStringArray(originalIndices == null ? Strings.EMPTY_ARRAY : originalIndices);
             }
             byte[] bytes = BytesReference.toBytes(out.bytes());
             return Base64.getUrlEncoder().encodeToString(bytes);
@@ -134,16 +130,7 @@ final class TransportSearchHelper {
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }
 
-            String[] originalIndices;
-            if (in.getPosition() < bytes.length) {
-                final int numOriginalIndices = in.readVInt();
-                originalIndices = new String[numOriginalIndices];
-                for (int i = 0; i < numOriginalIndices; i++) {
-                    originalIndices[i] = in.readString();
-                }
-            } else {
-                originalIndices = new String[0];
-            }
+            final String[] originalIndices = in.getPosition() < bytes.length ? in.readStringArray() : Strings.EMPTY_ARRAY;
 
             if (in.getPosition() != bytes.length) {
                 throw new IllegalArgumentException("Not all bytes were read");
