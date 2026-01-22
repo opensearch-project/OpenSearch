@@ -47,11 +47,8 @@ import org.reactivestreams.Subscriber;
  *
  * @opensearch.internal
  */
-public class TraceableStreamingRestChannel implements StreamingRestChannel {
+class TraceableStreamingRestChannel extends TraceableRestChannel<StreamingRestChannel> implements StreamingRestChannel {
 
-    private final StreamingRestChannel delegate;
-    private final Span span;
-    private final Tracer tracer;
     private final AtomicBoolean spanEnded = new AtomicBoolean(false);
 
     /**
@@ -62,17 +59,7 @@ public class TraceableStreamingRestChannel implements StreamingRestChannel {
      * @param tracer tracer
      */
     TraceableStreamingRestChannel(StreamingRestChannel delegate, Span span, Tracer tracer) {
-        this.span = Objects.requireNonNull(span);
-        this.delegate = Objects.requireNonNull(delegate);
-        this.tracer = Objects.requireNonNull(tracer);
-    }
-
-    public static RestChannel create(StreamingRestChannel delegate, Span span, Tracer tracer) {
-        if (tracer.isRecording() == true) {
-            return new TraceableStreamingRestChannel(delegate, span, tracer);
-        } else {
-            return delegate;
-        }
+        super(delegate, span, tracer);
     }
 
     @Override
@@ -104,59 +91,6 @@ public class TraceableStreamingRestChannel implements StreamingRestChannel {
     @Override
     public boolean isWritable() {
         return delegate.isWritable();
-    }
-
-    @Override
-    public XContentBuilder newBuilder() throws IOException {
-        return delegate.newBuilder();
-    }
-
-    @Override
-    public XContentBuilder newErrorBuilder() throws IOException {
-        return delegate.newErrorBuilder();
-    }
-
-    @Override
-    public XContentBuilder newBuilder(MediaType mediaType, boolean useFiltering) throws IOException {
-        return delegate.newBuilder(mediaType, useFiltering);
-    }
-
-    @Override
-    public XContentBuilder newBuilder(MediaType mediaType, MediaType responseContentType, boolean useFiltering) throws IOException {
-        return delegate.newBuilder(mediaType, responseContentType, useFiltering);
-    }
-
-    @Override
-    public BytesStreamOutput bytesOutput() {
-        return delegate.bytesOutput();
-    }
-
-    @Override
-    public RestRequest request() {
-        return delegate.request();
-    }
-
-    @Override
-    public boolean detailedErrorsEnabled() {
-        return delegate.detailedErrorsEnabled();
-    }
-
-    @Override
-    public boolean detailedErrorStackTraceEnabled() {
-        return delegate.detailedErrorStackTraceEnabled();
-    }
-
-    @Override
-    public void sendResponse(RestResponse response) {
-        // Non-streaming path: send complete response within span scope
-        try (SpanScope ignored = tracer.withSpanInScope(span)) {
-            delegate.sendResponse(response);
-        } finally {
-            // Ensure span is ended exactly once (may race with sendChunk on last chunk)
-            if (spanEnded.compareAndSet(false, true)) {
-                span.endSpan();
-            }
-        }
     }
 
     @Override
