@@ -85,7 +85,6 @@ import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.deciders.ConcurrentSearchVisitor;
 import org.opensearch.search.deciders.DefaultIntraSegmentSearchDecider;
 import org.opensearch.search.deciders.IntraSegmentSearchDecision;
-import org.opensearch.search.deciders.IntraSegmentSearchRequestDecider;
 import org.opensearch.search.deciders.IntraSegmentSearchVisitor;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -1417,8 +1416,7 @@ final class DefaultSearchContext extends SearchContext {
             decider.evaluateForAggregations(aggregations().factories(), indexService.getIndexSettings());
         }
         IntraSegmentSearchDecision decision = decider.getIntraSegmentSearchDecision();
-        logger.info("partition strategy decision: strategy={}, decision={}", partitionStrategy, decision);
-
+        logger.debug("partition strategy decision: strategy={}, decision={}", partitionStrategy, decision);
         boolean result = decision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.YES;
         requestShouldUseIntraSegmentSearch.set(result);
     }

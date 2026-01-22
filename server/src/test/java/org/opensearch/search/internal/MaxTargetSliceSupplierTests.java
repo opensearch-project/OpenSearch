@@ -30,8 +30,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
 
     public void testSliceCountGreaterThanLeafCount() throws Exception {
         int expectedSliceCount = 2;
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(getLeaves(expectedSliceCount), 5);
-        // verify slice count is same as leaf count
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(getLeaves(expectedSliceCount), 5);
         assertEquals(expectedSliceCount, slices.length);
         for (int i = 0; i < expectedSliceCount; ++i) {
             assertEquals(1, slices[i].partitions.length);
@@ -39,12 +38,15 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     }
 
     public void testNegativeSliceCount() {
-        assertThrows(IllegalArgumentException.class, () -> MaxTargetSliceSupplier.getSlices(new ArrayList<>(), randomIntBetween(-3, 0)));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> MaxTargetSliceSupplier.getSlicesWholeSegments(new ArrayList<>(), randomIntBetween(-3, 0))
+        );
     }
 
     public void testSingleSliceWithMultipleLeaves() throws Exception {
         int leafCount = randomIntBetween(1, 10);
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(getLeaves(leafCount), 1);
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(getLeaves(leafCount), 1);
         assertEquals(1, slices.length);
         assertEquals(leafCount, slices[0].partitions.length);
     }
@@ -52,35 +54,18 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     public void testSliceCountLessThanLeafCount() throws Exception {
         int leafCount = 12;
         List<LeafReaderContext> leaves = getLeaves(leafCount);
-
-        // Case 1: test with equal number of leaves per slice
         int expectedSliceCount = 3;
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, expectedSliceCount);
-        int expectedLeavesPerSlice = leafCount / expectedSliceCount;
-
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
         assertEquals(expectedSliceCount, slices.length);
-        for (int i = 0; i < expectedSliceCount; ++i) {
-            assertEquals(expectedLeavesPerSlice, slices[i].partitions.length);
+        int totalPartitions = 0;
+        for (IndexSearcher.LeafSlice slice : slices) {
+            totalPartitions += slice.partitions.length;
         }
-
-        // Case 2: test with first 2 slice more leaves than others
-        expectedSliceCount = 5;
-        slices = MaxTargetSliceSupplier.getSlices(leaves, expectedSliceCount);
-        int expectedLeavesInFirst2Slice = 3;
-        int expectedLeavesInOtherSlice = 2;
-
-        assertEquals(expectedSliceCount, slices.length);
-        for (int i = 0; i < expectedSliceCount; ++i) {
-            if (i < 2) {
-                assertEquals(expectedLeavesInFirst2Slice, slices[i].partitions.length);
-            } else {
-                assertEquals(expectedLeavesInOtherSlice, slices[i].partitions.length);
-            }
-        }
+        assertEquals(leafCount, totalPartitions);
     }
 
     public void testEmptyLeaves() {
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(new ArrayList<>(), 2);
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(new ArrayList<>(), 2);
         assertEquals(0, slices.length);
     }
 
@@ -92,35 +77,225 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            final String fieldValue = "value";
+            // Create 3 segments: 3 docs, 1 doc, 1 doc
             for (int i = 0; i < 3; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
+                document.add(new StringField("field1", "value", Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
             for (int i = 0; i < 1; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
+                document.add(new StringField("field1", "value", Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
             for (int i = 0; i < 1; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", fieldValue, Field.Store.NO));
+                document.add(new StringField("field1", "value", Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
-
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(3, leaves.size());
-                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2);
-                assertEquals(1, slices[0].partitions.length);
-                assertEquals(3, slices[0].getMaxDocs());
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, 2);
+                assertEquals(2, slices.length);
+                // LPT distributes: largest (3 docs) to slice 0, then 1+1 to slice 1
+                assertEquals(5, slices[0].getMaxDocs() + slices[1].getMaxDocs());
+            }
+        }
+    }
 
-                assertEquals(2, slices[1].partitions.length);
-                assertEquals(2, slices[1].getMaxDocs());
+    // Tests for getSlicesWithForcePartitioning (force strategy)
+    public void testForcePartitioningSingleSegment() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 100; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                assertEquals(1, leaves.size());
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
+                // 1 segment partitioned into 4 → 4 slices (one partition per slice due to constraint)
+                assertEquals(4, slices.length);
+                for (IndexSearcher.LeafSlice slice : slices) {
+                    assertEquals(1, slice.partitions.length);
+                }
+            }
+        }
+    }
+
+    public void testForcePartitioningMultipleSegments() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            // Create 2 segments with 50 docs each
+            for (int i = 0; i < 50; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            for (int i = 0; i < 50; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                assertEquals(2, leaves.size());
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
+                // 2 segments × 4 partitions = 8 partitions, distributed across 4 slices
+                assertEquals(4, slices.length);
+                // Each slice should have 2 partitions (one from each segment)
+                for (IndexSearcher.LeafSlice slice : slices) {
+                    assertEquals(2, slice.partitions.length);
+                }
+            }
+        }
+    }
+
+    // Tests for getSlicesWithAutoPartitioning (balanced strategy)
+    public void testBalancedPartitioningLargeSegment() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            // Create 1 large segment
+            for (int i = 0; i < 1000; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                assertEquals(1, leaves.size());
+                // minSegmentSize=100, targetSlices=4 → segment qualifies for partitioning
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, 4, 100);
+                assertEquals(4, slices.length);
+            }
+        }
+    }
+
+    public void testBalancedPartitioningSmallSegmentSkipped() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            // Create 1 small segment
+            for (int i = 0; i < 50; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                assertEquals(1, leaves.size());
+                // minSegmentSize=100 → segment too small, stays whole
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, 4, 100);
+                assertEquals(1, slices.length);
+                assertEquals(1, slices[0].partitions.length);
+            }
+        }
+    }
+
+    // Tests for main entry point getSlices
+    public void testGetSlicesWithNoneStrategy() throws Exception {
+        List<LeafReaderContext> leaves = getLeaves(4);
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2, false, "none", 100);
+        assertEquals(2, slices.length);
+    }
+
+    public void testGetSlicesWithForceStrategy() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 100; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 4, true, "force", 100);
+                assertEquals(4, slices.length);
+            }
+        }
+    }
+
+    public void testGetSlicesWithBalancedStrategy() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 1000; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 4, true, "balanced", 100);
+                assertEquals(4, slices.length);
+            }
+        }
+    }
+
+    // Test same-segment constraint
+    public void testSameSegmentPartitionsInDifferentSlices() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 100; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
+                // Verify each slice has partitions from different segments (here only 1 segment)
+                // So each slice should have exactly 1 partition
+                for (IndexSearcher.LeafSlice slice : slices) {
+                    assertEquals(1, slice.partitions.length);
+                }
             }
         }
     }

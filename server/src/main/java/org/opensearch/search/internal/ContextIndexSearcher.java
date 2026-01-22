@@ -99,8 +99,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE;
-
 /**
  * Context-aware extension of {@link IndexSearcher}.
  *
@@ -584,20 +582,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
         int targetMaxSlice = searchContext.getTargetMaxSliceCount();
         if (targetMaxSlice == 0) {
-            // use the default lucene slice calculation
-            return super.slices(leaves);
+            LeafSlice[] leafSlices = super.slices(leaves);
+            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            return leafSlices;
         }
-        // Check if partitioning is enabled (query/agg support already evaluated)
-        if (searchContext.shouldUseIntraSegmentSearch()) {
-            String partitionStrategy = searchContext.getPartitionStrategy();
-            if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
-                return MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, targetMaxSlice);
-            }
-            // balanced strategy
-            return MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, targetMaxSlice, searchContext.getPartitionMinSegmentSize());
-        }
-        // none strategy or query doesn't support partitioning
-        return MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
+        LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
+            leaves,
+            targetMaxSlice,
+            searchContext.shouldUseIntraSegmentSearch(),
+            searchContext.getPartitionStrategy(),
+            searchContext.getPartitionMinSegmentSize()
+        );
+        logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        return leafSlices;
     }
 
     public DirectoryReader getDirectoryReader() {
@@ -664,21 +661,5 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
         return true;
-    }
-
-    // package-private for testing
-    // Disable the usage of slicesInternal for now (temp).
-    LeafSlice[] slicesInternal(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        LeafSlice[] leafSlices;
-        if (targetMaxSlice == 0) {
-            // use the default lucene slice calculation
-            leafSlices = super.slices(leaves);
-            logger.debug("Slice count using lucene default [{}]", leafSlices.length);
-        } else {
-            // use the custom slice calculation based on targetMaxSlice
-            leafSlices = MaxTargetSliceSupplier.getSlices(leaves, targetMaxSlice);
-            logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
-        }
-        return leafSlices;
     }
 }

@@ -65,7 +65,10 @@ public class DefaultIntraSegmentSearchDecider extends IntraSegmentSearchRequestD
             return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.YES, aggReason);
         }
         if (hasQuery && querySupport) {
-            return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.YES, "all queries support intra-segment search");
+            return new IntraSegmentSearchDecision(
+                IntraSegmentSearchDecision.DecisionStatus.YES,
+                "all queries support intra-segment search"
+            );
         }
         return new IntraSegmentSearchDecision(IntraSegmentSearchDecision.DecisionStatus.NO_OP, "no preference");
     }
