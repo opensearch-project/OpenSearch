@@ -75,6 +75,12 @@ import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.SegmentReplicationSource;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.metadata.index.model.AliasMetadataModel;
+import org.opensearch.metadata.index.model.ContextModel;
+import org.opensearch.metadata.index.model.IndexMetadataModel;
+import org.opensearch.metadata.index.model.MappingMetadataModel;
+import org.opensearch.metadata.settings.SettingsModel;
+import org.opensearch.metadata.stream.MetadataWriteable;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -100,7 +106,6 @@ import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
-import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 
 /**
@@ -1025,7 +1030,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    private final int routingNumShards;
+    private final IndexMetadataModel model;
+
     private final int routingFactor;
     private final int routingPartitionSize;
 
@@ -1034,17 +1040,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int numberOfSearchOnlyReplicas;
 
     private final Index index;
-    private final long version;
-
-    private final long mappingVersion;
-
-    private final long settingsVersion;
-
-    private final long aliasesVersion;
-
-    private final long[] primaryTerms;
-
-    private final State state;
 
     private final Map<String, AliasMetadata> aliases;
 
@@ -1053,8 +1048,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final Map<String, MappingMetadata> mappings;
 
     private final Map<String, DiffableStringMap> customData;
-
-    private final Map<Integer, Set<String>> inSyncAllocationIds;
 
     private final transient int totalNumberOfShards;
 
@@ -1068,7 +1061,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final ActiveShardCount waitForActiveShards;
     private final Map<String, RolloverInfo> rolloverInfos;
-    private final boolean isSystem;
+
     private final boolean isRemoteSnapshot;
 
     private final int indexTotalShardsPerNodeLimit;
@@ -1081,13 +1074,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final IngestionStatus ingestionStatus;
 
     private IndexMetadata(
-        final Index index,
-        final long version,
-        final long mappingVersion,
-        final long settingsVersion,
-        final long aliasesVersion,
-        final long[] primaryTerms,
-        final State state,
+        final IndexMetadataModel model,
         final int numberOfShards,
         final int numberOfReplicas,
         final int numberOfSearchOnlyReplicas,
@@ -1095,18 +1082,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Map<String, MappingMetadata> mappings,
         final Map<String, AliasMetadata> aliases,
         final Map<String, DiffableStringMap> customData,
-        final Map<Integer, Set<String>> inSyncAllocationIds,
         final DiscoveryNodeFilters requireFilters,
         final DiscoveryNodeFilters initialRecoveryFilters,
         final DiscoveryNodeFilters includeFilters,
         final DiscoveryNodeFilters excludeFilters,
         final Version indexCreatedVersion,
         final Version indexUpgradedVersion,
-        final int routingNumShards,
         final int routingPartitionSize,
         final ActiveShardCount waitForActiveShards,
         final Map<String, RolloverInfo> rolloverInfos,
-        final boolean isSystem,
         final int indexTotalShardsPerNodeLimit,
         final int indexTotalPrimaryShardsPerNodeLimit,
         final int indexTotalRemoteCapableShardsPerNodeLimit,
@@ -1115,48 +1099,46 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final Context context,
         final IngestionStatus ingestionStatus
     ) {
+        this.model = model;
+        this.index = new Index(model.index(), settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE));
 
-        this.index = index;
-        this.version = version;
-        assert mappingVersion >= 0 : mappingVersion;
-        this.mappingVersion = mappingVersion;
-        assert settingsVersion >= 0 : settingsVersion;
-        this.settingsVersion = settingsVersion;
-        assert aliasesVersion >= 0 : aliasesVersion;
-        this.aliasesVersion = aliasesVersion;
-        this.primaryTerms = primaryTerms;
-        assert primaryTerms.length == numberOfShards;
-        this.state = state;
+        // Store server-side rich types
+        this.settings = settings;
+        this.mappings = Collections.unmodifiableMap(mappings);
+        this.aliases = Collections.unmodifiableMap(aliases);
+        this.customData = Collections.unmodifiableMap(customData);
+        this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
+        this.context = context;
+        this.ingestionStatus = ingestionStatus;
+
+        // Store derived fields
+        assert model.primaryTerms().length == numberOfShards;
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
         this.numberOfSearchOnlyReplicas = numberOfSearchOnlyReplicas;
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + numberOfSearchOnlyReplicas + 1);
-        this.settings = settings;
-        this.mappings = Collections.unmodifiableMap(mappings);
-        this.customData = Collections.unmodifiableMap(customData);
-        this.aliases = Collections.unmodifiableMap(aliases);
-        this.inSyncAllocationIds = Collections.unmodifiableMap(inSyncAllocationIds);
         this.requireFilters = requireFilters;
         this.includeFilters = includeFilters;
         this.excludeFilters = excludeFilters;
         this.initialRecoveryFilters = initialRecoveryFilters;
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexUpgradedVersion = indexUpgradedVersion;
-        this.routingNumShards = routingNumShards;
-        this.routingFactor = routingNumShards / numberOfShards;
+        this.routingFactor = model.routingNumShards() / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
-        this.rolloverInfos = Collections.unmodifiableMap(rolloverInfos);
-        this.isSystem = isSystem;
         this.isRemoteSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(this.settings);
         this.indexTotalShardsPerNodeLimit = indexTotalShardsPerNodeLimit;
         this.indexTotalPrimaryShardsPerNodeLimit = indexTotalPrimaryShardsPerNodeLimit;
         this.indexTotalRemoteCapableShardsPerNodeLimit = indexTotalRemoteCapableShardsPerNodeLimit;
         this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
-        this.context = context;
-        this.ingestionStatus = ingestionStatus;
-        assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
+        assert numberOfShards * routingFactor == model.routingNumShards() : model.routingNumShards()
+            + " must be a multiple of "
+            + numberOfShards;
+    }
+
+    public IndexMetadataModel model() {
+        return model;
     }
 
     public Index getIndex() {
@@ -1180,19 +1162,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public long getVersion() {
-        return this.version;
+        return model.version();
     }
 
     public long getMappingVersion() {
-        return mappingVersion;
+        return model.mappingVersion();
     }
 
     public long getSettingsVersion() {
-        return settingsVersion;
+        return model.settingsVersion();
     }
 
     public long getAliasesVersion() {
-        return aliasesVersion;
+        return model.aliasesVersion();
     }
 
     /**
@@ -1203,7 +1185,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * that can be indexed into) is larger than 0. See {@link IndexMetadataUpdater#applyChanges}.
      **/
     public long primaryTerm(int shardId) {
-        return this.primaryTerms[shardId];
+        return model.primaryTerms()[shardId];
     }
 
     /**
@@ -1281,7 +1263,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public State getState() {
-        return this.state;
+        return State.fromId(model.state());
     }
 
     public int getNumberOfShards() {
@@ -1355,7 +1337,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public Map<Integer, Set<String>> getInSyncAllocationIds() {
-        return inSyncAllocationIds;
+        return model.inSyncAllocationIds();
     }
 
     public Map<String, RolloverInfo> getRolloverInfos() {
@@ -1364,7 +1346,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public Set<String> inSyncAllocationIds(int shardId) {
         assert shardId >= 0 && shardId < numberOfShards;
-        return inSyncAllocationIds.get(shardId);
+        return model.inSyncAllocationIds().get(shardId);
     }
 
     public int getIndexTotalShardsPerNodeLimit() {
@@ -1418,73 +1400,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         IndexMetadata that = (IndexMetadata) o;
 
-        if (version != that.version) {
-            return false;
-        }
-
-        if (!aliases.equals(that.aliases)) {
-            return false;
-        }
-        if (!index.equals(that.index)) {
-            return false;
-        }
-        if (!mappings.equals(that.mappings)) {
-            return false;
-        }
-        if (!settings.equals(that.settings)) {
-            return false;
-        }
-        if (state != that.state) {
-            return false;
-        }
-        if (!customData.equals(that.customData)) {
-            return false;
-        }
-        if (routingNumShards != that.routingNumShards) {
-            return false;
-        }
-        if (routingFactor != that.routingFactor) {
-            return false;
-        }
-        if (Arrays.equals(primaryTerms, that.primaryTerms) == false) {
-            return false;
-        }
-        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
-            return false;
-        }
-        if (rolloverInfos.equals(that.rolloverInfos) == false) {
-            return false;
-        }
-        if (isSystem != that.isSystem) {
-            return false;
-        }
-        if (!Objects.equals(context, that.context)) {
-            return false;
-        }
-        if (Objects.equals(ingestionStatus, that.ingestionStatus) == false) {
-            return false;
-        }
-        return true;
+        return Objects.equals(model, that.model);
     }
 
     @Override
     public int hashCode() {
-        int result = index.hashCode();
-        result = 31 * result + Long.hashCode(version);
-        result = 31 * result + state.hashCode();
-        result = 31 * result + aliases.hashCode();
-        result = 31 * result + settings.hashCode();
-        result = 31 * result + mappings.hashCode();
-        result = 31 * result + customData.hashCode();
-        result = 31 * result + Long.hashCode(routingFactor);
-        result = 31 * result + Long.hashCode(routingNumShards);
-        result = 31 * result + Arrays.hashCode(primaryTerms);
-        result = 31 * result + inSyncAllocationIds.hashCode();
-        result = 31 * result + rolloverInfos.hashCode();
-        result = 31 * result + Boolean.hashCode(isSystem);
-        result = 31 * result + Objects.hashCode(context);
-        result = 31 * result + Objects.hashCode(ingestionStatus);
-        return result;
+        return model.hashCode();
     }
 
     @Override
@@ -1533,25 +1454,25 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
-            version = after.version;
-            mappingVersion = after.mappingVersion;
-            settingsVersion = after.settingsVersion;
-            aliasesVersion = after.aliasesVersion;
-            routingNumShards = after.routingNumShards;
-            state = after.state;
+            version = after.model.version();
+            mappingVersion = after.model.mappingVersion();
+            settingsVersion = after.model.settingsVersion();
+            aliasesVersion = after.model.aliasesVersion();
+            routingNumShards = after.model.routingNumShards();
+            state = State.fromId(after.model.state());
             settings = after.settings;
-            primaryTerms = after.primaryTerms;
+            primaryTerms = after.model.primaryTerms();
             mappings = DiffableUtils.diff(before.mappings, after.mappings, DiffableUtils.getStringKeySerializer());
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(
-                before.inSyncAllocationIds,
-                after.inSyncAllocationIds,
+                before.model.inSyncAllocationIds(),
+                after.model.inSyncAllocationIds(),
                 DiffableUtils.getVIntKeySerializer(),
                 DiffableUtils.StringSetValueSerializer.getInstance()
             );
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
-            isSystem = after.isSystem;
+            isSystem = after.model.isSystem();
             context = after.context;
             ingestionStatus = after.ingestionStatus;
         }
@@ -1636,7 +1557,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.mappings.putAll(mappings.apply(part.mappings));
             builder.aliases.putAll(aliases.apply(part.aliases));
             builder.customMetadata.putAll(customData.apply(part.customData));
-            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
+            builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.model.inSyncAllocationIds()));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.context(context);
@@ -1647,118 +1568,41 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
-        Builder builder = new Builder(in.readString());
-        builder.version(in.readLong());
-        builder.mappingVersion(in.readVLong());
-        builder.settingsVersion(in.readVLong());
-        builder.aliasesVersion(in.readVLong());
-        builder.setRoutingNumShards(in.readInt());
-        builder.state(State.fromId(in.readByte()));
-        builder.settings(readSettingsFromStream(in));
-        builder.primaryTerms(in.readVLongArray());
-        int mappingsSize = in.readVInt();
-        for (int i = 0; i < mappingsSize; i++) {
-            MappingMetadata mappingMd = new MappingMetadata(in);
-            builder.putMapping(mappingMd);
-        }
-        int aliasesSize = in.readVInt();
-        for (int i = 0; i < aliasesSize; i++) {
-            AliasMetadata aliasMd = new AliasMetadata(in);
-            builder.putAlias(aliasMd);
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            String key = in.readString();
-            DiffableStringMap custom = DiffableStringMap.readFrom(in);
-            builder.putCustom(key, custom);
-        }
-        int inSyncAllocationIdsSize = in.readVInt();
-        for (int i = 0; i < inSyncAllocationIdsSize; i++) {
-            int key = in.readVInt();
-            Set<String> allocationIds = DiffableUtils.StringSetValueSerializer.getInstance().read(in, key);
-            builder.putInSyncAllocationIds(key, allocationIds);
-        }
-        int rolloverAliasesSize = in.readVInt();
-        for (int i = 0; i < rolloverAliasesSize; i++) {
-            builder.putRolloverInfo(new RolloverInfo(in));
-        }
-        builder.system(in.readBoolean());
-
-        if (in.getVersion().onOrAfter(Version.V_2_17_0)) {
-            builder.context(in.readOptionalWriteable(Context::new));
-        }
-
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            builder.ingestionStatus(in.readOptionalWriteable(IngestionStatus::new));
-        }
-        return builder.build();
+        IndexMetadataModel model = new IndexMetadataModel(
+            in,
+            DiffableStringMap.METADATA_READER,
+            RolloverInfo.METADATA_READER,
+            rollover -> ((RolloverInfo) rollover).getAlias()
+        );
+        return new Builder(model).build();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index.getName()); // uuid will come as part of settings
-        out.writeLong(version);
-        out.writeVLong(mappingVersion);
-        out.writeVLong(settingsVersion);
-        out.writeVLong(aliasesVersion);
-        out.writeInt(routingNumShards);
-        out.writeByte(state.id());
-        writeSettingsToStream(settings, out);
-        out.writeVLongArray(primaryTerms);
-        out.writeVInt(mappings.size());
-        for (final MappingMetadata cursor : mappings.values()) {
-            cursor.writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (final AliasMetadata cursor : aliases.values()) {
-            cursor.writeTo(out);
-        }
-        out.writeVInt(customData.size());
-        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(inSyncAllocationIds.size());
-        for (final Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
-            out.writeVInt(cursor.getKey());
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
-        }
-        out.writeVInt(rolloverInfos.size());
-        for (final RolloverInfo cursor : rolloverInfos.values()) {
-            cursor.writeTo(out);
-        }
-        out.writeBoolean(isSystem);
-
-        if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
-            out.writeOptionalWriteable(context);
-        }
-
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalWriteable(ingestionStatus);
-        }
+        model.writeTo(out);
     }
 
     @Override
     public void writeVerifiableTo(BufferedChecksumStreamOutput out) throws IOException {
         out.writeString(index.getName()); // uuid will come as part of settings
-        out.writeLong(version);
-        out.writeVLong(mappingVersion);
-        out.writeVLong(settingsVersion);
-        out.writeVLong(aliasesVersion);
-        out.writeInt(routingNumShards);
-        out.writeByte(state.id());
+        out.writeLong(model.version());
+        out.writeVLong(model.mappingVersion());
+        out.writeVLong(model.settingsVersion());
+        out.writeVLong(model.aliasesVersion());
+        out.writeInt(model.routingNumShards());
+        out.writeByte(model.state());
         writeSettingsToStream(settings, out);
-        out.writeVLongArray(primaryTerms);
+        out.writeVLongArray(model.primaryTerms());
         out.writeMapValues(mappings, (stream, val) -> val.writeVerifiableTo((BufferedChecksumStreamOutput) stream));
         out.writeMapValues(aliases, (stream, val) -> val.writeTo(stream));
         out.writeMap(customData, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
         out.writeMap(
-            inSyncAllocationIds,
+            model.inSyncAllocationIds(),
             StreamOutput::writeVInt,
             (stream, val) -> DiffableUtils.StringSetValueSerializer.getInstance().write(new TreeSet<>(val), stream)
         );
         out.writeMapValues(rolloverInfos, (stream, val) -> val.writeTo(stream));
-        out.writeBoolean(isSystem);
+        out.writeBoolean(model.isSystem());
         if (out.getVersion().onOrAfter(Version.V_2_17_0)) {
             out.writeOptionalWriteable(context);
         }
@@ -1767,21 +1611,21 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     @Override
     public String toString() {
         return new StringBuilder().append("IndexMetadata{routingNumShards=")
-            .append(routingNumShards)
+            .append(model.routingNumShards())
             .append(", index=")
             .append(index)
             .append(", version=")
-            .append(version)
+            .append(model.version())
             .append(", state=")
-            .append(state)
+            .append(State.fromId(model.state()))
             .append(", settingsVersion=")
-            .append(settingsVersion)
+            .append(model.settingsVersion())
             .append(", mappingVersion=")
-            .append(mappingVersion)
+            .append(model.mappingVersion())
             .append(", aliasesVersion=")
-            .append(aliasesVersion)
+            .append(model.aliasesVersion())
             .append(", primaryTerms=")
-            .append(Arrays.toString(primaryTerms))
+            .append(Arrays.toString(model.primaryTerms()))
             .append(", aliases=")
             .append(aliases)
             .append(", settings=")
@@ -1791,11 +1635,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             .append(", customData=")
             .append(customData)
             .append(", inSyncAllocationIds=")
-            .append(inSyncAllocationIds)
+            .append(model.inSyncAllocationIds())
             .append(", rolloverInfos=")
             .append(rolloverInfos)
             .append(", isSystem=")
-            .append(isSystem)
+            .append(model.isSystem())
             .append(", context=")
             .append(context)
             .append(", ingestionStatus=")
@@ -1805,7 +1649,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public boolean isSystem() {
-        return isSystem;
+        return model.isSystem();
     }
 
     public Context context() {
@@ -1861,23 +1705,72 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public Builder(IndexMetadata indexMetadata) {
-            this.index = indexMetadata.getIndex().getName();
-            this.state = indexMetadata.state;
-            this.version = indexMetadata.version;
-            this.mappingVersion = indexMetadata.mappingVersion;
-            this.settingsVersion = indexMetadata.settingsVersion;
-            this.aliasesVersion = indexMetadata.aliasesVersion;
+            this.index = indexMetadata.model.index();
+            this.state = State.fromId(indexMetadata.model.state());
+            this.version = indexMetadata.model.version();
+            this.mappingVersion = indexMetadata.model.mappingVersion();
+            this.settingsVersion = indexMetadata.model.settingsVersion();
+            this.aliasesVersion = indexMetadata.model.aliasesVersion();
             this.settings = indexMetadata.getSettings();
-            this.primaryTerms = indexMetadata.primaryTerms.clone();
+            this.primaryTerms = indexMetadata.model.primaryTerms().clone();
             this.mappings = new HashMap<>(indexMetadata.mappings);
             this.aliases = new HashMap<>(indexMetadata.aliases);
             this.customMetadata = new HashMap<>(indexMetadata.customData);
-            this.routingNumShards = indexMetadata.routingNumShards;
-            this.inSyncAllocationIds = new HashMap<>(indexMetadata.inSyncAllocationIds);
+            this.routingNumShards = indexMetadata.model.routingNumShards();
+            this.inSyncAllocationIds = new HashMap<>(indexMetadata.model.inSyncAllocationIds());
             this.rolloverInfos = new HashMap<>(indexMetadata.rolloverInfos);
-            this.isSystem = indexMetadata.isSystem;
+            this.isSystem = indexMetadata.model.isSystem();
             this.context = indexMetadata.context;
             this.ingestionStatus = indexMetadata.ingestionStatus;
+        }
+
+        /**
+         * Creates a builder from an {@link IndexMetadataModel}.
+         *
+         * @param model the IndexMetadataModel to create from
+         */
+        public Builder(IndexMetadataModel model) {
+            this.mappings = new HashMap<>();
+            this.aliases = new HashMap<>();
+            this.customMetadata = new HashMap<>();
+            this.inSyncAllocationIds = new HashMap<>();
+            this.rolloverInfos = new HashMap<>();
+
+            this.index = model.index();
+            this.version = model.version();
+            this.mappingVersion = model.mappingVersion();
+            this.settingsVersion = model.settingsVersion();
+            this.aliasesVersion = model.aliasesVersion();
+            this.routingNumShards = model.routingNumShards();
+            this.state = State.fromId(model.state());
+            this.settings = Settings.builder().fromModel(model.settings()).build();
+            this.primaryTerms = model.primaryTerms();
+            this.isSystem = model.isSystem();
+
+            // Convert MappingMetadataModel to MappingMetadata
+            model.mappings().values().forEach(mapping -> this.mappings.put(mapping.type(), new MappingMetadata(mapping)));
+
+            // Convert AliasMetadataModel to AliasMetadata
+            model.aliases().values().forEach(alias -> this.aliases.put(alias.alias(), new AliasMetadata.Builder(alias).build()));
+
+            // Convert MetadataWriteable customData to DiffableStringMap
+            model.customData().forEach((key, value) -> this.customMetadata.put(key, (DiffableStringMap) value));
+
+            // Copy inSyncAllocationIds
+            this.inSyncAllocationIds.putAll(model.inSyncAllocationIds());
+
+            // Convert MetadataWriteable rolloverInfos to RolloverInfo
+            model.rolloverInfos().forEach((key, value) -> this.rolloverInfos.put(key, (RolloverInfo) value));
+
+            // Set context if present
+            if (model.context() != null) {
+                this.context = new Context(model.context());
+            }
+
+            // Set ingestionStatus if present
+            if (model.ingestionPaused() != null) {
+                this.ingestionStatus = new IngestionStatus(model.ingestionPaused());
+            }
         }
 
         public Builder index(String index) {
@@ -2226,20 +2119,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings);
             final boolean isAppendOnlyIndex = INDEX_APPEND_ONLY_ENABLED_SETTING.get(settings);
 
-            final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
-
             if (ingestionStatus == null) {
                 ingestionStatus = IngestionStatus.getDefaultValue();
             }
 
+            // Build the model once from all local state
+            IndexMetadataModel model = buildModel(tmpSettings, filledInSyncAllocationIds, tmpAliases);
+
             return new IndexMetadata(
-                new Index(index, uuid),
-                version,
-                mappingVersion,
-                settingsVersion,
-                aliasesVersion,
-                primaryTerms,
-                state,
+                model,
                 numberOfShards,
                 numberOfReplicas,
                 numberOfSearchReplicas,
@@ -2247,18 +2135,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mappings,
                 tmpAliases,
                 customMetadata,
-                filledInSyncAllocationIds,
                 requireFilters,
                 initialRecoveryFilters,
                 includeFilters,
                 excludeFilters,
                 indexCreatedVersion,
                 indexUpgradedVersion,
-                getRoutingNumShards(),
                 routingPartitionSize,
                 waitForActiveShards,
                 rolloverInfos,
-                isSystem,
                 indexTotalShardsPerNodeLimit,
                 indexTotalPrimaryShardsPerNodeLimit,
                 indexTotalRemoteCapableShardsPerNodeLimit,
@@ -2266,6 +2151,61 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isAppendOnlyIndex,
                 context,
                 ingestionStatus
+            );
+        }
+
+        /**
+         * Builds the IndexMetadataModel from all local Builder state.
+         * This is called once at the end of build() to create the model for serialization.
+         */
+        private IndexMetadataModel buildModel(
+            Settings settings,
+            Map<Integer, Set<String>> filledInSyncAllocationIds,
+            Map<String, AliasMetadata> aliases
+        ) {
+            // Convert MappingMetadata to MappingMetadataModel
+            Map<String, MappingMetadataModel> mappingModels = new HashMap<>(mappings.size());
+            mappings.forEach((key, value) -> mappingModels.put(key, value.model()));
+
+            // Convert AliasMetadata to AliasMetadataModel
+            Map<String, AliasMetadataModel> aliasModels = new HashMap<>(aliases.size());
+            aliases.forEach((key, value) -> aliasModels.put(key, value.model()));
+
+            // Convert DiffableStringMap to MetadataWriteable
+            Map<String, MetadataWriteable> customDataWriteable = new HashMap<>(customMetadata.size());
+            customDataWriteable.putAll(customMetadata);
+
+            // Convert RolloverInfo to MetadataWriteable
+            Map<String, MetadataWriteable> rolloverInfosWriteable = new HashMap<>(rolloverInfos.size());
+            rolloverInfosWriteable.putAll(rolloverInfos);
+
+            // Get SettingsModel from Settings
+            SettingsModel settingsModel = settings.model();
+
+            // Convert Context to ContextModel if present
+            ContextModel contextModel = context != null ? context.model() : null;
+
+            // Convert IngestionStatus to Boolean if present
+            Boolean ingestionPausedValue = ingestionStatus != null ? ingestionStatus.isPaused() : null;
+
+            return new IndexMetadataModel(
+                index,
+                version,
+                mappingVersion,
+                settingsVersion,
+                aliasesVersion,
+                getRoutingNumShards(),
+                state.id(),
+                settingsModel,
+                primaryTerms,
+                mappingModels,
+                aliasModels,
+                customDataWriteable,
+                filledInSyncAllocationIds,
+                rolloverInfosWriteable,
+                isSystem,
+                contextModel,
+                ingestionPausedValue
             );
         }
 
@@ -2352,7 +2292,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
-            for (final Map.Entry<Integer, Set<String>> cursor : indexMetadata.inSyncAllocationIds.entrySet()) {
+            for (final Map.Entry<Integer, Set<String>> cursor : indexMetadata.model.inSyncAllocationIds().entrySet()) {
                 builder.startArray(String.valueOf(cursor.getKey()));
                 for (String allocationId : cursor.getValue()) {
                     builder.value(allocationId);
@@ -2366,7 +2306,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 cursor.toXContent(builder, params);
             }
             builder.endObject();
-            builder.field(KEY_SYSTEM, indexMetadata.isSystem);
+            builder.field(KEY_SYSTEM, indexMetadata.model.isSystem());
 
             if (indexMetadata.context != null) {
                 builder.field(CONTEXT_KEY);
@@ -2598,7 +2538,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * changes if and index is shrunk.
      */
     public int getRoutingNumShards() {
-        return routingNumShards;
+        return model.routingNumShards();
     }
 
     /**

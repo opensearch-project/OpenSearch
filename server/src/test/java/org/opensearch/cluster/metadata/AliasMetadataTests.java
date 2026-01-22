@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.metadata.index.model.AliasMetadataModel;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -65,6 +66,215 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
         final AliasMetadata after = new AliasMetadata(in);
 
         assertThat(after, equalTo(before));
+    }
+
+    public void testModelDeserialization() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        // Serialize using AliasMetadata
+        final BytesStreamOutput out = new BytesStreamOutput();
+        aliasMetadata.writeTo(out);
+
+        // Deserialize using AliasMetadataModel
+        final StreamInput in = out.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in);
+
+        // Verify all fields match
+        assertThat(model.alias(), equalTo(aliasMetadata.alias()));
+        assertThat(model.indexRouting(), equalTo(aliasMetadata.indexRouting()));
+        assertThat(model.searchRouting(), equalTo(aliasMetadata.searchRouting()));
+        assertThat(model.searchRoutingValues(), equalTo(aliasMetadata.searchRoutingValues()));
+        assertThat(model.writeIndex(), equalTo(aliasMetadata.writeIndex()));
+        assertThat(model.isHidden(), equalTo(aliasMetadata.isHidden()));
+        assertThat(model.filteringRequired(), equalTo(aliasMetadata.filteringRequired()));
+
+        // Verify filter content matches
+        if (aliasMetadata.filter() != null) {
+            assertNotNull(model.filter());
+            assertArrayEquals(aliasMetadata.filter().compressed(), model.filter().compressedBytes());
+        } else {
+            assertNull(model.filter());
+        }
+    }
+
+    public void testModelDeserializationWithNullValues() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("minimal-alias").build();
+
+        // Serialize using AliasMetadata
+        final BytesStreamOutput out = new BytesStreamOutput();
+        aliasMetadata.writeTo(out);
+
+        // Deserialize using AliasMetadataModel
+        final StreamInput in = out.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in);
+
+        // Verify all fields match (including nulls)
+        assertThat(model.alias(), equalTo(aliasMetadata.alias()));
+        assertNull(model.filter());
+        assertNull(model.indexRouting());
+        assertNull(model.searchRouting());
+        assertTrue(model.searchRoutingValues().isEmpty());
+        assertNull(model.writeIndex());
+        assertNull(model.isHidden());
+        assertFalse(model.filteringRequired());
+    }
+
+    public void testModelToMetadataSerialization() throws IOException {
+        // Create an AliasMetadata, serialize it
+        final AliasMetadata original = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as AliasMetadataModel
+        final StreamInput in1 = out1.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in1);
+
+        // Serialize the model
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        model.writeTo(out2);
+
+        // Deserialize as AliasMetadata
+        final StreamInput in2 = out2.bytes().streamInput();
+        final AliasMetadata restored = new AliasMetadata(in2);
+
+        // Verify round-trip preserves data
+        assertThat(restored.alias(), equalTo(original.alias()));
+        assertThat(restored.indexRouting(), equalTo(original.indexRouting()));
+        assertThat(restored.searchRouting(), equalTo(original.searchRouting()));
+        assertThat(restored.searchRoutingValues(), equalTo(original.searchRoutingValues()));
+        assertThat(restored.writeIndex(), equalTo(original.writeIndex()));
+        assertThat(restored.isHidden(), equalTo(original.isHidden()));
+        assertThat(restored.filteringRequired(), equalTo(original.filteringRequired()));
+
+        // Verify filter content matches
+        if (original.filter() != null) {
+            assertNotNull(restored.filter());
+            assertArrayEquals(restored.filter().compressed(), original.filter().compressed());
+        } else {
+            assertNull(restored.filter());
+        }
+    }
+
+    public void testModelToMetadataSerializationWithNullValues() throws IOException {
+        // Create a minimal AliasMetadata with null optional fields
+        final AliasMetadata original = AliasMetadata.builder("minimal-alias").build();
+
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as AliasMetadataModel
+        final StreamInput in1 = out1.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in1);
+
+        // Serialize the model
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        model.writeTo(out2);
+
+        // Deserialize as AliasMetadata
+        final StreamInput in2 = out2.bytes().streamInput();
+        final AliasMetadata restored = new AliasMetadata(in2);
+
+        // Verify round-trip preserves data (including nulls)
+        assertThat(restored.alias(), equalTo(original.alias()));
+        assertNull(restored.filter());
+        assertNull(restored.indexRouting());
+        assertNull(restored.searchRouting());
+        assertTrue(restored.searchRoutingValues().isEmpty());
+        assertNull(restored.writeIndex());
+        assertNull(restored.isHidden());
+        assertFalse(restored.filteringRequired());
+    }
+
+    public void testModelAccessor() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        // Verify model() accessor returns the underlying model
+        AliasMetadataModel model = aliasMetadata.model();
+        assertNotNull(model);
+        assertThat(model.alias(), equalTo("test-alias"));
+        assertThat(model.indexRouting(), equalTo("indexRouting"));
+        assertThat(model.searchRouting(), equalTo("routing1,routing2"));
+        assertThat(model.writeIndex(), equalTo(true));
+        assertThat(model.isHidden(), equalTo(false));
+        assertTrue(model.filteringRequired());
+    }
+
+    public void testConstructorFromModel() throws IOException {
+        // Create a model directly
+        final AliasMetadata original = AliasMetadata.builder("model-alias")
+            .filter("{ \"term\": \"bar\"}")
+            .indexRouting("idx-routing")
+            .searchRouting("search1,search2")
+            .writeIndex(false)
+            .isHidden(true)
+            .build();
+
+        // Get the model and create new AliasMetadata from it
+        AliasMetadataModel model = original.model();
+        AliasMetadata fromModel = new AliasMetadata.Builder(model).build();
+
+        // Verify all fields match
+        assertThat(fromModel.alias(), equalTo(original.alias()));
+        assertThat(fromModel.indexRouting(), equalTo(original.indexRouting()));
+        assertThat(fromModel.searchRouting(), equalTo(original.searchRouting()));
+        assertThat(fromModel.searchRoutingValues(), equalTo(original.searchRoutingValues()));
+        assertThat(fromModel.writeIndex(), equalTo(original.writeIndex()));
+        assertThat(fromModel.isHidden(), equalTo(original.isHidden()));
+        assertThat(fromModel.filteringRequired(), equalTo(original.filteringRequired()));
+
+        // Verify equals
+        assertThat(fromModel, equalTo(original));
+    }
+
+    public void testModelRoundTrip() throws IOException {
+        final AliasMetadata original = AliasMetadata.builder("roundtrip-alias")
+            .filter("{ \"match\": { \"field\": \"value\" }}")
+            .indexRouting("idx")
+            .searchRouting("s1,s2,s3")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        // Serialize AliasMetadata
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as AliasMetadataModel
+        final StreamInput in1 = out1.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in1);
+
+        // Create new AliasMetadata from model
+        AliasMetadata fromModel = new AliasMetadata.Builder(model).build();
+
+        // Serialize the new AliasMetadata
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        fromModel.writeTo(out2);
+
+        // Deserialize back to AliasMetadata
+        final StreamInput in2 = out2.bytes().streamInput();
+        final AliasMetadata restored = new AliasMetadata(in2);
+
+        // Verify round-trip preserves all data
+        assertThat(restored, equalTo(original));
     }
 
     @Override
