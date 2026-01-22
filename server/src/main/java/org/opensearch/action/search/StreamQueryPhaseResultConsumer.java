@@ -55,23 +55,25 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
      * Creates a streaming query phase result consumer.
      */
     public StreamQueryPhaseResultConsumer(
-            SearchRequest request,
-            Executor executor,
-            CircuitBreaker circuitBreaker,
-            SearchPhaseController controller,
-            SearchProgressListener progressListener,
-            NamedWriteableRegistry namedWriteableRegistry,
-            int expectedResultSize,
-            Consumer<Exception> onPartialMergeFailure) {
+        SearchRequest request,
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchPhaseController controller,
+        SearchProgressListener progressListener,
+        NamedWriteableRegistry namedWriteableRegistry,
+        int expectedResultSize,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
         super(
-                request,
-                executor,
-                circuitBreaker,
-                controller,
-                progressListener,
-                namedWriteableRegistry,
-                expectedResultSize,
-                onPartialMergeFailure);
+            request,
+            executor,
+            circuitBreaker,
+            controller,
+            progressListener,
+            namedWriteableRegistry,
+            expectedResultSize,
+            onPartialMergeFailure
+        );
 
         // Initialize scoring mode from request
         String mode = request.getStreamingSearchMode();
@@ -121,20 +123,19 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             // Forward partials directly to listener to maintain stream, bypassing the
             // reducer queue (OOM prevention)
             if (result.queryResult() != null) {
-                System.out.println("DEBUG: Forwarding partial result " + result.getShardIndex());
                 QuerySearchResult qResult = result.queryResult();
                 TopDocs topDocs = qResult.hasTopDocs() ? qResult.topDocs().topDocs : null;
                 InternalAggregations aggs = qResult.hasAggs() ? qResult.consumeAggs().expand() : null;
 
                 // Manually trigger partial emission on the listener
                 progressListener().onPartialReduceWithTopDocs(
-                        Collections.singletonList(
-                                new SearchShard(qResult.getSearchShardTarget().getClusterAlias(),
-                                        qResult.getSearchShardTarget().getShardId())),
-                        qResult.getTotalHits(),
-                        topDocs,
-                        aggs,
-                        0 // reducePhase (dummy for streaming)
+                    Collections.singletonList(
+                        new SearchShard(qResult.getSearchShardTarget().getClusterAlias(), qResult.getSearchShardTarget().getShardId())
+                    ),
+                    qResult.getTotalHits(),
+                    topDocs,
+                    aggs,
+                    0 // reducePhase (dummy for streaming)
                 );
             }
             // Immediately continue the pipeline
