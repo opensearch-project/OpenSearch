@@ -1408,7 +1408,7 @@ final class DefaultSearchContext extends SearchContext {
             decider.evaluateForAggregations(aggregations().factories(), indexService.getIndexSettings());
         }
         boolean result = decider.shouldUseIntraSegmentSearch();
-        logger.info(
+        logger.debug(
             "partition strategy decision: strategy={}, useIntraSegment={}, reason={}",
             partitionStrategy,
             result,

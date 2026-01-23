@@ -119,14 +119,9 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     };
 
     /**
-     * Indicates whether this query benefits from intra-segment search (partitioning large segments
-     * into doc ID ranges for parallel processing).
-     *
+     * Indicates whether this query benefits from intra-segment search.
      * Override to return {@code true} for compute-heavy queries that parallelize well
-     *
-     * Default is {@code false} (conservative) - queries must explicitly opt-in.
-     *
-     * @return {@code true} if query benefits, {@code false} otherwise
+     * Default is {@code false} - queries must explicitly opt-in.
      */
     default boolean supportsIntraSegmentSearch() {
         return false;
