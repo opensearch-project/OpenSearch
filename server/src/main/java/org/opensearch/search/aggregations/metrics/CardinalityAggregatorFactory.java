@@ -133,11 +133,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
-
     private int precision() {
         return precisionThreshold == null
             ? HyperLogLogPlusPlus.DEFAULT_PRECISION

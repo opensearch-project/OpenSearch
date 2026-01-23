@@ -160,8 +160,4 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

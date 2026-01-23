@@ -101,8 +101,4 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

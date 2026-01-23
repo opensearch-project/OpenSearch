@@ -95,8 +95,4 @@ class ValueCountAggregatorFactory extends MetricAggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

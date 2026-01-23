@@ -106,8 +106,4 @@ public class FilterAggregatorFactory extends AggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

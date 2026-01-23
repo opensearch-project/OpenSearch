@@ -110,8 +110,4 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

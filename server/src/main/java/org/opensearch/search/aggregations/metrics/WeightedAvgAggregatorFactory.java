@@ -101,8 +101,4 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

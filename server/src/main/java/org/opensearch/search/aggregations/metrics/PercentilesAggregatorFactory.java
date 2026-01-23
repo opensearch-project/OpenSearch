@@ -109,8 +109,4 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

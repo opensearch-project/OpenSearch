@@ -155,8 +155,4 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

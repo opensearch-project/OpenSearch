@@ -100,8 +100,4 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         return true;
     }
 
-    @Override
-    protected boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }

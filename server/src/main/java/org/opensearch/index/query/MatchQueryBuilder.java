@@ -599,9 +599,4 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> i
         Number numberValue = nft.parse(value);
         return ComplementHelperUtils.numberValueToComplement(fieldName, numberValue);
     }
-
-    @Override
-    public boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }
