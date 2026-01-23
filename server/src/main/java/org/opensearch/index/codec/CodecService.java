@@ -35,6 +35,7 @@ package org.opensearch.index.codec;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -120,7 +121,7 @@ public class CodecService {
 
                 // Default codec could not be changed
                 if (name.equalsIgnoreCase(LUCENE_DEFAULT_CODEC) == true) {
-                    continue;
+                    throw new OpenSearchException("The default codec could not be replaced");
                 }
 
                 final Codec existing = codecs.get(name);

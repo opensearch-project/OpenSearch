@@ -9,6 +9,7 @@
 package org.opensearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
@@ -55,8 +56,8 @@ public interface CodecRegistry {
      *   - returning a {@code oldCodec}, effectively ignores the {@code newCodec}
      *   - returning a {@code null}, removes the {@code Codec} altogether
      *
-     * By default, the implementation returns a {@code newCodec} that replaces
-     * the {@code oldCodec}.
+     * By default, the implementation throws an exception that the codec with such name
+     * already exists.
      *
      * @param name codec name
      * @param oldCodec existing codec
@@ -64,6 +65,6 @@ public interface CodecRegistry {
      * @return codec to use, or "null" for removal
      */
     default @Nullable Codec onConflict(String name, Codec oldCodec, Codec newCodec) {
-        return newCodec;
+        throw new OpenSearchException("The codec with name " + name + " is already registered.");
     }
 }
