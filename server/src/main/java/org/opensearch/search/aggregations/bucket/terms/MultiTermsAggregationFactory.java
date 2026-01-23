@@ -139,7 +139,6 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
-
         }
         // TODO: Optimize passing too many value source config derived objects to aggregator
         bucketCountThresholds.ensureValidity();

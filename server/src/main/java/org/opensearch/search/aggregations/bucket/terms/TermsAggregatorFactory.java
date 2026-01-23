@@ -337,7 +337,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
-
         }
         bucketCountThresholds.ensureValidity();
 
