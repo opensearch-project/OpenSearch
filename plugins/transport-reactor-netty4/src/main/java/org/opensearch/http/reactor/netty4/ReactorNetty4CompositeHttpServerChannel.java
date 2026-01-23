@@ -11,7 +11,7 @@ package org.opensearch.http.reactor.netty4;
 import org.opensearch.common.concurrent.CompletableContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.http.HttpServerChannel;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.lang.reflect.UndeclaredThrowableException;
 import java.net.InetSocketAddress;
