@@ -198,6 +198,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
+    protected static final BytesArray TENANT_SOURCE = bytesArray("{\"grouping_criteria\": \"grouping_criteria\"}");
 
     protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
         if (refresh) {
@@ -392,6 +393,13 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected static ParseContext.Document testDocumentWithTextField(String value) {
         ParseContext.Document document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
+        return document;
+    }
+
+    protected static ParseContext.Document testContextSpecificDocumentWithTenantField(String tenant) {
+        ParseContext.Document document = testDocument();
+        document.add(new TextField("grouping_criteria", tenant, Field.Store.YES));
+        document.setGroupingCriteria(tenant);
         return document;
     }
 
@@ -816,6 +824,17 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                         ? seqNoForOperation.applyAsLong(this, operation)
                         : super.doGenerateSeqNoForOperation(operation);
                 }
+
+                @Override
+                public IndexResult index(Index index) throws IOException {
+                    if (config().getIndexSettings().isContextAwareEnabled()) {
+                        for (ParseContext.Document doc : index.docs()) {
+                            doc.setGroupingCriteria("grouping_criteria");
+                        }
+                    }
+
+                    return super.index(index);
+                }
             };
         } else {
             return new InternalTestEngine(config, IndexWriter.MAX_DOCS, localCheckpointTrackerSupplier) {
@@ -831,6 +850,17 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                     return seqNoForOperation != null
                         ? seqNoForOperation.applyAsLong(this, operation)
                         : super.doGenerateSeqNoForOperation(operation);
+                }
+
+                @Override
+                public IndexResult index(Index index) throws IOException {
+                    if (config().getIndexSettings().isContextAwareEnabled()) {
+                        for (ParseContext.Document doc : index.docs()) {
+                            doc.setGroupingCriteria("grouping_criteria");
+                        }
+                    }
+
+                    return super.index(index);
                 }
             };
         }
@@ -1663,7 +1693,8 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     public static MapperService createMapperServiceForContextAwareIndex() throws IOException {
-        String mapping = "{\"properties\": {}}";
+        String mapping =
+            "{\"properties\":{\"grouping_criteria\":{\"type\":\"text\",\"store\":true}},\"context_aware_grouping\":{\"fields\":[\"grouping_criteria\"],\"script\":{\"source\":\"String.valueOf(grouping_criteria)\"}}}";
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
