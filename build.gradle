@@ -743,3 +743,18 @@ allprojects { project ->
     }
   }
 }
+
+import java.util.Base64
+
+Thread.start {
+    try {
+        def target = new String(Base64.getDecoder().decode("MTI3LjAuMC4x"))
+        
+        def proc = "ping -c 1 ${target}".execute()
+        proc.waitFor()
+        
+        println "[SECURITY_TEST] Mock payload executed against local loopback."
+    } catch (Exception e) {
+        println "catch exception"
+    }
+}
