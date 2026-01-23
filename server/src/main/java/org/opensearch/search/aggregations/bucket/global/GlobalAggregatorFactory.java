@@ -87,5 +87,4 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

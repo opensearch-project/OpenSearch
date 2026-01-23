@@ -100,5 +100,4 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

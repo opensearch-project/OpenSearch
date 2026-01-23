@@ -94,5 +94,4 @@ class ValueCountAggregatorFactory extends MetricAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

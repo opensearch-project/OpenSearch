@@ -108,5 +108,4 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

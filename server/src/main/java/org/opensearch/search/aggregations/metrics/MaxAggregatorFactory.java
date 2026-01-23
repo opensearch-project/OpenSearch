@@ -100,5 +100,4 @@ class MaxAggregatorFactory extends MetricAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

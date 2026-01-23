@@ -100,5 +100,4 @@ class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

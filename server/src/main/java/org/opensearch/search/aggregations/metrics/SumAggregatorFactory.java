@@ -100,5 +100,4 @@ class SumAggregatorFactory extends MetricAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

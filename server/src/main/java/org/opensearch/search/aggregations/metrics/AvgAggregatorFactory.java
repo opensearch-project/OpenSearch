@@ -100,5 +100,4 @@ class AvgAggregatorFactory extends MetricAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

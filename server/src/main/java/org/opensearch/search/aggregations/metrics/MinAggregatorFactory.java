@@ -100,5 +100,4 @@ class MinAggregatorFactory extends MetricAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

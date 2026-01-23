@@ -105,5 +105,4 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

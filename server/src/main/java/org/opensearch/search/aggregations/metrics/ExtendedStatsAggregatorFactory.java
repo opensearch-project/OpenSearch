@@ -99,5 +99,4 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }

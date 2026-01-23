@@ -680,5 +680,4 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
-
 }
