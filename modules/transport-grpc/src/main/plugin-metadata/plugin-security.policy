@@ -15,4 +15,7 @@ grant codeBase "${codebase.grpc-netty-shaded}" {
 
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
+
+   // Netty on Windows creates temporary files for pipe-based IPC during NIO selector initialization
+   permission java.io.FilePermission "${java.io.tmpdir}${/}-", "delete";
 };
