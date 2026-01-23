@@ -383,9 +383,9 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
                 // 4 slices will be created with 3 leaves in first&last slices and 2 leaves in other slices
                 assertEquals(expectedSliceCount, slices.length);
                 assertEquals(3, slices[0].partitions.length);
-                assertEquals(2, slices[1].partitions.length);
+                assertEquals(3, slices[1].partitions.length);
                 assertEquals(2, slices[2].partitions.length);
-                assertEquals(3, slices[3].partitions.length);
+                assertEquals(2, slices[3].partitions.length);
             }
         }
     }
