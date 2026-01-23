@@ -257,7 +257,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            :x: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
+            :exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
