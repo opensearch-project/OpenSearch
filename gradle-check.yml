@@ -1,0 +1,280 @@
+name: Gradle Check (Jenkins)
+on:
+  push:
+    branches-ignore:
+      - 'backport/**'
+      - 'create-pull-request/**'
+      - 'dependabot/**'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+jobs:
+  check-files:
+    runs-on: ubuntu-latest
+    outputs:
+      RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
+    steps:
+    - uses: actions/checkout@v6
+    - name: Get changed files
+      id: changed-files-specific
+      uses: tj-actions/changed-files@v47.0.1
+      with:
+        files_ignore: |
+          release-notes/*.md
+          .github/**
+          *.md
+
+  gradle-check:
+    needs: check-files
+    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
+      issues: write # To create an issue if check fails on push.
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    steps:
+      - name: Checkout OpenSearch repo
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
+    - name: Load secret
+      uses: 1password/load-secrets-action@v3
+      with:
+        # Export loaded secrets as environment variables
+        export-env: true
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        BEDROCK_ACCESS_ROLE: op://opensearch-infra-secrets/aws-iam-roles/bedrock-access-role
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ env.BEDROCK_ACCESS_ROLE }}
+        aws-region: us-east-1
+
+    - name: Verify file diffs
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        DIFF_CONTENT=$(git diff origin/main HEAD)
+        DIFF_REPORT=$(claude -p "$(cat << 'EOF'
+          Analyze the git diff between current commit HEAD and origin/main for security vulnerabilities and malicious code patterns.
+          
+          Review for security issues including but not limited to:
+          - Injection vulnerabilities (SQL, command, LDAP, template, etc.)
+          - Cross-site scripting (XSS) and improper output encoding
+          - Authentication and authorization flaws
+          - Insecure deserialization and XML parsing
+          - Malicious code (data exfiltration, backdoors, obfuscated logic)
+          - Hardcoded secrets and credential exposure
+          - Suspicious network calls or external communications
+          - Privilege escalation attempts
+          - Insecure file operations and path traversal
+          - Cryptographic weaknesses and insecure randomness
+          - Any other suspicious or anomalous code patterns
+          
+          **IMPORTANT: Your response must be ONLY the raw JSON object. Do NOT wrap it in markdown code blocks. Do NOT add any explanation before or after. Start your response with { and end with }.**
+          
+          Required JSON format:
+          {
+            "total": <number>,
+            "issues": [
+              {
+                "file": "path/to/file",
+                "line": <number>,
+                "malicious": true|false,
+                "reasoning": "Brief explanation of the issue"
+              }
+            ]
+          }
+          
+          Here is the diff to analyze:
+          $DIFF_CONTENT
+          
+          EOF
+          )"
+        )
+        echo "DIFF_REPORT_JSON=$DIFF_REPORT" >> $GITHUB_ENV
+
+    - name: Process results
+      run: |
+        if (echo $DIFF_REPORT_JSON | jq -e . >/dev/null 2>&1); then
+          DIFF_ISSUE_COUNT=$(echo $DIFF_REPORT_JSON | jq -r .total)
+          if [ "$DIFF_ISSUE_COUNT" != "0" ]; then
+            echo "Diff has issues"
+            DIFF_REPORT=$(echo "$SECURITY_REPORT" | jq -r '
+              "<table>",
+              "<tr><th>File</th><th>Line</th><th>Malicious</th><th>Reasoning</th></tr>",
+              (.issues[] |
+                "<tr><td>\(.file)</td><td>\(.line)</td><td>\(.malicious)</td><td>\(.reasoning)</td></tr>"
+              ),
+              "</table>"
+            ')
+            echo "DIFF_REPORT_TABLE=$DIFF_REPORT" >> $GITHUB_ENV
+            echo "DIFF_VALIDATED=false" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "Diff validated"
+            echo "DIFF_VALIDATED=true" >> $GITHUB_ENV
+          fi
+        else
+          echo "Results with error"
+          echo "DIFF_VALIDATED=error" >> $GITHUB_ENV
+          exit 1
+        fi
+
+      - name: Setup environment variables (PR)
+        if: github.event_name == 'pull_request_target'
+        run: |
+          echo "event_name=pull_request_target" >> $GITHUB_ENV
+          echo "branch_name=$(jq --raw-output .pull_request.base.ref $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_from_sha=$(jq --raw-output .pull_request.head.sha $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$(jq --raw-output .pull_request.head.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$(jq --raw-output .pull_request.base.repo.clone_url $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_title=$(jq --raw-output .pull_request.title $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_number=$(jq --raw-output .pull_request.number $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .pull_request.body $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "post_merge_action=false" >> $GITHUB_ENV
+
+      # to get the PR data that can be used for post merge actions
+      - uses: actions/github-script@v8
+        if: github.event_name == 'push'
+        id: get_pr_data
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            return (
+              await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                commit_sha: context.sha,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              })
+            ).data[0];
+
+      - name: Setup environment variables (Push)
+        if: github.event_name == 'push'
+        run: |
+          repo_url="https://github.com/opensearch-project/OpenSearch"
+          ref_id=$(git rev-parse HEAD)
+          branch_name=$(git rev-parse --abbrev-ref HEAD)
+          echo "branch_name=$branch_name" >> $GITHUB_ENV
+          echo "event_name=push" >> $GITHUB_ENV
+          echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
+          echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
+          echo "pr_title=Push trigger $branch_name $ref_id $repo_url" >> $GITHUB_ENV
+          echo "pr_owner=$(jq --raw-output '.commits[0].author.username' $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo 'pr_number=${{ fromJson(steps.get_pr_data.outputs.result).number }}' >> $GITHUB_ENV
+          echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
+          echo "post_merge_action=true" >> $GITHUB_ENV
+
+      - name: Checkout opensearch-build repo
+        uses: actions/checkout@v6
+        with:
+          repository: opensearch-project/opensearch-build
+          ref: main
+          path: opensearch-build
+
+      - name: Trigger jenkins workflow to run gradle check
+        run: |
+          set -e
+          set -o pipefail
+          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} | tee -a gradle-check.log
+
+      - name: Setup Result Status
+        if: always()
+        run: |
+          if [ "$DIFF_VALIDATED" = "true" ]; then
+            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          else
+            WORKFLOW_URL=not_available
+            RESULT=$DIFF_VALIDATED
+          fi
+          echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
+          echo "result=$RESULT" >> $GITHUB_ENV
+
+      - name: Upload Coverage Report
+        if: success()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./codeCoverage.xml
+
+      - name: Create Comment Success
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
+
+      - name: Extract Test Failure
+        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
+        run: |
+          if [ "$DIFF_VALIDATED" = "true" ]; then
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+          else
+            TEST_FAILURES=""
+          fi
+          if [[ "$TEST_FAILURES" != "" ]]
+          then
+            echo "test_failures<<EOF" >> $GITHUB_ENV
+            echo "" >> $GITHUB_ENV
+            echo "* **TEST FAILURES:**" >> $GITHUB_ENV
+            echo '```' >> $GITHUB_ENV
+            echo "$TEST_FAILURES" >> $GITHUB_ENV
+            echo '```' >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Create Comment Flaky
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :grey_exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }}) ${{ env.test_failures }}
+
+            Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
+
+      - name: Create Comment Failure
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED == 'true'}}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :x: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
+
+            Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+
+      - name: Create Comment Failure Diff
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED != 'true'}}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :x: Gradle check result for ${{ env.pr_from_sha }}: ${{ env.result }}
+            ${{ env.DIFF_REPORT_TABLE }}
+
+  check-result:
+    needs: [check-files, gradle-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if gradle-check fails
+        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }}
+        run: exit 1
