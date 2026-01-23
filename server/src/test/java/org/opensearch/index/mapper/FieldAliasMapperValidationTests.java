@@ -40,6 +40,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -219,7 +220,8 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             new Explicit<>(true, false),
             ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.FALSE,
-            emptyMap(),
+            new Explicit<>(false, false),
+            (Map<String, Mapper>) (Map<?, ?>) emptyMap(),
             SETTINGS
         );
     }
@@ -231,7 +233,8 @@ public class FieldAliasMapperValidationTests extends OpenSearchTestCase {
             new Explicit<>(true, false),
             ObjectMapper.Nested.newNested(),
             ObjectMapper.Dynamic.FALSE,
-            emptyMap(),
+            new Explicit<>(false, false),
+            (Map<String, Mapper>) (Map<?, ?>) emptyMap(),
             SETTINGS
         );
     }

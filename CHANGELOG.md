@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
 - Added public getter method in `SourceFieldMapper` to return excluded field ([#20205](https://github.com/opensearch-project/OpenSearch/pull/20205))
 - Add integ test for simulating node join left event when data node cluster state publication lag because the cluster applier thread being busy ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907)).
@@ -12,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added public getter method in `SourceFieldMapper` to return included field ([#20290](https://github.com/opensearch-project/OpenSearch/pull/20290))
 - Support for HTTP/3 (server side) ([#20017](https://github.com/opensearch-project/OpenSearch/pull/20017))
 - Add circuit breaker support for gRPC transport to prevent out-of-memory errors ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
+- Add index-level-encryption support for snapshots and remote-store ([#20095](https://github.com/opensearch-project/OpenSearch/pull/20095))
+- Adding BackWardCompatibility test for remote publication enabled cluster ([#20221](https://github.com/opensearch-project/OpenSearch/pull/20221))
+- Support for hll field mapper to support cardinality rollups ([#20129](https://github.com/opensearch-project/OpenSearch/pull/20129))
+- Introduce new libs/netty4 module to share common implementation between netty-based plugins and modules (transport-netty4, transport-reactor-netty4) ([#20447](https://github.com/opensearch-project/OpenSearch/pull/20447))
 
 ### Changed
 - Handle custom metadata files in subdirectory-store ([#20157](https://github.com/opensearch-project/OpenSearch/pull/20157))
@@ -21,17 +26,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add `cluster.initial_cluster_manager_nodes` to testClusters OVERRIDABLE_SETTINGS ([#20348](https://github.com/opensearch-project/OpenSearch/pull/20348))
 - Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
 - Install demo security information when running ./gradlew run -PinstalledPlugins="['opensearch-security']" ([#20372](https://github.com/opensearch-project/OpenSearch/pull/20372))
+- Add `Alt-Svc` header support to advertise HTTP/3 availability ([#20434](https://github.com/opensearch-project/OpenSearch/pull/20434))
 
 ### Fixed
+- Fix segment replication failure during rolling restart ([#19234](https://github.com/opensearch-project/OpenSearch/issues/19234))
 - Fix bug of warm index: FullFileCachedIndexInput was closed error ([#20055](https://github.com/opensearch-project/OpenSearch/pull/20055))
 - Fix flaky test ClusterMaxMergesAtOnceIT.testClusterLevelDefaultUpdatesMergePolicy ([#18056](https://github.com/opensearch-project/OpenSearch/issues/18056))
 - Fix bug in Assertion framework(Yaml Rest test): numeric comparison fails when comparing Integer vs Long (or Float vs Double) ([#19376](https://github.com/opensearch-project/OpenSearch/pull/19376))
 - Fix Netty deprecation warnings in transport-netty4 module ([#20233](https://github.com/opensearch-project/OpenSearch/pull/20233))
 - Fix snapshot restore when an index sort is present ([#20284](https://github.com/opensearch-project/OpenSearch/pull/20284))
 - Fix SearchPhaseExecutionException to properly initCause ([#20320](https://github.com/opensearch-project/OpenSearch/pull/20320))
+- [repository-s3] remove endpointOverride and let AWS SDK V2 S3 determine the s3 url based on bucket name or arn provided ([#20345](https://github.com/opensearch-project/OpenSearch/pull/20345))
 - Fix `cluster.remote.<cluster_alias>.server_name` setting no populating SNI ([#20321](https://github.com/opensearch-project/OpenSearch/pull/20321))
 - Fix X-Opaque-Id header propagation (along with other response headers) for streaming Reactor Netty 4 transport ([#20371](https://github.com/opensearch-project/OpenSearch/pull/20371))
+- Allow removing plugin that's optionally extended ([#20417](https://github.com/opensearch-project/OpenSearch/pull/20417))
 - Fix indexing regression and bug fixes for grouping criteria. ([20145](https://github.com/opensearch-project/OpenSearch/pull/20145))
+- LeafReader should not remove SubReaderWrappers incase IndexWriter encounters a non aborting Exception ([#20193](https://github.com/opensearch-project/OpenSearch/pull/20193))
+- Fix Netty deprecation warnings in transport-reactor-netty4 module ([20429](https://github.com/opensearch-project/OpenSearch/pull/20429))
+- Fix stats aggregation returning zero results with `size:0`. ([20427](https://github.com/opensearch-project/OpenSearch/pull/20427))
 
 ### Dependencies
 - Bump `com.google.auth:google-auth-library-oauth2-http` from 1.38.0 to 1.41.0 ([#20183](https://github.com/opensearch-project/OpenSearch/pull/20183))
@@ -60,9 +72,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jline:jline` from 3.30.5 to 3.30.6 ([#20369](https://github.com/opensearch-project/OpenSearch/pull/20369))
 - Bump `lycheeverse/lychee-action` from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
 - Bump `opensearch-protobufs` from 1.0.0 to 1.1.0 and update transport-grpc module compatibility ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
+- Bump `ch.qos.logback:logback-classic` from 1.5.23 to 1.5.24 ([#20407](https://github.com/opensearch-project/OpenSearch/pull/20407))
 - Bump `org.wiremock:wiremock-standalone` from 3.6.0 to 3.13.2 ([#20406](https://github.com/opensearch-project/OpenSearch/pull/20406))
 - Bump `tj-actions/changed-files` from 47.0.0 to 47.0.1 ([#20408](https://github.com/opensearch-project/OpenSearch/pull/20408))
 - Bump `reactor-netty` to 1.3.2, `reactor` to 3.8.2 ([#20419](https://github.com/opensearch-project/OpenSearch/pull/20419))
+- Bump `org.apache.maven:maven-model` from 3.9.6 to 3.9.12 ([#20438](https://github.com/opensearch-project/OpenSearch/pull/20438))
+- Bump `dnsjava:dnsjava` from 3.6.3 to 3.6.4 ([#20440](https://github.com/opensearch-project/OpenSearch/pull/20440))
+- Bump `com.netflix.nebula.ospackage-base` from 12.1.1 to 12.2.0 ([#20439](https://github.com/opensearch-project/OpenSearch/pull/20439))
+- Bump OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
 
 ### Removed
 

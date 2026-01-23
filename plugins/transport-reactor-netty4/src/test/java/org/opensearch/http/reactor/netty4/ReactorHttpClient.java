@@ -18,7 +18,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.http.reactor.netty4.http3.Http3Utils;
+import org.opensearch.http.netty4.http3.Http3Utils;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -36,7 +36,9 @@ import java.util.stream.Stream;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.EmptyHttpHeaders;
@@ -199,7 +201,7 @@ public class ReactorHttpClient implements Closeable {
         final Collection<FullHttpRequest> requests,
         boolean ordered
     ) {
-        final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+        final EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
         try {
             final HttpClient client = createClient(remoteAddress, eventLoopGroup);
 
@@ -207,7 +209,7 @@ public class ReactorHttpClient implements Closeable {
             final Mono<FullHttpResponse>[] monos = requests.stream()
                 .map(
                     request -> client.headers(h -> h.add(request.headers()))
-                        .baseUrl(request.getUri())
+                        .baseUrl(request.uri())
                         .request(request.method())
                         .send(Mono.fromSupplier(() -> request.content()))
                         .responseSingle(
@@ -240,12 +242,12 @@ public class ReactorHttpClient implements Closeable {
         final HttpRequest request,
         final Stream<ToXContent> stream
     ) {
-        final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(1);
+        final EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
         try {
             final HttpClient client = createClient(remoteAddress, eventLoopGroup);
 
             return client.headers(h -> h.add(request.headers()))
-                .baseUrl(request.getUri())
+                .baseUrl(request.uri())
                 .request(request.method())
                 .send(Flux.fromStream(stream).map(s -> {
                     try (XContentBuilder builder = XContentType.JSON.contentBuilder()) {
@@ -276,7 +278,7 @@ public class ReactorHttpClient implements Closeable {
         }
     }
 
-    private HttpClient createClient(final InetSocketAddress remoteAddress, final NioEventLoopGroup eventLoopGroup) {
+    private HttpClient createClient(final InetSocketAddress remoteAddress, final EventLoopGroup eventLoopGroup) {
         final HttpClient client = HttpClient.newConnection()
             .resolver(DefaultAddressResolverGroup.INSTANCE)
             .runOn(eventLoopGroup)
@@ -330,8 +332,8 @@ public class ReactorHttpClient implements Closeable {
 
     }
 
-    public boolean useHttp11only() {
-        return protocol == HttpProtocol.HTTP11;
+    public HttpProtocol protocol() {
+        return protocol;
     }
 
     private static HttpProtocol randomProtocol(boolean secure, Settings settings) {
