@@ -8,6 +8,8 @@
 
 package org.opensearch.search.internal;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
@@ -31,6 +33,8 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PART
  */
 final class MaxTargetSliceSupplier {
 
+    private static final Logger logger = LogManager.getLogger(MaxTargetSliceSupplier.class);
+
     static IndexSearcher.LeafSlice[] getSlices(
         List<LeafReaderContext> leaves,
         int targetMaxSlice,
@@ -38,13 +42,41 @@ final class MaxTargetSliceSupplier {
         String partitionStrategy,
         int minSegmentSize
     ) {
+        IndexSearcher.LeafSlice[] slices;
         if (useIntraSegmentSearch == false) {
-            return getSlicesWholeSegments(leaves, targetMaxSlice);
+            slices = getSlicesWholeSegments(leaves, targetMaxSlice);
+        } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
+            slices = getSlicesWithForcePartitioning(leaves, targetMaxSlice);
+        } else {
+            slices = getSlicesWithAutoPartitioning(leaves, targetMaxSlice, minSegmentSize);
         }
-        if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
-            return getSlicesWithForcePartitioning(leaves, targetMaxSlice);
+
+        // Temp log remove
+        if (slices.length > 0) {
+            long maxDocs = 0, minDocs = Long.MAX_VALUE;
+            int totalPartitions = 0;
+            for (IndexSearcher.LeafSlice slice : slices) {
+                long sliceDocs = 0;
+                for (LeafReaderContextPartition p : slice.partitions) {
+                    sliceDocs += (p.maxDocId == Integer.MAX_VALUE) ? p.ctx.reader().maxDoc() : (p.maxDocId - p.minDocId);
+                }
+                totalPartitions += slice.partitions.length;
+                maxDocs = Math.max(maxDocs, sliceDocs);
+                minDocs = Math.min(minDocs, sliceDocs);
+            }
+            double imbalance = minDocs > 0 ? (double) maxDocs / minDocs : 1.0;
+            logger.info(
+                "Partition strategy={}, useIntraSegment={}: segments={}, partitions={}, slices={}, imbalanceRatio={}",
+                partitionStrategy,
+                useIntraSegmentSearch,
+                leaves.size(),
+                totalPartitions,
+                slices.length,
+                String.format("%.2f", imbalance)
+            );
         }
-        return getSlicesWithAutoPartitioning(leaves, targetMaxSlice, minSegmentSize);
+
+        return slices;
     }
 
     /**

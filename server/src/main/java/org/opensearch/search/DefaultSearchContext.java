@@ -83,8 +83,7 @@ import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.deciders.ConcurrentSearchDecision;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.deciders.ConcurrentSearchVisitor;
-import org.opensearch.search.deciders.DefaultIntraSegmentSearchDecider;
-import org.opensearch.search.deciders.IntraSegmentSearchDecision;
+import org.opensearch.search.deciders.IntraSegmentSearchDecider;
 import org.opensearch.search.deciders.IntraSegmentSearchVisitor;
 import org.opensearch.search.dfs.DfsSearchResult;
 import org.opensearch.search.fetch.FetchPhase;
@@ -1379,7 +1378,6 @@ final class DefaultSearchContext extends SearchContext {
 
     /**
      * Returns intra-segment search status for the search context.
-     * This should only be used after request parsing, during which requestShouldUseIntraSegmentSearch will be set.
      */
     @Override
     public boolean shouldUseIntraSegmentSearch() {
@@ -1388,12 +1386,9 @@ final class DefaultSearchContext extends SearchContext {
 
     /**
      * Evaluate if request should use intra-segment search based on partition strategy and query/aggregation analysis.
-     * Both "balanced" and "force" strategies check query/agg support.
-     * "force" skips minSegmentSize and maxDocsPerPartition checks, partitioning all segments.
      */
     public void evaluateRequestShouldUseIntraSegmentSearch() {
         String partitionStrategy = getPartitionStrategy();
-        // If strategy is "none", no partitioning
         if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
             requestShouldUseIntraSegmentSearch.set(false);
             return;
@@ -1404,20 +1399,21 @@ final class DefaultSearchContext extends SearchContext {
             requestShouldUseIntraSegmentSearch.set(false);
             return;
         }
-        // Use decider to evaluate both query and aggregations
-        DefaultIntraSegmentSearchDecider decider = new DefaultIntraSegmentSearchDecider();
-        // Evaluate query
+        IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         if (request().source() != null && request().source().query() != null) {
-            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(Set.of(decider), indexService.getIndexSettings());
+            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(decider, indexService.getIndexSettings());
             request().source().query().visit(visitor);
         }
-        // Evaluate aggregations
         if (aggregations() != null && aggregations().factories() != null) {
             decider.evaluateForAggregations(aggregations().factories(), indexService.getIndexSettings());
         }
-        IntraSegmentSearchDecision decision = decider.getIntraSegmentSearchDecision();
-        logger.debug("partition strategy decision: strategy={}, decision={}", partitionStrategy, decision);
-        boolean result = decision.getDecisionStatus() == IntraSegmentSearchDecision.DecisionStatus.YES;
+        boolean result = decider.shouldUseIntraSegmentSearch();
+        logger.info(
+            "partition strategy decision: strategy={}, useIntraSegment={}, reason={}",
+            partitionStrategy,
+            result,
+            decider.getReason()
+        );
         requestShouldUseIntraSegmentSearch.set(result);
     }
 }

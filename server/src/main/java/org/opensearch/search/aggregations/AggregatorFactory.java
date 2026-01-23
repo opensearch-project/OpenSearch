@@ -125,9 +125,8 @@ public abstract class AggregatorFactory {
     }
 
     /**
-     * Implementation should override this method and return true if the Aggregator benefits from
-     * intra-segment search (partitioning large segments into doc ID ranges for parallel processing).
-     * Default is false - aggregations must explicitly opt-in.
+     * Implementation should override this method and return true if the Aggregator benefits from intra-segment search
+     * Default is false - aggregations must explicitly opt-in
      */
     protected boolean supportsIntraSegmentSearch() {
         return false;

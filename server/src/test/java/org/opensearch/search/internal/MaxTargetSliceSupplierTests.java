@@ -77,21 +77,22 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
+            final String fieldValue = "value";
             for (int i = 0; i < 3; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", "value", Field.Store.NO));
+                document.add(new StringField("field1", fieldValue, Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
             for (int i = 0; i < 1; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", "value", Field.Store.NO));
+                document.add(new StringField("field1", fieldValue, Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
             for (int i = 0; i < 1; ++i) {
                 Document document = new Document();
-                document.add(new StringField("field1", "value", Field.Store.NO));
+                document.add(new StringField("field1", fieldValue, Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
@@ -105,7 +106,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         }
     }
 
-    // Tests for getSlicesWithForcePartitioning (force strategy)
     public void testForcePartitioningSingleSegment() throws Exception {
         try (
             final Directory directory = newDirectory();
@@ -164,7 +164,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         }
     }
 
-    // Tests for getSlicesWithAutoPartitioning (balanced strategy)
     public void testBalancedPartitioningLargeSegment() throws Exception {
         try (
             final Directory directory = newDirectory();
@@ -212,7 +211,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         }
     }
 
-    // Tests for main entry point getSlices
     public void testGetSlicesWithNoneStrategy() throws Exception {
         List<LeafReaderContext> leaves = getLeaves(4);
         IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2, false, "none", 100);
@@ -263,7 +261,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         }
     }
 
-    // Test same-segment constraint
     public void testSameSegmentPartitionsInDifferentSlices() throws Exception {
         try (
             final Directory directory = newDirectory();
