@@ -213,7 +213,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                     var debug = profileResult.getDebugInfo();
                     if (debug != null && "streaming_terms".equals(debug.get("result_strategy"))) {
                         foundStreamingTerms = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
                         break;
                     }
                 }
@@ -288,7 +287,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                     var debug = profileResult.getDebugInfo();
                     if (debug != null && "stream_long_terms".equals(debug.get("result_strategy"))) {
                         foundStreamingNumeric = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
                         break;
                     }
                 }
@@ -390,31 +388,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             assertEquals(NUM_SHARDS, resp.getTotalShards());
             assertEquals(90, resp.getHits().getTotalHits().value());
 
-            // Validate that streaming aggregation was NOT used due to restrictive limits
-            assertNotNull("Profile response should be present", resp.getProfileResults());
-            boolean foundStreamingDisabled = false;
-            for (var shardProfile : resp.getProfileResults().values()) {
-                List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-                for (var profileResult : aggProfileResults) {
-                    if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                        var debug = profileResult.getDebugInfo();
-                        if (debug != null && debug.containsKey("streaming_enabled")) {
-                            // Should be false due to restrictive limits
-                            assertFalse(
-                                "streaming_enabled should be false with restrictive limits",
-                                (Boolean) debug.get("streaming_enabled")
-                            );
-                            foundStreamingDisabled = true;
-                            break;
-                        }
-                    }
-                }
-                if (foundStreamingDisabled) break;
-            }
-            if (!foundStreamingDisabled) {
-                logger.info("No streaming debug info found in profile - test still valid as results are correct");
-            }
-
+            // With factory-level estimation and restrictive limits, streaming should not be used.
+            // The result_strategy will be the traditional strategy instead of streaming_terms.
             // Results should still be correct even without streaming
             StringTerms agg1 = (StringTerms) resp.getAggregations().asMap().get("agg1");
             List<StringTerms.Bucket> buckets = agg1.getBuckets();
@@ -460,9 +435,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             for (var profileResult : aggProfileResults) {
                 if (StreamCardinalityAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
                     var debug = profileResult.getDebugInfo();
-                    if (debug != null && debug.containsKey("streaming_enabled")) {
+                    if (debug != null && debug.containsKey("streaming_precision")) {
                         foundStreamingCardinality = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
                         assertTrue("streaming_precision should be positive", ((Number) debug.get("streaming_precision")).intValue() > 0);
                         break;
                     }

@@ -58,6 +58,10 @@ import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.FlushModeResolver;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -303,6 +307,24 @@ public class AggregatorFactories {
 
     private List<Aggregator> createTopLevelAggregators(SearchContext searchContext, Predicate<AggregatorFactory> factoryFilter)
         throws IOException {
+        // Estimate streaming cost from factories BEFORE creating any aggregators.
+        // This allows the correct aggregator type to be created on the first try,
+        // avoiding double-creation when streaming is not beneficial.
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == null) {
+            StreamingCostMetrics metrics = estimateStreamingCostFromFactories(factories, searchContext);
+            FlushMode decision;
+            if (metrics == null) {
+                // No factories provided streaming metrics - default to PER_SHARD
+                decision = FlushMode.PER_SHARD;
+            } else {
+                long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
+                double minRatio = searchContext.getStreamingMinCardinalityRatio();
+                long minBucket = searchContext.getStreamingMinEstimatedBucketCount();
+                decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket, minRatio, minBucket);
+            }
+            searchContext.setFlushModeIfAbsent(decision);
+        }
+
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         List<Aggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < factories.length; i++) {
@@ -321,6 +343,70 @@ public class AggregatorFactories {
             }
         }
         return aggregators;
+    }
+
+    /**
+     * Recursively estimates streaming cost from the factory tree.
+     *
+     * <p>Traverses the aggregator factory tree, collecting streaming cost metrics from factories
+     * that implement {@link StreamingCostEstimable}. Combines metrics from sibling factories
+     * and nested sub-aggregations to produce a combined estimate.
+     *
+     * @param factories Array of aggregator factories to estimate
+     * @param searchContext Search context providing access to index metadata
+     * @return Combined streaming cost metrics, null if no factories provide metrics,
+     *         or non-streamable if any factory explicitly returns non-streamable
+     */
+    private static StreamingCostMetrics estimateStreamingCostFromFactories(AggregatorFactory[] factories, SearchContext searchContext) {
+        StreamingCostMetrics combined = null;
+        for (AggregatorFactory factory : factories) {
+            StreamingCostMetrics metrics = estimateFromFactory(factory, searchContext);
+            if (metrics != null && !metrics.streamable()) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+            if (metrics != null) {
+                combined = (combined == null) ? metrics : combined.combineWithSibling(metrics);
+            }
+        }
+        return combined;
+    }
+
+    /**
+     * Estimates streaming cost from a single factory, including its sub-factories.
+     *
+     * <p>Factories must implement {@link StreamingCostEstimable} to participate in streaming.
+     * Factories that don't implement the interface will block streaming for the entire
+     * aggregation tree.
+     *
+     * @param factory The aggregator factory to estimate
+     * @param searchContext Search context providing access to index metadata
+     * @return Streaming cost metrics for this factory and its sub-aggregations
+     */
+    private static StreamingCostMetrics estimateFromFactory(AggregatorFactory factory, SearchContext searchContext) {
+        StreamingCostMetrics factoryMetrics;
+        if (factory instanceof StreamingCostEstimable estimable) {
+            factoryMetrics = estimable.estimateStreamingCost(searchContext);
+            if (!factoryMetrics.streamable()) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+        } else {
+            // Factory doesn't implement StreamingCostEstimable - not streaming compatible
+            return StreamingCostMetrics.nonStreamable();
+        }
+
+        // Recursively estimate sub-factories
+        AggregatorFactory[] subFactories = factory.getSubFactories().getFactories();
+        if (subFactories.length > 0) {
+            StreamingCostMetrics subMetrics = estimateStreamingCostFromFactories(subFactories, searchContext);
+            if (subMetrics != null && !subMetrics.streamable()) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+            if (subMetrics != null) {
+                factoryMetrics = factoryMetrics.combineWithSubAggregation(subMetrics);
+            }
+        }
+
+        return factoryMetrics;
     }
 
     public boolean hasNonGlobalAggregator() {

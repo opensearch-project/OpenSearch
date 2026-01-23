@@ -26,8 +26,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +40,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements Streamable {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
@@ -144,27 +142,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
                 }
             }
         });
-    }
-
-    @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
-        try {
-            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-            long maxCardinality = 0;
-            long totalDocsWithField = 0;
-
-            for (LeafReaderContext leaf : leaves) {
-                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
-                if (docValues != null) {
-                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
-                    totalDocsWithField += docValues.cost();
-                }
-            }
-
-            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, leaves.size(), totalDocsWithField);
-        } catch (IOException e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
     }
 
     /**
@@ -359,12 +336,5 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
-
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
-        add.accept("streaming_top_n_size", metrics.topNSize());
-        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
-        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
-        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 }

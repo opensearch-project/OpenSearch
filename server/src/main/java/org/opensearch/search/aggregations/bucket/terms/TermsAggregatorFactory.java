@@ -52,11 +52,15 @@ import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator.Re
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostEstimator;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,7 +72,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -119,8 +123,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // Check if streaming is enabled and flush mode allows it (null means not yet evaluated)
-                    if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    // Check if streaming decision was made at AggregatorFactories level
+                    // FlushMode is already set before aggregator creation if streaming is enabled
+                    if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
@@ -133,9 +138,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             showTermDocCountError,
                             metadata
                         );
-                    } else {
-                        execution = ExecutionMode.GLOBAL_ORDINALS;
                     }
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
@@ -673,6 +677,49 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             cardinality,
             metadata
         );
+    }
+
+    /**
+     * Estimates streaming cost metrics before aggregator creation.
+     *
+     * <p>This method enables factory-level streaming decision making, allowing
+     * the correct aggregator type to be selected BEFORE creation, avoiding
+     * double-creation overhead.
+     *
+     * @param searchContext The search context providing access to index reader
+     * @return Streaming cost metrics for this terms aggregation
+     */
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        ValuesSource valuesSource = config.getValuesSource();
+
+        // Compute effective shardSize (same logic as doCreateInternal)
+        int effectiveShardSize = bucketCountThresholds.getShardSize();
+        if (InternalOrder.isKeyOrder(order) == false
+            && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            effectiveShardSize = BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize());
+        }
+        // Ensure shardSize is valid (at minimum, use requiredSize)
+        if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
+            effectiveShardSize = bucketCountThresholds.getRequiredSize();
+        }
+
+        // String terms with ordinals support - can estimate cardinality
+        if (valuesSource instanceof WithOrdinals ordinalsVS) {
+            return StreamingCostEstimator.estimateStringTerms(searchContext.searcher().getIndexReader(), ordinalsVS, effectiveShardSize);
+        }
+
+        // Numeric terms - estimation is less reliable, return non-streamable
+        // to let AggregatorTreeEvaluator handle it with collector-level metrics
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            return StreamingCostEstimator.estimateNumericTerms(
+                searchContext.searcher().getIndexReader(),
+                (ValuesSource.Numeric) valuesSource,
+                effectiveShardSize
+            );
+        }
+
+        return StreamingCostMetrics.nonStreamable();
     }
 
     @Override

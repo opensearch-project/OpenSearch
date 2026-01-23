@@ -47,6 +47,19 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
     }
 
     /**
+     * Creates metrics for aggregations that are compatible with streaming but don't
+     * contribute to the streaming cost decision (e.g., metrics aggregations like max, min, avg).
+     *
+     * <p>These aggregations can be nested within streaming bucket aggregations without
+     * blocking streaming, but their cost is negligible (single value output).
+     *
+     * @return metrics with streamable=true and minimal values (1, 1, 1, 1)
+     */
+    public static StreamingCostMetrics neutral() {
+        return new StreamingCostMetrics(true, 1, 1, 1, 1);
+    }
+
+    /**
      * Combines metrics for parent-child aggregation relationships.
      *
      * <p>Models nested aggregation scenarios where child aggregations execute once per
@@ -120,9 +133,5 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
             Math.max(this.segmentCount, siblingMetrics.segmentCount),
             this.estimatedDocCount + siblingMetrics.estimatedDocCount
         );
-    }
-
-    public boolean isStreamable() {
-        return streamable;
     }
 }

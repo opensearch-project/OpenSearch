@@ -1748,15 +1748,6 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                 assertEquals("stream_long_terms", debugInfo.get("result_strategy"));
 
                 assertTrue("Should contain total_buckets", debugInfo.containsKey("total_buckets"));
-                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
-                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
-                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
-                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
-                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
-
-                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
-                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
-                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
             }
         }
     }
