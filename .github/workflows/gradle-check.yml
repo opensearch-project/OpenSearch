@@ -21,15 +21,15 @@ jobs:
     outputs:
       RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
     steps:
-    - uses: actions/checkout@v6
-    - name: Get changed files
-      id: changed-files-specific
-      uses: tj-actions/changed-files@v47.0.1
-      with:
-        files_ignore: |
-          release-notes/*.md
-          .github/**
-          *.md
+      - uses: actions/checkout@v6
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v47.0.1
+        with:
+          files_ignore: |
+            release-notes/*.md
+            .github/**
+            *.md
 
   gradle-check:
     needs: check-files
@@ -45,6 +45,95 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+
+    - name: Load secret
+      uses: 1password/load-secrets-action@v3
+      with:
+        # Export loaded secrets as environment variables
+        export-env: true
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        BEDROCK_ACCESS_ROLE: op://opensearch-infra-secrets/aws-iam-roles/bedrock-access-role
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v5
+      with:
+        role-to-assume: ${{ env.BEDROCK_ACCESS_ROLE }}
+        aws-region: us-east-1
+
+    - name: Verify file diffs
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        DIFF_CONTENT=$(git diff origin/main HEAD)
+        DIFF_REPORT=$(claude -p "$(cat << 'EOF'
+          Analyze the git diff between current commit HEAD and origin/main for security vulnerabilities and malicious code patterns.
+          
+          Review for security issues including but not limited to:
+          - Injection vulnerabilities (SQL, command, LDAP, template, etc.)
+          - Cross-site scripting (XSS) and improper output encoding
+          - Authentication and authorization flaws
+          - Insecure deserialization and XML parsing
+          - Malicious code (data exfiltration, backdoors, obfuscated logic)
+          - Hardcoded secrets and credential exposure
+          - Suspicious network calls or external communications
+          - Privilege escalation attempts
+          - Insecure file operations and path traversal
+          - Cryptographic weaknesses and insecure randomness
+          - Any other suspicious or anomalous code patterns
+          
+          **IMPORTANT: Your response must be ONLY the raw JSON object. Do NOT wrap it in markdown code blocks. Do NOT add any explanation before or after. Start your response with { and end with }.**
+          
+          Required JSON format:
+          {
+            "total": <number>,
+            "issues": [
+              {
+                "file": "path/to/file",
+                "line": <number>,
+                "malicious": true|false,
+                "reasoning": "Brief explanation of the issue"
+              }
+            ]
+          }
+          
+          Here is the diff to analyze:
+          $DIFF_CONTENT
+          
+          EOF
+          )"
+        )
+        echo "DIFF_REPORT_JSON=$DIFF_REPORT" >> $GITHUB_ENV
+
+    - name: Process results
+      run: |
+        if (echo $DIFF_REPORT_JSON | jq -e . >/dev/null 2>&1); then
+          DIFF_ISSUE_COUNT=$(echo $DIFF_REPORT_JSON | jq -r .total)
+          if [ "$DIFF_ISSUE_COUNT" != "0" ]; then
+            echo "Diff has issues"
+            DIFF_REPORT=$(echo "$SECURITY_REPORT" | jq -r '
+              "<table>",
+              "<tr><th>File</th><th>Line</th><th>Malicious</th><th>Reasoning</th></tr>",
+              (.issues[] |
+                "<tr><td>\(.file)</td><td>\(.line)</td><td>\(.malicious)</td><td>\(.reasoning)</td></tr>"
+              ),
+              "</table>"
+            ')
+            echo "DIFF_REPORT_TABLE=$DIFF_REPORT" >> $GITHUB_ENV
+            echo "DIFF_VALIDATED=false" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "Diff validated"
+            echo "DIFF_VALIDATED=true" >> $GITHUB_ENV
+          fi
+        else
+          echo "Results with error"
+          echo "DIFF_VALIDATED=error" >> $GITHUB_ENV
+          exit 1
+        fi
 
       - name: Setup environment variables (PR)
         if: github.event_name == 'pull_request_target'
@@ -108,8 +197,13 @@ jobs:
       - name: Setup Result Status
         if: always()
         run: |
-          WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
-          RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          if [ "$DIFF_VALIDATED" = "true" ]; then
+            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          else
+            WORKFLOW_URL=not_available
+            RESULT=$DIFF_VALIDATED
+          fi
           echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
           echo "result=$RESULT" >> $GITHUB_ENV
 
@@ -131,7 +225,11 @@ jobs:
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
         run: |
-          TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+          if [ "$DIFF_VALIDATED" = "true" ]; then
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+          else
+            TEST_FAILURES=""
+          fi
           if [[ "$TEST_FAILURES" != "" ]]
           then
             echo "test_failures<<EOF" >> $GITHUB_ENV
@@ -154,7 +252,7 @@ jobs:
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED == 'true'}}
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
@@ -162,6 +260,15 @@ jobs:
             :exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+
+      - name: Create Comment Failure Diff
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED != 'true'}}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :x: Gradle check result for ${{ env.pr_from_sha }}: ${{ env.result }}
+            ${{ env.DIFF_REPORT_TABLE }}
 
   check-result:
     needs: [check-files, gradle-check]
