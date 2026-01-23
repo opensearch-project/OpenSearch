@@ -50,32 +50,6 @@ final class MaxTargetSliceSupplier {
         } else {
             slices = getSlicesWithAutoPartitioning(leaves, targetMaxSlice, minSegmentSize);
         }
-
-        // Temp log remove
-        if (slices.length > 0) {
-            long maxDocs = 0, minDocs = Long.MAX_VALUE;
-            int totalPartitions = 0;
-            for (IndexSearcher.LeafSlice slice : slices) {
-                long sliceDocs = 0;
-                for (LeafReaderContextPartition p : slice.partitions) {
-                    sliceDocs += (p.maxDocId == Integer.MAX_VALUE) ? p.ctx.reader().maxDoc() : (p.maxDocId - p.minDocId);
-                }
-                totalPartitions += slice.partitions.length;
-                maxDocs = Math.max(maxDocs, sliceDocs);
-                minDocs = Math.min(minDocs, sliceDocs);
-            }
-            double imbalance = minDocs > 0 ? (double) maxDocs / minDocs : 1.0;
-            logger.info(
-                "Partition strategy={}, useIntraSegment={}: segments={}, partitions={}, slices={}, imbalanceRatio={}",
-                partitionStrategy,
-                useIntraSegmentSearch,
-                leaves.size(),
-                totalPartitions,
-                slices.length,
-                String.format("%.2f", imbalance)
-            );
-        }
-
         return slices;
     }
 
