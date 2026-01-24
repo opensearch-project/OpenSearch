@@ -155,7 +155,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ParameterizedStaticS
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class);
+        return List.of(MockRepository.Plugin.class, ContextAwareIndexPlugin.class);
     }
 
     @After

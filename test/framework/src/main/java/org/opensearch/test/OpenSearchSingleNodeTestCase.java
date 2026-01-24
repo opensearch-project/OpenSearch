@@ -275,6 +275,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         plugins.add(MockScriptService.TestPlugin.class);
 
         plugins.add(MockTelemetryPlugin.class);
+        plugins.add(OpenSearchIntegTestCase.ContextAwareIndexPlugin.class);
         Node node = new MockNode(
             settingsBuilder.build(),
             plugins.stream()

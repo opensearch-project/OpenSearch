@@ -65,6 +65,17 @@ public class ClasspathPluginIT extends OpenSearchIntegTestCase {
                 null,
                 List.of(SampleExtensiblePlugin.class.getName()),
                 false
+            ),
+            new PluginInfo(
+                ContextAwareIndexPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                org.opensearch.Version.CURRENT,
+                "1.8",
+                ContextAwareIndexPlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
             )
         );
     }
