@@ -152,7 +152,7 @@ public class OpenSearchDirectoryReaderTests extends OpenSearchTestCase {
                 buckets.add(attribute);
             }
 
-            assertEquals(Set.of("criteria1", "criteria2").toString(), buckets.toString());
+            assertEquals(Set.of("criteria2", "criteria1").toString(), buckets.toString());
 
             // Check if caching works
             assertEquals(reader3.getReaderCacheHelper().getKey(), reader2.getReaderCacheHelper().getKey());
