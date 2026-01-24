@@ -36,7 +36,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -821,7 +820,6 @@ public final class IndexSettings {
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
 
-    @ExperimentalApi
     public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
         "index.search.concurrent_segment_search.partition_strategy",
         CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE,
@@ -839,7 +837,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    @ExperimentalApi
     public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
         "index.search.concurrent_segment_search.partition_min_segment_size",
         500_000,
