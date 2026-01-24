@@ -56,12 +56,25 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         List<LeafReaderContext> leaves = getLeaves(leafCount);
         int expectedSliceCount = 3;
         IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
+        int expectedLeavesPerSlice = leafCount / expectedSliceCount;
         assertEquals(expectedSliceCount, slices.length);
-        int totalPartitions = 0;
-        for (IndexSearcher.LeafSlice slice : slices) {
-            totalPartitions += slice.partitions.length;
+        for (int i = 0; i < expectedSliceCount; ++i) {
+            assertEquals(expectedLeavesPerSlice, slices[i].partitions.length);
         }
-        assertEquals(leafCount, totalPartitions);
+        // Case 2: test with first 2 slice more leaves than others
+        expectedSliceCount = 5;
+        slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
+        int expectedLeavesInFirst2Slice = 3;
+        int expectedLeavesInOtherSlice = 2;
+        assertEquals(expectedSliceCount, slices.length);
+        for (int i = 0; i < expectedSliceCount; ++i) {
+            if (i < 2) {
+                assertEquals(expectedLeavesInFirst2Slice, slices[i].partitions.length);
+            } else {
+                assertEquals(expectedLeavesInOtherSlice, slices[i].partitions.length);
+            }
+
+        }
     }
 
     public void testEmptyLeaves() {

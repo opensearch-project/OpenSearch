@@ -9,7 +9,6 @@
 package org.opensearch.search.deciders;
 
 import org.apache.lucene.search.BooleanClause;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilderVisitor;
 
@@ -20,16 +19,14 @@ import org.opensearch.index.query.QueryBuilderVisitor;
 public class IntraSegmentSearchVisitor implements QueryBuilderVisitor {
 
     private final IntraSegmentSearchDecider decider;
-    private final IndexSettings indexSettings;
 
-    public IntraSegmentSearchVisitor(IntraSegmentSearchDecider decider, IndexSettings indexSettings) {
+    public IntraSegmentSearchVisitor(IntraSegmentSearchDecider decider) {
         this.decider = decider;
-        this.indexSettings = indexSettings;
     }
 
     @Override
     public void accept(QueryBuilder qb) {
-        decider.evaluateForQuery(qb, indexSettings);
+        decider.evaluateForQuery(qb);
     }
 
     @Override

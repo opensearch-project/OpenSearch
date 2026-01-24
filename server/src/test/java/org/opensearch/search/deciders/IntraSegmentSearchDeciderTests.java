@@ -21,7 +21,7 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         QueryBuilder query = mock(QueryBuilder.class);
         when(query.supportsIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForQuery(query, null);
+        decider.evaluateForQuery(query);
         assertTrue(decider.shouldUseIntraSegmentSearch());
     }
 
@@ -30,7 +30,7 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         QueryBuilder query = mock(QueryBuilder.class);
         when(query.supportsIntraSegmentSearch()).thenReturn(false);
         when(query.getName()).thenReturn("test_query");
-        decider.evaluateForQuery(query, null);
+        decider.evaluateForQuery(query);
         assertFalse(decider.shouldUseIntraSegmentSearch());
         assertTrue(decider.getReason().contains("test_query"));
     }
@@ -39,7 +39,7 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         AggregatorFactories aggs = mock(AggregatorFactories.class);
         when(aggs.allFactoriesSupportIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForAggregations(aggs, null);
+        decider.evaluateForAggregations(aggs);
         assertTrue(decider.shouldUseIntraSegmentSearch());
     }
 
@@ -47,7 +47,7 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         AggregatorFactories aggs = mock(AggregatorFactories.class);
         when(aggs.allFactoriesSupportIntraSegmentSearch()).thenReturn(false);
-        decider.evaluateForAggregations(aggs, null);
+        decider.evaluateForAggregations(aggs);
         assertFalse(decider.shouldUseIntraSegmentSearch());
     }
 
@@ -56,10 +56,10 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         QueryBuilder query = mock(QueryBuilder.class);
         when(query.supportsIntraSegmentSearch()).thenReturn(false);
         when(query.getName()).thenReturn("test_query");
-        decider.evaluateForQuery(query, null);
+        decider.evaluateForQuery(query);
         AggregatorFactories aggs = mock(AggregatorFactories.class);
         when(aggs.allFactoriesSupportIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForAggregations(aggs, null);
+        decider.evaluateForAggregations(aggs);
         assertFalse(decider.shouldUseIntraSegmentSearch());
     }
 
@@ -67,10 +67,10 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         QueryBuilder query = mock(QueryBuilder.class);
         when(query.supportsIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForQuery(query, null);
+        decider.evaluateForQuery(query);
         AggregatorFactories aggs = mock(AggregatorFactories.class);
         when(aggs.allFactoriesSupportIntraSegmentSearch()).thenReturn(false);
-        decider.evaluateForAggregations(aggs, null);
+        decider.evaluateForAggregations(aggs);
         assertFalse(decider.shouldUseIntraSegmentSearch());
     }
 
@@ -78,10 +78,10 @@ public class IntraSegmentSearchDeciderTests extends OpenSearchTestCase {
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         QueryBuilder query = mock(QueryBuilder.class);
         when(query.supportsIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForQuery(query, null);
+        decider.evaluateForQuery(query);
         AggregatorFactories aggs = mock(AggregatorFactories.class);
         when(aggs.allFactoriesSupportIntraSegmentSearch()).thenReturn(true);
-        decider.evaluateForAggregations(aggs, null);
+        decider.evaluateForAggregations(aggs);
         assertTrue(decider.shouldUseIntraSegmentSearch());
     }
 

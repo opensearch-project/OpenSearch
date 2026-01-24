@@ -1401,11 +1401,11 @@ final class DefaultSearchContext extends SearchContext {
         }
         IntraSegmentSearchDecider decider = new IntraSegmentSearchDecider();
         if (request().source() != null && request().source().query() != null) {
-            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(decider, indexService.getIndexSettings());
+            IntraSegmentSearchVisitor visitor = new IntraSegmentSearchVisitor(decider);
             request().source().query().visit(visitor);
         }
         if (aggregations() != null && aggregations().factories() != null) {
-            decider.evaluateForAggregations(aggregations().factories(), indexService.getIndexSettings());
+            decider.evaluateForAggregations(aggregations().factories());
         }
         boolean result = decider.shouldUseIntraSegmentSearch();
         logger.debug(

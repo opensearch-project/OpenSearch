@@ -327,10 +327,16 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         for (IndexSearcher.LeafSlice slice : slices) {
             totalPartitions += slice.partitions.length;
         }
+        assertEquals(3, slices[0].partitions.length);
+        assertEquals(3, slices[1].partitions.length);
+        assertEquals(2, slices[2].partitions.length);
+        assertEquals(2, slices[3].partitions.length);
         assertEquals(10, totalPartitions);
         expectedSliceCount = 2;
         slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
         assertEquals(expectedSliceCount, slices.length);
+        assertEquals(5, slices[0].partitions.length);
+        assertEquals(5, slices[1].partitions.length);
     }
 
     public void testGetSlicesWithNonNullExecutorButCSDisabled() throws Exception {

@@ -336,6 +336,11 @@ public class AggregatorFactoriesTests extends OpenSearchTestCase {
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()), equalTo(Arrays.asList("foo", "bar")));
     }
 
+    public void testAllFactoriesSupportIntraSegmentSearchEmpty() {
+        AggregatorFactories factories = AggregatorFactories.EMPTY;
+        assertTrue(factories.allFactoriesSupportIntraSegmentSearch());
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;

@@ -8,8 +8,6 @@
 
 package org.opensearch.search.internal;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafReaderContextPartition;
@@ -32,8 +30,6 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PART
  * @opensearch.internal
  */
 final class MaxTargetSliceSupplier {
-
-    private static final Logger logger = LogManager.getLogger(MaxTargetSliceSupplier.class);
 
     static IndexSearcher.LeafSlice[] getSlices(
         List<LeafReaderContext> leaves,

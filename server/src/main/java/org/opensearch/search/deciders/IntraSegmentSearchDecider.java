@@ -8,7 +8,6 @@
 
 package org.opensearch.search.deciders;
 
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 
@@ -23,7 +22,7 @@ public class IntraSegmentSearchDecider {
     private boolean hasQuery = false;
     private boolean hasAggregations = false;
 
-    public void evaluateForQuery(QueryBuilder queryBuilder, IndexSettings indexSettings) {
+    public void evaluateForQuery(QueryBuilder queryBuilder) {
         hasQuery = true;
         if (queryBuilder.supportsIntraSegmentSearch() == false) {
             querySupport = false;
@@ -31,7 +30,7 @@ public class IntraSegmentSearchDecider {
         }
     }
 
-    public void evaluateForAggregations(AggregatorFactories aggregations, IndexSettings indexSettings) {
+    public void evaluateForAggregations(AggregatorFactories aggregations) {
         if (aggregations == null) {
             return;
         }
