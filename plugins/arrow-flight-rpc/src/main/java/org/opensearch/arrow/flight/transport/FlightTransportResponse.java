@@ -90,15 +90,12 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
                 try {
                     long start = System.nanoTime();
                     flightStream = flightClient.getStream(ticket, new HeaderCallOption(callHeaders));
-                    if ((System.nanoTime() - start) / 1_000_000 > 10) {
-                        logger.debug(
-                            "FlightClient.getStream() for correlationId: {} took {}ms",
-                            correlationId,
-                            (System.nanoTime() - start) / 1_000_000
-                        );
-                    }
-
+                    long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+                    logger.debug("FlightClient.getStream() for correlationId: {} took {}ms", correlationId, elapsedMs);
+                    start = System.nanoTime();
                     flightStream.next();
+                    elapsedMs = (System.nanoTime() - start) / 1_000_000;
+                    logger.debug("First FlightClient.next() for correlationId: {} took {}ms", correlationId, elapsedMs);
                     initialHeader = headerContext.getHeader(correlationId);
                     future.complete(initialHeader);
                 } catch (FlightRuntimeException e) {
@@ -139,6 +136,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             if (took > config.getSlowLogThreshold().millis()) {
                 logger.warn("Flight stream next() took [{}ms], exceeding threshold [{}ms]", took, config.getSlowLogThreshold().millis());
             }
+            logger.debug("FlightClient.next() for correlationId: {} took {}ms", correlationId, took);
         }
     }
 

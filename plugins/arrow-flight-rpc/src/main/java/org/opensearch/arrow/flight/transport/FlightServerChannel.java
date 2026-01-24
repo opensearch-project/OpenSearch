@@ -15,6 +15,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCallStatus;
 
@@ -52,6 +54,8 @@ class FlightServerChannel implements TcpChannel {
     private final FlightCallTracker callTracker;
     private volatile boolean cancelled = false;
     private final ExecutorService executor;
+    private final long correlationId;
+    private AtomicInteger batchNumber = new AtomicInteger(0);
 
     public FlightServerChannel(
         ServerStreamListener serverStreamListener,
@@ -60,6 +64,8 @@ class FlightServerChannel implements TcpChannel {
         FlightCallTracker callTracker,
         ExecutorService executor
     ) {
+        this.correlationId = Long.parseLong(middleware.getCorrelationId());
+        logger.debug("Creating FlightServerChannel for correlation ID: {}", correlationId);
         this.serverStreamListener = serverStreamListener;
         this.serverStreamListener.setUseZeroCopy(true);
         this.serverStreamListener.setOnCancelHandler(() -> {
@@ -102,6 +108,7 @@ class FlightServerChannel implements TcpChannel {
         if (!open.get()) {
             throw new IllegalStateException("FlightServerChannel already closed.");
         }
+        batchNumber.incrementAndGet();
         long batchStartTime = System.nanoTime();
         // Only set for the first batch
         if (root == null) {
@@ -112,13 +119,30 @@ class FlightServerChannel implements TcpChannel {
             root = output.getRoot();
             // placeholder to clear and fill the root with data for the next batch
         }
-
+        logger.debug("Sending batch #{} for correlation ID: {}", batchNumber, correlationId);
         // we do not want to close the root right after putNext() call as we do not know the status of it whether
         // its transmitted at transport; we close them all at complete stream. TODO: optimize this behaviour
         serverStreamListener.putNext();
+        long putNextTime = (System.nanoTime() - batchStartTime) / 1_000_000;
         if (callTracker != null) {
             long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
             callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
+            logger.debug(
+                "Batch #{} sent for correlation ID: {} in {}ms, size: {} bytes, putNext: {}ms",
+                batchNumber,
+                correlationId,
+                putNextTime / 1_000_000,
+                rootSize,
+                putNextTime
+            );
+        } else {
+            logger.debug(
+                "Batch #{} sent for correlation ID: {} in {}ms, bytes, putNext: {}ms",
+                batchNumber,
+                correlationId,
+                putNextTime / 1_000_000,
+                putNextTime
+            );
         }
     }
 
@@ -134,6 +158,9 @@ class FlightServerChannel implements TcpChannel {
             if (root == null) {
                 // Set header if no batches were sent
                 middleware.setHeader(header);
+                logger.debug("Completing empty stream for correlation ID: {}", correlationId);
+            } else {
+                logger.debug("Completing stream for correlation ID: {} after {} batches", correlationId, batchNumber);
             }
             serverStreamListener.completed();
         } finally {
@@ -160,8 +187,13 @@ class FlightServerChannel implements TcpChannel {
                     .toRuntimeException();
             }
             middleware.setHeader(header);
+            if (error instanceof OpenSearchException) {
+                logger.debug("Error in Flight stream: {}", error.getMessage());
+            } else {
+                logger.error("Unexpected error in Flight stream", error);
+            }
+            logger.debug("Sending error for correlation ID: {} after {} batches: {}", correlationId, batchNumber, error.getMessage());
             serverStreamListener.error(flightExc);
-            logger.debug(error);
         } finally {
             StreamErrorCode errorCode = flightExc != null ? mapFromCallStatus(flightExc) : StreamErrorCode.UNKNOWN;
             callTracker.recordCallEnd(errorCode.name());

@@ -71,7 +71,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 
 import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_BIND_HOST;
 import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PORTS;
@@ -412,7 +413,7 @@ class FlightTransport extends TcpTransport {
     private EventLoopGroup createEventLoopGroup(String name, int threads) {
         AtomicInteger threadCounter = new AtomicInteger(0);
         ThreadFactory threadFactory = r -> new Thread(r, name + "-" + threadCounter.incrementAndGet());
-        return new NioEventLoopGroup(threads, threadFactory);
+        return new MultiThreadIoEventLoopGroup(threads, threadFactory, NioIoHandler.newFactory());
     }
 
     private void gracefullyShutdownELG(EventLoopGroup group, String name) {
