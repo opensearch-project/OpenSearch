@@ -54,6 +54,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     public void testSliceCountLessThanLeafCount() throws Exception {
         int leafCount = 12;
         List<LeafReaderContext> leaves = getLeaves(leafCount);
+        // Case 1: test with equal number of leaves per slice
         int expectedSliceCount = 3;
         IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, expectedSliceCount);
         int expectedLeavesPerSlice = leafCount / expectedSliceCount;
@@ -73,7 +74,6 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             } else {
                 assertEquals(expectedLeavesInOtherSlice, slices[i].partitions.length);
             }
-
         }
     }
 
@@ -114,7 +114,10 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 assertEquals(3, leaves.size());
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(leaves, 2);
                 assertEquals(2, slices.length);
-                assertEquals(5, slices[0].getMaxDocs() + slices[1].getMaxDocs());
+                assertEquals(1, slices[0].partitions.length);
+                assertEquals(3, slices[0].getMaxDocs());
+                assertEquals(2, slices[1].partitions.length);
+                assertEquals(2, slices[1].getMaxDocs());
             }
         }
     }
@@ -136,11 +139,18 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(1, leaves.size());
+                // 1 segment of 100 docs → 4 partitions of 25 docs each
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
                 assertEquals(4, slices.length);
-                for (IndexSearcher.LeafSlice slice : slices) {
-                    assertEquals(1, slice.partitions.length);
-                }
+                // Each slice has 1 partition with 25 docs
+                assertEquals(1, slices[0].partitions.length);
+                assertEquals(25, slices[0].getMaxDocs());
+                assertEquals(1, slices[1].partitions.length);
+                assertEquals(25, slices[1].getMaxDocs());
+                assertEquals(1, slices[2].partitions.length);
+                assertEquals(25, slices[2].getMaxDocs());
+                assertEquals(1, slices[3].partitions.length);
+                assertEquals(25, slices[3].getMaxDocs());
             }
         }
     }
@@ -153,13 +163,14 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
-            for (int i = 0; i < 50; ++i) {
+            // Create 2 segments with 100 docs each
+            for (int i = 0; i < 100; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
                 iw.addDocument(document);
             }
             iw.commit();
-            for (int i = 0; i < 50; ++i) {
+            for (int i = 0; i < 100; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
                 iw.addDocument(document);
@@ -168,11 +179,17 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 assertEquals(2, leaves.size());
+                // Force partitions each segment into 4 partitions = 8 total, distributed to 4 slices
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(leaves, 4);
                 assertEquals(4, slices.length);
-                for (IndexSearcher.LeafSlice slice : slices) {
-                    assertEquals(2, slice.partitions.length);
-                }
+                assertEquals(2, slices[0].partitions.length);
+                assertEquals(50, slices[0].getMaxDocs());
+                assertEquals(2, slices[1].partitions.length);
+                assertEquals(50, slices[1].getMaxDocs());
+                assertEquals(2, slices[2].partitions.length);
+                assertEquals(50, slices[2].getMaxDocs());
+                assertEquals(2, slices[3].partitions.length);
+                assertEquals(50, slices[3].getMaxDocs());
             }
         }
     }
@@ -196,6 +213,14 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 assertEquals(1, leaves.size());
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(leaves, 4, 100);
                 assertEquals(4, slices.length);
+                assertEquals(1, slices[0].partitions.length);
+                assertEquals(250, slices[0].getMaxDocs());
+                assertEquals(1, slices[1].partitions.length);
+                assertEquals(250, slices[1].getMaxDocs());
+                assertEquals(1, slices[2].partitions.length);
+                assertEquals(250, slices[2].getMaxDocs());
+                assertEquals(1, slices[3].partitions.length);
+                assertEquals(250, slices[3].getMaxDocs());
             }
         }
     }
@@ -248,6 +273,14 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 4, true, "force", 100);
                 assertEquals(4, slices.length);
+                assertEquals(1, slices[0].partitions.length);
+                assertEquals(25, slices[0].getMaxDocs());
+                assertEquals(1, slices[1].partitions.length);
+                assertEquals(25, slices[1].getMaxDocs());
+                assertEquals(1, slices[2].partitions.length);
+                assertEquals(25, slices[2].getMaxDocs());
+                assertEquals(1, slices[3].partitions.length);
+                assertEquals(25, slices[3].getMaxDocs());
             }
         }
     }
@@ -260,6 +293,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
             )
         ) {
+            // Create 1 large segment (1000 docs) that exceeds minSegmentSize
             for (int i = 0; i < 1000; ++i) {
                 Document document = new Document();
                 document.add(new StringField("field1", "value", Field.Store.NO));
@@ -270,6 +304,57 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
                 List<LeafReaderContext> leaves = directoryReader.leaves();
                 IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 4, true, "balanced", 100);
                 assertEquals(4, slices.length);
+                assertEquals(1, slices[0].partitions.length);
+                assertEquals(250, slices[0].getMaxDocs());
+                assertEquals(1, slices[1].partitions.length);
+                assertEquals(250, slices[1].getMaxDocs());
+                assertEquals(1, slices[2].partitions.length);
+                assertEquals(250, slices[2].getMaxDocs());
+                assertEquals(1, slices[3].partitions.length);
+                assertEquals(250, slices[3].getMaxDocs());
+            }
+        }
+    }
+
+    public void testGetSlicesWithBalancedStrategyMultipleSegments() throws Exception {
+        try (
+            final Directory directory = newDirectory();
+            final IndexWriter iw = new IndexWriter(
+                directory,
+                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            // Create 1 large segment (400 docs) and 2 small segments (50 docs each)
+            for (int i = 0; i < 400; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            for (int i = 0; i < 50; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            for (int i = 0; i < 50; ++i) {
+                Document document = new Document();
+                document.add(new StringField("field1", "value", Field.Store.NO));
+                iw.addDocument(document);
+            }
+            iw.commit();
+            try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                List<LeafReaderContext> leaves = directoryReader.leaves();
+                assertEquals(3, leaves.size());
+                // minSegmentSize=100 → only large segment (400 docs) gets partitioned into 2
+                // Small segments (50 docs each) stay whole
+                // Total partitions = 2 (from large) + 2 (small whole) = 4, distributed to 2 slices
+                IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2, true, "balanced", 100);
+                assertEquals(2, slices.length);
+                assertEquals(2, slices[0].partitions.length);
+                assertEquals(250, slices[0].getMaxDocs());
+                assertEquals(2, slices[1].partitions.length);
+                assertEquals(250, slices[1].getMaxDocs());
             }
         }
     }
