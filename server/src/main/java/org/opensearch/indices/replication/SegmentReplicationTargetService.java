@@ -222,6 +222,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()) {
+            indexShard.clearReplicaMergedSegmentState();
             replicator.cancel(indexShard.shardId(), "Shard closing");
         }
     }
@@ -247,6 +248,7 @@ public class SegmentReplicationTargetService extends AbstractLifecycleComponent 
             && indexShard.indexSettings().isSegRepEnabledOrRemoteNode()
             && oldRouting.primary() == false
             && newRouting.primary()) {
+            indexShard.clearReplicaMergedSegmentState();
             replicator.cancel(indexShard.shardId(), "Shard has been promoted to primary");
         }
     }
