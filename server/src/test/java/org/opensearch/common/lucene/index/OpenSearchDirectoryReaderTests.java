@@ -100,8 +100,8 @@ public class OpenSearchDirectoryReaderTests extends OpenSearchTestCase {
         try (Directory dir1 = newDirectory(); Directory dir2 = newDirectory(); Directory dir3 = newDirectory()) {
 
             // Given
-            IndexWriterConfig iwc1 = indexWriterConfig("criteria1");
             IndexWriterConfig iwc2 = indexWriterConfig("criteria2");
+            IndexWriterConfig iwc1 = indexWriterConfig("criteria1");
 
             IndexWriter iw1 = new IndexWriter(dir1, iwc1);
             IndexWriter iw2 = new IndexWriter(dir2, iwc2);
