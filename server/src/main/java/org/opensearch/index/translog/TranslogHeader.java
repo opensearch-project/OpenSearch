@@ -65,11 +65,13 @@ public final class TranslogHeader {
     public static final int VERSION_CHECKSUMS = 1; // pre-2.0 - unsupported
     public static final int VERSION_CHECKPOINTS = 2; // added checkpoints
     public static final int VERSION_PRIMARY_TERM = 3; // added primary term
-    public static final int CURRENT_VERSION = VERSION_PRIMARY_TERM;
+    public static final int VERSION_WITH_FOOTER = 4; // added the footer for the translog
+    public static final int CURRENT_VERSION = VERSION_WITH_FOOTER;
 
     private final String translogUUID;
     private final long primaryTerm;
     private final int headerSizeInBytes;
+    private final int translogHeaderVersion;
 
     /**
      * Creates a new translog header with the given uuid and primary term.
@@ -80,14 +82,15 @@ public final class TranslogHeader {
      *                     All operations' terms in this translog file are enforced to be at most this term.
      */
     TranslogHeader(String translogUUID, long primaryTerm) {
-        this(translogUUID, primaryTerm, headerSizeInBytes(translogUUID));
+        this(translogUUID, primaryTerm, headerSizeInBytes(translogUUID), CURRENT_VERSION);
         assert primaryTerm >= 0 : "Primary term must be non-negative; term [" + primaryTerm + "]";
     }
 
-    private TranslogHeader(String translogUUID, long primaryTerm, int headerSizeInBytes) {
+    private TranslogHeader(String translogUUID, long primaryTerm, int headerSizeInBytes, int headerVersion) {
         this.translogUUID = translogUUID;
         this.primaryTerm = primaryTerm;
         this.headerSizeInBytes = headerSizeInBytes;
+        this.translogHeaderVersion = headerVersion;
     }
 
     public String getTranslogUUID() {
@@ -110,6 +113,13 @@ public final class TranslogHeader {
         return headerSizeInBytes;
     }
 
+    /**
+     * Returns the version of the translog header.
+     * */
+    public int getTranslogHeaderVersion() {
+        return translogHeaderVersion;
+    }
+
     static int headerSizeInBytes(String translogUUID) {
         return headerSizeInBytes(CURRENT_VERSION, new BytesRef(translogUUID).length);
     }
@@ -127,7 +137,7 @@ public final class TranslogHeader {
     static int readHeaderVersion(final Path path, final FileChannel channel, final StreamInput in) throws IOException {
         final int version;
         try {
-            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, VERSION_PRIMARY_TERM);
+            version = CodecUtil.checkHeader(new InputStreamDataInput(in), TRANSLOG_CODEC, VERSION_CHECKSUMS, CURRENT_VERSION);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             tryReportOldVersionError(path, channel);
             throw new TranslogCorruptedException(path.toString(), "translog header corrupted", e);
@@ -183,7 +193,7 @@ public final class TranslogHeader {
             in.read(uuid.bytes, uuid.offset, uuid.length);
             // Read the primary term
             final long primaryTerm;
-            if (version == VERSION_PRIMARY_TERM) {
+            if (version >= VERSION_PRIMARY_TERM) {
                 primaryTerm = in.readLong();
             } else {
                 assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
@@ -202,7 +212,7 @@ public final class TranslogHeader {
                 + channel.position()
                 + "]";
 
-            return new TranslogHeader(uuid.utf8ToString(), primaryTerm, headerSizeInBytes);
+            return new TranslogHeader(uuid.utf8ToString(), primaryTerm, headerSizeInBytes, version);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);
         }

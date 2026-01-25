@@ -12,6 +12,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.io.IndexIOStreamHandler;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +41,15 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         TranslogTransferMetadata metadata = new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, count);
         metadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
 
+        // We set the GenerationToChecksumMapper only if it is present in the file.
+        // Else we initialise it with an empty map.
+        try {
+            Map<String, String> generationToChecksumMapper = indexInput.readMapOfStrings();
+            metadata.setGenerationToChecksumMapper(generationToChecksumMapper);
+        } catch (EOFException ignored) {
+            metadata.setGenerationToChecksumMapper(Map.of());
+        }
+
         return metadata;
     }
 
@@ -56,6 +66,12 @@ public class TranslogTransferMetadataHandler implements IndexIOStreamHandler<Tra
         indexOutput.writeLong(content.getMinTranslogGeneration());
         if (content.getGenerationToPrimaryTermMapper() != null) {
             indexOutput.writeMapOfStrings(content.getGenerationToPrimaryTermMapper());
+        } else {
+            indexOutput.writeMapOfStrings(new HashMap<>());
+        }
+        // Write the generation to checksum mapping at the end.
+        if (content.getGenerationToChecksumMapper() != null) {
+            indexOutput.writeMapOfStrings(content.getGenerationToChecksumMapper());
         } else {
             indexOutput.writeMapOfStrings(new HashMap<>());
         }
