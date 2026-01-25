@@ -51,9 +51,14 @@ import org.opensearch.index.codec.CriteriaBasedCodec;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Simple tests for this filterreader
@@ -152,7 +157,9 @@ public class OpenSearchDirectoryReaderTests extends OpenSearchTestCase {
                 buckets.add(attribute);
             }
 
-            assertEquals(Set.of("criteria2", "criteria1").toString(), buckets.toString());
+            Set<String> expected = Stream.of("criteria2", "criteria1").sorted().collect(Collectors.toCollection(LinkedHashSet::new));
+            Set<String> actual = buckets.stream().sorted().collect(Collectors.toCollection(LinkedHashSet::new));
+            assertEquals(expected.toString(), actual.toString());
 
             // Check if caching works
             assertEquals(reader3.getReaderCacheHelper().getKey(), reader2.getReaderCacheHelper().getKey());
