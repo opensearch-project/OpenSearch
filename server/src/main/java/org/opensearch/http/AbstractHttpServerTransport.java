@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.network.NetworkAddress;
@@ -76,10 +77,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
+import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_GRACEFUL_SHUTDOWN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -258,6 +261,39 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
         }
 
+        long gracefulShutdownMillis = SETTING_HTTP_GRACEFUL_SHUTDOWN.get(settings).getMillis();
+        if (gracefulShutdownMillis > 0 && httpChannels.size() > 0) {
+
+            logger.info(
+                "There are {} open client connections, try to close gracefully within {}ms.",
+                httpChannels.size(),
+                gracefulShutdownMillis
+            );
+
+            // Close connection after the client is getting a response.
+            handlingSettings.setForceCloseConnection();
+
+            // Wait until all connections are closed or the graceful timeout is reached.
+            final long startTimeMillis = System.currentTimeMillis();
+            while (System.currentTimeMillis() - startTimeMillis < gracefulShutdownMillis) {
+                if (httpChannels.isEmpty()) {
+                    break;
+                }
+                try {
+                    TimeUnit.MILLISECONDS.sleep(30);
+                } catch (InterruptedException ie) {
+                    throw new OpenSearchException("Interrupted waiting for completion of [{}]", ie);
+                }
+            }
+
+            if (!httpChannels.isEmpty()) {
+                logger.info("Timeout reached, {} connections not closed gracefully.", httpChannels.size());
+            } else {
+                logger.info("Closed all connections gracefully.");
+            }
+        }
+
+        // Close all channels that are not yet closed
         try {
             CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
         } catch (Exception e) {
