@@ -19,6 +19,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.CheckedBiFunction;
@@ -39,6 +40,7 @@ import org.opensearch.index.store.Store;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -550,11 +552,19 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             childDisposableWriter.getIndexWriter().close();
             long pendingNumDocsByOldChildWriter = childDisposableWriter.getIndexWriter().getPendingNumDocs();
             accumulatingIndexWriter.addIndexes(directoryToCombine);
+            Path childDirectoryPath = getLocalFSDirectory(directoryToCombine).getDirectory();
             IOUtils.closeWhileHandlingException(directoryToCombine);
             childWriterPendingNumDocs.addAndGet(-pendingNumDocsByOldChildWriter);
+            IOUtils.rm(childDirectoryPath);
         }
 
         deleteDummyTombstoneEntry();
+    }
+
+    private FSDirectory getLocalFSDirectory(Directory localDirectory) {
+        // Since we are validating child IndexWriter directory, it will always be instance of FSDirectory.
+        assert localDirectory instanceof FSDirectory;
+        return (FSDirectory) localDirectory;
     }
 
     private void deleteDummyTombstoneEntry() throws IOException {
