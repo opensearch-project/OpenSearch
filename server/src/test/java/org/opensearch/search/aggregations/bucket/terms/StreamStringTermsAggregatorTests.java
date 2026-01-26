@@ -2059,4 +2059,154 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testKeyOrderWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != first 5 alphabetically
+                // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
+                // By count: zzz(100), yyy(90), xxx(80), www(70), vvv(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                String[] terms = { "zzz", "yyy", "xxx", "www", "vvv", "aaa", "bbb", "ccc", "ddd", "eee" };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("field", new BytesRef(terms[i])));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    // Request size=5 with key order ascending - should return first 5 alphabetically
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(true));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // With key order ASC, should return first 5 alphabetically: aaa, bbb, ccc, ddd, eee
+                    // NOT the top 5 by doc count (zzz, yyy, xxx, www, vvv)
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("aaa"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("bbb"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("ccc"));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("ddd"));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("eee"));
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderDescendingWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != last 5 alphabetically
+                // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
+                // By count: jjj(100), iii(90), hhh(80), ggg(70), fff(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                String[] terms = { "jjj", "iii", "hhh", "ggg", "fff", "aaa", "bbb", "ccc", "ddd", "eee" };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("field", new BytesRef(terms[i])));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    // Request size=5 with key order descending - should return last 5 alphabetically
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(false));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // With key order DESC, should return last 5 alphabetically: jjj, iii, hhh, ggg, fff
+                    // NOT the top 5 by doc count
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("fff"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("ggg"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("hhh"));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("iii"));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("jjj"));
+                }
+            }
+        }
+    }
 }

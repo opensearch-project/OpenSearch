@@ -171,12 +171,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             );
         });
 
-        // Create order_test index
-        // Data structure: 10 categories (cat_0 to cat_9)
-        // - Each category has unique number of users: cat_0=2, cat_1=4, cat_2=6, ..., cat_9=20
-        // - Each category has distinct max value: cat_0=100, cat_1=200, ..., cat_9=1000
-        // - Total docs: 2+4+6+8+10+12+14+16+18+20 = 110 docs
-        // - Data spread across 3 segments for streaming aggregation testing
+        // Create order_test index for string field sub-aggregation ordering tests
         Settings orderIndexSettings = Settings.builder()
             .put("index.number_of_shards", NUM_SHARDS)
             .put("index.number_of_replicas", 0)
@@ -194,7 +189,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         client().admin().indices().create(orderIndexRequest).actionGet();
         client().admin().cluster().prepareHealth("order_test").setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(30)).get();
 
-        // Create 3 segments by flushing after each batch
         for (int seg = 0; seg < 3; seg++) {
             BulkRequest orderBulkRequest = new BulkRequest();
             for (int i = 0; i < 10; i++) {
@@ -214,9 +208,49 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                     );
                 }
             }
-            client().bulk(orderBulkRequest).actionGet();
+            BulkResponse orderBulkResponse = client().bulk(orderBulkRequest).actionGet();
+            assertFalse(orderBulkResponse.hasFailures());
             client().admin().indices().flush(new FlushRequest("order_test").force(true)).actionGet();
             client().admin().indices().refresh(new RefreshRequest("order_test")).actionGet();
+        }
+
+        // Create numeric_order_test index for numeric field sub-aggregation ordering tests
+        CreateIndexRequest numericOrderIndexRequest = new CreateIndexRequest("numeric_order_test").settings(orderIndexSettings);
+        numericOrderIndexRequest.mapping(
+            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
+            XContentType.JSON
+        );
+        client().admin().indices().create(numericOrderIndexRequest).actionGet();
+        client().admin()
+            .cluster()
+            .prepareHealth("numeric_order_test")
+            .setWaitForGreenStatus()
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+
+        for (int seg = 0; seg < 3; seg++) {
+            BulkRequest numericBulkRequest = new BulkRequest();
+            for (int i = 0; i < 10; i++) {
+                int uniqueUsers = (i + 1) * 2;
+                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
+                for (int j = 0; j < docsPerSegment; j++) {
+                    numericBulkRequest.add(
+                        new IndexRequest("numeric_order_test").source(
+                            XContentType.JSON,
+                            "category",
+                            i,
+                            "value",
+                            (i + 1) * 100,
+                            "user_id",
+                            "user_" + (i * 100 + seg * 100 + j)
+                        )
+                    );
+                }
+            }
+            BulkResponse numericBulkResponse = client().bulk(numericBulkRequest).actionGet();
+            assertFalse(numericBulkResponse.hasFailures());
+            client().admin().indices().flush(new FlushRequest("numeric_order_test").force(true)).actionGet();
+            client().admin().indices().refresh(new RefreshRequest("numeric_order_test")).actionGet();
         }
     }
 
@@ -234,6 +268,28 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             )
             .get();
         super.tearDown();
+    }
+
+    private void assertStreamingTermsUsed(SearchResponse resp, String expectedStrategy) {
+        assertNotNull("Profile response should be present", resp.getProfileResults());
+        boolean foundStreaming = false;
+        for (var shardProfile : resp.getProfileResults().values()) {
+            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+            for (var profileResult : aggProfileResults) {
+                String queryName = profileResult.getQueryName();
+                if (StreamStringTermsAggregator.class.getSimpleName().equals(queryName)
+                    || StreamNumericTermsAggregator.class.getSimpleName().equals(queryName)) {
+                    var debug = profileResult.getDebugInfo();
+                    if (debug != null && expectedStrategy.equals(debug.get("result_strategy"))) {
+                        foundStreaming = true;
+                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
+                        break;
+                    }
+                }
+            }
+            if (foundStreaming) break;
+        }
+        assertTrue("Expected to find " + expectedStrategy + " in profile", foundStreaming);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -624,7 +680,14 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", false))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
-        SearchResponse resp = client().prepareStreamSearch("order_test").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "streaming_terms");
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -644,7 +707,14 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", true))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
-        SearchResponse resp = client().prepareStreamSearch("order_test").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "streaming_terms");
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -664,7 +734,14 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("unique_users", false))
             .subAggregation(AggregationBuilders.cardinality("unique_users").field("user_id"));
 
-        SearchResponse resp = client().prepareStreamSearch("order_test").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "streaming_terms");
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -703,63 +780,21 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(12, buckets.get(4).getDocCount());
     }
 
-    // Numeric field tests for sub-aggregation ordering
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testNumericOrderByMaxSubAggregationDescending() throws Exception {
-        // Create numeric_order_test index with numeric category field
-        Settings numericIndexSettings = Settings.builder()
-            .put("index.number_of_shards", NUM_SHARDS)
-            .put("index.number_of_replicas", 0)
-            .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
-            .build();
-
-        CreateIndexRequest numericIndexRequest = new CreateIndexRequest("numeric_order_test").settings(numericIndexSettings);
-        numericIndexRequest.mapping(
-            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
-            XContentType.JSON
-        );
-        client().admin().indices().create(numericIndexRequest).actionGet();
-        client().admin()
-            .cluster()
-            .prepareHealth("numeric_order_test")
-            .setWaitForGreenStatus()
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        // Create 3 segments
-        for (int seg = 0; seg < 3; seg++) {
-            BulkRequest numericBulkRequest = new BulkRequest();
-            for (int i = 0; i < 10; i++) {
-                int uniqueUsers = (i + 1) * 2;
-                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
-                for (int j = 0; j < docsPerSegment; j++) {
-                    numericBulkRequest.add(
-                        new IndexRequest("numeric_order_test").source(
-                            XContentType.JSON,
-                            "category",
-                            i,
-                            "value",
-                            (i + 1) * 100,
-                            "user_id",
-                            "user_" + (i * 100 + seg * 100 + j)
-                        )
-                    );
-                }
-            }
-            client().bulk(numericBulkRequest).actionGet();
-            client().admin().indices().flush(new FlushRequest("numeric_order_test").force(true)).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("numeric_order_test")).actionGet();
-        }
-
         TermsAggregationBuilder agg = terms("categories").field("category")
             .size(3)
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", false))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
-        SearchResponse resp = client().prepareStreamSearch("numeric_order_test").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "stream_long_terms");
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -770,68 +805,23 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(900.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
         assertEquals(7L, buckets.get(2).getKeyAsNumber().longValue());
         assertEquals(800.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
-
-        client().admin()
-            .indices()
-            .delete(new org.opensearch.action.admin.indices.delete.DeleteIndexRequest("numeric_order_test"))
-            .actionGet();
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testNumericOrderByMaxSubAggregationAscending() throws Exception {
-        // Reuse numeric_order_test index from previous test
-        Settings numericIndexSettings = Settings.builder()
-            .put("index.number_of_shards", NUM_SHARDS)
-            .put("index.number_of_replicas", 0)
-            .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
-            .build();
-
-        CreateIndexRequest numericIndexRequest = new CreateIndexRequest("numeric_order_test2").settings(numericIndexSettings);
-        numericIndexRequest.mapping(
-            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
-            XContentType.JSON
-        );
-        client().admin().indices().create(numericIndexRequest).actionGet();
-        client().admin()
-            .cluster()
-            .prepareHealth("numeric_order_test2")
-            .setWaitForGreenStatus()
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        for (int seg = 0; seg < 3; seg++) {
-            BulkRequest numericBulkRequest = new BulkRequest();
-            for (int i = 0; i < 10; i++) {
-                int uniqueUsers = (i + 1) * 2;
-                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
-                for (int j = 0; j < docsPerSegment; j++) {
-                    numericBulkRequest.add(
-                        new IndexRequest("numeric_order_test2").source(
-                            XContentType.JSON,
-                            "category",
-                            i,
-                            "value",
-                            (i + 1) * 100,
-                            "user_id",
-                            "user_" + (i * 100 + seg * 100 + j)
-                        )
-                    );
-                }
-            }
-            client().bulk(numericBulkRequest).actionGet();
-            client().admin().indices().flush(new FlushRequest("numeric_order_test2").force(true)).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("numeric_order_test2")).actionGet();
-        }
-
         TermsAggregationBuilder agg = terms("categories").field("category")
             .size(3)
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", true))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
-        SearchResponse resp = client().prepareStreamSearch("numeric_order_test2").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "stream_long_terms");
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -842,67 +832,23 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(200.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
         assertEquals(2L, buckets.get(2).getKeyAsNumber().longValue());
         assertEquals(300.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
-
-        client().admin()
-            .indices()
-            .delete(new org.opensearch.action.admin.indices.delete.DeleteIndexRequest("numeric_order_test2"))
-            .actionGet();
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testNumericOrderByCardinalitySubAggregationDescending() throws Exception {
-        Settings numericIndexSettings = Settings.builder()
-            .put("index.number_of_shards", NUM_SHARDS)
-            .put("index.number_of_replicas", 0)
-            .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
-            .build();
-
-        CreateIndexRequest numericIndexRequest = new CreateIndexRequest("numeric_order_test3").settings(numericIndexSettings);
-        numericIndexRequest.mapping(
-            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
-            XContentType.JSON
-        );
-        client().admin().indices().create(numericIndexRequest).actionGet();
-        client().admin()
-            .cluster()
-            .prepareHealth("numeric_order_test3")
-            .setWaitForGreenStatus()
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        for (int seg = 0; seg < 3; seg++) {
-            BulkRequest numericBulkRequest = new BulkRequest();
-            for (int i = 0; i < 10; i++) {
-                int uniqueUsers = (i + 1) * 2;
-                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
-                for (int j = 0; j < docsPerSegment; j++) {
-                    numericBulkRequest.add(
-                        new IndexRequest("numeric_order_test3").source(
-                            XContentType.JSON,
-                            "category",
-                            i,
-                            "value",
-                            (i + 1) * 100,
-                            "user_id",
-                            "user_" + (i * 100 + seg * 100 + j)
-                        )
-                    );
-                }
-            }
-            client().bulk(numericBulkRequest).actionGet();
-            client().admin().indices().flush(new FlushRequest("numeric_order_test3").force(true)).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("numeric_order_test3")).actionGet();
-        }
-
         TermsAggregationBuilder agg = terms("categories").field("category")
             .size(5)
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("unique_users", false))
             .subAggregation(AggregationBuilders.cardinality("unique_users").field("user_id"));
 
-        SearchResponse resp = client().prepareStreamSearch("numeric_order_test3").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertStreamingTermsUsed(resp, "stream_long_terms");
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -912,72 +858,20 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(7L, buckets.get(2).getKeyAsNumber().longValue());
         assertEquals(6L, buckets.get(3).getKeyAsNumber().longValue());
         assertEquals(5L, buckets.get(4).getKeyAsNumber().longValue());
-
-        client().admin()
-            .indices()
-            .delete(new org.opensearch.action.admin.indices.delete.DeleteIndexRequest("numeric_order_test3"))
-            .actionGet();
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testNumericNoSortOrderWithSubAgg() throws Exception {
-        Settings numericIndexSettings = Settings.builder()
-            .put("index.number_of_shards", NUM_SHARDS)
-            .put("index.number_of_replicas", 0)
-            .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
-            .build();
-
-        CreateIndexRequest numericIndexRequest = new CreateIndexRequest("numeric_order_test4").settings(numericIndexSettings);
-        numericIndexRequest.mapping(
-            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
-            XContentType.JSON
-        );
-        client().admin().indices().create(numericIndexRequest).actionGet();
-        client().admin()
-            .cluster()
-            .prepareHealth("numeric_order_test4")
-            .setWaitForGreenStatus()
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        for (int seg = 0; seg < 3; seg++) {
-            BulkRequest numericBulkRequest = new BulkRequest();
-            for (int i = 0; i < 10; i++) {
-                int uniqueUsers = (i + 1) * 2;
-                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
-                for (int j = 0; j < docsPerSegment; j++) {
-                    numericBulkRequest.add(
-                        new IndexRequest("numeric_order_test4").source(
-                            XContentType.JSON,
-                            "category",
-                            i,
-                            "value",
-                            (i + 1) * 100,
-                            "user_id",
-                            "user_" + (i * 100 + seg * 100 + j)
-                        )
-                    );
-                }
-            }
-            client().bulk(numericBulkRequest).actionGet();
-            client().admin().indices().flush(new FlushRequest("numeric_order_test4").force(true)).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("numeric_order_test4")).actionGet();
-        }
-
         TermsAggregationBuilder agg = terms("categories").field("category")
             .size(5)
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
-        SearchResponse resp = client().prepareStreamSearch("numeric_order_test4").addAggregation(agg).setSize(0).execute().actionGet();
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test").addAggregation(agg).setSize(0).execute().actionGet();
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
         assertEquals(5, buckets.size());
 
-        // Verify ordered by doc count DESC
         assertEquals(9L, buckets.get(0).getKeyAsNumber().longValue());
         assertEquals(20, buckets.get(0).getDocCount());
         assertEquals(8L, buckets.get(1).getKeyAsNumber().longValue());
@@ -988,10 +882,5 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(14, buckets.get(3).getDocCount());
         assertEquals(5L, buckets.get(4).getKeyAsNumber().longValue());
         assertEquals(12, buckets.get(4).getDocCount());
-
-        client().admin()
-            .indices()
-            .delete(new org.opensearch.action.admin.indices.delete.DeleteIndexRequest("numeric_order_test4"))
-            .actionGet();
     }
 }

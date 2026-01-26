@@ -2647,4 +2647,144 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testKeyOrderWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != first 5 numerically
+                long[] terms = { 95, 94, 93, 92, 91, 1, 2, 3, 4, 5 };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("field", terms[i]));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(true));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Streaming aggregation does not support key-based ordering for numeric fields
+                    IllegalArgumentException exception = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> aggregator.buildAggregations(new long[] { 0 })
+                    );
+                    assertThat(
+                        exception.getMessage(),
+                        equalTo(
+                            "Streaming aggregation does not support key-based ordering for numeric fields. Use traditional aggregation approach instead."
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderDescendingWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != last 5 numerically
+                long[] terms = { 95, 94, 93, 92, 91, 1, 2, 3, 4, 5 };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new NumericDocValuesField("field", terms[i]));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(false));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    // Streaming aggregation does not support key-based ordering for numeric fields
+                    IllegalArgumentException exception = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> aggregator.buildAggregations(new long[] { 0 })
+                    );
+                    assertThat(
+                        exception.getMessage(),
+                        equalTo(
+                            "Streaming aggregation does not support key-based ordering for numeric fields. Use traditional aggregation approach instead."
+                        )
+                    );
+                }
+            }
+        }
+    }
 }
