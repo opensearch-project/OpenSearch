@@ -61,6 +61,7 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
         } else {
             return Optional.empty();
         }
+
     }
 
     @Override
