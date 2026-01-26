@@ -39,6 +39,7 @@ public enum DockerBase {
     ALMALINUX("almalinux:9");
 
     private final String image;
+    
 
     DockerBase(String image) {
         this.image = image;
