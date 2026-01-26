@@ -248,7 +248,9 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
                 // processing each owning bucket
                 checkCancelled();
-                SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, localBucketCountThresholds);
+                // using bucketCountThresholds since we don't do reduce across slice
+                // and send results per segment to coordinator
+                SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, bucketCountThresholds);
 
                 topBucketsPerOwningOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {
@@ -276,7 +278,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
             }
         }
 
-        private SelectionResult<B> selectTopBuckets(int segmentSize, LocalBucketCountThresholds thresholds) throws IOException {
+        private SelectionResult<B> selectTopBuckets(int segmentSize, BucketCountThresholds thresholds) throws IOException {
             prepareIndicesArray(valueCount);
 
             int cnt = 0;
