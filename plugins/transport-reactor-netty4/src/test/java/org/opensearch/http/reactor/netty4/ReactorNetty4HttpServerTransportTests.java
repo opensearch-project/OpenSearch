@@ -75,7 +75,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -89,6 +91,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import reactor.netty.http.HttpProtocol;
 
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -189,7 +192,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -198,7 +201,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 final HttpContent continuationRequest = new DefaultHttpContent(Unpooled.EMPTY_BUFFER);
                 final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), request, continuationRequest);
                 try {
-                    if (expectedStatus == HttpResponseStatus.EXPECTATION_FAILED && client.useHttp11only() == false) {
+                    if (expectedStatus == HttpResponseStatus.EXPECTATION_FAILED && client.protocol() != HttpProtocol.HTTP11) {
                         assertThat(continuationResponse.status(), is(HttpResponseStatus.EXPECTATION_FAILED));
                         assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is(""));
                     } else {
@@ -281,7 +284,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final String url = "/" + randomAlphaOfLength(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -320,7 +323,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -335,6 +338,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        final Settings settings = createSettings();
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing/";
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
@@ -350,21 +354,21 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(settings),
                 NoopTracer.INSTANCE
             )
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
@@ -420,7 +424,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 new SharedGroupFactory(Settings.EMPTY),
                 NoopTracer.INSTANCE
             );
-            ReactorHttpClient client = ReactorHttpClient.create()
+            ReactorHttpClient client = ReactorHttpClient.create(Settings.EMPTY)
         ) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -465,7 +469,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -482,7 +486,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             }
 
             // Test short-circuited request
-            try (ReactorHttpClient client = ReactorHttpClient.create()) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -503,7 +507,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             new TimeValue(randomIntBetween(100, 300))
         ).build();
 
-        NioEventLoopGroup group = new NioEventLoopGroup();
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
                 settings,

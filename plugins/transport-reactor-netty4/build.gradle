@@ -30,12 +30,22 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api libs.bundles.netty
 
   api libs.bundles.reactornetty
   api libs.netty.codec.http3
   api libs.netty.codec.classes.quic
+  api libs.netty.codec.native.quic
+
+  // Bundle all supported OSes and Archs
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:windows-x86_64"
 
   testImplementation libs.log4jslf4jimpl
   javaRestTestImplementation libs.reactor.test

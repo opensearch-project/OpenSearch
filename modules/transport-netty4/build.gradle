@@ -56,6 +56,8 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec-base:${versions.netty}"
@@ -63,14 +65,25 @@ dependencies {
   api "io.netty:netty-codec:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-http3:${versions.netty}"
+  api "io.netty:netty-codec-classes-quic:${versions.netty}"
+  api "io.netty:netty-codec-native-quic:${versions.netty}"
   api "io.netty:netty-common:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+
+  // Bundle all supported OSes and Archs
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:linux-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-x86_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:osx-aarch_64"
+  runtimeOnly "io.netty:netty-codec-native-quic:${versions.netty}:windows-x86_64"
 }
 
 restResources {
@@ -205,7 +218,9 @@ thirdPartyAudit {
 
     'io.netty.pkitesting.CertificateBuilder',
     'io.netty.pkitesting.CertificateBuilder$Algorithm',
-    'io.netty.pkitesting.X509Bundle'
+    'io.netty.pkitesting.X509Bundle',
+
+    'io.netty.channel.epoll.SegmentedDatagramPacket'
   )
 
   ignoreViolations(

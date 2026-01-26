@@ -75,7 +75,7 @@ dependencies {
 
   // external parser libraries
   // HTML
-  api 'org.jsoup:jsoup:1.21.2'
+  api 'org.jsoup:jsoup:1.22.1'
   // Adobe PDF
   api "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   api "org.apache.pdfbox:fontbox:${versions.pdfbox}"
