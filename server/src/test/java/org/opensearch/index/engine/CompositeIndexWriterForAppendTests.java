@@ -29,6 +29,8 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.ParsedDocument;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -163,8 +165,50 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
         assertTrue("Rotation operations completed: " + rotationCount.get(), rotationCount.get() >= 0);
     }
 
-    public void testConcurrentIndexingDuringRefresh() throws IOException, InterruptedException {
+    public void testChildDirectoryDeletedPostRefresh() throws IOException, InterruptedException {
+        final EngineConfig engineConfig = config();
+        Path dataPath = engineConfig.getStore().shardPath().resolveIndex();
+        CompositeIndexWriter compositeIndexWriter = null;
 
+        try {
+            compositeIndexWriter = new CompositeIndexWriter(
+                engineConfig,
+                createWriter(),
+                newSoftDeletesPolicy(),
+                softDeletesField,
+                indexWriterFactory
+            );
+
+            Engine.Index operation = indexForDoc(createParsedDoc("id", null, DEFAULT_CRITERIA));
+            try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            operation = indexForDoc(createParsedDoc("id2", null, "testingNewCriteria"));
+            try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
+                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
+            }
+
+            compositeIndexWriter.beforeRefresh();
+            compositeIndexWriter.afterRefresh(true);
+
+            // Remove known extra files - "extra0" file is added by the ExtrasFS, which is part of Lucene's test framework.
+            long directoryCount = Files.find(
+                dataPath,
+                1,
+                (path, attributes) -> attributes.isDirectory() == true && path.endsWith("extra0") == false
+            ).count() - 1;
+            // Ensure no child directory is pending here.
+            assertEquals(0, directoryCount);
+        } finally {
+            if (compositeIndexWriter != null) {
+                IOUtils.closeWhileHandlingException(compositeIndexWriter);
+            }
+        }
+
+    }
+
+    public void testConcurrentIndexingDuringRefresh() throws IOException, InterruptedException {
         CompositeIndexWriter compositeIndexWriter = new CompositeIndexWriter(
             config(),
             createWriter(),
