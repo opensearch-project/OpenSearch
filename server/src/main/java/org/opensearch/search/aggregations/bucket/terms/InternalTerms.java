@@ -550,13 +550,24 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
         }
 
-        InternalAggregations subAggs;
+        InternalAggregations reducedSubAggs;
         if (aggregationsList.isEmpty()) {
-            subAggs = InternalAggregations.EMPTY;
+            reducedSubAggs = InternalAggregations.EMPTY;
         } else {
-            subAggs = InternalAggregations.reduce(aggregationsList, context);
+            reducedSubAggs = InternalAggregations.reduce(aggregationsList, context);
         }
-        return createBucket(docCount, subAggs, docCountError, buckets.get(0));
+
+        // In-place mutation: reuse first bucket instead of allocating new one
+        // Only applies to InternalTerms.Bucket subclasses (LongTerms, StringTerms, etc.)
+        // InternalMultiTerms.Bucket has a different hierarchy and uses createBucket()
+        B firstBucket = buckets.getFirst();
+        if (firstBucket instanceof Bucket<?> mutableBucket) {
+            mutableBucket.docCount = docCount;
+            mutableBucket.aggregations = reducedSubAggs;
+            mutableBucket.docCountError = docCountError;
+            return firstBucket;
+        }
+        return createBucket(docCount, reducedSubAggs, docCountError, firstBucket);
     }
 
     protected abstract void setDocCountError(long docCountError);
