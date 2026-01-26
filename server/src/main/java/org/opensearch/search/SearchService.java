@@ -350,7 +350,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // Partition strategy setting
     public static final Setting<String> CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
         "search.concurrent_segment_search.partition_strategy",
-        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE,
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED,
         value -> {
             switch (value) {
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE:

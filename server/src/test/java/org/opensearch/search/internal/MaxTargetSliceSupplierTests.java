@@ -44,6 +44,35 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
         );
     }
 
+    public void testNegativeSliceCountForcePartitioning() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> MaxTargetSliceSupplier.getSlicesWithForcePartitioning(new ArrayList<>(), randomIntBetween(-3, 0))
+        );
+    }
+
+    public void testNegativeSliceCountAutoPartitioning() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(new ArrayList<>(), randomIntBetween(-3, 0), 100)
+        );
+    }
+
+    public void testEmptyLeavesForcePartitioning() {
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithForcePartitioning(new ArrayList<>(), 4);
+        assertEquals(0, slices.length);
+    }
+
+    public void testEmptyLeavesAutoPartitioning() {
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(new ArrayList<>(), 4, 100);
+        assertEquals(0, slices.length);
+    }
+
+    public void testDistributePartitionsEmpty() {
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.distributePartitions(new ArrayList<>(), 4);
+        assertEquals(0, slices.length);
+    }
+
     public void testSingleSliceWithMultipleLeaves() throws Exception {
         int leafCount = randomIntBetween(1, 10);
         IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlicesWholeSegments(getLeaves(leafCount), 1);

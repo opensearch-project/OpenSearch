@@ -134,7 +134,7 @@ final class MaxTargetSliceSupplier {
      * Distribute partitions using LPT algorithm while respecting Lucene's constraint
      * that same-segment partitions must be in different slices.
      */
-    private static IndexSearcher.LeafSlice[] distributePartitions(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
+    static IndexSearcher.LeafSlice[] distributePartitions(List<LeafReaderContextPartition> partitions, int targetMaxSlice) {
         if (partitions.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
@@ -162,7 +162,7 @@ final class MaxTargetSliceSupplier {
         // Collect non-empty slices
         List<IndexSearcher.LeafSlice> result = new ArrayList<>(sliceCount);
         for (GroupWithSegmentTracking slice : slices) {
-            if (!slice.partitions.isEmpty()) {
+            if (slice.partitions.isEmpty() == false) {
                 result.add(new IndexSearcher.LeafSlice(slice.partitions));
             }
         }
