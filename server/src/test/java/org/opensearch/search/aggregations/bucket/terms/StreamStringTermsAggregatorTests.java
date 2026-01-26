@@ -2003,4 +2003,60 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testMinDocCount() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create categories with varying doc counts: cat_0=1, cat_1=2, cat_2=3, cat_3=4, cat_4=5
+                for (int i = 0; i < 5; i++) {
+                    for (int j = 0; j <= i; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    // Test with minDocCount=3, should only return cat_2, cat_3, cat_4
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category").minDocCount(3);
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_2"));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(3L));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_3"));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(4L));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_4"));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(5L));
+
+                    // Verify otherDocCount: cat_0=1 + cat_1=2 = 3 docs excluded
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(3L));
+                }
+            }
+        }
+    }
 }

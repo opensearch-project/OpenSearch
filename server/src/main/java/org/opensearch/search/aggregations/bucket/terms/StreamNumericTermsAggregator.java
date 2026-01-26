@@ -128,10 +128,12 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
     /**
      * Get segment size for TopN filtering at segment level.
-     * Defaults to shard_size if not explicitly set.
+     * Returns max of requested shard_size and index-level min_shard_size setting.
      */
     protected int getSegmentSize() {
-        return bucketCountThresholds.getShardSize();
+        int requestedShardSize = bucketCountThresholds.getShardSize();
+        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
+        return Math.max(requestedShardSize, minShardSize);
     }
 
     /**
@@ -141,6 +143,9 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         implements
             Releasable {
         protected IntArray reusableIndices;
+        protected Aggregator.BucketComparator ordinalComparator;
+        protected B tempBucket1;
+        protected B tempBucket2;
 
         private InternalAggregation[] buildAggregationsBatch(long[] owningBucketOrds) throws IOException {
             if (bucketOrds == null) { // no data collected
@@ -152,7 +157,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             }
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCounts = new long[owningBucketOrds.length];
+            long[] otherDocCount = new long[owningBucketOrds.length];
             int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
@@ -161,30 +166,25 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                 LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
 
-                // Apply segment-level TopN filtering
-                List<B> topBuckets = selectTopBuckets(
+                SelectionResult<B> selectionResult = selectTopBuckets(
                     ordsEnum,
                     bucketsInOrd,
                     segmentSize,
-                    localBucketCountThresholds,
+                    bucketCountThresholds,
                     owningBucketOrds[ordIdx]
                 );
 
-                // Calculate otherDocCount from filtered buckets
-                for (B bucket : topBuckets) {
-                    otherDocCounts[ordIdx] += bucket.getDocCount();
-                }
-
-                topBucketsPerOrd[ordIdx] = buildBuckets(topBuckets.size());
+                otherDocCount[ordIdx] = selectionResult.otherDocCount;
+                topBucketsPerOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOrd[ordIdx].length; i++) {
-                    topBucketsPerOrd[ordIdx][i] = topBuckets.get(i);
+                    topBucketsPerOrd[ordIdx][i] = selectionResult.buckets.get(i);
                 }
             }
 
             buildSubAggs(topBucketsPerOrd);
             InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPerOrd[ordIdx]);
             }
             return result;
         }
@@ -197,36 +197,58 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             }
         }
 
-        private List<B> selectTopBuckets(
+        protected void ensureOrdinalComparator() {
+            // Override in subclasses to provide bucket-specific comparator
+        }
+
+        private static class SelectionResult<B> {
+            final List<B> buckets;
+            final long otherDocCount;
+
+            SelectionResult(List<B> buckets, long otherDocCount) {
+                this.buckets = buckets;
+                this.otherDocCount = otherDocCount;
+            }
+        }
+
+        private SelectionResult<B> selectTopBuckets(
             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum,
             long totalBuckets,
             int segmentSize,
-            LocalBucketCountThresholds thresholds,
+            BucketCountThresholds thresholds,
             long owningBucketOrd
         ) throws IOException {
             prepareIndicesArray(totalBuckets);
 
             int candidateCount = 0;
+            long totalDocCount = 0;
             while (ordsEnum.next()) {
-                long docCount = bucketDocCount(ordsEnum.ord());
+                long docCount = StreamNumericTermsAggregator.this.bucketDocCount(ordsEnum.ord());
+                totalDocCount += docCount;
                 if (docCount >= thresholds.getMinDocCount()) {
                     reusableIndices.set(candidateCount++, (int) ordsEnum.ord());
                 }
             }
 
+            segmentSize = Math.min(segmentSize, candidateCount);
+
             if (candidateCount <= segmentSize) {
                 ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
                 List<B> result = new ArrayList<>(candidateCount);
+                long selectedDocCount = 0;
                 while (ordsEnum.next()) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
+                    long docCount = StreamNumericTermsAggregator.this.bucketDocCount(ordsEnum.ord());
                     if (docCount >= thresholds.getMinDocCount()) {
                         result.add(buildFinalBucket(ordsEnum.ord(), ordsEnum.value(), docCount, owningBucketOrd));
+                        selectedDocCount += docCount;
                     }
                 }
-                return result;
+                return new SelectionResult<>(result, totalDocCount - selectedDocCount);
             }
 
-            new IntroSelector() {
+            ensureOrdinalComparator();
+
+            IntroSelector selector = new IntroSelector() {
                 int pivotOrdinal;
 
                 @Override
@@ -243,30 +265,41 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
                 @Override
                 protected int comparePivot(int j) {
-                    // For top-K largest: invert so larger values are "smaller"
-                    return Long.compare(bucketDocCount(reusableIndices.get(j)), bucketDocCount(pivotOrdinal));
+                    long leftOrd = reusableIndices.get(j);
+                    long rightOrd = pivotOrdinal;
+                    if (ordinalComparator != null) {
+                        return -ordinalComparator.compare(leftOrd, rightOrd);
+                    }
+                    long leftDocCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
+                    long rightDocCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
+                    return Long.compare(leftDocCount, rightDocCount);
                 }
-            }.select(0, candidateCount, segmentSize);
+            };
 
+            selector.select(0, candidateCount, segmentSize);
+
+            // Collect selected ordinals
             int[] selectedOrdinals = new int[segmentSize];
             for (int i = 0; i < segmentSize; i++) {
                 selectedOrdinals[i] = reusableIndices.get(i);
             }
 
-            reusableIndices.fill(0, totalBuckets, 0);
-            for (int ord : selectedOrdinals) {
-                reusableIndices.set(ord, 1);
-            }
-
+            // Build result by finding values for selected ordinals
             ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
             List<B> result = new ArrayList<>(segmentSize);
+            long selectedDocCount = 0;
             while (ordsEnum.next()) {
-                if (reusableIndices.get(ordsEnum.ord()) == 1) {
-                    long docCount = bucketDocCount(ordsEnum.ord());
-                    result.add(buildFinalBucket(ordsEnum.ord(), ordsEnum.value(), docCount, owningBucketOrd));
+                for (int selectedOrd : selectedOrdinals) {
+                    if (ordsEnum.ord() == selectedOrd) {
+                        long docCount = StreamNumericTermsAggregator.this.bucketDocCount(ordsEnum.ord());
+                        result.add(buildFinalBucket(ordsEnum.ord(), ordsEnum.value(), docCount, owningBucketOrd));
+                        selectedDocCount += docCount;
+                        break;
+                    }
                 }
             }
-            return result;
+
+            return new SelectionResult<>(result, totalDocCount - selectedDocCount);
         }
 
         /**
@@ -387,6 +420,31 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         @Override
+        protected void ensureOrdinalComparator() {
+            if (ordinalComparator == null && partiallyBuiltBucketComparator != null && !isKeyOrder(order)) {
+                tempBucket1 = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(LongTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                tempBucket2 = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(LongTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                ordinalComparator = (leftOrd, rightOrd) -> {
+                    tempBucket1.bucketOrd = leftOrd;
+                    tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
+                    tempBucket2.bucketOrd = rightOrd;
+                    tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
+                    return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
+                };
+            }
+        }
+
+        @Override
         String describe() {
             return "stream_long_terms";
         }
@@ -465,6 +523,31 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
         public DoubleTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
+        }
+
+        @Override
+        protected void ensureOrdinalComparator() {
+            if (ordinalComparator == null && partiallyBuiltBucketComparator != null && !isKeyOrder(order)) {
+                tempBucket1 = new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(DoubleTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                tempBucket2 = new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(DoubleTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                ordinalComparator = (leftOrd, rightOrd) -> {
+                    tempBucket1.bucketOrd = leftOrd;
+                    tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
+                    tempBucket2.bucketOrd = rightOrd;
+                    tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
+                    return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
+                };
+            }
         }
 
         @Override
@@ -552,6 +635,31 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     public class UnsignedLongTermsResults extends StandardTermsResultStrategy<UnsignedLongTerms, UnsignedLongTerms.Bucket> {
         public UnsignedLongTermsResults(boolean showTermDocCountError) {
             super(showTermDocCountError);
+        }
+
+        @Override
+        protected void ensureOrdinalComparator() {
+            if (ordinalComparator == null && partiallyBuiltBucketComparator != null && !isKeyOrder(order)) {
+                tempBucket1 = new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(UnsignedLongTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                tempBucket2 = new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
+                    @Override
+                    public int compareKey(UnsignedLongTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                ordinalComparator = (leftOrd, rightOrd) -> {
+                    tempBucket1.bucketOrd = leftOrd;
+                    tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
+                    tempBucket2.bucketOrd = rightOrd;
+                    tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
+                    return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
+                };
+            }
         }
 
         @Override
