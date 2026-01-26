@@ -241,6 +241,6 @@
       "size": "Single-Node",
       "data_instance_config": "8vCPU, 16G Mem, 8G Heap"
     },
-    "baseline_cluster_config": "x64-c5.2xlarge-1-shard-0-replica-snapshot-baseline"
+    "baseline_cluster_config": "x64-c5.2xlarge-3-shards-0-replica-snapshot-baseline"
   }
 }
