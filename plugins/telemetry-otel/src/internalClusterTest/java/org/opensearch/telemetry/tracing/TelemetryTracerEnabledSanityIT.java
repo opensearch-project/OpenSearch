@@ -25,8 +25,6 @@ import org.opensearch.transport.client.Client;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 
@@ -76,21 +74,9 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         ensureGreen();
         refresh();
 
-        Map<String, String> headers = new HashMap<>();
-
         // Make the search calls; adding the searchType and PreFilterShardSize to make the query path predictable across all the runs.
-        client.filterWithHeader(headers)
-            .prepareSearch()
-            .setSearchType("dfs_query_then_fetch")
-            .setPreFilterShardSize(2)
-            .setQuery(queryStringQuery("fox"))
-            .get();
-        client.filterWithHeader(headers)
-            .prepareSearch()
-            .setSearchType("dfs_query_then_fetch")
-            .setPreFilterShardSize(2)
-            .setQuery(queryStringQuery("jumps"))
-            .get();
+        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("fox")).get();
+        client.prepareSearch().setSearchType("dfs_query_then_fetch").setPreFilterShardSize(2).setQuery(queryStringQuery("jumps")).get();
 
         // Sleep for about 3s to wait for traces are published, delay is (the delay is 1s).
         Thread.sleep(3000);

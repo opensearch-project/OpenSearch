@@ -81,14 +81,6 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
         return false; // enable http
     }
 
-    // Disable telemetry for all test cases as it creates a trace-id and injects into header which causes assertion issues in some tests.
-    @Override
-    protected Settings featureFlagSettings() {
-        Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), false);
-        return featureSettings.build();
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()

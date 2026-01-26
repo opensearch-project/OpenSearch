@@ -70,7 +70,6 @@ public class MockTracingContextPropagator implements TracingContextPropagator {
             String spanId = currentSpan.getSpanId();
             String traceParent = String.format(Locale.ROOT, "%s%s%s", traceId, SEPARATOR, spanId);
             setter.accept(TRACE_PARENT, traceParent);
-            setter.accept("trace-id", traceId);
         }
     }
 }

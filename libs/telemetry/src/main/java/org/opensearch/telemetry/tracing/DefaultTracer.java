@@ -103,9 +103,6 @@ class DefaultTracer implements Tracer {
 
     @Override
     public Span startSpan(SpanCreationContext spanCreationContext, Map<String, Collection<String>> headers) {
-        if (spanCreationContext.getParent() != null) {
-            return startSpan(spanCreationContext); // If already contains a parentSpan, we don't need to create a new one below.
-        }
         Optional<Span> propagatedSpan = tracingTelemetry.getContextPropagator().extractFromHeaders(headers);
         return startSpan(spanCreationContext.parent(propagatedSpan.map(SpanContext::new).orElse(null)));
     }
