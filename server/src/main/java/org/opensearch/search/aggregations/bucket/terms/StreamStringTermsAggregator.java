@@ -248,12 +248,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
                 // processing each owning bucket
                 checkCancelled();
-                List<B> topBuckets = selectTopBuckets(segmentSize, localBucketCountThresholds);
+                SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, localBucketCountThresholds);
 
-                topBucketsPerOwningOrd[ordIdx] = buildBuckets(topBuckets.size());
+                topBucketsPerOwningOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {
-                    topBucketsPerOwningOrd[ordIdx][i] = topBuckets.get(i);
+                    topBucketsPerOwningOrd[ordIdx][i] = selectionResult.buckets.get(i);
                 }
+                otherDocCount[ordIdx] = selectionResult.otherDocCount;
             }
 
             buildSubAggs(topBucketsPerOwningOrd);
@@ -265,12 +266,25 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
             return results;
         }
 
-        private List<B> selectTopBuckets(int segmentSize, LocalBucketCountThresholds thresholds) throws IOException {
+        private static class SelectionResult<B> {
+            final List<B> buckets;
+            final long otherDocCount;
+
+            SelectionResult(List<B> buckets, long otherDocCount) {
+                this.buckets = buckets;
+                this.otherDocCount = otherDocCount;
+            }
+        }
+
+        private SelectionResult<B> selectTopBuckets(int segmentSize, LocalBucketCountThresholds thresholds) throws IOException {
             prepareIndicesArray(valueCount);
 
             int cnt = 0;
+            long totalDocCount = 0;
             for (int i = 0; i < valueCount; i++) {
-                if (bucketDocCount(i) >= thresholds.getMinDocCount()) {
+                long docCount = bucketDocCount(i);
+                totalDocCount += docCount;
+                if (docCount >= thresholds.getMinDocCount()) {
                     reusableIndices.set(cnt++, i);
                 }
             }
@@ -279,10 +293,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
             if (cnt <= segmentSize) {
                 List<B> result = new ArrayList<>();
+                long selectedDocCount = 0;
                 for (int i = 0; i < cnt; i++) {
-                    result.add(buildFinalBucket(reusableIndices.get(i), bucketDocCount(reusableIndices.get(i))));
+                    long docCount = bucketDocCount(reusableIndices.get(i));
+                    result.add(buildFinalBucket(reusableIndices.get(i), docCount));
+                    selectedDocCount += docCount;
                 }
-                return result;
+                return new SelectionResult<>(result, totalDocCount - selectedDocCount);
             }
 
             IntroSelector selector = new IntroSelector() {
@@ -327,12 +344,16 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
             }
 
             List<B> result = new ArrayList<>(segmentSize);
+            long selectedDocCount = 0;
             for (int ordinal = 0; ordinal < valueCount; ordinal++) {
                 if (reusableIndices.get(ordinal) == 1) {
-                    result.add(buildFinalBucket(ordinal, bucketDocCount(ordinal)));
+                    long docCount = bucketDocCount(ordinal);
+                    result.add(buildFinalBucket(ordinal, docCount));
+                    selectedDocCount += docCount;
                 }
             }
-            return result;
+
+            return new SelectionResult<>(result, totalDocCount - selectedDocCount);
         }
 
         @Override

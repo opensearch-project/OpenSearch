@@ -1578,6 +1578,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max0.getValue(), equalTo(800.0));
                     assertThat(max1.getValue(), equalTo(900.0));
                     assertThat(max2.getValue(), equalTo(1000.0));
+
+                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3, other=7
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(7L));
                 }
             }
         }
@@ -1662,6 +1665,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card2.getValue(), equalTo(16L));
                     assertThat(card3.getValue(), equalTo(18L));
                     assertThat(card4.getValue(), equalTo(20L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=12+14+16+18+20=80, other=30
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(30L));
                 }
             }
         }
@@ -1742,6 +1748,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card0.getValue(), equalTo(6L));
                     assertThat(card1.getValue(), equalTo(4L));
                     assertThat(card2.getValue(), equalTo(2L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=6+4+2=12, other=98
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(98L));
                 }
             }
         }
@@ -1823,6 +1832,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(buckets.get(3).getDocCount(), equalTo(9L));
                     assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_z"));
                     assertThat(buckets.get(4).getDocCount(), equalTo(10L));
+
+                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40 (10+9+8+7+6), other=15
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(15L));
                 }
             }
         }
@@ -1903,6 +1915,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max0.getValue(), equalTo(304.0));
                     assertThat(max1.getValue(), equalTo(204.0));
                     assertThat(max2.getValue(), equalTo(104.0));
+
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
                 }
             }
         }
@@ -1981,6 +1996,9 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max0.getValue(), equalTo(804.0));
                     assertThat(max1.getValue(), equalTo(904.0));
                     assertThat(max2.getValue(), equalTo(1004.0));
+
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
                 }
             }
         }
