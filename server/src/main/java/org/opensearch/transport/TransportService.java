@@ -93,7 +93,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * The main OpenSearch transport service
@@ -973,15 +972,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportRequestOptions options,
         final TransportResponseHandler<T> handler
     ) {
-        // Use the traceparent header(if present) to start the span
-        final Span span = tracer.startSpan(
-            SpanBuilder.from(action, connection),
-            threadPool.getThreadContext()
-                .getHeaders()
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> List.of(e.getValue())))
-        );
+        final Span span = tracer.startSpan(SpanBuilder.from(action, connection));
         try (SpanScope spanScope = tracer.withSpanInScope(span)) {
             TransportResponseHandler<T> traceableTransportResponseHandler = TraceableTransportResponseHandler.create(handler, span, tracer);
             sendRequestAsync(connection, action, request, options, traceableTransportResponseHandler);

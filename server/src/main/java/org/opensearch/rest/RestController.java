@@ -40,7 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
-import org.opensearch.common.util.TraceUtil;
+import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
@@ -433,14 +433,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     return;
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
-                    if (Task.TRACE_PARENT.equals(restHeader.getName())) {
-                        String traceId = TraceUtil.extractTraceId(distinctHeaderValues.getFirst());
-                        if (traceId != null && !traceId.isBlank()) {
-                            // Extract traceId from traceParent and add this to the header as well. So that it can be reused across
-                            // different places
-                            // like slowLog etc.
-                            threadContext.putHeader(Task.TRACE_ID, traceId);
-                        }
+                    // Validate request-id header if present
+                    if (Task.X_REQUEST_ID.equals(restHeader.getName())) {
+                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst());
                     }
                 }
             }

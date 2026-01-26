@@ -196,7 +196,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
-            messageFields.put("trace-id", context.getTask().getHeader(Task.TRACE_ID));
+            messageFields.put("request-id", context.getTask().getHeader(Task.X_REQUEST_ID));
             return messageFields;
         }
 
@@ -223,10 +223,10 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             } else {
                 sb.append("id[], ");
             }
-            if (context.getTask().getHeader(Task.TRACE_ID) != null) {
-                sb.append("trace-id[").append(context.getTask().getHeader(Task.TRACE_ID)).append("]");
+            if (context.getTask().getHeader(Task.X_REQUEST_ID) != null) {
+                sb.append("request-id[").append(context.getTask().getHeader(Task.X_REQUEST_ID)).append("]");
             } else {
-                sb.append("trace-id[]");
+                sb.append("request-id[]");
             }
             return sb.toString();
         }

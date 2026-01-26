@@ -11,7 +11,6 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.IntegrationTestOTelTelemetryPlugin;
 import org.opensearch.telemetry.OTelTelemetrySettings;
 import org.opensearch.telemetry.TelemetrySettings;
@@ -19,7 +18,6 @@ import org.opensearch.telemetry.tracing.attributes.Attributes;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.telemetry.tracing.TelemetryValidators;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansAreEndedProperly;
-import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveCorrectTraceId;
 import org.opensearch.test.telemetry.tracing.validators.AllSpansHaveUniqueId;
 import org.opensearch.test.telemetry.tracing.validators.NumberOfTraceIDsEqualToRequests;
 import org.opensearch.test.telemetry.tracing.validators.TotalRootSpansEqualToRequests;
@@ -79,7 +77,6 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
         refresh();
 
         Map<String, String> headers = new HashMap<>();
-        headers.put(Task.TRACE_PARENT, "00-19d538d7c42d09240be001d1e4ff6203-0651eba1347dceea-01");
 
         // Make the search calls; adding the searchType and PreFilterShardSize to make the query path predictable across all the runs.
         client.filterWithHeader(headers)
@@ -103,11 +100,7 @@ public class TelemetryTracerEnabledSanityIT extends OpenSearchIntegTestCase {
                 new AllSpansAreEndedProperly(),
                 new AllSpansHaveUniqueId(),
                 new NumberOfTraceIDsEqualToRequests(Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")),
-                new TotalRootSpansEqualToRequests(),
-                new AllSpansHaveCorrectTraceId(
-                    "19d538d7c42d09240be001d1e4ff6203",
-                    Attributes.create().addAttribute("action", "indices:data/read/search[phase/query]")
-                )
+                new TotalRootSpansEqualToRequests()
             )
         );
 

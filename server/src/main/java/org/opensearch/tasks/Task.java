@@ -72,30 +72,17 @@ public class Task {
     public static final String X_OPAQUE_ID = "X-Opaque-Id";
 
     /**
-     * The W3 'traceparent' header value for distributed tracing.
+     * This header uniquely identifies a request and can be used by users to track it, for example in logs such as slow logs.
      *
-     * This header uniquely identifies a request as it contains unique trace Id that ties together all spans in the trace, as well as a span ID
-     * identifying this particular span. By propagating this header across service, all desired components can record telemetry as part of the same end-to-end request.
+     * Format: 32-character lowercase hexadecimal
      *
-     * It follows the W3C Trace Context specification:
-     *  traceparent: 00-{trace-id}-{span-id}-{flags}
+     * Example:
      *
-     *  trace-id — 32-character lowercase hex trace identifier that uniquely defines the distributed trace.
-     *  span-id — 16-character lowercase hex span identifier representing the current operation's position in the trace.
-     *  flags — 2-character hex sampling flags (e.g. "01" if sampled).
-     *
-     *  Example:
-     *  traceparent: 00-19d538d7c42d09240be001d1e4ff6203-0651eba1347dceea-01
+     * X-Request-Id: 19d538d7c42d09240be001d1e4ff6203
      */
-    public static final String TRACE_PARENT = "traceparent";
+    public static final String X_REQUEST_ID = "X-Request-Id";
 
-    /**
-     * This uniquely identifies a request. This traceId is essentially extracted from traceparent above, so that we can use this to log it in places like slowlogs etc,
-     * and we are able to trace the request across OpenSearch.
-     */
-    public static final String TRACE_ID = "trace-id";
-
-    public static final Set<String> REQUEST_HEADERS = Set.of(Task.X_OPAQUE_ID, Task.TRACE_PARENT, Task.TRACE_ID);
+    public static final Set<String> REQUEST_HEADERS = Set.of(Task.X_OPAQUE_ID, Task.X_REQUEST_ID);
 
     private static final String TOTAL = "total";
 

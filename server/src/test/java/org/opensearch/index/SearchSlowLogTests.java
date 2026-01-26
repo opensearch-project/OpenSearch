@@ -294,7 +294,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));
-        assertThat(p.getFormattedMessage(), endsWith("trace-id[sample_trace_id]"));
+        assertThat(p.getFormattedMessage(), endsWith("request-id[sample_request_id]"));
     }
 
     public void testLevelSetting() {
@@ -612,7 +612,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         ctx.request().source(source);
         ctx.setTask(
-            new SearchShardTask(0, "n/a", "n/a", "test", null, Map.of(Task.X_OPAQUE_ID, "my_id", Task.TRACE_ID, "sample_trace_id"))
+            new SearchShardTask(0, "n/a", "n/a", "test", null, Map.of(Task.X_OPAQUE_ID, "my_id", Task.X_REQUEST_ID, "sample_request_id"))
         );
         return ctx;
     }
