@@ -14,6 +14,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanScope;
 import org.opensearch.telemetry.tracing.Tracer;
@@ -24,12 +25,12 @@ import java.util.Objects;
 /**
  * Tracer wrapped {@link RestChannel}
  */
-public class TraceableRestChannel implements RestChannel {
+public class TraceableRestChannel<T extends RestChannel> implements RestChannel {
 
-    private final RestChannel delegate;
-    private final Span span;
+    protected final T delegate;
+    protected final Span span;
 
-    private final Tracer tracer;
+    protected final Tracer tracer;
 
     /**
      * Constructor.
@@ -38,7 +39,7 @@ public class TraceableRestChannel implements RestChannel {
      * @param span span
      * @param tracer tracer
      */
-    private TraceableRestChannel(RestChannel delegate, Span span, Tracer tracer) {
+    protected TraceableRestChannel(T delegate, Span span, Tracer tracer) {
         this.span = Objects.requireNonNull(span);
         this.delegate = Objects.requireNonNull(delegate);
         this.tracer = Objects.requireNonNull(tracer);
@@ -53,7 +54,10 @@ public class TraceableRestChannel implements RestChannel {
      */
     public static RestChannel create(RestChannel delegate, Span span, Tracer tracer) {
         if (tracer.isRecording() == true) {
-            return new TraceableRestChannel(delegate, span, tracer);
+            if (delegate instanceof StreamingRestChannel streamingRestChannel) {
+                return new TraceableStreamingRestChannel(streamingRestChannel, span, tracer);
+            }
+            return new TraceableRestChannel<>(delegate, span, tracer);
         } else {
             return delegate;
         }

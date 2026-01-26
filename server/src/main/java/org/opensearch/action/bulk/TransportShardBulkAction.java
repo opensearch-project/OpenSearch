@@ -88,7 +88,6 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
-import org.opensearch.index.engine.LookupMapLockAcquisitionException;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperException;
@@ -735,15 +734,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             && context.getRetryCounter() < ((UpdateRequest) docWriteRequest).retryOnConflict()) {
             context.resetForExecutionForRetry();
             return;
-        } else if (isFailed
-            && context.getPrimary() != null
-            && context.getPrimary().indexSettings() != null
-            && context.getPrimary().indexSettings().isContextAwareEnabled()
-            && isLookupMapLockAcquisitionException(executionResult.getFailure().getCause())
-            && context.getRetryCounter() < context.getPrimary().indexSettings().getMaxRetryOnLookupMapAcquisitionException()) {
-                context.resetForExecutionForRetry();
-                return;
-            }
+        }
         final BulkItemResponse response;
         if (isUpdate) {
             response = processUpdateResponse((UpdateRequest) docWriteRequest, context.getConcreteIndex(), executionResult, updateResult);
@@ -770,10 +761,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static boolean isConflictException(final Exception e) {
         return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
-    }
-
-    private static boolean isLookupMapLockAcquisitionException(final Exception e) {
-        return ExceptionsHelper.unwrapCause(e) instanceof LookupMapLockAcquisitionException;
     }
 
     /**
