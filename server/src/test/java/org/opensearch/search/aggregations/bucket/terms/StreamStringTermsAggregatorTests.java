@@ -20,9 +20,11 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.support.StreamSearchChannelListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
@@ -30,6 +32,7 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -1527,11 +1530,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .order(BucketOrder.aggregation("max_value", false))
                         .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -1591,11 +1608,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .order(BucketOrder.aggregation("unique_users", false))
                         .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -1663,11 +1694,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .order(BucketOrder.aggregation("unique_users", true))
                         .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -1705,12 +1750,14 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testNoSortOrder() throws Exception {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                // Create 10 categories with varying max values
+                // Create categories where alphabetical order != count order
+                // cat_z=10 docs (highest), cat_y=9, cat_x=8, cat_a=7, cat_b=6, cat_c=5, cat_d=4, cat_e=3, cat_f=2, cat_g=1 (lowest)
+                String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
                 for (int i = 0; i < 10; i++) {
-                    int numDocs = 5;
+                    int numDocs = 10 - i;
                     for (int j = 0; j < numDocs; j++) {
                         Document doc = new Document();
-                        doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef(names[i])));
                         doc.add(new NumericDocValuesField("value", (i + 1) * 100 + j));
                         indexWriter.addDocument(doc);
                     }
@@ -1726,11 +1773,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .shardSize(5)
                         .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -1750,11 +1811,18 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     List<StringTerms.Bucket> buckets = result.getBuckets();
                     assertThat(buckets.size(), equalTo(5));
 
-                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_0"));
-                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_1"));
-                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_2"));
-                    assertThat(buckets.get(3).getKeyAsString(), equalTo("cat_3"));
-                    assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_4"));
+                    // Default order is count DESC, so top 5 should be cat_z, cat_y, cat_x, cat_a, cat_b (highest counts)
+                    // Returned in alphabetical order at shard level
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_a"));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(7L));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_b"));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(6L));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_x"));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(8L));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("cat_y"));
+                    assertThat(buckets.get(3).getDocCount(), equalTo(9L));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_z"));
+                    assertThat(buckets.get(4).getDocCount(), equalTo(10L));
                 }
             }
         }
@@ -1787,11 +1855,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .order(BucketOrder.aggregation("max_value", true))
                         .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
@@ -1851,11 +1933,25 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         .order(BucketOrder.aggregation("max_value", false))
                         .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
 
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
                     StreamStringTermsAggregator aggregator = createStreamAggregator(
                         null,
                         aggregationBuilder,
                         indexSearcher,
-                        createIndexSettings(),
+                        indexSettings,
                         new MultiBucketConsumerService.MultiBucketConsumer(
                             DEFAULT_MAX_BUCKETS,
                             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)

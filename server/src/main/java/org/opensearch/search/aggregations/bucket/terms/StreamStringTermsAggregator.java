@@ -108,7 +108,9 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
             };
             ordinalComparator = (leftOrd, rightOrd) -> {
                 tempBucket1.bucketOrd = leftOrd;
+                tempBucket1.docCount = bucketDocCount(leftOrd);
                 tempBucket2.bucketOrd = rightOrd;
+                tempBucket2.docCount = bucketDocCount(rightOrd);
                 return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
             };
         }
@@ -120,7 +122,9 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
     }
 
     protected int getSegmentSize() {
-        return bucketCountThresholds.getShardSize();
+        int requestedShardSize = bucketCountThresholds.getShardSize();
+        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
+        return Math.max(requestedShardSize, minShardSize);
     }
 
     @Override
