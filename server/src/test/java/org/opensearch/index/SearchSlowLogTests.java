@@ -294,7 +294,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));
-        assertThat(p.getFormattedMessage(), endsWith("request-id[sample_request_id]"));
+        assertThat(p.getFormattedMessage(), endsWith("request_id[sample_request_id]"));
     }
 
     public void testLevelSetting() {
