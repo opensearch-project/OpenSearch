@@ -58,7 +58,7 @@ import java.util.function.Supplier;
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
-    private final List<AdditionalCodecs> registries;
+    private final List<AdditionalCodecs> additionalCodecs;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -134,7 +134,7 @@ public class EngineConfigFactory {
         final CodecService instance = codecService.orElse(null);
         this.codecServiceFactory = (instance != null) ? (config) -> instance : codecServiceFactory.orElse(null);
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
-        this.registries = Collections.unmodifiableList(codecRegistries);
+        this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
     }
 
     /**
@@ -212,7 +212,7 @@ public class EngineConfigFactory {
     }
 
     public CodecService newDefaultCodecService(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {
-        return new CodecService(mapperService, indexSettings, logger, registries);
+        return new CodecService(mapperService, indexSettings, logger, additionalCodecs);
     }
 
     public CodecService newCodecServiceOrDefault(
@@ -222,7 +222,7 @@ public class EngineConfigFactory {
         CodecService defaultCodecService
     ) {
         return this.codecServiceFactory != null
-            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger, registries))
+            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger, additionalCodecs))
             : defaultCodecService;
     }
 }
