@@ -524,7 +524,6 @@ public class FileCacheTests extends OpenSearchTestCase {
             for (int j = 0; j < 10; j++) {
                 createFile(index + i, String.valueOf(j), "_" + j + "_block_" + j);
                 createWarmIndexFile(warmIndex + i, String.valueOf(j), "_" + j + "_block_" + j);
-                // Remove known extra files - "extra0" file is added by the ExtrasFS, which is part of Lucene's test framework
                 Files.deleteIfExists(
                     path.resolve(NodeEnvironment.CACHE_FOLDER)
                         .resolve(index + i)
@@ -532,6 +531,7 @@ public class FileCacheTests extends OpenSearchTestCase {
                         .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION)
                         .resolve("extra0")
                 );
+                // Remove known extra files - "extra0" file is added by the ExtrasFS, which is part of Lucene's test framework
                 Files.deleteIfExists(
                     path.resolve(NodeEnvironment.INDICES_FOLDER)
                         .resolve(warmIndex + i)
