@@ -108,6 +108,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
+    // Error message constants for validation (shared by XContent and protobuf parsing)
+    public static final String QUERY_TEXT_MISSING = "[" + NAME + "] query text missing";
+    public static final String UNKNOWN_FLAG_PREFIX = "Unknown " + NAME + " flag [";
+
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -153,7 +157,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Construct a new simple query with this query string. */
     public SimpleQueryStringBuilder(String queryText) {
         if (queryText == null) {
-            throw new IllegalArgumentException("query text missing");
+            throw new IllegalArgumentException(QUERY_TEXT_MISSING);
         }
         this.queryText = queryText;
     }
@@ -574,7 +578,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         // Query text is required
         if (queryBody == null) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query text missing");
+            throw new ParsingException(parser.getTokenLocation(), QUERY_TEXT_MISSING);
         }
 
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
