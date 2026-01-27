@@ -68,10 +68,12 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 
-    static Collector createCollector(SearchContext searchContext, CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider)
-        throws IOException {
-        Collector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
-        ((BucketCollector) collector).preCollection();
+    private static Collector createCollector(
+        SearchContext searchContext,
+        CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider
+    ) throws IOException {
+        BucketCollector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
+        collector.preCollection();
         return collector;
     }
 }

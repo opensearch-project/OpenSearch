@@ -29,33 +29,33 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
     }
 
     public void testDecideFlushModeStreamable() {
-        StreamingCostMetrics streamable = new StreamingCostMetrics(true, 10, 5000, 5, 10000);
+        StreamingCostMetrics streamable = new StreamingCostMetrics(true, 10, 5000, 10000);
         FlushMode result = FlushModeResolver.decideFlushMode(streamable, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
         assertEquals(FlushMode.PER_SEGMENT, result);
     }
 
     public void testDecideFlushModeTooManyBuckets() {
-        StreamingCostMetrics highBuckets = new StreamingCostMetrics(true, 10, 200_000, 5, 10000);
+        StreamingCostMetrics highBuckets = new StreamingCostMetrics(true, 10, 200_000, 10000);
         FlushMode result = FlushModeResolver.decideFlushMode(highBuckets, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
     public void testDecideFlushModeTooFewBuckets() {
-        StreamingCostMetrics lowBuckets = new StreamingCostMetrics(true, 10, 500, 5, 10000);
+        StreamingCostMetrics lowBuckets = new StreamingCostMetrics(true, 10, 500, 10000);
         FlushMode result = FlushModeResolver.decideFlushMode(lowBuckets, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
     public void testDecideFlushModeLowCardinalityRatio() {
         // 500 buckets / 1_000_000 docs = 0.0005 ratio, below 0.01 threshold
-        StreamingCostMetrics lowCardinality = new StreamingCostMetrics(true, 10, 5000, 5, 1_000_000);
+        StreamingCostMetrics lowCardinality = new StreamingCostMetrics(true, 10, 5000, 1_000_000);
         FlushMode result = FlushModeResolver.decideFlushMode(lowCardinality, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
     public void testDecideFlushModeNeutralMetrics() {
         StreamingCostMetrics neutral = StreamingCostMetrics.neutral();
-        // Neutral metrics have very low values (1, 1, 1, 1) so should fall below thresholds
+        // Neutral metrics have very low values (1, 1, 1) so should fall below thresholds
         FlushMode result = FlushModeResolver.decideFlushMode(neutral, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
         assertEquals(FlushMode.PER_SHARD, result);
     }

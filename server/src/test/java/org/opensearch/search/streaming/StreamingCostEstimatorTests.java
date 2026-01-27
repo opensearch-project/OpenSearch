@@ -41,7 +41,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test decideFlushMode with valid high cardinality metrics - should stream.
      */
     public void testDecideFlushModeWithHighCardinality() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 50000, 5, 100000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 50000, 100000);
 
         FlushMode result = FlushModeResolver.decideFlushMode(
             metrics,
@@ -58,7 +58,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test decideFlushMode returns PER_SHARD when bucket count exceeds max.
      */
     public void testDecideFlushModeExceedsMaxBuckets() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 200000, 5, 100000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 200000, 100000);
 
         FlushMode result = FlushModeResolver.decideFlushMode(
             metrics,
@@ -75,7 +75,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test decideFlushMode returns PER_SHARD when bucket count is below minimum.
      */
     public void testDecideFlushModeBelowMinBuckets() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 500, 5, 100000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 500, 100000);
 
         FlushMode result = FlushModeResolver.decideFlushMode(
             metrics,
@@ -92,7 +92,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test decideFlushMode returns PER_SHARD when cardinality ratio is too low.
      */
     public void testDecideFlushModeLowCardinalityRatio() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 5000, 5, 1000000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 5000, 1000000);
         // ratio = 5000 / 1000000 = 0.005 < 0.01
 
         FlushMode result = FlushModeResolver.decideFlushMode(
@@ -121,7 +121,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test edge case: exactly at bucket count threshold.
      */
     public void testDecideFlushModeExactlyAtMaxBuckets() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 100000, 5, 100000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 100000, 100000);
 
         FlushMode result = FlushModeResolver.decideFlushMode(
             metrics,
@@ -139,7 +139,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
      * Test edge case: exactly at min bucket threshold.
      */
     public void testDecideFlushModeExactlyAtMinBuckets() {
-        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 1000, 5, 10000);
+        StreamingCostMetrics metrics = new StreamingCostMetrics(true, 100, 1000, 10000);
 
         FlushMode result = FlushModeResolver.decideFlushMode(
             metrics,
@@ -178,7 +178,6 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should match shardSize", 50, metrics.topNSize());
                     assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
-                    assertEquals("Should have 1 segment", 1, metrics.segmentCount());
                     assertEquals("Should have 100 docs with field", 100, metrics.estimatedDocCount());
                 }
             }
@@ -238,7 +237,6 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                     assertEquals("TopN size should match shardSize", 10, metrics.topNSize());
                     // Max cardinality across segments should be 5 (each segment has 5 unique terms)
                     assertEquals("Should have max 5 unique terms per segment", 5, metrics.estimatedBucketCount());
-                    assertTrue("Should have multiple segments", metrics.segmentCount() >= 3);
                     assertEquals("Should have 60 docs with field", 60, metrics.estimatedDocCount());
                 }
             }
@@ -290,7 +288,6 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                     assertEquals("TopN size should match shardSize", 25, metrics.topNSize());
                     // Numeric terms use doc count as upper bound for cardinality
                     assertEquals("Cardinality estimate should be doc count", 100, metrics.estimatedBucketCount());
-                    assertEquals("Should have 1 segment", 1, metrics.segmentCount());
                     assertEquals("Should have 100 docs", 100, metrics.estimatedDocCount());
                 }
             }
@@ -318,7 +315,6 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should be 1 for cardinality", 1, metrics.topNSize());
                     assertEquals("Should have 15 unique values", 15, metrics.estimatedBucketCount());
-                    assertEquals("Should have 1 segment", 1, metrics.segmentCount());
                     assertEquals("Should have 50 docs with field", 50, metrics.estimatedDocCount());
                 }
             }

@@ -22,18 +22,16 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * unless otherwise specified.
  *
  * @param streamable whether this Streamable supports streaming - if false, other parameters are ignored
- * @param topNSize number of top buckets sent per shard in traditional processing (multi-bucket aggregations only)
+ * @param topNSize number of top buckets sent per partial agg result (multi-bucket aggregations only)
  * @param estimatedBucketCount estimated number of buckets this aggregation will produce (multi-bucket aggregations only)
- * @param segmentCount number of segments in this shard (used for streaming volume calculations)
  * @param estimatedDocCount estimated number of documents that have this field
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record StreamingCostMetrics(boolean streamable, long topNSize, long estimatedBucketCount, int segmentCount, long estimatedDocCount) {
+public record StreamingCostMetrics(boolean streamable, long topNSize, long estimatedBucketCount, long estimatedDocCount) {
     public StreamingCostMetrics {
         assert topNSize >= 0 : "topNSize must be non-negative";
         assert estimatedBucketCount >= 0 : "estimatedBucketCount must be non-negative";
-        assert segmentCount >= 0 : "segmentCount must be non-negative";
         assert estimatedDocCount >= 0 : "estimatedDocCount must be non-negative";
     }
 
@@ -43,7 +41,7 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * @return metrics with streamable=false and zero values for all cost parameters
      */
     public static StreamingCostMetrics nonStreamable() {
-        return new StreamingCostMetrics(false, 0, 0, 0, 0);
+        return new StreamingCostMetrics(false, 0, 0, 0);
     }
 
     /**
@@ -53,10 +51,10 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * <p>These aggregations can be nested within streaming bucket aggregations without
      * blocking streaming, but their cost is negligible (single value output).
      *
-     * @return metrics with streamable=true and minimal values (1, 1, 1, 1)
+     * @return metrics with streamable=true and minimal values (1, 1, 1)
      */
     public static StreamingCostMetrics neutral() {
-        return new StreamingCostMetrics(true, 1, 1, 1, 1);
+        return new StreamingCostMetrics(true, 1, 1, 1);
     }
 
     /**
@@ -93,7 +91,6 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
             true,
             combinedTopNSize,
             combinedEstimatedBucketCount,
-            Math.max(this.segmentCount, subAggMetrics.segmentCount),
             Math.max(this.estimatedDocCount, subAggMetrics.estimatedDocCount)
         );
     }
@@ -132,7 +129,6 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
             true,
             combinedTopNSize,
             combinedEstimatedBucketCount,
-            Math.max(this.segmentCount, siblingMetrics.segmentCount),
             this.estimatedDocCount + siblingMetrics.estimatedDocCount
         );
     }

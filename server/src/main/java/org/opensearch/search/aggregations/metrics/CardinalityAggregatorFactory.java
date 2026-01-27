@@ -113,7 +113,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        // FlushMode is already determined at AggregatorFactories level before aggregator creation
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
@@ -138,7 +137,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             }
         }
 
-        // FlushMode is already determined at AggregatorFactories level before aggregator creation
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
@@ -147,15 +145,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             .build(name, config, precision(), searchContext, parent, metadata, executionMode);
     }
 
-    /**
-     * Estimates streaming cost metrics before aggregator creation.
-     *
-     * <p>Cardinality aggregation returns a single value (the estimated unique count),
-     * so it's inherently suitable for streaming when the field has ordinals.
-     *
-     * @param searchContext The search context providing access to index reader
-     * @return Streaming cost metrics for this cardinality aggregation
-     */
     @Override
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
@@ -165,7 +154,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             return StreamingCostEstimator.estimateCardinality(searchContext.searcher().getIndexReader(), ordinalsVS);
         }
 
-        // Non-ordinals sources fall back to non-streamable
         return StreamingCostMetrics.nonStreamable();
     }
 

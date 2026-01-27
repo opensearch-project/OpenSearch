@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -91,6 +93,7 @@ import static java.util.stream.Collectors.toMap;
  */
 @PublicApi(since = "1.0.0")
 public class AggregatorFactories {
+    private static final Logger logger = LogManager.getLogger(AggregatorFactories.class);
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
@@ -253,7 +256,7 @@ public class AggregatorFactories {
         }
     };
 
-    private AggregatorFactory[] factories;
+    private final AggregatorFactory[] factories;
 
     public static Builder builder() {
         return new Builder();
@@ -317,6 +320,17 @@ public class AggregatorFactories {
                 double minRatio = searchContext.getStreamingMinCardinalityRatio();
                 long minBucket = searchContext.getStreamingMinEstimatedBucketCount();
                 decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket, minRatio, minBucket);
+                logger.debug(
+                    "Streaming aggregation decision: {} | metrics: [streamable={}, topN={}, buckets={}, docs={}] | thresholds: [maxBucket={}, minRatio={}, minBucket={}]",
+                    decision,
+                    metrics.streamable(),
+                    metrics.topNSize(),
+                    metrics.estimatedBucketCount(),
+                    metrics.estimatedDocCount(),
+                    maxBucket,
+                    minRatio,
+                    minBucket
+                );
             }
             searchContext.setFlushModeIfAbsent(decision);
         }

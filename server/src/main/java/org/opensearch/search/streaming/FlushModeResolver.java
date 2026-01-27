@@ -14,10 +14,6 @@ import org.opensearch.common.settings.Setting;
 /**
  * Determines optimal {@link FlushMode} for streaming aggregations based on cost metrics.
  *
- * <p>Performs cost-benefit analysis using metrics provided by factories implementing
- * {@link StreamingCostEstimable}. Streaming is enabled when the combined cost metrics
- * indicate it will be beneficial compared to traditional shard-level processing.
- *
  * @opensearch.internal
  */
 @ExperimentalApi

@@ -17,13 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Utility class for estimating streaming cost metrics without requiring an aggregator instance.
- *
- * <p>This class extracts the cost estimation logic that was previously embedded in streaming
- * aggregators (e.g., {@code StreamStringTermsAggregator.getStreamingCostMetrics()}) into
- * standalone static methods. This allows the factory to compute metrics before deciding
- * which aggregator type to create, eliminating the need for double-creation when streaming
- * is not beneficial.
+ * Utility class for estimating streaming cost metrics for different aggregations
  *
  * @opensearch.internal
  */
@@ -40,7 +34,6 @@ public final class StreamingCostEstimator {
      * <ul>
      *   <li>Max cardinality across segments (used as bucket count estimate)</li>
      *   <li>Total documents with the field</li>
-     *   <li>Segment count</li>
      * </ul>
      *
      * @param indexReader The index reader to analyze
@@ -66,7 +59,7 @@ public final class StreamingCostEstimator {
                 }
             }
 
-            return new StreamingCostMetrics(true, shardSize, maxCardinality, leaves.size(), totalDocsWithField);
+            return new StreamingCostMetrics(true, shardSize, maxCardinality, totalDocsWithField);
         } catch (IOException e) {
             return StreamingCostMetrics.nonStreamable();
         }
@@ -95,14 +88,12 @@ public final class StreamingCostEstimator {
         // For numeric terms, use doc count as an upper bound for cardinality.
         // This tends to favor streaming since high cardinality/doc ratio indicates
         // streaming would be beneficial.
-        List<LeafReaderContext> leaves = indexReader.leaves();
         long totalDocs = indexReader.numDocs();
 
         return new StreamingCostMetrics(
             true,
             shardSize,
             totalDocs,  // Use doc count as cardinality upper bound
-            leaves.size(),
             totalDocs
         );
     }
@@ -137,7 +128,6 @@ public final class StreamingCostEstimator {
                 true,
                 1,  // topNSize - cardinality returns single value
                 maxCardinality,
-                leaves.size(),
                 totalDocsWithField
             );
         } catch (IOException e) {

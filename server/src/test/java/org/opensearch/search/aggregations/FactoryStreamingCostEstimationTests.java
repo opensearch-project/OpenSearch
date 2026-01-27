@@ -79,7 +79,6 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
                     assertTrue("Should be streamable", metrics.streamable());
                     assertTrue("TopN size should be positive", metrics.topNSize() > 0);
                     assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
-                    assertEquals("Should have 1 segment", 1, metrics.segmentCount());
                     assertEquals("Should have 100 docs", 100, metrics.estimatedDocCount());
                 }
             }
@@ -117,7 +116,6 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
                     assertTrue("TopN size should be positive", metrics.topNSize() > 0);
                     // Numeric terms use doc count as upper bound for cardinality
                     assertEquals("Cardinality estimate should be doc count", 50, metrics.estimatedBucketCount());
-                    assertEquals("Should have 1 segment", 1, metrics.segmentCount());
                 }
             }
         }
