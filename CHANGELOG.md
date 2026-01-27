@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add tracing support for StreamingRestChannel  ([#20361](https://github.com/opensearch-project/OpenSearch/pull/20361))
 - Introduce new libs/netty4 module to share common implementation between netty-based plugins and modules (transport-netty4, transport-reactor-netty4) ([#20447](https://github.com/opensearch-project/OpenSearch/pull/20447))
 - Add validation to make crypto store settings immutable ([#20123](https://github.com/opensearch-project/OpenSearch/pull/20123))
+- Update to `almalinux:10` ([#20482](https://github.com/opensearch-project/OpenSearch/pull/20482))
 - Choose the best performing node when writing with append-only index ([#20065](https://github.com/opensearch-project/OpenSearch/pull/20065))
 
 ### Changed
