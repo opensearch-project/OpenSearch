@@ -399,6 +399,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
     private final Set<MergedSegmentCheckpoint> pendingMergedSegmentCheckpoints = Sets.newConcurrentHashSet();
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
+
+    // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
     @InternalApi
