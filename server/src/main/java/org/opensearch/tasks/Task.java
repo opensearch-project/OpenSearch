@@ -74,7 +74,7 @@ public class Task {
     /**
      * This header uniquely identifies a request and can be used by users to track it, for example in logs such as slow logs.
      *
-     * Format: 32-character lowercase hexadecimal
+     * Format: 32-character hexadecimal
      *
      * Example:
      *
