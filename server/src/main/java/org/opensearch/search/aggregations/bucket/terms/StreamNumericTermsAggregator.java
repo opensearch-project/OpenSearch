@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -53,6 +55,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  * @opensearch.internal
  */
 public class StreamNumericTermsAggregator extends TermsAggregator implements Streamable {
+    private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final IncludeExclude.LongFilter longFilter;
@@ -92,7 +95,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     @Override
     public void doReset() {
         super.doReset();
-        Releasables.close(bucketOrds, resultStrategy);
+        Releasables.close(bucketOrds);
         bucketOrds = null;
     }
 
@@ -173,6 +176,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                 collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx]);
                 LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
+                logger.debug("Cardinality post collection for ordIdx {}: {}", ordIdx, bucketsInOrd);
 
                 SelectionResult<B> selectionResult = selectTopBuckets(
                     ordsEnum,
@@ -206,8 +210,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         protected void ensureOrdinalComparator() {
-            // Override in subclasses to provide bucket-specific comparator
+            // Override in subclasses if needed
         }
+
+        abstract B createTempBucket();
 
         private static class SelectionResult<B> {
             final List<B> buckets;
@@ -287,28 +293,24 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
             selector.select(0, candidateCount, segmentSize);
 
-            // Collect selected ordinals
-            int[] selectedOrdinals = new int[segmentSize];
-            for (int i = 0; i < segmentSize; i++) {
-                selectedOrdinals[i] = reusableIndices.get(i);
-            }
-
-            // Build result by finding values for selected ordinals
-            ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+            // Build result directly from selected ordinals (O(segmentSize) instead of O(totalBuckets * segmentSize))
             List<B> result = new ArrayList<>(segmentSize);
             long selectedDocCount = 0;
-            while (ordsEnum.next()) {
-                for (int selectedOrd : selectedOrdinals) {
-                    if (ordsEnum.ord() == selectedOrd) {
-                        long docCount = StreamNumericTermsAggregator.this.bucketDocCount(ordsEnum.ord());
-                        result.add(buildFinalBucket(ordsEnum.ord(), ordsEnum.value(), docCount, owningBucketOrd));
-                        selectedDocCount += docCount;
-                        break;
-                    }
-                }
+            for (int i = 0; i < segmentSize; i++) {
+                int selectedOrd = reusableIndices.get(i);
+                long value = bucketOrds.get(selectedOrd);
+                long docCount = StreamNumericTermsAggregator.this.bucketDocCount(selectedOrd);
+                result.add(buildFinalBucket(selectedOrd, value, docCount, owningBucketOrd));
+                selectedDocCount += docCount;
             }
 
             return new SelectionResult<>(result, totalDocCount - selectedDocCount);
+        }
+
+        @Override
+        public final void close() {
+            Releasables.close(reusableIndices);
+            reusableIndices = null;
         }
 
         /**
@@ -377,6 +379,28 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         @Override
+        protected void ensureOrdinalComparator() {
+            if (ordinalComparator == null) {
+                if (isKeyOrder(order)) {
+                    throw new IllegalArgumentException(
+                        "Streaming aggregation does not support key-based ordering for numeric fields. "
+                            + "Use traditional aggregation approach instead."
+                    );
+                } else if (partiallyBuiltBucketComparator != null) {
+                    tempBucket1 = createTempBucket();
+                    tempBucket2 = createTempBucket();
+                    ordinalComparator = (leftOrd, rightOrd) -> {
+                        tempBucket1.bucketOrd = leftOrd;
+                        tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
+                        tempBucket2.bucketOrd = rightOrd;
+                        tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
+                        return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
+                    };
+                }
+            }
+        }
+
+        @Override
         final LeafBucketCollector wrapCollector(LeafBucketCollector primary) {
             return primary;
         }
@@ -410,12 +434,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                 }
             }
         }
-
-        @Override
-        public final void close() {
-            Releasables.close(reusableIndices);
-            reusableIndices = null;
-        }
     }
 
     /**
@@ -429,42 +447,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         @Override
-        protected void ensureOrdinalComparator() {
-            if (ordinalComparator == null) {
-                if (isKeyOrder(order)) {
-                    // For numeric aggregators, key-based ordering requires comparing actual values (not ordinals)
-                    // since ordinals are assigned dynamically as values are encountered, not in numeric order.
-                    // This requires calling bucketOrds.get() for every comparison during quickselect, which is expensive.
-                    // In Streaming aggregations, we want to avoid materializing all buckets. For key-based ordering, traditional
-                    // aggregation is more efficient.
-                    // This code should be unreachable since FlushModeResolver prevents such cases for streaming aggregations
-                    throw new IllegalArgumentException(
-                        "Streaming aggregation does not support key-based ordering for numeric fields. "
-                            + "Use traditional aggregation approach instead."
-                    );
-                } else if (partiallyBuiltBucketComparator != null) {
-                    // For sub-aggregation ordering, use bucket comparator
-                    tempBucket1 = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(LongTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    tempBucket2 = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(LongTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    ordinalComparator = (leftOrd, rightOrd) -> {
-                        tempBucket1.bucketOrd = leftOrd;
-                        tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
-                        tempBucket2.bucketOrd = rightOrd;
-                        tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
-                        return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
-                    };
+        LongTerms.Bucket createTempBucket() {
+            return new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
+                @Override
+                public int compareKey(LongTerms.Bucket other) {
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    long thisValue = bucketOrds.get(this.bucketOrd);
+                    long otherValue = bucketOrds.get(other.bucketOrd);
+                    return Long.compare(thisValue, otherValue);
                 }
-            }
+            };
         }
 
         @Override
@@ -549,36 +542,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         @Override
-        protected void ensureOrdinalComparator() {
-            if (ordinalComparator == null) {
-                if (isKeyOrder(order)) {
-                    throw new IllegalArgumentException(
-                        "Streaming aggregation does not support key-based ordering for numeric fields. "
-                            + "Use traditional aggregation approach instead."
-                    );
-                } else if (partiallyBuiltBucketComparator != null) {
-                    // For sub-aggregation ordering, use bucket comparator
-                    tempBucket1 = new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(DoubleTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    tempBucket2 = new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(DoubleTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    ordinalComparator = (leftOrd, rightOrd) -> {
-                        tempBucket1.bucketOrd = leftOrd;
-                        tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
-                        tempBucket2.bucketOrd = rightOrd;
-                        tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
-                        return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
-                    };
+        DoubleTerms.Bucket createTempBucket() {
+            return new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
+                @Override
+                public int compareKey(DoubleTerms.Bucket other) {
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    long thisValue = bucketOrds.get(this.bucketOrd);
+                    long otherValue = bucketOrds.get(other.bucketOrd);
+                    return Double.compare(NumericUtils.sortableLongToDouble(thisValue), NumericUtils.sortableLongToDouble(otherValue));
                 }
-            }
+            };
         }
 
         @Override
@@ -669,36 +643,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         }
 
         @Override
-        protected void ensureOrdinalComparator() {
-            if (ordinalComparator == null) {
-                if (isKeyOrder(order)) {
-                    throw new IllegalArgumentException(
-                        "Streaming aggregation does not support key-based ordering for numeric fields. "
-                            + "Use traditional aggregation approach instead."
-                    );
-                } else if (partiallyBuiltBucketComparator != null) {
-                    // For sub-aggregation ordering, use bucket comparator
-                    tempBucket1 = new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(UnsignedLongTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    tempBucket2 = new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
-                        @Override
-                        public int compareKey(UnsignedLongTerms.Bucket other) {
-                            return Long.compare(this.bucketOrd, other.bucketOrd);
-                        }
-                    };
-                    ordinalComparator = (leftOrd, rightOrd) -> {
-                        tempBucket1.bucketOrd = leftOrd;
-                        tempBucket1.docCount = StreamNumericTermsAggregator.this.bucketDocCount(leftOrd);
-                        tempBucket2.bucketOrd = rightOrd;
-                        tempBucket2.docCount = StreamNumericTermsAggregator.this.bucketDocCount(rightOrd);
-                        return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
-                    };
+        UnsignedLongTerms.Bucket createTempBucket() {
+            return new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
+                @Override
+                public int compareKey(UnsignedLongTerms.Bucket other) {
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    long thisValue = bucketOrds.get(this.bucketOrd);
+                    long otherValue = bucketOrds.get(other.bucketOrd);
+                    return Long.compareUnsigned(thisValue, otherValue);
                 }
-            }
+            };
         }
 
         @Override

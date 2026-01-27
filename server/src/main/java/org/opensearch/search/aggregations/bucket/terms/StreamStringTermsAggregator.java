@@ -8,6 +8,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -46,6 +48,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  * Stream search terms aggregation
  */
 public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements Streamable {
+    private static final Logger logger = LogManager.getLogger(StreamStringTermsAggregator.class);
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
     private final ValuesSource.Bytes.WithOrdinals valuesSource;
@@ -82,10 +85,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         super.doReset();
         valueCount = 0;
         sortedDocValuesPerBatch = null;
-        if (resultStrategy.reusableIndices != null) {
-            Releasables.close(resultStrategy.reusableIndices);
-            resultStrategy.reusableIndices = null;
-        }
         this.leafCollectorCreated = false;
         this.ordinalComparator = null;
         this.tempBucket1 = null;
@@ -258,6 +257,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
                 // processing each owning bucket
                 checkCancelled();
+                logger.debug("Cardinality post collection for ordIdx {}: {}", ordIdx, valueCount);
                 // using bucketCountThresholds since we don't do reduce across slice
                 // and send results per segment to coordinator
                 SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, bucketCountThresholds);
@@ -372,6 +372,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         @Override
         public void close() {
             Releasables.close(reusableIndices);
+            reusableIndices = null;
         }
 
         abstract String describe();
