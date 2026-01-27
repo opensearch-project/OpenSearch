@@ -71,10 +71,6 @@ public final class FlushModeResolver {
     /**
      * Evaluates cost metrics to determine if streaming is beneficial.
      *
-     * <p>This method is used by factories to make streaming decisions before
-     * creating aggregators, eliminating the need for double-creation when streaming
-     * is not beneficial.
-     *
      * @param metrics combined cost metrics from the factory tree
      * @param defaultMode fallback mode when streaming is not beneficial
      * @param maxBucketCount maximum bucket count threshold

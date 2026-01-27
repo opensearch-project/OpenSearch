@@ -679,16 +679,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         );
     }
 
-    /**
-     * Estimates streaming cost metrics before aggregator creation.
-     *
-     * <p>This method enables factory-level streaming decision making, allowing
-     * the correct aggregator type to be selected BEFORE creation, avoiding
-     * double-creation overhead.
-     *
-     * @param searchContext The search context providing access to index reader
-     * @return Streaming cost metrics for this terms aggregation
-     */
     @Override
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
@@ -709,8 +699,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
             return StreamingCostEstimator.estimateStringTerms(searchContext.searcher().getIndexReader(), ordinalsVS, effectiveShardSize);
         }
 
-        // Numeric terms - estimation is less reliable, return non-streamable
-        // to let AggregatorTreeEvaluator handle it with collector-level metrics
+        // Numeric terms - estimation is less reliable
         if (valuesSource instanceof ValuesSource.Numeric) {
             return StreamingCostEstimator.estimateNumericTerms(
                 searchContext.searcher().getIndexReader(),

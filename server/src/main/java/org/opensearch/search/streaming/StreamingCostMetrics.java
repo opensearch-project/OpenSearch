@@ -70,7 +70,8 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * @return combined metrics reflecting the nested relationship, or non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSubAggregation(StreamingCostMetrics subAggMetrics) {
-        if (!this.streamable || subAggMetrics == null || !subAggMetrics.streamable) {
+        assert subAggMetrics != null : "subAggMetrics must not be null";
+        if (!this.streamable || !subAggMetrics.streamable) {
             return nonStreamable();
         }
 
@@ -108,7 +109,8 @@ public record StreamingCostMetrics(boolean streamable, long topNSize, long estim
      * @return combined metrics reflecting the parallel relationship, or non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSibling(StreamingCostMetrics siblingMetrics) {
-        if (!this.streamable || siblingMetrics == null || !siblingMetrics.streamable) {
+        assert siblingMetrics != null : "siblingMetrics must not be null";
+        if (!this.streamable || !siblingMetrics.streamable) {
             return nonStreamable();
         }
 

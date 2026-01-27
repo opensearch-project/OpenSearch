@@ -307,16 +307,12 @@ public class AggregatorFactories {
 
     private List<Aggregator> createTopLevelAggregators(SearchContext searchContext, Predicate<AggregatorFactory> factoryFilter)
         throws IOException {
-        // Estimate streaming cost from factories BEFORE creating any aggregators.
-        // This allows the correct aggregator type to be created on the first try,
-        // avoiding double-creation when streaming is not beneficial.
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == null) {
-            StreamingCostMetrics metrics = estimateStreamingCostFromFactories(factories, searchContext);
             FlushMode decision;
-            if (metrics == null) {
-                // No factories provided streaming metrics - default to PER_SHARD
+            if (factories.length == 0) {
                 decision = FlushMode.PER_SHARD;
             } else {
+                StreamingCostMetrics metrics = estimateStreamingCostFromFactories(factories, searchContext);
                 long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
                 double minRatio = searchContext.getStreamingMinCardinalityRatio();
                 long minBucket = searchContext.getStreamingMinEstimatedBucketCount();
@@ -348,25 +344,19 @@ public class AggregatorFactories {
     /**
      * Recursively estimates streaming cost from the factory tree.
      *
-     * <p>Traverses the aggregator factory tree, collecting streaming cost metrics from factories
-     * that implement {@link StreamingCostEstimable}. Combines metrics from sibling factories
-     * and nested sub-aggregations to produce a combined estimate.
-     *
-     * @param factories Array of aggregator factories to estimate
+     * @param factories Array of aggregator factories to estimate (must be non-empty)
      * @param searchContext Search context providing access to index metadata
-     * @return Combined streaming cost metrics, null if no factories provide metrics,
-     *         or non-streamable if any factory explicitly returns non-streamable
+     * @return Combined streaming cost metrics, or non-streamable if any factory cannot be streamed
      */
     private static StreamingCostMetrics estimateStreamingCostFromFactories(AggregatorFactory[] factories, SearchContext searchContext) {
+        assert factories.length > 0 : "factories array must be non-empty";
         StreamingCostMetrics combined = null;
         for (AggregatorFactory factory : factories) {
             StreamingCostMetrics metrics = estimateFromFactory(factory, searchContext);
-            if (metrics != null && !metrics.streamable()) {
+            if (!metrics.streamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
-            if (metrics != null) {
-                combined = (combined == null) ? metrics : combined.combineWithSibling(metrics);
-            }
+            combined = (combined == null) ? metrics : combined.combineWithSibling(metrics);
         }
         return combined;
     }
@@ -380,17 +370,15 @@ public class AggregatorFactories {
      *
      * @param factory The aggregator factory to estimate
      * @param searchContext Search context providing access to index metadata
-     * @return Streaming cost metrics for this factory and its sub-aggregations
+     * @return Streaming cost metrics for this factory and its sub-aggregations (never null)
      */
     private static StreamingCostMetrics estimateFromFactory(AggregatorFactory factory, SearchContext searchContext) {
-        StreamingCostMetrics factoryMetrics;
-        if (factory instanceof StreamingCostEstimable estimable) {
-            factoryMetrics = estimable.estimateStreamingCost(searchContext);
-            if (!factoryMetrics.streamable()) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-        } else {
-            // Factory doesn't implement StreamingCostEstimable - not streaming compatible
+        if (!(factory instanceof StreamingCostEstimable estimable)) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+
+        StreamingCostMetrics factoryMetrics = estimable.estimateStreamingCost(searchContext);
+        if (!factoryMetrics.streamable()) {
             return StreamingCostMetrics.nonStreamable();
         }
 
@@ -398,12 +386,10 @@ public class AggregatorFactories {
         AggregatorFactory[] subFactories = factory.getSubFactories().getFactories();
         if (subFactories.length > 0) {
             StreamingCostMetrics subMetrics = estimateStreamingCostFromFactories(subFactories, searchContext);
-            if (subMetrics != null && !subMetrics.streamable()) {
+            if (!subMetrics.streamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
-            if (subMetrics != null) {
-                factoryMetrics = factoryMetrics.combineWithSubAggregation(subMetrics);
-            }
+            factoryMetrics = factoryMetrics.combineWithSubAggregation(subMetrics);
         }
 
         return factoryMetrics;
