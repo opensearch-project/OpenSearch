@@ -42,5 +42,15 @@ extra-license-file usr/share/wazuh-indexer/jdk/legal/*
 hardening-no-pie usr/share/wazuh-indexer/jdk/bin/*
 hardening-no-pie usr/share/wazuh-indexer/jdk/lib/*
 
+# bundled Wazuh Engine
+arch-dependent-file-in-usr-share usr/share/wazuh-indexer/engine/*
+embedded-library usr/share/wazuh-indexer/engine/bin/lib/*
+unstripped-binary-or-object usr/share/wazuh-indexer/engine/*
+hardening-no-pie usr/share/wazuh-indexer/engine/*
+executable-is-not-world-readable usr/share/wazuh-indexer/engine/bin/*
+executable-is-not-world-readable usr/share/wazuh-indexer/engine/run_engine.sh
+non-standard-dir-perm usr/share/wazuh-indexer/engine/*
+non-standard-file-perm usr/share/wazuh-indexer/engine/*
+
 # the system java version that lintian assumes is far behind what wazuh-indexer uses
 unknown-java-class-version

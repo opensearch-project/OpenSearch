@@ -59,8 +59,8 @@ TimeoutStopSec=0
 # SIGTERM signal is used to stop the Java process
 KillSignal=SIGTERM
 
-# Send the signal only to the JVM rather than its control group
-KillMode=process
+# Send the signal to the control group
+KillMode=control-group
 
 # Java process is never killed
 SendSIGKILL=no
@@ -88,9 +88,6 @@ ProtectProc=invisible
 
 # Make /usr, /boot, and /etc read-only (less restrictive than 'strict')
 ProtectSystem=full
-
-# Prevent changes to control groups (redundant with earlier setting, can be removed)
-ProtectControlGroups=yes
 
 # Prevent changing the execution domain
 LockPersonality=yes
@@ -136,6 +133,7 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 ReadWritePaths=/var/log/wazuh-indexer
 ReadWritePaths=/var/lib/wazuh-indexer
 ReadWritePaths=/dev/shm/
+ReadWritePaths=/usr/share/wazuh-indexer/engine
 ReadWritePaths=-/etc/wazuh-indexer
 ReadWritePaths=-/mnt/snapshots
 

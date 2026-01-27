@@ -5,7 +5,18 @@
 
 set -e -o pipefail
 
-if [ -n "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE" ] ; then
+# Start Wazuh Engine in background
+ENGINE_SCRIPT="/usr/share/wazuh-indexer/engine/run_engine.sh"
+ENGINE_PID_FILE="${PID_DIR}/wazuh-engine.pid"
+
+if [ -x "$ENGINE_SCRIPT" ];
+then
+    "$ENGINE_SCRIPT" > /dev/null 2>&1 &
+    echo $! > "$ENGINE_PID_FILE"
+fi
+
+if [ -n "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE" ] ;
+then
   exec /usr/share/wazuh-indexer/bin/opensearch "$@" < "$OPENSEARCH_KEYSTORE_PASSPHRASE_FILE"
 else
   exec /usr/share/wazuh-indexer/bin/opensearch "$@"

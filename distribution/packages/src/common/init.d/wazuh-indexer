@@ -110,6 +110,12 @@ start() {
         nohup runuser wazuh-indexer --shell="/bin/bash" --command="$exec -p $pidfile -d" > /dev/null 2>&1
     fi
     retval=$?
+
+    # Start Wazuh Engine
+    if [ -x "$OPENSEARCH_HOME/engine/run_engine.sh" ]; then
+        runuser wazuh-indexer -s /bin/bash -c "nohup $OPENSEARCH_HOME/engine/run_engine.sh > /dev/null 2>&1 & echo \$! > $PID_DIR/wazuh-engine.pid"
+    fi
+    
     echo
     if [ $retval -eq 0 ]; then
         if [ ! -f $lockfile ]; then
@@ -125,6 +131,17 @@ start() {
 stop() {
     echo -n $"Stopping $prog... "
     echo
+    
+    # Stop Wazuh Engine
+    if [ -f "$PID_DIR/wazuh-engine.pid" ]; then
+        PID_TO_KILL=$(cat "$PID_DIR/wazuh-engine.pid")
+        if [ -n "$PID_TO_KILL" ]; then
+            pkill -P "$PID_TO_KILL" > /dev/null 2>&1 || true
+            kill "$PID_TO_KILL" > /dev/null 2>&1 || true
+        fi
+        rm -f "$PID_DIR/wazuh-engine.pid"
+    fi
+
     if [ -f "$pidfile" ]; then
         pid=$(cat "$pidfile")
         if kill -0 "$pid" > /dev/null 2>&1; then

@@ -83,6 +83,9 @@ binary_files+=("${buildroot}/etc/init.d/${name}")
 binary_files+=("${buildroot}${product_dir}"/jdk/bin/*)
 binary_files+=("${buildroot}${product_dir}"/jdk/lib/jspawnhelper)
 binary_files+=("${buildroot}${product_dir}"/jdk/lib/modules)
+# Wazuh Engine binaries
+binary_files+=("${buildroot}${product_dir}/engine/bin/wazuh-engine")
+binary_files+=("${buildroot}${product_dir}/engine/run_engine.sh")
 
 for i in "${binary_files[@]}"; do
 	chmod -c 750 "$i"

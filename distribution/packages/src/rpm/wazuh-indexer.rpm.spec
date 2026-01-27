@@ -115,6 +115,8 @@ set -- "$@" "%{config_dir}/jvm.options"
 set -- "$@" "%{config_dir}/opensearch.yml"
 set -- "$@" "%{product_dir}/VERSION.json"
 set -- "$@" "%{product_dir}/plugins/opensearch-security/tools/.*\.sh"
+set -- "$@" "%{product_dir}/engine"
+set -- "$@" "%{product_dir}/engine/.*"
 set -- "$@" "%{product_dir}/bin/.*"
 set -- "$@" "%{product_dir}/jdk/bin/.*"
 set -- "$@" "%{product_dir}/jdk/lib/jspawnhelper"
@@ -145,6 +147,7 @@ done
 
 # Change Permissions
 chmod -Rf a+rX,u+w,g-w,o-w %{buildroot}/*
+
 exit 0
 
 %pre
@@ -293,6 +296,20 @@ exit 0
 %if %reportsscheduler_plugin
 %config(noreplace) %attr(660, %{name}, %{name}) %{config_dir}/opensearch-reports-scheduler/reports-scheduler.yml
 %endif
+
+# Wazuh Engine
+%dir %attr(750, %{name}, %{name}) %{product_dir}/engine
+%dir %attr(750, %{name}, %{name}) %{product_dir}/engine/bin
+%attr(750, %{name}, %{name}) %{product_dir}/engine/bin/wazuh-engine
+%attr(750, %{name}, %{name}) %{product_dir}/engine/run_engine.sh
+%dir %attr(777, %{name}, %{name}) %{product_dir}/engine/sockets
+%attr(-, %{name}, %{name}) %{product_dir}/engine/sockets/.keep
+%attr(-, %{name}, %{name}) %{product_dir}/engine/bin/lib
+%attr(-, %{name}, %{name}) %{product_dir}/engine/data
+%attr(-, %{name}, %{name}) %{product_dir}/engine/default-security-policy
+%attr(-, %{name}, %{name}) %{product_dir}/engine/logs
+%attr(-, %{name}, %{name}) %{product_dir}/engine/schemas
+%attr(-, %{name}, %{name}) %{product_dir}/engine/README.md
 
 # Files that need other permissions
 %attr(440, %{name}, %{name}) %{product_dir}/VERSION.json
