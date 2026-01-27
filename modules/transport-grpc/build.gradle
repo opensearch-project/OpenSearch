@@ -45,6 +45,11 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /grpc-.*/, to: 'grpc'
 }
+repositories {
+  maven {
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
 
 thirdPartyAudit {
   ignoreMissingClasses(

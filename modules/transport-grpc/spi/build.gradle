@@ -23,6 +23,11 @@ dependencies {
   testImplementation "io.grpc:grpc-stub:${versions.grpc}"
 }
 
+repositories {
+  maven {
+    url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
+  }
+}
 thirdPartyAudit {
   ignoreMissingClasses(
     'com.google.common.collect.Maps',
