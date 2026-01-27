@@ -558,8 +558,8 @@ public final class CompositeRemoteSegmentStoreDirectory extends RemoteSegmentSto
     }
 
     @Override
-    protected void removeFileFromSegmentsUploadedToRemoteStore(String file) {
-        segmentsUploadedToRemoteStore.remove(new FileMetadata(file));
+    protected void removeFileFromSegmentsUploadedToRemoteStore(UploadedSegmentMetadata segmentMetadata) {
+        segmentsUploadedToRemoteStore.remove(new FileMetadata(segmentMetadata.getDataFormat(), segmentMetadata.getOriginalFilename()));
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep, ActionListener<Void> listener) {
