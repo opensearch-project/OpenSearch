@@ -74,8 +74,8 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     }
 
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
-        this.memorySize = memorySize;
-        this.evictions = evictions;
+        this.memorySize = Math.max(0, memorySize);
+        this.evictions = Math.max(0, evictions);
         this.fields = fields;
     }
 
@@ -84,7 +84,9 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
             return;
         }
         this.memorySize += stats.memorySize;
+        this.memorySize = Math.max(0, memorySize);
         this.evictions += stats.evictions;
+        this.evictions = Math.max(0, evictions);
         if (stats.fields != null) {
             if (fields == null) {
                 fields = stats.fields.copy();
