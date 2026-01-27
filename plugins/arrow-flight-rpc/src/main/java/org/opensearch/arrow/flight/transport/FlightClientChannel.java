@@ -256,7 +256,7 @@ class FlightClientChannel implements TcpChannel {
         String executor = handler.executor();
 
         if (ThreadPool.Names.SAME.equals(executor)) {
-            logger.warn("Stream transport handler using SAME executor, which may cause blocking behavior");
+            logger.debug("Stream transport handler using SAME executor, which may cause blocking behavior");
         }
 
         var threadContext = threadPool.getThreadContext();

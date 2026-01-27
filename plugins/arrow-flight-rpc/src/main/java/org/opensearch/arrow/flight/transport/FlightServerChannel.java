@@ -131,7 +131,7 @@ class FlightServerChannel implements TcpChannel {
                 "Batch #{} sent for correlation ID: {} in {}ms, size: {} bytes, putNext: {}ms",
                 batchNumber,
                 correlationId,
-                putNextTime / 1_000_000,
+                putNextTime,
                 rootSize,
                 putNextTime
             );
@@ -140,7 +140,7 @@ class FlightServerChannel implements TcpChannel {
                 "Batch #{} sent for correlation ID: {} in {}ms, bytes, putNext: {}ms",
                 batchNumber,
                 correlationId,
-                putNextTime / 1_000_000,
+                putNextTime,
                 putNextTime
             );
         }
