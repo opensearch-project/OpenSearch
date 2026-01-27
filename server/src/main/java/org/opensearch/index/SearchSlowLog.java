@@ -247,7 +247,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
-            messageFields.put("request-id", context.getTask().getHeader(Task.X_REQUEST_ID));
+            messageFields.put("request_id", context.getTask().getHeader(Task.X_REQUEST_ID));
             return messageFields;
         }
 
@@ -294,7 +294,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             if (context.getTask().getHeader(Task.X_REQUEST_ID) != null) {
                 sb.append("request_id[").append(context.getTask().getHeader(Task.X_REQUEST_ID)).append("]");
             } else {
-                sb.append("request-id[], ");
+                sb.append("request_id[], ");
             }
             return sb.toString();
         }
