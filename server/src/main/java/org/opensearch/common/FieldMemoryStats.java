@@ -59,8 +59,12 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      * Creates a new FieldMemoryStats instance
      */
     public FieldMemoryStats(Map<String, Long> stats) {
-        this.stats = Objects.requireNonNull(stats, "status must be non-null");
-        assert stats.containsKey(null) == false;
+        Objects.requireNonNull(stats, "status must be non-null");
+        this.stats = new HashMap<>();
+        for (Map.Entry<String, Long> entry : stats.entrySet()) {
+            this.stats.put(entry.getKey(), Math.max(0, entry.getValue()));
+        }
+        assert this.stats.containsKey(null) == false;
     }
 
     /**
@@ -75,7 +79,7 @@ public final class FieldMemoryStats implements Writeable, Iterable<Map.Entry<Str
      */
     public void add(FieldMemoryStats fieldMemoryStats) {
         for (final var entry : fieldMemoryStats.stats.entrySet()) {
-            stats.merge(entry.getKey(), entry.getValue(), Long::sum);
+            stats.merge(entry.getKey(), entry.getValue(), (a, b) -> Math.max(0, a + b));
         }
     }
 

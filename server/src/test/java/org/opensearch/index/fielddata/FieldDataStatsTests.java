@@ -38,6 +38,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class FieldDataStatsTests extends OpenSearchTestCase {
 
@@ -55,5 +57,21 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getEvictions(), read.getEvictions());
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
+    }
+
+    public void testClampingNegativeValues() throws IOException {
+        Map<String, Long> fieldMap = new HashMap<>();
+        fieldMap.put("field1", -100L);
+        fieldMap.put("field2", 200L);
+        fieldMap.put("field3", -50L);
+        FieldMemoryStats fieldStats = new FieldMemoryStats(fieldMap);
+
+        FieldDataStats stats = new FieldDataStats.Builder().memorySize(-500L).evictions(-10L).fieldMemoryStats(fieldStats).build();
+
+        assertEquals(0L, stats.getMemorySizeInBytes());
+        assertEquals(0L, stats.getEvictions());
+        assertEquals(0L, stats.getFields().get("field1"));
+        assertEquals(200L, stats.getFields().get("field2"));
+        assertEquals(0L, stats.getFields().get("field3"));
     }
 }
