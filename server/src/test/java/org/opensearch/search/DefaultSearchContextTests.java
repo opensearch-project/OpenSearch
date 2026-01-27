@@ -1246,7 +1246,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "auto")
-                    .put(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "none")
+                    .put(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "segment")
                     .build()
             );
 

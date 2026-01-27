@@ -816,21 +816,21 @@ public final class IndexSettings {
     );
 
     // Partition strategy constants
-    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE = "none";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
 
     public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
         "index.search.concurrent_segment_search.partition_strategy",
-        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE,
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT,
         value -> {
             switch (value) {
-                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
                     break;
                 default:
-                    throw new IllegalArgumentException("Setting value must be one of [none, balanced, force]");
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
             }
         },
         Property.Dynamic,

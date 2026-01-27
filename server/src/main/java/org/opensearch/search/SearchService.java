@@ -343,7 +343,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     // Partition strategy constants
-    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE = "none";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
     public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
 
@@ -353,7 +353,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED,
         value -> {
             switch (value) {
-                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
                     break;

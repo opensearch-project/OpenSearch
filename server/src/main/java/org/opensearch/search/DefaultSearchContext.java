@@ -137,7 +137,7 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
-import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT;
 import static org.opensearch.search.SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED;
 import static org.opensearch.search.SearchService.MAX_AGGREGATION_REWRITE_FILTERS;
 import static org.opensearch.search.streaming.FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT;
@@ -1043,7 +1043,7 @@ final class DefaultSearchContext extends SearchContext {
                     logger.debug("request has supported aggregations, using concurrent search");
                 }
                 return true;
-            } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE.equals(getPartitionStrategy()) == false
+            } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT.equals(getPartitionStrategy()) == false
                 && request().source() != null
                 && request().source().query() != null
                 && request().source().query().supportsIntraSegmentSearch()) {
@@ -1389,7 +1389,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     public void evaluateRequestShouldUseIntraSegmentSearch() {
         String partitionStrategy = getPartitionStrategy();
-        if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_NONE.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
+        if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT.equals(partitionStrategy) || shouldUseConcurrentSearch() == false) {
             requestShouldUseIntraSegmentSearch.set(false);
             return;
         }

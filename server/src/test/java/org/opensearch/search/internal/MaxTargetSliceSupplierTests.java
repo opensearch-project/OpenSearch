@@ -280,7 +280,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
 
     public void testGetSlicesWithNoneStrategy() throws Exception {
         List<LeafReaderContext> leaves = getLeaves(4);
-        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2, false, "none", 100);
+        IndexSearcher.LeafSlice[] slices = MaxTargetSliceSupplier.getSlices(leaves, 2, false, "segment", 100);
         assertEquals(2, slices.length);
     }
 
