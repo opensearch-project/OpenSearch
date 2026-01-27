@@ -444,7 +444,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                     );
                 } else if (partiallyBuiltBucketComparator != null) {
                     // For sub-aggregation ordering, use bucket comparator
-                    System.out.println("[NUMERIC] Creating ordinal comparator for sub-aggregation order: " + order);
                     tempBucket1 = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
                         @Override
                         public int compareKey(LongTerms.Bucket other) {
