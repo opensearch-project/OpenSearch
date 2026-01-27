@@ -87,6 +87,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula.ospackage-base` from 12.1.1 to 12.2.0 ([#20439](https://github.com/opensearch-project/OpenSearch/pull/20439))
 - Bump OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
 - Bump opensearch-protobufs from 1.1.0 to 1.2.0 ([#20480](https://github.com/opensearch-project/OpenSearch/pull/20480))
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 21.1.0 to 23.0.0 ([#20477](https://github.com/opensearch-project/OpenSearch/pull/20477))
 
 ### Removed
 
