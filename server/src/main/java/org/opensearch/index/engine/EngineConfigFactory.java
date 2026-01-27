@@ -24,7 +24,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.codec.CodecRegistry;
+import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
@@ -58,7 +58,7 @@ import java.util.function.Supplier;
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
-    private final List<CodecRegistry> registries;
+    private final List<AdditionalCodecs> registries;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -74,7 +74,7 @@ public class EngineConfigFactory {
 
     /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
     EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
-        final List<CodecRegistry> codecRegistries = new ArrayList<>();
+        final List<AdditionalCodecs> codecRegistries = new ArrayList<>();
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
         Optional<CodecServiceFactory> codecServiceFactory = Optional.empty();

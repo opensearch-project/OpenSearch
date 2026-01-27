@@ -25,13 +25,13 @@ public final class CodecServiceConfig {
     private final IndexSettings indexSettings;
     private final MapperService mapperService;
     private final Logger logger;
-    private final List<CodecRegistry> registries;
+    private final List<AdditionalCodecs> registries;
 
     public CodecServiceConfig(
         IndexSettings indexSettings,
         @Nullable MapperService mapperService,
         @Nullable Logger logger,
-        List<CodecRegistry> registries
+        List<AdditionalCodecs> registries
     ) {
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.mapperService = mapperService;
@@ -53,7 +53,7 @@ public final class CodecServiceConfig {
         return logger;
     }
 
-    public List<CodecRegistry> getRegistries() {
+    public List<AdditionalCodecs> getRegistries() {
         return registries;
     }
 }

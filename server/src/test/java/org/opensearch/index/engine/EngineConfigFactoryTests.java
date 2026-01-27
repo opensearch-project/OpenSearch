@@ -15,7 +15,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.codec.CodecRegistry;
+import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.mapper.MapperService;
@@ -40,7 +40,6 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 
 public class EngineConfigFactoryTests extends OpenSearchTestCase {
     public void testCreateEngineConfigFromFactory() {
@@ -133,14 +132,25 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        List<EnginePlugin> plugins = Arrays.asList(new BazEnginePlugin());
+        List<EnginePlugin> plugins = Arrays.asList(new BazEnginePlugin(Map.of("test", new SimpleTextCodec())));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
         EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
 
         final CodecService codecService = factory.newDefaultCodecService(indexSettings, null, logger);
         assertThat(codecService.codec("test"), is(instanceOf(SimpleTextCodec.class)));
-        assertThat(codecService.codec("zlib"), is(not(instanceOf(SimpleTextCodec.class))));
-        assertThrows(IllegalArgumentException.class, () -> codecService.codec("lz4"));
+    }
+
+    public void testCreateEngineConfigFromFactoryAdditionalCodecsConflict() {
+        IndexMetadata meta = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        List<EnginePlugin> plugins = Arrays.asList(new BazEnginePlugin(Map.of("zlib", new SimpleTextCodec())));
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", meta.getSettings());
+        EngineConfigFactory factory = new EngineConfigFactory(plugins, indexSettings);
+
+        assertThrows(IllegalStateException.class, () -> factory.newDefaultCodecService(indexSettings, null, logger));
     }
 
     public void testCreateCodecServiceFromFactory() {
@@ -252,6 +262,16 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
     }
 
     private static class BazEnginePlugin extends Plugin implements EnginePlugin {
+        private final Map<String, Codec> additionalCodecs;
+
+        BazEnginePlugin() {
+            this(Map.of());
+        }
+
+        BazEnginePlugin(final Map<String, Codec> additionalCodecs) {
+            this.additionalCodecs = additionalCodecs;
+        }
+
         @Override
         public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
             return Optional.empty();
@@ -263,26 +283,15 @@ public class EngineConfigFactoryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public Optional<CodecRegistry> getAdditionalCodecs(IndexSettings indexSettings) {
-            return Optional.of(new CodecRegistry() {
-                @Override
-                public Codec onConflict(String name, Codec oldCodec, Codec newCodec) {
-                    if (name.equalsIgnoreCase("lz4")) {
-                        return null;
-                    } else if (name.equalsIgnoreCase("zlib")) {
-                        return oldCodec;
-                    } else {
-                        return null;
-                    }
-                }
-
+        public Optional<AdditionalCodecs> getAdditionalCodecs(IndexSettings indexSettings) {
+            return Optional.of(new AdditionalCodecs() {
                 @Override
                 public Map<String, Codec> getCodecs(
                     MapperService mapperService,
                     IndexSettings indexSettings,
                     Supplier<Codec> defaultCodec
                 ) {
-                    return Map.of("test", new SimpleTextCodec(), "lz4", new SimpleTextCodec(), "zlib", new SimpleTextCodec());
+                    return additionalCodecs;
                 }
             });
         }

@@ -35,7 +35,6 @@ package org.opensearch.index.codec;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene103.Lucene103Codec;
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
@@ -83,7 +82,7 @@ public class CodecService {
         @Nullable MapperService mapperService,
         IndexSettings indexSettings,
         Logger logger,
-        Collection<CodecRegistry> registries
+        Collection<AdditionalCodecs> registries
     ) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
@@ -114,30 +113,22 @@ public class CodecService {
 
         // Register all additional codecs (if available)
         final Supplier<Codec> defaultCodec = () -> codecs.get(DEFAULT_CODEC);
-        for (CodecRegistry registry : registries) {
+        for (AdditionalCodecs registry : registries) {
             final Map<String, Codec> additionalCodecs = registry.getCodecs(mapperService, indexSettings, defaultCodec);
             for (Map.Entry<String, Codec> additionalCodec : additionalCodecs.entrySet()) {
                 final String name = additionalCodec.getKey();
 
                 // Default codec could not be changed
                 if (name.equalsIgnoreCase(LUCENE_DEFAULT_CODEC) == true) {
-                    throw new OpenSearchException("The default codec could not be replaced");
+                    throw new IllegalStateException("The default codec could not be replaced");
                 }
 
                 final Codec existing = codecs.get(name);
                 if (existing == null) {
                     codecs.put(name, additionalCodec.getValue());
                 } else {
-                    final Codec resolved = registry.onConflict(name, existing, additionalCodec.getValue());
-                    if (resolved != null && resolved != existing /* same reference */) {
-                        // replace registered codec with the new one
-                        codecs.put(name, resolved);
-                    } else if (resolved == null) /* nothing to register */ {
-                        // remove registered codec
-                        codecs.remove(name);
-                    }
+                    throw new IllegalStateException("The codec with name " + name + " is already registered.");
                 }
-
             }
         }
 
