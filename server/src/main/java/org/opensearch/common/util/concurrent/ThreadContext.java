@@ -160,7 +160,9 @@ public final class ThreadContext implements Writeable {
                 builder.put(requestHeader, context.requestHeaders.get(requestHeader));
             }
         }
-        threadContextStruct = threadContextStruct.putHeaders(builder.immutableMap());
+        if (builder.isEmpty() == false) {
+            threadContextStruct = threadContextStruct.putHeaders(builder.immutableMap());
+        }
 
         final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
         if (!transientHeaders.isEmpty()) {
@@ -697,7 +699,6 @@ public final class ThreadContext implements Writeable {
             this.persistentHeaders = persistentHeaders;
             this.isSystemContext = isSystemContext;
             this.warningHeadersSize = warningHeadersSize;
-
         }
 
         /**
