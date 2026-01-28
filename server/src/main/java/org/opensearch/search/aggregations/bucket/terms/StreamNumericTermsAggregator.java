@@ -11,7 +11,6 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.IntroSelector;
 import org.apache.lucene.util.NumericUtils;
@@ -20,8 +19,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.index.fielddata.FieldData;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -35,8 +32,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,13 +49,14 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
  *
  * @opensearch.internal
  */
-public class StreamNumericTermsAggregator extends TermsAggregator implements Streamable {
+public class StreamNumericTermsAggregator extends TermsAggregator {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
     private final IncludeExclude.LongFilter longFilter;
     private LongKeyedBucketOrds bucketOrds;
     private final CardinalityUpperBound cardinality;
+    private final int segmentTopN;
 
     public StreamNumericTermsAggregator(
         String name,
@@ -75,6 +71,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
         CardinalityUpperBound cardinality,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
@@ -82,14 +79,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
-    }
-
-    /**
-     * Returns the bucket order for this aggregator.
-     * @return the bucket order
-     */
-    public BucketOrder getBucketOrder() {
-        return order;
+        this.segmentTopN = segmentTopN;
     }
 
     @Override
@@ -138,16 +128,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     }
 
     /**
-     * Get segment size for TopN filtering at segment level.
-     * Returns max of requested shard_size and index-level min_shard_size setting.
-     */
-    protected int getSegmentSize() {
-        int requestedShardSize = bucketCountThresholds.getShardSize();
-        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
-        return Math.max(requestedShardSize, minShardSize);
-    }
-
-    /**
      * Strategy for building results.
      */
     public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
@@ -169,7 +149,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
-            int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 checkCancelled();
@@ -181,7 +160,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                 SelectionResult<B> selectionResult = selectTopBuckets(
                     ordsEnum,
                     bucketsInOrd,
-                    segmentSize,
+                    segmentTopN,
                     bucketCountThresholds,
                     owningBucketOrds[ordIdx]
                 );
@@ -743,61 +722,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
-
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
-        add.accept("streaming_top_n_size", metrics.topNSize());
-        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
-        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
-        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 
     @Override
     public void doClose() {
         Releasables.close(super::doClose, bucketOrds, resultStrategy);
-    }
-
-    @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
-        try {
-            String fieldName = valuesSource.getIndexFieldName();
-            long totalDocsWithField = PointValues.size(context.searcher().getIndexReader(), fieldName);
-            int segmentCount = context.searcher().getIndexReader().leaves().size();
-
-            if (totalDocsWithField == 0) {
-                return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), 0, segmentCount, 0);
-            }
-
-            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldName);
-            if (fieldType == null || !(fieldType.unwrap() instanceof NumberFieldType numberFieldType)) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-
-            Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName));
-            Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName));
-
-            long maxCardinality = switch (resultStrategy) {
-                case LongTermsResults ignored -> {
-                    long min = minPoint.longValue();
-                    long max = maxPoint.longValue();
-                    yield Math.max(1, max - min + 1);
-                }
-                case DoubleTermsResults ignored -> {
-                    double min = minPoint.doubleValue();
-                    double max = maxPoint.doubleValue();
-                    yield Math.max(1, Math.min((long) (max - min + 1), totalDocsWithField));
-                }
-                case UnsignedLongTermsResults ignored -> {
-                    long min = minPoint.longValue();
-                    long max = maxPoint.longValue();
-                    yield Math.max(1, max - min + 1);
-                }
-                case null, default -> 1L;
-            };
-
-            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, segmentCount, totalDocsWithField);
-        } catch (IOException e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
     }
 }
