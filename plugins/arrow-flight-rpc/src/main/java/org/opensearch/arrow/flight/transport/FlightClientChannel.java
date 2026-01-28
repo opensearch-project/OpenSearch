@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.flight.stats.FlightCallTracker;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -45,6 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 class FlightClientChannel implements TcpChannel {
     private static final Logger logger = LogManager.getLogger(FlightClientChannel.class);
+    private static final AtomicLong GLOBAL_CHANNEL_COUNTER = new AtomicLong();
     private final AtomicLong correlationIdGenerator = new AtomicLong();
     private final FlightClient client;
     private final DiscoveryNode node;
@@ -112,6 +112,11 @@ class FlightClientChannel implements TcpChannel {
         this.closeListeners = new CopyOnWriteArrayList<>();
         this.stats = new ChannelStats();
         this.isClosed = false;
+        // Initialize with timestamp + global counter to ensure uniqueness with multiple channels
+        // Upper bits: timestamp, lower 20 bits: channel ID
+        long channelId = GLOBAL_CHANNEL_COUNTER.incrementAndGet() & 0xFFFFF; // 20 bits for channel ID
+        long initialValue = (System.currentTimeMillis() << 20) | channelId;
+        this.correlationIdGenerator.set(initialValue);
         if (statsCollector != null) {
             statsCollector.incrementClientChannelsActive();
         }
@@ -229,7 +234,8 @@ class FlightClientChannel implements TcpChannel {
                 config
             );
 
-            processStreamResponse(streamResponse);
+            // Open stream and prefetch first batch, invoke handler when ready
+            openStreamAndInvokeHandler(streamResponse);
             listener.onResponse(null);
         } catch (Exception e) {
             if (callTracker != null) {
@@ -244,39 +250,44 @@ class FlightClientChannel implements TcpChannel {
         throw new IllegalStateException("sendMessage must be accompanied with requestId for FlightClientChannel, use the right variant.");
     }
 
-    private void processStreamResponse(FlightTransportResponse<?> streamResponse) {
-        try {
-            executeWithThreadContext(streamResponse);
-        } catch (Exception e) {
-            handleStreamException(streamResponse, e);
-        }
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeWithThreadContext(FlightTransportResponse<?> streamResponse) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        final String executor = streamResponse.getHandler().executor();
+    private void openStreamAndInvokeHandler(FlightTransportResponse<?> streamResponse) {
+        TransportResponseHandler handler = streamResponse.getHandler();
+        String executor = handler.executor();
+
         if (ThreadPool.Names.SAME.equals(executor)) {
-            executeHandler(threadContext, streamResponse);
-        } else {
-            threadPool.executor(executor).execute(() -> executeHandler(threadContext, streamResponse));
+            logger.debug("Stream transport handler using SAME executor, which may cause blocking behavior");
         }
-    }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeHandler(ThreadContext threadContext, FlightTransportResponse<?> streamResponse) {
-        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            Header header = streamResponse.getHeader();
-            if (header == null) {
-                throw new StreamException(StreamErrorCode.INTERNAL, "Header is null");
+        var threadContext = threadPool.getThreadContext();
+        CompletableFuture<Header> future = new CompletableFuture<>();
+        streamResponse.openAndPrefetchAsync(future);
+
+        future.whenComplete((header, error) -> {
+            if (error != null) {
+                handleStreamException(streamResponse, error instanceof Exception ? (Exception) error : new Exception(error));
+                return;
             }
-            TransportResponseHandler handler = streamResponse.getHandler();
-            threadContext.setHeaders(header.getHeaders());
-            handler.handleStreamResponse(streamResponse);
-        } catch (Exception e) {
-            cleanupStreamResponse(streamResponse);
-            throw e;
-        }
+
+            Runnable task = () -> {
+                try (var ignored = threadContext.stashContext()) {
+                    if (header == null) {
+                        handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
+                    }
+                    threadContext.setHeaders(header.getHeaders());
+                    handler.handleStreamResponse(streamResponse);
+                } catch (Exception e) {
+                    cleanupStreamResponse(streamResponse);
+                    throw e;
+                }
+            };
+
+            if (ThreadPool.Names.SAME.equals(executor)) {
+                task.run();
+            } else {
+                threadPool.executor(executor).execute(task);
+            }
+        });
     }
 
     private void cleanupStreamResponse(StreamTransportResponse<?> streamResponse) {

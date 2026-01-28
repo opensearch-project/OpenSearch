@@ -45,6 +45,7 @@ import org.opensearch.painless.spi.AllowlistInstanceBinding;
 import org.opensearch.painless.spi.AllowlistMethod;
 import org.opensearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.opensearch.painless.spi.annotation.NoImportAnnotation;
+import org.opensearch.secure_sm.AccessController;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -58,9 +59,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.security.AccessController;
 import java.security.CodeSource;
-import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
@@ -2189,13 +2188,9 @@ public final class PainlessLookupBuilder {
             bridgeClassWriter.visitEnd();
 
             try {
-                @SuppressWarnings("removal")
-                BridgeLoader bridgeLoader = AccessController.doPrivileged(new PrivilegedAction<BridgeLoader>() {
-                    @Override
-                    public BridgeLoader run() {
-                        return new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader());
-                    }
-                });
+                BridgeLoader bridgeLoader = AccessController.doPrivileged(
+                    () -> new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader())
+                );
 
                 Class<?> bridgeClass = bridgeLoader.defineBridge(bridgeClassName.replace('/', '.'), bridgeClassWriter.toByteArray());
                 Method bridgeMethod = bridgeClass.getMethod(
