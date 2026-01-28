@@ -358,7 +358,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
                     break;
                 default:
-                    throw new IllegalArgumentException("Setting value must be one of [none, balanced, force]");
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
             }
         },
         Property.Dynamic,
