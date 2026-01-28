@@ -40,21 +40,7 @@ public class MaxTargetSliceSupplierTests extends OpenSearchTestCase {
     public void testNegativeSliceCount() {
         assertThrows(
             IllegalArgumentException.class,
-            () -> MaxTargetSliceSupplier.getSlicesWholeSegments(new ArrayList<>(), randomIntBetween(-3, 0))
-        );
-    }
-
-    public void testNegativeSliceCountForcePartitioning() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> MaxTargetSliceSupplier.getSlicesWithForcePartitioning(new ArrayList<>(), randomIntBetween(-3, 0))
-        );
-    }
-
-    public void testNegativeSliceCountAutoPartitioning() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> MaxTargetSliceSupplier.getSlicesWithAutoPartitioning(new ArrayList<>(), randomIntBetween(-3, 0), 100)
+            () -> MaxTargetSliceSupplier.getSlices(new ArrayList<>(), randomIntBetween(-3, 0), true, "force", 100)
         );
     }
 
