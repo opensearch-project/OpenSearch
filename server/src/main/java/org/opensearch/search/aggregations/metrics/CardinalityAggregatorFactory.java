@@ -151,8 +151,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
 
         // Only term ordinals values sources can efficiently estimate cardinality
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals ordinalsVS) {
-            // HyperLogLog register count is 2^precision
-            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, 1L << precision());
+            // HyperLogLog register count is 2^precision (max precision ~18, fits in int)
+            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, 1 << precision());
         }
 
         return StreamingCostMetrics.nonStreamable();

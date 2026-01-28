@@ -317,19 +317,15 @@ public class AggregatorFactories {
             } else {
                 StreamingCostMetrics metrics = estimateStreamingCostFromFactories(factories, searchContext);
                 long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
-                double minRatio = searchContext.getStreamingMinCardinalityRatio();
-                long minBucket = searchContext.getStreamingMinEstimatedBucketCount();
-                decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket, minRatio, minBucket);
+                decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket);
                 logger.debug(
-                    "Streaming aggregation decision: {} | metrics: [streamable={}, topN={}, buckets={}, docs={}] | thresholds: [maxBucket={}, minRatio={}, minBucket={}]",
+                    "Streaming aggregation decision: {} | metrics: [streamable={}, topN={}, buckets={}, docs={}] | maxBucket={}",
                     decision,
                     metrics.streamable(),
                     metrics.topNSize(),
                     metrics.estimatedBucketCount(),
                     metrics.estimatedDocCount(),
-                    maxBucket,
-                    minRatio,
-                    minBucket
+                    maxBucket
                 );
             }
             searchContext.setFlushModeIfAbsent(decision);

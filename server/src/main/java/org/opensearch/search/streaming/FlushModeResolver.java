@@ -70,37 +70,16 @@ public final class FlushModeResolver {
      * @param metrics combined cost metrics from the factory tree
      * @param defaultMode fallback mode when streaming is not beneficial
      * @param maxBucketCount maximum bucket count threshold
-     * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @param minBucketCount minimum bucket count threshold
      * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
      */
-    public static FlushMode decideFlushMode(
-        StreamingCostMetrics metrics,
-        FlushMode defaultMode,
-        long maxBucketCount,
-        double minCardinalityRatio,
-        long minBucketCount
-    ) {
+    public static FlushMode decideFlushMode(StreamingCostMetrics metrics, FlushMode defaultMode, long maxBucketCount) {
         if (!metrics.streamable()) {
             return defaultMode;
         }
-        // Check coordinator overhead - don't stream if too many buckets
-        if (metrics.estimatedBucketCount() > maxBucketCount) {
-            return defaultMode;
+        // Prevent coordinator overload with too many buckets
+        if (metrics.topNSize() <= maxBucketCount) {
+            return FlushMode.PER_SEGMENT;
         }
-        // Prevent regression for low cardinality cases
-        // Check both absolute bucket count and cardinality ratio
-        if (metrics.estimatedBucketCount() < minBucketCount) {
-            return defaultMode;
-        }
-        if (metrics.estimatedDocCount() > 0) {
-            double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
-            if (cardinalityRatio < minCardinalityRatio) {
-                return defaultMode;
-            }
-        }
-
-        return FlushMode.PER_SEGMENT;
+        return defaultMode;
     }
-
 }

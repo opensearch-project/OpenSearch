@@ -51,6 +51,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     private final IncludeExclude.LongFilter longFilter;
     private LongKeyedBucketOrds bucketOrds;
     private final CardinalityUpperBound cardinality;
+    private final int segmentTopN;
 
     public StreamNumericTermsAggregator(
         String name,
@@ -65,6 +66,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
         CardinalityUpperBound cardinality,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
@@ -72,6 +74,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
+        this.segmentTopN = segmentTopN;
     }
 
     @Override

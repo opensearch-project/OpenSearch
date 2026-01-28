@@ -48,6 +48,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     protected int segmentsWithMultiValuedOrds = 0;
     protected final ResultStrategy<?, ?> resultStrategy;
     private boolean leafCollectorCreated = false;
+    private final int segmentTopN;
 
     public StreamStringTermsAggregator(
         String name,
@@ -61,11 +62,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         Aggregator parent,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.resultStrategy = resultStrategy.apply(this);
+        this.segmentTopN = segmentTopN;
     }
 
     @Override

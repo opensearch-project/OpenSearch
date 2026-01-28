@@ -24,39 +24,42 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
 
     public void testDecideFlushModeNonStreamable() {
         StreamingCostMetrics nonStreamable = StreamingCostMetrics.nonStreamable();
-        FlushMode result = FlushModeResolver.decideFlushMode(nonStreamable, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
+        FlushMode result = FlushModeResolver.decideFlushMode(nonStreamable, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
     public void testDecideFlushModeStreamable() {
+        // topN=10 <= maxBucketCount=100_000, should stream
         StreamingCostMetrics streamable = new StreamingCostMetrics(true, 10, 5000, 10000);
-        FlushMode result = FlushModeResolver.decideFlushMode(streamable, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
+        FlushMode result = FlushModeResolver.decideFlushMode(streamable, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SEGMENT, result);
     }
 
-    public void testDecideFlushModeTooManyBuckets() {
-        StreamingCostMetrics highBuckets = new StreamingCostMetrics(true, 10, 200_000, 10000);
-        FlushMode result = FlushModeResolver.decideFlushMode(highBuckets, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
+    public void testDecideFlushModeTopNExceedsMax() {
+        // topN=200_000 > maxBucketCount=100_000, should not stream
+        StreamingCostMetrics highTopN = new StreamingCostMetrics(true, 200_000, 50000, 10000);
+        FlushMode result = FlushModeResolver.decideFlushMode(highTopN, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
-    public void testDecideFlushModeTooFewBuckets() {
-        StreamingCostMetrics lowBuckets = new StreamingCostMetrics(true, 10, 500, 10000);
-        FlushMode result = FlushModeResolver.decideFlushMode(lowBuckets, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
-        assertEquals(FlushMode.PER_SHARD, result);
-    }
-
-    public void testDecideFlushModeLowCardinalityRatio() {
-        // 500 buckets / 1_000_000 docs = 0.0005 ratio, below 0.01 threshold
-        StreamingCostMetrics lowCardinality = new StreamingCostMetrics(true, 10, 5000, 1_000_000);
-        FlushMode result = FlushModeResolver.decideFlushMode(lowCardinality, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
-        assertEquals(FlushMode.PER_SHARD, result);
+    public void testDecideFlushModeTopNExactlyAtMax() {
+        // topN=100_000 == maxBucketCount=100_000, should stream (<=)
+        StreamingCostMetrics exactMatch = new StreamingCostMetrics(true, 100_000, 50000, 10000);
+        FlushMode result = FlushModeResolver.decideFlushMode(exactMatch, FlushMode.PER_SHARD, 100_000);
+        assertEquals(FlushMode.PER_SEGMENT, result);
     }
 
     public void testDecideFlushModeNeutralMetrics() {
+        // Neutral metrics have topN=1, which is <= any reasonable max, so should stream
         StreamingCostMetrics neutral = StreamingCostMetrics.neutral();
-        // Neutral metrics have very low values (1, 1, 1) so should fall below thresholds
-        FlushMode result = FlushModeResolver.decideFlushMode(neutral, FlushMode.PER_SHARD, 100_000, 0.01, 1000);
-        assertEquals(FlushMode.PER_SHARD, result);
+        FlushMode result = FlushModeResolver.decideFlushMode(neutral, FlushMode.PER_SHARD, 100_000);
+        assertEquals(FlushMode.PER_SEGMENT, result);
+    }
+
+    public void testDecideFlushModeSmallTopN() {
+        // Very small topN (cardinality case), should stream
+        StreamingCostMetrics smallTopN = new StreamingCostMetrics(true, 1, 1000, 100000);
+        FlushMode result = FlushModeResolver.decideFlushMode(smallTopN, FlushMode.PER_SHARD, 100_000);
+        assertEquals(FlushMode.PER_SEGMENT, result);
     }
 }

@@ -45,7 +45,7 @@ public final class StreamingCostEstimator {
      * @param topN Number of top buckets to collect (or precision-derived value for cardinality)
      * @return Cost metrics for streaming decision, or non-streamable if an error occurs
      */
-    public static StreamingCostMetrics estimateOrdinals(IndexReader indexReader, ValuesSource.Bytes.WithOrdinals valuesSource, long topN) {
+    public static StreamingCostMetrics estimateOrdinals(IndexReader indexReader, ValuesSource.Bytes.WithOrdinals valuesSource, int topN) {
         try {
             List<LeafReaderContext> leaves = indexReader.leaves();
             long maxCardinality = 0;

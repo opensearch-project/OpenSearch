@@ -134,6 +134,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                             context,
                             parent,
                             showTermDocCountError,
+                            segmentTopN,
                             metadata
                         );
                     }
@@ -246,6 +247,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                         includeExclude,
                         showTermDocCountError,
                         cardinality,
+                        segmentTopN,
                         metadata
                     );
                 }
@@ -606,6 +608,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         SearchContext context,
         Aggregator parent,
         boolean showTermDocCountError,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         {
@@ -623,6 +626,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                 parent,
                 SubAggCollectionMode.DEPTH_FIRST,
                 showTermDocCountError,
+                segmentTopN,
                 metadata
             );
         }
@@ -641,6 +645,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         IncludeExclude includeExclude,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         Function<StreamNumericTermsAggregator, StreamNumericTermsAggregator.ResultStrategy<?, ?>> resultStrategy;
@@ -673,15 +678,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
             SubAggCollectionMode.DEPTH_FIRST,
             longFilter,
             cardinality,
+            segmentTopN,
             metadata
         );
     }
 
-    @Override
-    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
-        ValuesSource valuesSource = config.getValuesSource();
-
-        // Compute effective shardSize (same logic as doCreateInternal)
+    /**
+     * Computes the effective shard size, applying default heuristics if needed.
+     */
+    private static int computeEffectiveShardSize(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
         int effectiveShardSize = bucketCountThresholds.getShardSize();
         if (InternalOrder.isKeyOrder(order) == false
             && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -691,15 +696,24 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
             effectiveShardSize = bucketCountThresholds.getRequiredSize();
         }
+        return effectiveShardSize;
+    }
+
+    private static int segmentTopN;
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        ValuesSource valuesSource = config.getValuesSource();
+        segmentTopN = 2 * computeEffectiveShardSize(bucketCountThresholds, order);
 
         // String terms with ordinals support - can estimate cardinality
         if (valuesSource instanceof WithOrdinals ordinalsVS) {
-            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, effectiveShardSize);
+            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, segmentTopN);
         }
 
         // Numeric terms - use doc count as cardinality estimate (Lucene doesn't expose unique value counts for numerics)
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return StreamingCostEstimator.estimateNumericTerms(searchContext.searcher().getIndexReader(), effectiveShardSize);
+            return StreamingCostEstimator.estimateNumericTerms(searchContext.searcher().getIndexReader(), segmentTopN);
         }
 
         return StreamingCostMetrics.nonStreamable();
