@@ -463,6 +463,6 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.source() == null) {
             return false;
         }
-        return FlushModeResolver.isEligibleForStreaming(searchRequest.source().aggregations());
+        return FlushModeResolver.isStreamable(searchRequest.source().aggregations());
     }
 }

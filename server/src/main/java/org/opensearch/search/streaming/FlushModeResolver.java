@@ -105,7 +105,7 @@ public final class FlushModeResolver {
      * @param aggregations the aggregation factories to validate
      * @return true if all aggregations are eligible for streaming, false otherwise
      */
-    public static boolean isEligibleForStreaming(AggregatorFactories.Builder aggregations) {
+    public static boolean isStreamable(AggregatorFactories.Builder aggregations) {
         if (aggregations == null || aggregations.count() == 0) {
             return false;
         }
