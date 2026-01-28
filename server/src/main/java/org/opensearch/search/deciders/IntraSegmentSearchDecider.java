@@ -52,15 +52,9 @@ public class IntraSegmentSearchDecider {
     }
 
     public String getReason() {
-        if (hasQuery == false && hasAggregations == false) {
-            return reason;
+        if (shouldUseIntraSegmentSearch()) {
+            return "query/aggregations support intra-segment search";
         }
-        if (hasQuery && querySupport == false) {
-            return reason;
-        }
-        if (hasAggregations && aggSupport == false) {
-            return reason;
-        }
-        return "query/aggregations support intra-segment search";
+        return reason;
     }
 }

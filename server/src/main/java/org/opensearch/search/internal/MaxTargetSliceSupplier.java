@@ -38,27 +38,25 @@ final class MaxTargetSliceSupplier {
         String partitionStrategy,
         int minSegmentSize
     ) {
-        IndexSearcher.LeafSlice[] slices;
-        if (useIntraSegmentSearch == false) {
-            slices = getSlicesWholeSegments(leaves, targetMaxSlice);
-        } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
-            slices = getSlicesWithForcePartitioning(leaves, targetMaxSlice);
-        } else {
-            slices = getSlicesWithAutoPartitioning(leaves, targetMaxSlice, minSegmentSize);
-        }
-        return slices;
-    }
-
-    /**
-     * Original method for whole segments
-     */
-    static IndexSearcher.LeafSlice[] getSlicesWholeSegments(List<LeafReaderContext> leaves, int targetMaxSlice) {
         if (targetMaxSlice <= 0) {
             throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
         }
         if (leaves.isEmpty()) {
             return new IndexSearcher.LeafSlice[0];
         }
+        if (useIntraSegmentSearch == false) {
+            return getSlicesWholeSegments(leaves, targetMaxSlice);
+        } else if (CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE.equals(partitionStrategy)) {
+            return getSlicesWithForcePartitioning(leaves, targetMaxSlice);
+        } else {
+            return getSlicesWithAutoPartitioning(leaves, targetMaxSlice, minSegmentSize);
+        }
+    }
+
+    /**
+     * Original method for whole segments
+     */
+    static IndexSearcher.LeafSlice[] getSlicesWholeSegments(List<LeafReaderContext> leaves, int targetMaxSlice) {
         List<LeafReaderContextPartition> partitions = new ArrayList<>(leaves.size());
         for (LeafReaderContext leaf : leaves) {
             partitions.add(LeafReaderContextPartition.createForEntireSegment(leaf));
@@ -70,12 +68,6 @@ final class MaxTargetSliceSupplier {
      * Balanced partitioning - partition segments exceeding fair slice share and min segment size.
      */
     static IndexSearcher.LeafSlice[] getSlicesWithAutoPartitioning(List<LeafReaderContext> leaves, int targetMaxSlice, int minSegmentSize) {
-        if (targetMaxSlice <= 0) {
-            throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
-        }
-        if (leaves.isEmpty()) {
-            return new IndexSearcher.LeafSlice[0];
-        }
         long totalDocs = 0;
         for (LeafReaderContext leaf : leaves) {
             totalDocs += leaf.reader().maxDoc();
@@ -99,12 +91,6 @@ final class MaxTargetSliceSupplier {
      * Each segment is split into targetMaxSlice partitions regardless of size.
      */
     static IndexSearcher.LeafSlice[] getSlicesWithForcePartitioning(List<LeafReaderContext> leaves, int targetMaxSlice) {
-        if (targetMaxSlice <= 0) {
-            throw new IllegalArgumentException("MaxTargetSliceSupplier called with unexpected slice count of " + targetMaxSlice);
-        }
-        if (leaves.isEmpty()) {
-            return new IndexSearcher.LeafSlice[0];
-        }
         List<LeafReaderContextPartition> partitions = new ArrayList<>(leaves.size() * targetMaxSlice);
         for (LeafReaderContext leaf : leaves) {
             int numPartitions = Math.min(targetMaxSlice, leaf.reader().maxDoc());
