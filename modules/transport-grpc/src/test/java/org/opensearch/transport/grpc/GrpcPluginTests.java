@@ -1050,7 +1050,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
     public void testGrpcInterceptorProviderEmpty() {
         GrpcInterceptorProvider prov = threadContext -> List.of();
-        assertDoesNotThrow(() ->prov.initNodeSettings(Settings.EMPTY));
+        assertDoesNotThrow(() -> prov.initNodeSettings(Settings.EMPTY));
         List<OrderedGrpcInterceptor> interceptors = prov.getOrderedGrpcInterceptors(new ThreadContext(Settings.EMPTY));
         assertTrue(interceptors.isEmpty());
     }
