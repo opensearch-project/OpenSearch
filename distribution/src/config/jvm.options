@@ -91,3 +91,5 @@ ${error.file}
 # prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
 # disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
 -Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
+
+25-:-XX:+UseCompactObjectHeaders
