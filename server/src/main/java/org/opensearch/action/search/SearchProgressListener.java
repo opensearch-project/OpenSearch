@@ -81,6 +81,16 @@ public abstract class SearchProgressListener {
     protected void onQueryResult(int shardIndex) {}
 
     /**
+     * Executed when a shard returns a query result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The shard target that returned the result.
+     */
+    protected void onQueryResult(int shardIndex, SearchShardTarget shardTarget) {
+        onQueryResult(shardIndex);
+    }
+
+    /**
      * Executed when a shard reports a query failure.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -158,6 +168,17 @@ public abstract class SearchProgressListener {
     final void notifyQueryResult(int shardIndex) {
         try {
             onQueryResult(shardIndex);
+        } catch (Exception e) {
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
+                e
+            );
+        }
+    }
+
+    final void notifyQueryResult(int shardIndex, SearchShardTarget shardTarget) {
+        try {
+            onQueryResult(shardIndex, shardTarget);
         } catch (Exception e) {
             logger.warn(
                 () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),

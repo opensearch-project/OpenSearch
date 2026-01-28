@@ -206,7 +206,6 @@ public class BucketCollectorProcessor {
 
             if (currentCollector instanceof BucketCollector bucketCollector) {
                 if (currentCollector instanceof Aggregator aggregator) {
-                    bucketCollector.postCollection();
                     InternalAggregation ia = aggregator.getPostCollectionAggregation();
                     if (ia == null) {
                         aggregator.buildTopLevel();
@@ -216,7 +215,6 @@ public class BucketCollectorProcessor {
                         internalAggregations.add(ia);
                     }
                 } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                    bucketCollector.postCollection();
                     allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
                 }
             }
