@@ -148,8 +148,20 @@ public final class FlushModeResolver {
     }
 
     private static boolean isSubAggregationStreamable(AggregationBuilder agg) {
-        return agg instanceof TermsAggregationBuilder
-            || agg instanceof CardinalityAggregationBuilder
+        if (agg instanceof TermsAggregationBuilder) {
+            // Level 2 sub-aggs can only be metrics, not more terms
+            for (AggregationBuilder nestedAgg : agg.getSubAggregations()) {
+                if (!isMetricAggregation(nestedAgg)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return isMetricAggregation(agg);
+    }
+
+    private static boolean isMetricAggregation(AggregationBuilder agg) {
+        return agg instanceof CardinalityAggregationBuilder
             || agg instanceof MaxAggregationBuilder
             || agg instanceof MinAggregationBuilder
             || agg instanceof AvgAggregationBuilder

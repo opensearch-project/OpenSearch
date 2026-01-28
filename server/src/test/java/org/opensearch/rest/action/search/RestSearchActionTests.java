@@ -216,4 +216,38 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
+
+    public void testCanUseStreamSearchWithThreeLevelTermsNesting() {
+        // 3-level terms nesting should be rejected (max 2 levels supported)
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("level1_terms")
+                .field("category")
+                .subAggregation(
+                    AggregationBuilders.terms("level2_terms")
+                        .field("brand")
+                        .subAggregation(AggregationBuilders.terms("level3_terms").field("model"))
+                )
+        );
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTwoLevelTermsAndMetricLeaf() {
+        // 2-level terms with metric leaf should be accepted
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("level1_terms")
+                .field("category")
+                .subAggregation(
+                    AggregationBuilders.terms("level2_terms")
+                        .field("brand")
+                        .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                )
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
 }
