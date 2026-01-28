@@ -145,6 +145,138 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * Test TermsAggregatorFactory.estimateStreamingCost with numeric terms and key-based ordering.
+     * Numeric terms with key ordering are NOT streamable because numeric streaming aggregators
+     * don't support key-based ordering.
+     */
+    public void testTermsFactoryEstimateNumericTermsWithKeyOrder() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 50; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField("count", i % 10));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("count", NumberFieldMapper.NumberType.INTEGER);
+
+                    // Numeric terms with key ascending order - should NOT be streamable
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("count")
+                        .size(5)
+                        .order(BucketOrder.key(true));
+
+                    FactoryAndContext result = createAggregatorFactory(termsBuilder, searcher, fieldType);
+                    assertTrue(
+                        "TermsAggregatorFactory should implement StreamingCostEstimable",
+                        result.factory instanceof StreamingCostEstimable
+                    );
+
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertFalse("Numeric terms with key order should NOT be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test TermsAggregatorFactory.estimateStreamingCost with numeric terms and key descending order.
+     * Should also be non-streamable.
+     */
+    public void testTermsFactoryEstimateNumericTermsWithKeyDescOrder() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 50; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField("value", i));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
+
+                    // Numeric terms with key descending order - should NOT be streamable
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("value")
+                        .size(5)
+                        .order(BucketOrder.key(false));
+
+                    FactoryAndContext result = createAggregatorFactory(termsBuilder, searcher, fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertFalse("Numeric terms with key descending order should NOT be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test TermsAggregatorFactory.estimateStreamingCost with string terms and key-based ordering.
+     * String/ordinals terms with key ordering ARE streamable (only numeric is rejected).
+     */
+    public void testTermsFactoryEstimateStringTermsWithKeyOrder() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + (i % 10))));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    // String terms with key ascending order - should be streamable
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category")
+                        .size(5)
+                        .order(BucketOrder.key(true));
+
+                    FactoryAndContext result = createAggregatorFactory(termsBuilder, searcher, fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertTrue("String terms with key order should be streamable", metrics.streamable());
+                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
+                }
+            }
+        }
+    }
+
+    /**
+     * Test TermsAggregatorFactory.estimateStreamingCost with numeric terms and count ordering.
+     * Numeric terms with count ordering (default) ARE streamable.
+     */
+    public void testTermsFactoryEstimateNumericTermsWithCountOrder() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < 50; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField("count", i % 10));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("count", NumberFieldMapper.NumberType.INTEGER);
+
+                    // Numeric terms with count descending order (default) - should be streamable
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("count")
+                        .size(5)
+                        .order(BucketOrder.count(false));
+
+                    FactoryAndContext result = createAggregatorFactory(termsBuilder, searcher, fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertTrue("Numeric terms with count order should be streamable", metrics.streamable());
+                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
+                }
+            }
+        }
+    }
+
     // ========================================
     // CardinalityAggregatorFactory Tests
     // ========================================
