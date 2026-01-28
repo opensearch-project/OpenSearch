@@ -25,7 +25,7 @@ public interface GrpcInterceptorProvider {
      * Provide visibility into node settings.
      * @param settings for use in interceptors.
      */
-    default void initSettings(Settings settings) {}
+    default void initNodeSettings(Settings settings) {}
 
     /**
      * Returns a list of ordered gRPC interceptors with access to ThreadContext.

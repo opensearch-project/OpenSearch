@@ -458,7 +458,6 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         String errorMessage = exception.getMessage();
         assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [1]"));
-        assertTrue(errorMessage.contains("ServerInterceptor")); // Mock class name will contain this
         assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
@@ -480,7 +479,6 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         String errorMessage = exception.getMessage();
         assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [5]"));
-        assertTrue(errorMessage.contains("ServerInterceptor"));
         assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
@@ -508,7 +506,6 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         String errorMessage = exception.getMessage();
         assertTrue(errorMessage.contains("Multiple gRPC interceptors have the same order value [5]"));
-        assertTrue(errorMessage.contains("ServerInterceptor"));
         assertTrue(errorMessage.contains("Each interceptor must have a unique order value"));
     }
 
@@ -747,13 +744,31 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     }
 
     /**
-     * Creates a mock interceptor with given order
+     * Creates a no-op interceptor with the specified order.
      */
     private OrderedGrpcInterceptor createMockInterceptor(int order) {
-        OrderedGrpcInterceptor mock = Mockito.mock(OrderedGrpcInterceptor.class);
-        when(mock.order()).thenReturn(order);
-        when(mock.getInterceptor()).thenReturn(Mockito.mock(ServerInterceptor.class));
-        return mock;
+        return new OrderedGrpcInterceptor() {
+
+            @Override
+            public int order() {
+                return order;
+            }
+
+            @Override
+            public ServerInterceptor getInterceptor() {
+                return new ServerInterceptor() {
+                    @Override
+                    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                        ServerCall<ReqT, RespT> call,
+                        Metadata headers,
+                        ServerCallHandler<ReqT, RespT> next
+                    ) {
+                        // no-op interceptor
+                        return next.startCall(call, headers);
+                    }
+                };
+            }
+        };
     }
 
     private void assertDoesNotThrow(Runnable runnable) {
@@ -991,6 +1006,55 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         }
     }
 
+    public void testGrpcInterceptorProviderSettingsInitialization() {
+        // Mock extension loading for GrpcPlugin
+        TestSettingsAwareInterceptorProvider provider = new TestSettingsAwareInterceptorProvider();
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(provider));
+        GrpcPlugin plugin = new GrpcPlugin();
+        plugin.loadExtensions(mockLoader);
+
+        // Mock Environments
+        Settings validSetting = Settings.builder().put("test-setting", true).build();
+        Environment validEnv = Mockito.mock(Environment.class);
+        when(validEnv.settings()).thenReturn(validSetting);
+
+        Settings invalidSetting = Settings.builder().put("test-setting", false).build();
+        Environment invalidEnv = Mockito.mock(Environment.class);
+        when(invalidEnv.settings()).thenReturn(invalidSetting);
+
+        Settings emptySetting = Settings.builder().build();
+        Environment emptyEnv = Mockito.mock(Environment.class);
+        when(emptyEnv.settings()).thenReturn(emptySetting);
+
+        // createComponents initializes interceptor with the correct setting
+        assertDoesNotThrow(() -> plugin.createComponents(client, null, threadPool, null, null, null, validEnv, null, null, null, null));
+
+        // createComponents throws exception with the incorrect setting
+        try {
+            plugin.createComponents(client, null, threadPool, null, null, null, invalidEnv, null, null, null, null);
+            fail("Expect test interceptor with wrong settings throws exception.");
+        } catch (RuntimeException e) {
+            assertEquals("test-setting not found or not set to true", e.getMessage());
+        }
+
+        // createComponents throws exception with empty setting
+        try {
+            plugin.createComponents(client, null, threadPool, null, null, null, emptyEnv, null, null, null, null);
+            fail("Expect test interceptor with empty settings throws exception.");
+        } catch (RuntimeException e) {
+            assertEquals("test-setting not found or not set to true", e.getMessage());
+        }
+    }
+
+    public void testGrpcInterceptorProviderEmpty() {
+        GrpcInterceptorProvider prov = threadContext -> List.of();
+        assertDoesNotThrow(() ->prov.initNodeSettings(Settings.EMPTY));
+        List<OrderedGrpcInterceptor> interceptors = prov.getOrderedGrpcInterceptors(new ThreadContext(Settings.EMPTY));
+        assertTrue(interceptors.isEmpty());
+    }
+
     /**
      * Creates a test interceptor that can succeed or fail
      */
@@ -1055,7 +1119,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         private Settings settings;
 
         @Override
-        public void initSettings(Settings settings) {
+        public void initNodeSettings(Settings settings) {
             this.settings = settings;
         }
 
@@ -1086,48 +1150,6 @@ public class GrpcPluginTests extends OpenSearchTestCase {
                     };
                 }
             });
-        }
-    }
-
-    public void testGrpcInterceptorProviderSettingsInitialization() {
-        // Mock extension loading for GrpcPlugin
-        TestSettingsAwareInterceptorProvider provider = new TestSettingsAwareInterceptorProvider();
-        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
-        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
-        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(provider));
-        GrpcPlugin plugin = new GrpcPlugin();
-        plugin.loadExtensions(mockLoader);
-
-        // Mock Environments
-        Settings validSetting = Settings.builder().put("test-setting", true).build();
-        Environment validEnv = Mockito.mock(Environment.class);
-        when(validEnv.settings()).thenReturn(validSetting);
-
-        Settings invalidSetting = Settings.builder().put("test-setting", false).build();
-        Environment invalidEnv = Mockito.mock(Environment.class);
-        when(invalidEnv.settings()).thenReturn(invalidSetting);
-
-        Settings emptySetting = Settings.builder().build();
-        Environment emptyEnv = Mockito.mock(Environment.class);
-        when(emptyEnv.settings()).thenReturn(emptySetting);
-
-        // createComponents initializes interceptor with the correct setting
-        assertDoesNotThrow(() -> plugin.createComponents(client, null, threadPool, null, null, null, validEnv, null, null, null, null));
-
-        // createComponents throws exception with the incorrect setting
-        try {
-            plugin.createComponents(client, null, threadPool, null, null, null, invalidEnv, null, null, null, null);
-            fail("Expect test interceptor with wrong settings throws exception.");
-        } catch (RuntimeException e) {
-            assertEquals("test-setting not found or not set to true", e.getMessage());
-        }
-
-        // createComponents throws exception with empty setting
-        try {
-            plugin.createComponents(client, null, threadPool, null, null, null, emptyEnv, null, null, null, null);
-            fail("Expect test interceptor with empty settings throws exception.");
-        } catch (RuntimeException e) {
-            assertEquals("test-setting not found or not set to true", e.getMessage());
         }
     }
 }
