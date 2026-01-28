@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StreamNumericTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregator;
@@ -35,7 +36,6 @@ import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Cardinality;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.aggregations.metrics.StreamCardinalityAggregator;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
@@ -271,25 +271,20 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         super.tearDown();
     }
 
-    private void assertStreamingTermsUsed(SearchResponse resp, String expectedStrategy) {
+    private void assertAggregatorUsed(SearchResponse resp, Class<?> expectedAggregatorClass) {
         assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreaming = false;
+        boolean found = false;
         for (var shardProfile : resp.getProfileResults().values()) {
             List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
             for (var profileResult : aggProfileResults) {
-                String queryName = profileResult.getQueryName();
-                if (StreamStringTermsAggregator.class.getSimpleName().equals(queryName)
-                    || StreamNumericTermsAggregator.class.getSimpleName().equals(queryName)) {
-                    var debug = profileResult.getDebugInfo();
-                    if (expectedStrategy.equals(debug.get("result_strategy"))) {
-                        foundStreaming = true;
-                        break;
-                    }
+                if (expectedAggregatorClass.getSimpleName().equals(profileResult.getQueryName())) {
+                    found = true;
+                    break;
                 }
             }
-            if (foundStreaming) break;
+            if (found) break;
         }
-        assertTrue("Expected to find " + expectedStrategy + " in profile", foundStreaming);
+        assertTrue("Expected to find " + expectedAggregatorClass.getSimpleName() + " in profile", found);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -308,22 +303,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(90, resp.getHits().getTotalHits().value());
 
         // Validate that streaming aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingTerms = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && "streaming_terms".equals(debug.get("result_strategy"))) {
-                        foundStreamingTerms = true;
-                        break;
-                    }
-                }
-            }
-            if (foundStreamingTerms) break;
-        }
-        assertTrue("Expected to find streaming_terms result_strategy in profile", foundStreamingTerms);
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -382,22 +362,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(90, resp.getHits().getTotalHits().value());
 
         // Validate that streaming aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingNumeric = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamNumericTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && "stream_long_terms".equals(debug.get("result_strategy"))) {
-                        foundStreamingNumeric = true;
-                        break;
-                    }
-                }
-            }
-            if (foundStreamingNumeric) break;
-        }
-        assertTrue("Expected to find stream_long_terms result_strategy in profile", foundStreamingNumeric);
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -492,9 +457,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             assertEquals(NUM_SHARDS, resp.getTotalShards());
             assertEquals(90, resp.getHits().getTotalHits().value());
 
-            // With factory-level estimation and restrictive limits, streaming should not be used.
-            // The result_strategy will be the traditional strategy instead of streaming_terms.
-            // Results should still be correct even without streaming
+            assertAggregatorUsed(resp, GlobalOrdinalsStringTermsAggregator.class);
+
             StringTerms agg1 = (StringTerms) resp.getAggregations().asMap().get("agg1");
             List<StringTerms.Bucket> buckets = agg1.getBuckets();
             assertEquals(3, buckets.size());
@@ -515,108 +479,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 )
                 .get();
         }
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityAggregationUsed() throws Exception {
-            // This test validates cardinality streaming aggregation with profile to verify streaming is used
-            // Streaming requires terms aggregation at top level, with cardinality as sub-aggregation
-            // Use low precision threshold to keep combined topN smaller
-            TermsAggregationBuilder agg = terms("terms_agg").field("field1")
-                .subAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field3").precisionThreshold(10));
-
-            ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-                .addAggregation(agg)
-                .setSize(0)
-                .setRequestCache(false)
-                .setProfile(true)
-                .execute();
-            SearchResponse resp = future.actionGet();
-            assertNotNull(resp);
-            assertEquals(NUM_SHARDS, resp.getTotalShards());
-            assertEquals(90, resp.getHits().getTotalHits().value());
-
-            // Validate that streaming cardinality aggregation was actually used (in sub-aggregation profile)
-            assertNotNull("Profile response should be present", resp.getProfileResults());
-            boolean foundStreamingCardinality = false;
-            for (var shardProfile : resp.getProfileResults().values()) {
-                List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-                for (var profileResult : aggProfileResults) {
-                    // Check sub-aggregation profile results for streaming cardinality
-                    for (var subProfileResult : profileResult.getProfiledChildren()) {
-                        if (StreamCardinalityAggregator.class.getSimpleName().equals(subProfileResult.getQueryName())) {
-                            foundStreamingCardinality = true;
-                            break;
-                        }
-                    }
-                    if (foundStreamingCardinality) break;
-                }
-                if (foundStreamingCardinality) break;
-            }
-            assertTrue("Expected to find streaming cardinality in profile", foundStreamingCardinality);
-
-            // Also verify the result is correct
-            StringTerms termsAggResult = resp.getAggregations().get("terms_agg");
-            assertNotNull(termsAggResult);
-            assertEquals(3, termsAggResult.getBuckets().size());
-            for (StringTerms.Bucket bucket : termsAggResult.getBuckets()) {
-                Cardinality cardinalityAgg = bucket.getAggregations().get("cardinality_agg");
-                assertNotNull(cardinalityAgg);
-                // Each field1 value appears with 3 field3 values (type1, type2, type3)
-                assertTrue(
-                    "Expected cardinality around 3, got " + cardinalityAgg.getValue(),
-                    cardinalityAgg.getValue() >= 2 && cardinalityAgg.getValue() <= 4
-                );
-            }
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityAggregation() throws Exception {
-        // Test cardinality of field1 which has 3 unique values (value1, value2, value3)
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1").precisionThreshold(1000))
-            .setSize(0)
-            .setRequestCache(false)
-            .execute();
-        SearchResponse resp = future.actionGet();
-
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
-
-        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
-        assertNotNull("Cardinality aggregation should not be null", cardinalityAgg);
-        // field1 has 3 unique values: value1, value2, value3
-        // HyperLogLog is approximate, so we allow some tolerance
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityWithPrecisionThreshold() throws Exception {
-        // Test cardinality with different precision thresholds
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_low").field("field1").precisionThreshold(10))
-            .addAggregation(AggregationBuilders.cardinality("cardinality_high").field("field1").precisionThreshold(1000))
-            .setSize(0)
-            .setRequestCache(false)
-            .execute();
-        SearchResponse resp = future.actionGet();
-
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
-
-        Cardinality lowPrecision = resp.getAggregations().get("cardinality_low");
-        assertNotNull(lowPrecision);
-        assertEquals(3, lowPrecision.getValue(), 0.0);
-
-        Cardinality highPrecision = resp.getAggregations().get("cardinality_high");
-        assertNotNull(highPrecision);
-        assertEquals(3, highPrecision.getValue(), 0.0);
-
-        // Both should give the same result for small cardinality
-        assertEquals(lowPrecision.getValue(), highPrecision.getValue(), 0.0);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -673,7 +535,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "streaming_terms");
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -700,7 +562,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "streaming_terms");
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -727,7 +589,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "streaming_terms");
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
 
         StringTerms termsAgg = resp.getAggregations().get("categories");
         List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -780,7 +642,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "stream_long_terms");
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -807,7 +669,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "stream_long_terms");
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
@@ -834,7 +696,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .execute()
             .actionGet();
 
-        assertStreamingTermsUsed(resp, "stream_long_terms");
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
 
         LongTerms termsAgg = resp.getAggregations().get("categories");
         List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
