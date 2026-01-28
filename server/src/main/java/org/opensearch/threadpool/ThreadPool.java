@@ -99,6 +99,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
+        public static final String TRANSLOG_RECOVERY = "translog_recovery";
         @Deprecated
         public static final String LISTENER = "listener";
         public static final String GET = "get";
@@ -179,6 +180,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         HashMap<String, ThreadPoolType> map = new HashMap<>();
         map.put(Names.SAME, ThreadPoolType.DIRECT);
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
+        map.put(Names.TRANSLOG_RECOVERY, ThreadPoolType.FIXED);
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
@@ -258,6 +260,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(Names.TRANSLOG_RECOVERY, new FixedExecutorBuilder(settings, Names.TRANSLOG_RECOVERY, allocatedProcessors, -1));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));

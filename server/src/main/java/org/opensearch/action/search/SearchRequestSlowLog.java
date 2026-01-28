@@ -196,6 +196,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("request_id", context.getTask().getHeader(Task.X_REQUEST_ID));
             return messageFields;
         }
 
@@ -220,7 +221,12 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("]");
             } else {
-                sb.append("id[]");
+                sb.append("id[], ");
+            }
+            if (context.getTask().getHeader(Task.X_REQUEST_ID) != null) {
+                sb.append("request_id[").append(context.getTask().getHeader(Task.X_REQUEST_ID)).append("]");
+            } else {
+                sb.append("request_id[]");
             }
             return sb.toString();
         }
