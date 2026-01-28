@@ -64,13 +64,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 
 import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_BIND_HOST;
 import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PORTS;
@@ -132,7 +134,7 @@ class FlightTransport extends TcpTransport {
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
-        this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors() * 2);
+        this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());
         this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
         this.clientExecutor = threadPool.executor(ServerConfig.FLIGHT_CLIENT_THREAD_POOL_NAME);
         this.threadPool = threadPool;
@@ -409,7 +411,9 @@ class FlightTransport extends TcpTransport {
     }
 
     private EventLoopGroup createEventLoopGroup(String name, int threads) {
-        return new NioEventLoopGroup(threads);
+        AtomicInteger threadCounter = new AtomicInteger(0);
+        ThreadFactory threadFactory = r -> new Thread(r, name + "-" + threadCounter.incrementAndGet());
+        return new MultiThreadIoEventLoopGroup(threads, threadFactory, NioIoHandler.newFactory());
     }
 
     private void gracefullyShutdownELG(EventLoopGroup group, String name) {
