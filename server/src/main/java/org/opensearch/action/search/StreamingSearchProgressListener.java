@@ -15,9 +15,12 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -33,6 +36,7 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
     private final AtomicInteger streamEmissions = new AtomicInteger(0);
     private final SearchPhaseController searchPhaseController;
     private final SearchRequest searchRequest;
+    private final Map<Integer, SearchShardTarget> shardIndexToTarget = new ConcurrentHashMap<>();
 
     public StreamingSearchProgressListener(
         ActionListener<SearchResponse> responseListener,
@@ -59,11 +63,16 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
 
         try {
             // Convert TopDocs to SearchHits
-            // Simplified conversion of TopDocs to SearchHits
             SearchHit[] hits = new SearchHit[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 hits[i] = new SearchHit(topDocs.scoreDocs[i].doc);
                 hits[i].score(topDocs.scoreDocs[i].score);
+
+                // Populate shard information if available
+                SearchShardTarget target = shardIndexToTarget.get(topDocs.scoreDocs[i].shardIndex);
+                if (target != null) {
+                    hits[i].shard(target);
+                }
             }
 
             float maxScore = hits.length > 0 ? hits[0].getScore() : Float.NaN;
@@ -137,5 +146,12 @@ public class StreamingSearchProgressListener extends SearchProgressListener {
         // For now, just log that we're triggering emission
         // The actual emission will happen when onPartialReduceWithTopDocs is called
         // by the parent class's reduce logic
+    }
+
+    @Override
+    protected void onQueryResult(int shardIndex, SearchShardTarget shardTarget) {
+        if (shardTarget != null) {
+            shardIndexToTarget.put(shardIndex, shardTarget);
+        }
     }
 }

@@ -217,6 +217,7 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         noScoringRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
         noScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
         // Test basic search functionality without streaming
+        // Test basic search functionality without streaming
         // noScoringRequest.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
         // noScoringRequest.setStreamingScoring(true);
 
@@ -229,6 +230,7 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         SearchRequest scoredSortedRequest = new SearchRequest(TEST_INDEX);
         scoredSortedRequest.source().query(QueryBuilders.matchQuery("field1", "value1")).size(10).sort("_score", SortOrder.DESC);
         scoredSortedRequest.searchType(SearchType.QUERY_THEN_FETCH);
+        // Test basic search functionality without streaming
         // Test basic search functionality without streaming
         // scoredSortedRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_SORTED.toString());
         // scoredSortedRequest.setStreamingScoring(true);

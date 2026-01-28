@@ -35,6 +35,7 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
@@ -168,7 +169,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     public void consumeResult(SearchPhaseResult result, Runnable next) {
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
-        progressListener.notifyQueryResult(querySearchResult.getShardIndex());
+        progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult.getSearchShardTarget());
         pendingReduces.consume(querySearchResult, next);
     }
 
@@ -433,6 +434,87 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
         }
 
+        /**
+         * Performs a transient, non-destructive reduction of the current state and an optional partial result,
+         * and notifies the listener. This is used for coordinated streaming search.
+         */
+        synchronized void notifySnapshot(QuerySearchResult partial) {
+            checkCancellation();
+            if (hasFailure()) {
+                return;
+            }
+
+            List<TopDocs> topDocsList = new ArrayList<>();
+            List<InternalAggregations> aggsList = new ArrayList<>();
+            List<SearchShard> snapshotShards = new ArrayList<>(emptyResults);
+
+            if (reduceResult != null) {
+                if (reduceResult.reducedTopDocs != null) {
+                    topDocsList.add(reduceResult.reducedTopDocs);
+                }
+                if (reduceResult.reducedAggs != null) {
+                    aggsList.add(reduceResult.reducedAggs);
+                }
+                snapshotShards.addAll(reduceResult.processedShards);
+            }
+
+            for (QuerySearchResult result : buffer) {
+                if (result.hasTopDocs()) {
+                    TopDocs td = result.topDocs().topDocs;
+                    SearchPhaseController.setShardIndex(td, result.getShardIndex());
+                    topDocsList.add(td);
+                }
+                if (result.hasAggs()) {
+                    aggsList.add(result.aggregations().expand());
+                }
+                SearchShardTarget target = result.getSearchShardTarget();
+                snapshotShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
+            }
+
+            TotalHits snapshotTotalHits = topDocsStats.getTotalHits();
+
+            if (partial != null) {
+                if (partial.hasTopDocs()) {
+                    TopDocs td = partial.topDocs().topDocs;
+                    SearchPhaseController.setShardIndex(td, partial.getShardIndex());
+                    topDocsList.add(td);
+                    long val = snapshotTotalHits == null ? 0 : snapshotTotalHits.value();
+                    val += td.totalHits.value();
+                    snapshotTotalHits = new TotalHits(
+                        val,
+                        snapshotTotalHits == null ? td.totalHits.relation() : snapshotTotalHits.relation()
+                    );
+                }
+                if (partial.hasAggs()) {
+                    aggsList.add(partial.aggregations().expand());
+                }
+                SearchShardTarget target = partial.getSearchShardTarget();
+                snapshotShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
+            }
+
+            TopDocs mergedTopDocs = null;
+            if (hasTopDocs && topDocsList.isEmpty() == false) {
+                mergedTopDocs = SearchPhaseController.mergeTopDocs(topDocsList, topNSize, 0);
+            }
+
+            InternalAggregations mergedAggs = null;
+            if (hasAggs && aggsList.isEmpty() == false) {
+                mergedAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
+            }
+
+            if (hasTopDocs && mergedTopDocs != null) {
+                progressListener.notifyPartialReduceWithTopDocs(
+                    snapshotShards,
+                    snapshotTotalHits,
+                    mergedTopDocs,
+                    mergedAggs,
+                    numReducePhases
+                );
+            } else {
+                progressListener.notifyPartialReduce(snapshotShards, snapshotTotalHits, mergedAggs, numReducePhases);
+            }
+        }
+
         private synchronized boolean consumeResult(QuerySearchResult result, Runnable callback) {
             if (hasFailure()) {
                 result.consumeAll(); // release memory
@@ -486,35 +568,39 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 runningTask.compareAndSet(null, task);
             }
 
-            executor.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() {
-                    final ReduceResult thisReduceResult = reduceResult;
-                    long estimatedTotalSize = (thisReduceResult != null ? thisReduceResult.estimatedSize : 0) + task.aggsBufferSize;
-                    final ReduceResult newReduceResult;
-                    try {
-                        final QuerySearchResult[] toConsume = task.consumeBuffer();
-                        if (toConsume == null) {
-                            onAfterReduce(task, null, 0);
+            try {
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        final ReduceResult thisReduceResult = reduceResult;
+                        long estimatedTotalSize = (thisReduceResult != null ? thisReduceResult.estimatedSize : 0) + task.aggsBufferSize;
+                        final ReduceResult newReduceResult;
+                        try {
+                            final QuerySearchResult[] toConsume = task.consumeBuffer();
+                            if (toConsume == null) {
+                                onAfterReduce(task, null, 0);
+                                return;
+                            }
+                            long estimateRamBytesUsedForReduce = estimateRamBytesUsedForReduce(estimatedTotalSize);
+                            addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce);
+                            estimatedTotalSize += estimateRamBytesUsedForReduce;
+                            ++numReducePhases;
+                            newReduceResult = partialReduce(toConsume, task.emptyResults, topDocsStats, thisReduceResult, numReducePhases);
+                        } catch (Exception t) {
+                            PendingReduces.this.onFailure(t);
                             return;
                         }
-                        long estimateRamBytesUsedForReduce = estimateRamBytesUsedForReduce(estimatedTotalSize);
-                        addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce);
-                        estimatedTotalSize += estimateRamBytesUsedForReduce;
-                        ++numReducePhases;
-                        newReduceResult = partialReduce(toConsume, task.emptyResults, topDocsStats, thisReduceResult, numReducePhases);
-                    } catch (Exception t) {
-                        PendingReduces.this.onFailure(t);
-                        return;
+                        onAfterReduce(task, newReduceResult, estimatedTotalSize);
                     }
-                    onAfterReduce(task, newReduceResult, estimatedTotalSize);
-                }
 
-                @Override
-                public void onFailure(Exception exc) {
-                    PendingReduces.this.onFailure(exc);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception exc) {
+                        PendingReduces.this.onFailure(exc);
+                    }
+                });
+            } catch (Exception e) {
+                onFailure(e);
+            }
         }
 
         private void onAfterReduce(ReduceTask task, ReduceResult newResult, long estimatedSize) {
@@ -540,7 +626,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 }
             }
             task.consumeListener();
-            executor.execute(this::tryExecuteNext);
+            try {
+                executor.execute(this::tryExecuteNext);
+            } catch (Exception e) {
+                onFailure(e);
+            }
         }
 
         // Idempotent and thread-safe failure handling

@@ -8,15 +8,12 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.search.TopDocs;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
 
-import java.util.Collections;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -116,34 +113,25 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
     @Override
     public void consumeResult(SearchPhaseResult result, Runnable next) {
-        // Keep streaming: coordinator receives partials and forwards to client,
-        // but the coordinator reducer should only see the final per-shard result.
-        // Do not enqueue partials into pendingReduces.
-        if (result.queryResult() == null || result.queryResult().isPartial()) {
-            // Forward partials directly to listener to maintain stream, bypassing the
-            // reducer queue (OOM prevention)
-            if (result.queryResult() != null) {
-                QuerySearchResult qResult = result.queryResult();
-                TopDocs topDocs = qResult.hasTopDocs() ? qResult.topDocs().topDocs : null;
-                InternalAggregations aggs = qResult.hasAggs() ? qResult.consumeAggs().expand() : null;
+        // Handle partial results (shard progress updates)
+        if (result.queryResult() != null && result.queryResult().isPartial()) {
+            // Coordinated snapshot: merge this partial result with current final results
+            // for immediate emission without saving the partial result in the reducer state.
+            QuerySearchResult queryResult = result.queryResult();
+            pendingReduces.notifySnapshot(queryResult);
 
-                // Manually trigger partial emission on the listener
-                progressListener().onPartialReduceWithTopDocs(
-                    Collections.singletonList(
-                        new SearchShard(qResult.getSearchShardTarget().getClusterAlias(), qResult.getSearchShardTarget().getShardId())
-                    ),
-                    qResult.getTotalHits(),
-                    topDocs,
-                    aggs,
-                    0 // reducePhase (dummy for streaming)
-                );
-            }
-            // Immediately continue the pipeline
+            // Continue the pipeline
             next.run();
             return;
         }
 
-        super.consumeResult(result, next);
+        // Handle final shard results
+        super.consumeResult(result, () -> {
+            // Once a final result is added to the reducer (via super.consumeResult),
+            // trigger a snapshot emission to show the new global state immediately.
+            pendingReduces.notifySnapshot(null);
+            next.run();
+        });
     }
 
     /**
