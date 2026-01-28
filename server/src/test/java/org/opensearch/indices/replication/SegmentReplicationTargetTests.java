@@ -27,6 +27,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
@@ -541,6 +542,146 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    /**
+     * Test that stale checkpoint is rejected during normal replication when shard is active.
+     * Addresses: https://github.com/opensearch-project/OpenSearch/issues/18490
+     */
+    public void testStaleCheckpointRejected_duringNormalReplication() throws IOException {
+        // Create a newer checkpoint (higher segmentInfosVersion)
+        ReplicationCheckpoint newerCheckpoint = new ReplicationCheckpoint(
+            repCheckpoint.getShardId(),
+            repCheckpoint.getPrimaryTerm(),
+            repCheckpoint.getSegmentsGen(),
+            200L, // higher segmentInfosVersion
+            repCheckpoint.getCodec()
+        );
+
+        // Source returns an older checkpoint
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                // Return the older checkpoint (repCheckpoint with version 100)
+                listener.onResponse(new CheckpointInfoResponse(repCheckpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+
+        SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+
+        // Mock ShardRouting as active (not initializing, not relocating)
+        ShardRouting mockRouting = mock(ShardRouting.class);
+        when(mockRouting.initializing()).thenReturn(false);
+        when(mockRouting.relocating()).thenReturn(false);
+        when(spyIndexShard.routingEntry()).thenReturn(mockRouting);
+
+        // Create target with newer checkpoint
+        segrepTarget = new SegmentReplicationTarget(spyIndexShard, newerCheckpoint, segrepSource, segRepListener);
+
+        // Start replication - should fail due to stale checkpoint
+        segrepTarget.startReplication(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void replicationResponse) {
+                Assert.fail("Expected replication to fail due to stale checkpoint");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof ReplicationFailedException);
+                assertTrue(e.getMessage().contains("Rejecting stale metadata checkpoint"));
+                segrepTarget.fail(new ReplicationFailedException(e), false);
+            }
+        }, mock(BiConsumer.class));
+    }
+
+    /**
+     * Test that stale checkpoint is accepted during recovery when shard is initializing.
+     * Addresses: https://github.com/opensearch-project/OpenSearch/issues/19234
+     */
+    public void testStaleCheckpointAccepted_duringRecovery() throws IOException {
+        // Create a newer checkpoint (higher segmentInfosVersion)
+        ReplicationCheckpoint newerCheckpoint = new ReplicationCheckpoint(
+            repCheckpoint.getShardId(),
+            repCheckpoint.getPrimaryTerm(),
+            repCheckpoint.getSegmentsGen(),
+            200L, // higher segmentInfosVersion
+            repCheckpoint.getCodec()
+        );
+
+        // Source returns an older checkpoint
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
+            @Override
+            public void getCheckpointMetadata(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                ActionListener<CheckpointInfoResponse> listener
+            ) {
+                // Return the older checkpoint (repCheckpoint with version 100)
+                listener.onResponse(new CheckpointInfoResponse(repCheckpoint, SI_SNAPSHOT, buffer.toArrayCopy()));
+            }
+
+            @Override
+            public void getSegmentFiles(
+                long replicationId,
+                ReplicationCheckpoint checkpoint,
+                List<StoreFileMetadata> filesToFetch,
+                IndexShard indexShard,
+                BiConsumer<String, Long> fileProgressTracker,
+                ActionListener<GetSegmentFilesResponse> listener
+            ) {
+                listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+        };
+
+        SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
+            SegmentReplicationTargetService.SegmentReplicationListener.class
+        );
+
+        // Mock ShardRouting as initializing (recovering)
+        ShardRouting mockRouting = mock(ShardRouting.class);
+        when(mockRouting.initializing()).thenReturn(true);
+        when(mockRouting.relocating()).thenReturn(false);
+        when(spyIndexShard.routingEntry()).thenReturn(mockRouting);
+
+        // Create target with newer checkpoint
+        segrepTarget = new SegmentReplicationTarget(spyIndexShard, newerCheckpoint, segrepSource, segRepListener);
+
+        // Start replication - should succeed despite stale checkpoint
+        segrepTarget.startReplication(new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void replicationResponse) {
+                // Success - stale checkpoint was accepted during recovery
+                try {
+                    verify(spyIndexShard, times(1)).finalizeReplication(any());
+                    segrepTarget.markAsDone();
+                } catch (IOException ex) {
+                    Assert.fail("Unexpected IOException: " + ex.getMessage());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Assert.fail("Replication should succeed during recovery despite stale checkpoint: " + e.getMessage());
+            }
+        }, mock(BiConsumer.class));
     }
 
     @Override

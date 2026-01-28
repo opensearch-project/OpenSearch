@@ -17,7 +17,6 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.IntStream;
 
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -69,11 +68,10 @@ public class Netty4Http2IT extends OpenSearchNetty4IntegTestCase {
                 assertThat(responses, hasSize(1));
 
                 for (FullHttpResponse response : responses) {
-                    assertThat(response.getStatus(), equalTo(HttpResponseStatus.OK));
+                    assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                 }
 
                 Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
-                String msg = String.format(Locale.ROOT, "Expected opaque id [0], got [%s]", opaqueIds);
                 assertOpaqueIdsInAnyOrder(1, opaqueIds);
             } finally {
                 responses.forEach(ReferenceCounted::release);

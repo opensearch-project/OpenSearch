@@ -6,9 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.http.reactor.netty4.http3;
-
-import org.opensearch.common.Randomness;
+package org.opensearch.http.netty4.http3;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -17,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -33,7 +32,7 @@ public class SecureQuicTokenHandler implements QuicTokenHandler {
     private static final int HMAC_TAG_LEN = 32;
     private static final String HMAC_SHA_256 = "HmacSHA256";
 
-    private static final String SERVER_NAME = "opensearch-reactor-netty";
+    private static final String SERVER_NAME = "opensearch-netty";
     private static final byte[] SERVER_NAME_BYTES = SERVER_NAME.getBytes(CharsetUtil.US_ASCII);
     private static final ByteBuf SERVER_NAME_BUFFER = Unpooled.unreleasableBuffer(Unpooled.wrappedBuffer(SERVER_NAME_BYTES)).asReadOnly();
 
@@ -44,10 +43,11 @@ public class SecureQuicTokenHandler implements QuicTokenHandler {
 
     /**
      * Constructs SecureQuicTokenHandler instance
+     * @param random {@link SecureRandom} implementation
      */
-    public SecureQuicTokenHandler() {
+    public SecureQuicTokenHandler(SecureRandom random) {
         this.key = new byte[HMAC_KEY_LEN];
-        Randomness.createSecure().nextBytes(key);
+        random.nextBytes(key);
     }
 
     /**

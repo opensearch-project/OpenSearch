@@ -159,7 +159,7 @@ public class Netty4HttpServerPipeliningTests extends OpenSearchTestCase {
         private final ExecutorService executorService;
 
         CustomHttpChannelHandler(Netty4HttpServerTransport transport, ExecutorService executorService) {
-            super(transport, transport.handlingSettings);
+            super(transport, transport.handlingSettings, HttpResponseHeadersFactories.newDefault());
             this.executorService = executorService;
         }
 

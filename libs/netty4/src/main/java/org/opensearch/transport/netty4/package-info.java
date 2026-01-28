@@ -7,6 +7,6 @@
  */
 
 /**
- * HTTP/3 supporting utility classes
+ * Netty 4 supporting utility classes
  */
-package org.opensearch.http.reactor.netty4.http3;
+package org.opensearch.transport.netty4;
