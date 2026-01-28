@@ -176,6 +176,7 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
@@ -442,7 +443,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Object refreshMutex,
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
-        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher
+        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        final MetricsRegistry metricsRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -526,7 +528,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             cachingPolicy = new IndicesQueryCache.OpenseachUsageTrackingQueryCachingPolicy(clusterApplierService.clusterSettings());
         }
-        indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool);
+        indexShardOperationPermits = new IndexShardOperationPermits(shardId, threadPool, metricsRegistry);
         if (indexSettings.isDerivedSourceEnabled()) {
             readerWrapper = reader -> {
                 final DirectoryReader wrappedReader = indexReaderWrapper == null ? reader : indexReaderWrapper.apply(reader);
@@ -4458,7 +4460,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(
+            wrapPrimaryOperationPermitListener(onPermitAcquired),
+            timeout.duration(),
+            timeout.timeUnit(),
+            BlockingOperationType.PRIMARY_OPERATIONS,
+            null
+        );
     }
 
     /**
@@ -4479,7 +4487,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
-    private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
+    private void asyncBlockOperations(
+        ActionListener<Releasable> onPermitAcquired,
+        long timeout,
+        TimeUnit timeUnit,
+        String operationType,
+        @Nullable String phase
+    ) {
         final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
             forceRefreshes.close();
@@ -4489,7 +4503,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit);
+            indexShardOperationPermits.asyncBlockOperations(wrappedListener, timeout, timeUnit, operationType, phase);
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;
@@ -4578,7 +4592,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 }
             }
-        }, 30, TimeUnit.MINUTES);
+        }, 30, TimeUnit.MINUTES, BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
         pendingPrimaryTerm = newPrimaryTerm;
         termUpdated.countDown();
     }
@@ -4644,7 +4658,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             maxSeqNoOfUpdatesOrDeletes,
             onPermitAcquired,
             true,
-            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit())
+            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit(), BlockingOperationType.REPLICA_OPERATIONS, null)
         );
     }
 
@@ -4925,6 +4939,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             threadPool.getThreadContext(),
             externalRefreshMetric
         );
+    }
+
+    /**
+     * Constants for blocking operation types used in metrics.
+     *
+     * @opensearch.internal
+     */
+    @InternalApi
+    public static final class BlockingOperationType {
+        private BlockingOperationType() {}
+
+        public static final String REPLICA_TO_PRIMARY_PROMOTION = "replica_to_primary_promotion";
+        public static final String PRIMARY_OPERATIONS = "primary_operations";
+        public static final String REPLICA_OPERATIONS = "replica_operations";
     }
 
     /**

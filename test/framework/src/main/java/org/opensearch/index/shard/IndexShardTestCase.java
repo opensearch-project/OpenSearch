@@ -799,7 +799,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 new Object(),
                 clusterService.getClusterApplierService(),
                 mergedSegmentPublisher,
-                ReferencedSegmentsPublisher.EMPTY
+                ReferencedSegmentsPublisher.EMPTY,
+                org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry.INSTANCE
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

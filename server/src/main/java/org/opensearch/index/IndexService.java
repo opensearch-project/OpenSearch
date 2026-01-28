@@ -115,6 +115,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -209,6 +210,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
     private final IndexStorePlugin.StoreFactory storeFactory;
+    private final MetricsRegistry metricsRegistry;
 
     @InternalApi
     public IndexService(
@@ -255,7 +257,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        MetricsRegistry metricsRegistry
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -353,6 +356,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.fileCache = fileCache;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
+        this.metricsRegistry = metricsRegistry;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
         indexSettings.setDefaultMaxThreadAndMergeCount(
             clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
@@ -408,7 +412,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnce,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        MetricsRegistry metricsRegistry
     ) {
         this(
             indexSettings,
@@ -454,7 +459,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             s -> {},
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            metricsRegistry
         );
     }
 
@@ -813,7 +819,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 refreshMutex,
                 clusterService.getClusterApplierService(),
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
-                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
+                metricsRegistry
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

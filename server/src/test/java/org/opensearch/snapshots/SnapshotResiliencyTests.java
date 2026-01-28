@@ -2124,7 +2124,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     emptyMap(),
                     DefaultRecoverySettings.INSTANCE,
                     new CacheModule(new ArrayList<>(), settings).getCacheService(),
-                    DefaultRemoteStoreSettings.INSTANCE
+                    DefaultRemoteStoreSettings.INSTANCE,
+                    NoopMetricsRegistry.INSTANCE
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(

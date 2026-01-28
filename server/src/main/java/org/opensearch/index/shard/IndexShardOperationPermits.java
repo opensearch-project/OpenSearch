@@ -36,6 +36,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -45,6 +46,10 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.telemetry.metrics.Histogram;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
+import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -70,8 +75,15 @@ import java.util.stream.Collectors;
  */
 final class IndexShardOperationPermits implements Closeable {
 
+    public static final String INDEX_TAG = "index";
+    public static final String SHARD_ID_TAG = "shard_id";
+    public static final String OPERATION_TAG = "operation";
+    public static final String PHASE_TAG = "phase";
+
     private final ShardId shardId;
     private final ThreadPool threadPool;
+    private final MetricsRegistry metricsRegistry;
+    private final Histogram blockingDurationHistogram;
 
     static final int TOTAL_PERMITS = Integer.MAX_VALUE;
     final Semaphore semaphore = new Semaphore(TOTAL_PERMITS, true); // fair to ensure a blocking thread is not starved
@@ -88,10 +100,21 @@ final class IndexShardOperationPermits implements Closeable {
      *
      * @param shardId    the shard
      * @param threadPool the thread pool (used to execute delayed operations)
+     * @param metricsRegistry the metrics registry for recording blocking operation metrics
      */
-    IndexShardOperationPermits(final ShardId shardId, final ThreadPool threadPool) {
+    IndexShardOperationPermits(final ShardId shardId, final ThreadPool threadPool, final MetricsRegistry metricsRegistry) {
         this.shardId = shardId;
         this.threadPool = threadPool;
+        this.metricsRegistry = metricsRegistry;
+        if (metricsRegistry != null && !(metricsRegistry instanceof NoopMetricsRegistry)) {
+            this.blockingDurationHistogram = metricsRegistry.createHistogram(
+                "opensearch.shard.blocking_operation.duration",
+                "Duration of blocking operations on a shard during replica-to-primary promotion",
+                "ms"
+            );
+        } else {
+            this.blockingDurationHistogram = null;
+        }
         if (Assertions.ENABLED) {
             issuedPermits = new ConcurrentHashMap<>();
         } else {
@@ -132,15 +155,40 @@ final class IndexShardOperationPermits implements Closeable {
      * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
      * {@code onFailure} handler will be invoked after delayed operations are released.
      *
-     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
-     * @param timeout    the maximum time to wait for the in-flight operations block
-     * @param timeUnit   the time unit of the {@code timeout} argument
+     * @param onAcquired   {@link ActionListener} that is invoked once acquisition is successful or failed
+     * @param timeout      the maximum time to wait for the in-flight operations block
+     * @param timeUnit     the time unit of the {@code timeout} argument
+     * @param operationType the type of blocking operation
+     * @param phase         optional phase name for the blocking operation
      */
-    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit) {
+    public void asyncBlockOperations(
+        final ActionListener<Releasable> onAcquired,
+        final long timeout,
+        final TimeUnit timeUnit,
+        final String operationType,
+        @Nullable final String phase
+    ) {
         delayOperations();
+        
+        final long startTime = System.currentTimeMillis();
+        
         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
 
-            final RunOnce released = new RunOnce(() -> releaseDelayedOperations());
+            final RunOnce released = new RunOnce(() -> {
+                releaseDelayedOperations();
+                
+                if (blockingDurationHistogram != null) {
+                    long durationMs = System.currentTimeMillis() - startTime;
+                    Tags tags = Tags.create()
+                        .addTag(INDEX_TAG, shardId.getIndexName())
+                        .addTag(SHARD_ID_TAG, String.valueOf(shardId.getId()))
+                        .addTag(OPERATION_TAG, operationType);
+                    if (phase != null) {
+                        tags.addTag(PHASE_TAG, phase);
+                    }
+                    blockingDurationHistogram.record(durationMs, tags);
+                }
+            });
 
             @Override
             public void onFailure(final Exception e) {

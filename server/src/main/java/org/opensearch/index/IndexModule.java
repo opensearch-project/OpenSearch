@@ -98,6 +98,7 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -741,7 +742,8 @@ public final class IndexModule {
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        MetricsRegistry metricsRegistry
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -814,7 +816,8 @@ public final class IndexModule {
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
-                clusterMergeSchedulerConfig
+                clusterMergeSchedulerConfig,
+                metricsRegistry
             );
             success = true;
             return indexService;

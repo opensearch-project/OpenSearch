@@ -281,7 +281,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             s -> {},
             null,
             () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE,
-            mockClusterMergeSchedulerConfig
+            mockClusterMergeSchedulerConfig,
+            org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry.INSTANCE
         );
     }
 

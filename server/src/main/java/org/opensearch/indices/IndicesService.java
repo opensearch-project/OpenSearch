@@ -162,6 +162,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
@@ -422,6 +423,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final MetricsRegistry metricsRegistry;
 
     @Override
     protected void doStart() {
@@ -464,7 +466,8 @@ public class IndicesService extends AbstractLifecycleComponent
         FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
-        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        MetricsRegistry metricsRegistry
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -596,6 +599,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.defaultMaxMergeAtOnce = CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING.get(clusterService.getSettings());
         this.clusterMergeSchedulerConfig = new ClusterMergeSchedulerConfig(this);
+        this.metricsRegistry = metricsRegistry;
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_DEFAULT_INDEX_MAX_MERGE_AT_ONCE_SETTING, this::onDefaultMaxMergeAtOnceUpdate);
@@ -636,7 +640,8 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IngestionConsumerFactory> ingestionConsumerFactories,
         RecoverySettings recoverySettings,
         CacheService cacheService,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        MetricsRegistry metricsRegistry
     ) {
         this(
             settings,
@@ -672,7 +677,8 @@ public class IndicesService extends AbstractLifecycleComponent
             null,
             null,
             null,
-            null
+            null,
+            metricsRegistry
         );
     }
 
@@ -1131,7 +1137,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            metricsRegistry
         );
     }
 
