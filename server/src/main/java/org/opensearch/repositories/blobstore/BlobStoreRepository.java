@@ -566,7 +566,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobContainer> snapshotShardPathBlobContainer = new SetOnce<>();
 
-    private final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
+    protected final SetOnce<BlobStoreProvider> blobStoreProvider = new SetOnce<>();
 
     protected final ClusterService clusterService;
 

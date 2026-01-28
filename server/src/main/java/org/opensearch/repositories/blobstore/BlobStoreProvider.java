@@ -17,6 +17,8 @@ import org.opensearch.common.blobstore.EncryptedBlobStore;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.repositories.RepositoryException;
 
+import java.util.Objects;
+
 /**
  * Provide for the BlobStore class
  *
@@ -81,6 +83,17 @@ public class BlobStoreProvider {
             throw e;
         } catch (Exception e) {
             throw new RepositoryException(metadata.name(), "cannot create blob store", e);
+        }
+    }
+
+    public void reloadBlobStore(RepositoryMetadata metadata) {
+        if (serverSideEncryptedBlobStore.get() != null) {
+            logger.info("Reloading repository metadata for SSE blob store");
+            Objects.requireNonNull(serverSideEncryptedBlobStore.get()).reload(metadata);
+        }
+        if (blobStore.get() != null) {
+            logger.info("Reloading repository metadata for non SSE blob store");
+            Objects.requireNonNull(blobStore.get()).reload(metadata);
         }
     }
 

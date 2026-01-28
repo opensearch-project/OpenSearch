@@ -540,8 +540,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         s3AsyncService.releaseCachedClients();
 
         // Reload configs for S3BlobStore
-        BlobStore blobStore = getBlobStore();
-        blobStore.reload(metadata);
+        if (blobStoreProvider.get() != null) {
+            blobStoreProvider.get().reloadBlobStore(newRepositoryMetadata);
+        }
     }
 
     /**
