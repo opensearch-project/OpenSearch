@@ -59,7 +59,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.streaming.StreamingCostEstimable;
-import org.opensearch.search.streaming.StreamingCostEstimator;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
@@ -706,14 +705,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         ValuesSource valuesSource = config.getValuesSource();
         segmentTopN = 2 * computeEffectiveShardSize(bucketCountThresholds, order);
 
-        // String terms with ordinals support - can estimate cardinality
-        if (valuesSource instanceof WithOrdinals ordinalsVS) {
-            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, segmentTopN);
-        }
-
-        // Numeric terms - use doc count as cardinality estimate (Lucene doesn't expose unique value counts for numerics)
-        if (valuesSource instanceof ValuesSource.Numeric) {
-            return StreamingCostEstimator.estimateNumericTerms(searchContext.searcher().getIndexReader(), segmentTopN);
+        // String terms with ordinals or numeric terms support streaming
+        if (valuesSource instanceof WithOrdinals || valuesSource instanceof ValuesSource.Numeric) {
+            return new StreamingCostMetrics(true, segmentTopN);
         }
 
         return StreamingCostMetrics.nonStreamable();

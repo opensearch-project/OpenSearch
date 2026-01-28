@@ -49,7 +49,6 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.streaming.StreamingCostEstimable;
-import org.opensearch.search.streaming.StreamingCostEstimator;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
@@ -149,10 +148,10 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
 
-        // Only term ordinals values sources can efficiently estimate cardinality
-        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals ordinalsVS) {
+        // Only term ordinals values sources support streaming cardinality
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
             // HyperLogLog register count is 2^precision (max precision ~18, fits in int)
-            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, 1 << precision());
+            return new StreamingCostMetrics(true, 1 << precision());
         }
 
         return StreamingCostMetrics.nonStreamable();

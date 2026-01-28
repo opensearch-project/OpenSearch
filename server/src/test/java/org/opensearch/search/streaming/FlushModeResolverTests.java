@@ -30,21 +30,21 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
 
     public void testDecideFlushModeStreamable() {
         // topN=10 <= maxBucketCount=100_000, should stream
-        StreamingCostMetrics streamable = new StreamingCostMetrics(true, 10, 5000, 10000);
+        StreamingCostMetrics streamable = new StreamingCostMetrics(true, 10);
         FlushMode result = FlushModeResolver.decideFlushMode(streamable, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SEGMENT, result);
     }
 
     public void testDecideFlushModeTopNExceedsMax() {
         // topN=200_000 > maxBucketCount=100_000, should not stream
-        StreamingCostMetrics highTopN = new StreamingCostMetrics(true, 200_000, 50000, 10000);
+        StreamingCostMetrics highTopN = new StreamingCostMetrics(true, 200_000);
         FlushMode result = FlushModeResolver.decideFlushMode(highTopN, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SHARD, result);
     }
 
     public void testDecideFlushModeTopNExactlyAtMax() {
         // topN=100_000 == maxBucketCount=100_000, should stream (<=)
-        StreamingCostMetrics exactMatch = new StreamingCostMetrics(true, 100_000, 50000, 10000);
+        StreamingCostMetrics exactMatch = new StreamingCostMetrics(true, 100_000);
         FlushMode result = FlushModeResolver.decideFlushMode(exactMatch, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SEGMENT, result);
     }
@@ -58,7 +58,7 @@ public class FlushModeResolverTests extends OpenSearchTestCase {
 
     public void testDecideFlushModeSmallTopN() {
         // Very small topN (cardinality case), should stream
-        StreamingCostMetrics smallTopN = new StreamingCostMetrics(true, 1, 1000, 100000);
+        StreamingCostMetrics smallTopN = new StreamingCostMetrics(true, 1);
         FlushMode result = FlushModeResolver.decideFlushMode(smallTopN, FlushMode.PER_SHARD, 100_000);
         assertEquals(FlushMode.PER_SEGMENT, result);
     }

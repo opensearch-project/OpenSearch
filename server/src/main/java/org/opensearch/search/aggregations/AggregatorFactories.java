@@ -319,12 +319,10 @@ public class AggregatorFactories {
                 long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
                 decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket);
                 logger.debug(
-                    "Streaming aggregation decision: {} | metrics: [streamable={}, topN={}, buckets={}, docs={}] | maxBucket={}",
+                    "Streaming aggregation decision: {} | streamable={}, topN={} | maxBucket={}",
                     decision,
                     metrics.streamable(),
                     metrics.topNSize(),
-                    metrics.estimatedBucketCount(),
-                    metrics.estimatedDocCount(),
                     maxBucket
                 );
             }

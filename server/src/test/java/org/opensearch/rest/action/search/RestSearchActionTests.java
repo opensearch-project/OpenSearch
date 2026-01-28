@@ -143,7 +143,16 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 
-    public void testCanUseStreamSearchWithMultipleAggregations() {
+    public void testCanUseStreamSearchWithMultipleTermsAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.terms("terms1").field("category"));
+        source.aggregation(AggregationBuilders.terms("terms2").field("brand"));
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndNonTermsTopLevel() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
@@ -164,6 +173,46 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(AggregationBuilders.histogram("test_histogram").field("timestamp").interval(1000));
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndSupportedSubAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("test_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                .subAggregation(AggregationBuilders.max("max_price").field("price"))
+                .subAggregation(AggregationBuilders.min("min_price").field("price"))
+                .subAggregation(AggregationBuilders.cardinality("unique_brands").field("brand"))
+                .subAggregation(AggregationBuilders.count("doc_count").field("id"))
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndNestedTermsSubAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("category_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.terms("brand_terms").field("brand"))
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndUnsupportedSubAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("test_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.histogram("price_hist").field("price").interval(10))
+        );
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }

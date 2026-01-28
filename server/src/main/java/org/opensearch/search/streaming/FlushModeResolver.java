@@ -10,6 +10,16 @@ package org.opensearch.search.streaming;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+
+import java.util.Collection;
 
 /**
  * Determines optimal {@link FlushMode} for streaming aggregations based on cost metrics.
@@ -81,5 +91,55 @@ public final class FlushModeResolver {
             return FlushMode.PER_SEGMENT;
         }
         return defaultMode;
+    }
+
+    /**
+     * Determines if an aggregation tree is eligible for streaming based on aggregation types.
+     *
+     * <p>Streaming aggregations support:
+     * <ul>
+     *   <li>Top level: terms aggregations (string or numeric)</li>
+     *   <li>Sub-aggregations: numeric terms, cardinality, max, min, avg, value_count</li>
+     * </ul>
+     *
+     * @param aggregations the aggregation factories to validate
+     * @return true if all aggregations are eligible for streaming, false otherwise
+     */
+    public static boolean isEligibleForStreaming(AggregatorFactories.Builder aggregations) {
+        if (aggregations == null || aggregations.count() == 0) {
+            return false;
+        }
+
+        Collection<AggregationBuilder> topLevelAggs = aggregations.getAggregatorFactories();
+        for (AggregationBuilder agg : topLevelAggs) {
+            if (!isTopLevelStreamable(agg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isTopLevelStreamable(AggregationBuilder agg) {
+        if (!(agg instanceof TermsAggregationBuilder)) {
+            return false;
+        }
+
+        // Check sub-aggregations
+        Collection<AggregationBuilder> subAggs = agg.getSubAggregations();
+        for (AggregationBuilder subAgg : subAggs) {
+            if (!isSubAggregationStreamable(subAgg)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isSubAggregationStreamable(AggregationBuilder agg) {
+        return agg instanceof TermsAggregationBuilder
+            || agg instanceof CardinalityAggregationBuilder
+            || agg instanceof MaxAggregationBuilder
+            || agg instanceof MinAggregationBuilder
+            || agg instanceof AvgAggregationBuilder
+            || agg instanceof ValueCountAggregationBuilder;
     }
 }
