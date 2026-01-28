@@ -16,7 +16,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.search.aggregations.AggregatorBase;
 import org.opensearch.search.aggregations.MultiBucketCollector;
+import org.opensearch.search.aggregations.bucket.terms.StreamNumericTermsAggregator;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+
+import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
  * Analyzes collector trees to determine optimal {@link FlushMode} for streaming aggregations.
@@ -123,6 +126,10 @@ public final class FlushModeResolver {
         if (collector instanceof Streamable streamable) {
             nodeMetrics = streamable.getStreamingCostMetrics();
             if (!nodeMetrics.isStreamable()) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+            // Reject numeric aggregators with key-based ordering
+            if (collector instanceof StreamNumericTermsAggregator numericAgg && isKeyOrder(numericAgg.getBucketOrder())) {
                 return StreamingCostMetrics.nonStreamable();
             }
         } else {

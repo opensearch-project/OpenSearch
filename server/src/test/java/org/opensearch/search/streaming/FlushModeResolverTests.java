@@ -419,4 +419,72 @@ public class FlushModeResolverTests extends AggregatorTestCase {
         assertEquals(0.01, FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO.getDefault(Settings.EMPTY).doubleValue(), 0.001);
         assertEquals(1000L, FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT.getDefault(Settings.EMPTY).longValue());
     }
+
+    public void testResolveWithNumericKeyOrderAscending() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                int value = i % 10;
+                document.add(new SortedNumericDocValuesField("number", value));
+                document.add(new IntPoint("number", value));
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+            TermsAggregationBuilder builder = new TermsAggregationBuilder("numbers").field("number")
+                .order(org.opensearch.search.aggregations.BucketOrder.key(true));
+            StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                fieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                HIGH_CARDINALITY_RATIO,
+                MIN_BUCKET_THRESHOLD
+            );
+
+            assertEquals(FlushMode.PER_SHARD, result);
+        });
+    }
+
+    public void testResolveWithNumericCountOrder() throws IOException {
+        withIndex(writer -> {
+            for (int i = 0; i < 100; i++) {
+                Document document = new Document();
+                int value = i % 10;
+                document.add(new SortedNumericDocValuesField("number", value));
+                document.add(new IntPoint("number", value));
+                writer.addDocument(document);
+            }
+        }, searcher -> {
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
+            TermsAggregationBuilder builder = new TermsAggregationBuilder("numbers").field("number")
+                .order(org.opensearch.search.aggregations.BucketOrder.count(true));
+            StreamNumericTermsAggregator aggregator = createStreamAggregator(
+                null,
+                builder,
+                searcher,
+                createIndexSettings(),
+                createBucketConsumer(),
+                fieldType
+            );
+
+            FlushMode result = FlushModeResolver.resolve(
+                aggregator,
+                FlushMode.PER_SHARD,
+                SMALL_BUCKET_LIMIT,
+                HIGH_CARDINALITY_RATIO,
+                MIN_BUCKET_THRESHOLD
+            );
+
+            assertEquals(FlushMode.PER_SEGMENT, result);
+        });
+    }
 }
