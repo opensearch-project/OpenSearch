@@ -927,11 +927,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();
     }
 
-     /**
-     * Concrete indices
-     *
-     * @opensearch.internal
-     */
+    /**
+    * Concrete indices
+    *
+    * @opensearch.internal
+    */
     static final class ConcreteIndices {
 
         private final IndexNameExpressionResolver indexNameExpressionResolver;
