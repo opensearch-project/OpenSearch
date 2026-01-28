@@ -83,18 +83,25 @@ public class StreamCardinalityAggregator extends CardinalityAggregator implement
 
     @Override
     public void doReset() {
-        super.doReset();
-        // Clean up the stream collector for the next batch
+        // super.doReset(); // Prevent resetting counts
+        // Clean up the stream collector for the next batch, but preserve cumulative HLL
+        // counts
         if (streamCollector != null) {
             streamCollector.close();
             streamCollector = null;
         }
-        // Close and recreate the HyperLogLog counts for the next batch
-        // HyperLogLog doesn't have a public reset method, so we need to recreate it
-        if (counts != null) {
-            counts.close();
-            counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
-        }
+        // DO NOT close/recreate counts - preserve cumulative cardinality state for
+        // final reduction
+        // This keeps the HyperLogLog registers intact across batches so final
+        // buildAggregation() is correct
+    }
+
+    @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
     }
 
     @Override
@@ -121,10 +128,12 @@ public class StreamCardinalityAggregator extends CardinalityAggregator implement
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-
+        add.accept("total_buckets", 1);
         StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_precision", precision);
+        add.accept("streaming_top_n_size", metrics.topNSize());
         add.accept("streaming_estimated_cardinality", metrics.estimatedBucketCount());
         add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
         add.accept("streaming_segment_count", metrics.segmentCount());

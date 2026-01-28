@@ -60,6 +60,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.core.action.ActionListener;
@@ -86,6 +87,7 @@ import org.opensearch.search.pipeline.PipelinedRequest;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
@@ -101,7 +103,6 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterAware;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.RemoteTransportException;
-import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
@@ -174,6 +175,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final ThreadPool threadPool;
     final ClusterService clusterService;
     final SearchTransportService searchTransportService;
+    @Nullable
+    final StreamSearchTransportService streamSearchTransportService;
     private final RemoteClusterService remoteClusterService;
     final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
@@ -195,8 +198,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         CircuitBreakerService circuitBreakerService,
         TransportService transportService,
+        @Nullable org.opensearch.transport.StreamTransportService streamTransportService,
         SearchService searchService,
         SearchTransportService searchTransportService,
+        @Nullable StreamSearchTransportService streamSearchTransportService,
         SearchPhaseController searchPhaseController,
         ClusterService clusterService,
         ActionFilters actionFilters,
@@ -215,12 +220,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
+        this.streamSearchTransportService = streamSearchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        if (transportService instanceof StreamTransportService) {
-            StreamSearchTransportService.registerStreamRequestHandler((StreamTransportService) transportService, searchService);
-        } else {
-            SearchTransportService.registerRequestHandler(transportService, searchService);
+        // Register request handlers - always classic; add streaming if available
+        if (streamTransportService != null && streamSearchTransportService != null) {
+            StreamSearchTransportService.registerStreamRequestHandler(streamTransportService, searchService);
         }
+        SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -1141,11 +1147,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && searchRequest.scroll() == null;
+        final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
+        final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean useStreamingTransportForConnection = isStreamingCandidate
+            && streamSearchTransportService != null
+            && streamingEnabledEffective;
+        final SearchTransportService connectionTransport = useStreamingTransportForConnection
+            ? streamSearchTransportService
+            : searchTransportService;
         BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(
             searchRequest.getLocalClusterAlias(),
             nodes::get,
             remoteConnections,
-            searchTransportService::getConnection
+            connectionTransport::getConnection
         );
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices, clusterState);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
@@ -1274,10 +1290,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext
     ) {
+        // Determine if this request should use streaming transport
+        final boolean isStreamingCandidate = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null)
+            && searchRequest.scroll() == null;
+
+        // Check if streaming transport is actually available and enabled (cluster setting OR feature flag)
+        final boolean streamingEnabledSetting = clusterService.getClusterSettings().get(StreamSearchTransportService.STREAM_SEARCH_ENABLED);
+        final boolean streamingEnabledEffective = streamingEnabledSetting || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean canUseStreamingTransport = (streamSearchTransportService != null) && streamingEnabledEffective;
+
+        // Use streaming transport for streaming search requests
+        final boolean useStreamingTransport = isStreamingCandidate && canUseStreamingTransport;
+
         if (preFilter) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "prefilter using transport [{}] (streaming={}, enabled={}, canUse={})",
+                    ((isStreamingCandidate && canUseStreamingTransport) ? "stream" : "classic"),
+                    isStreamingCandidate,
+                    streamingEnabledSetting,
+                    canUseStreamingTransport
+                );
+            }
             return new CanMatchPreFilterSearchPhase(
                 logger,
-                searchTransportService,
+                (isStreamingCandidate && useStreamingTransport) ? streamSearchTransportService : searchTransportService,
                 connectionLookup,
                 aliasFilter,
                 concreteIndexBoosts,
@@ -1313,21 +1350,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 tracer
             );
         } else {
+            // Set default streaming mode when only flag is set
+            // Only set a default streaming mode if we will actually use the streaming transport.
+            // Classic transport paths (e.g., reindex/UBQ) must not be implicitly switched to streaming.
+            if (useStreamingTransport && searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
+                searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
+            }
+
+            final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
+
+            final SearchProgressListener progressListener = (isStreamingRequest && useStreamingTransport)
+                ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
+                : task.getProgressListener();
+
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,
                 circuitBreaker,
-                task.getProgressListener(),
+                progressListener,
                 searchRequest,
                 shardIterators.size(),
                 exc -> cancelTask(task, exc),
                 task::isCancelled
             );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "query phase using transport [{}] (streamingRequest={}, enabled={}, canUse={})",
+                    ((isStreamingRequest && useStreamingTransport) ? "stream" : "classic"),
+                    isStreamingRequest,
+                    streamingEnabledSetting,
+                    canUseStreamingTransport
+                );
+            }
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
-                        searchTransportService,
+                        (isStreamingRequest && canUseStreamingTransport) ? streamSearchTransportService : searchTransportService,
                         connectionLookup,
                         aliasFilter,
                         concreteIndexBoosts,
@@ -1347,26 +1406,49 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     break;
                 case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        indexRoutings,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters,
-                        searchRequestContext,
-                        tracer
-                    );
+                    if (isStreamingRequest && canUseStreamingTransport) {
+                        searchAsyncAction = new StreamSearchQueryThenFetchAsyncAction(
+                            logger,
+                            streamSearchTransportService,
+                            connectionLookup,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            indexRoutings,
+                            searchPhaseController,
+                            executor,
+                            queryResultConsumer,
+                            searchRequest,
+                            listener,
+                            shardIterators,
+                            timeProvider,
+                            clusterState,
+                            task,
+                            clusters,
+                            searchRequestContext,
+                            tracer
+                        );
+                    } else {
+                        searchAsyncAction = new SearchQueryThenFetchAsyncAction(
+                            logger,
+                            searchTransportService,
+                            connectionLookup,
+                            aliasFilter,
+                            concreteIndexBoosts,
+                            indexRoutings,
+                            searchPhaseController,
+                            executor,
+                            queryResultConsumer,
+                            searchRequest,
+                            listener,
+                            shardIterators,
+                            timeProvider,
+                            clusterState,
+                            task,
+                            clusters,
+                            searchRequestContext,
+                            tracer
+                        );
+                    }
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

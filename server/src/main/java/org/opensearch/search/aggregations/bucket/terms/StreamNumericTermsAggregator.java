@@ -78,7 +78,8 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
-        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do
+                                                          // its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
@@ -94,17 +95,21 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
     @Override
     public void doReset() {
-        super.doReset();
-        Releasables.close(bucketOrds);
-        bucketOrds = null;
+        // super.doReset(); // Prevent clearing doc counts which explains why we verify
+        // buckets but 0 doc counts
+        // DO NOT close/null bucketOrds - preserve cumulative bucket state for final
+        // reduction
+        // This keeps all bucket mappings intact across batches so final
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (bucketOrds != null) {
-            bucketOrds.close();
+        preGetSubLeafCollectors(ctx); // Initialize docCountProvider and other standard cleanup
+        // Only create bucketOrds if it doesn't exist (first segment)
+        // Reuse existing bucketOrds for subsequent segments to preserve all buckets
+        if (bucketOrds == null) {
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         }
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -365,7 +370,8 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         abstract R buildEmptyResult();
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         * Build a final bucket directly with the provided data, skipping temporary
+         * bucket creation.
          */
         abstract B buildFinalBucket(long ord, long value, long docCount, long owningBucketOrd) throws IOException;
     }
@@ -739,13 +745,22 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     }
 
     @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
+    }
+
+    @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
 
         StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
         add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
         add.accept("streaming_estimated_docs", metrics.estimatedDocCount());

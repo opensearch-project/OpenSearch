@@ -72,12 +72,9 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     static Collector createCollector(SearchContext searchContext, CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider)
         throws IOException {
-        Collector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
-
-        // Evaluate streaming decision and potentially recreate tree
-        collector = evaluateAndRecreateIfNeeded(collector, searchContext, aggProvider);
-
-        ((BucketCollector) collector).preCollection();
-        return collector;
+        Collector initial = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
+        Collector optimized = evaluateAndRecreateIfNeeded(initial, searchContext, aggProvider);
+        ((BucketCollector) optimized).preCollection();
+        return optimized;
     }
 }

@@ -332,6 +332,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     ) throws IOException {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         when(searchContext.isStreamSearch()).thenReturn(true);
+        when(searchContext.isStreamingModeRequested()).thenReturn(true);
         return createAggregator(aggregationBuilder, searchContext);
     }
 

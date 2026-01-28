@@ -81,6 +81,16 @@ public abstract class SearchProgressListener {
     protected void onQueryResult(int shardIndex) {}
 
     /**
+     * Executed when a shard returns a query result.
+     *
+     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
+     * @param shardTarget The shard target that returned the result.
+     */
+    protected void onQueryResult(int shardIndex, SearchShardTarget shardTarget) {
+        onQueryResult(shardIndex);
+    }
+
+    /**
      * Executed when a shard reports a query failure.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -99,6 +109,26 @@ public abstract class SearchProgressListener {
      * @param reducePhase The version number for this reduce.
      */
     protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
+
+    /**
+     * Executed when a partial reduce with TopDocs is created for streaming search.
+     *
+     * @param shards The list of shards that are part of this reduce.
+     * @param totalHits The total number of hits in this reduce.
+     * @param topDocs The partial TopDocs result (may be null if no docs).
+     * @param aggs The partial result for aggregations.
+     * @param reducePhase The version number for this reduce.
+     */
+    protected void onPartialReduceWithTopDocs(
+        List<SearchShard> shards,
+        TotalHits totalHits,
+        org.apache.lucene.search.TopDocs topDocs,
+        InternalAggregations aggs,
+        int reducePhase
+    ) {
+        // Default implementation delegates to the original method for backward compatibility
+        onPartialReduce(shards, totalHits, aggs, reducePhase);
+    }
 
     /**
      * Executed once when the final reduce is created.
@@ -146,6 +176,17 @@ public abstract class SearchProgressListener {
         }
     }
 
+    final void notifyQueryResult(int shardIndex, SearchShardTarget shardTarget) {
+        try {
+            onQueryResult(shardIndex, shardTarget);
+        } catch (Exception e) {
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
+                e
+            );
+        }
+    }
+
     final void notifyQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
@@ -162,6 +203,20 @@ public abstract class SearchProgressListener {
             onPartialReduce(shards, totalHits, aggs, reducePhase);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce"), e);
+        }
+    }
+
+    final void notifyPartialReduceWithTopDocs(
+        List<SearchShard> shards,
+        TotalHits totalHits,
+        org.apache.lucene.search.TopDocs topDocs,
+        InternalAggregations aggs,
+        int reducePhase
+    ) {
+        try {
+            onPartialReduceWithTopDocs(shards, totalHits, topDocs, aggs, reducePhase);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce with TopDocs"), e);
         }
     }
 

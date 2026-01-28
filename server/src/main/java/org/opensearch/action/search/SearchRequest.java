@@ -128,6 +128,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
+    private boolean streamingScoring = false;
+    private String streamingSearchMode = null; // Will use StreamingSearchMode.SCORED_UNSORTED if null
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -145,6 +148,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.absoluteStartMillis,
             searchRequest.finalReduce
         );
+        // Preserve streaming fields when cloning
+        this.streamingScoring = searchRequest.streamingScoring;
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**
@@ -233,6 +239,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        // Preserve streaming fields for forked/sub-requests
+        this.streamingScoring = searchRequest.streamingScoring;
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**
@@ -280,6 +289,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+        // Read streaming fields - gated on version for BWC
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            streamingScoring = in.readBoolean();
+            streamingSearchMode = in.readOptionalString();
+        } else {
+            streamingScoring = false;
+            streamingSearchMode = null;
+        }
     }
 
     @Override
@@ -313,6 +330,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
+        }
+        // Write streaming fields - gated on version for BWC
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeBoolean(streamingScoring);
+            out.writeOptionalString(streamingSearchMode);
         }
     }
 
@@ -693,6 +715,36 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setPhaseTook(Boolean phaseTook) {
         this.phaseTook = phaseTook;
+    }
+
+    /**
+     * Enable streaming scoring for this search request.
+     */
+    public void setStreamingScoring(boolean streamingScoring) {
+        this.streamingScoring = streamingScoring;
+    }
+
+    /**
+     * Check if streaming scoring is enabled for this search request.
+     */
+    public boolean isStreamingScoring() {
+        return streamingScoring;
+    }
+
+    /**
+     * Sets the streaming search mode for this request.
+     * @param mode The streaming search mode to use
+     */
+    public void setStreamingSearchMode(String mode) {
+        this.streamingSearchMode = mode;
+    }
+
+    /**
+     * Gets the streaming search mode for this request.
+     * @return The streaming search mode, or null if not set
+     */
+    public String getStreamingSearchMode() {
+        return streamingSearchMode;
     }
 
     /**
