@@ -149,9 +149,10 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
 
-        // Only ordinals-based values sources can efficiently estimate cardinality
+        // Only term ordinals values sources can efficiently estimate cardinality
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals ordinalsVS) {
-            return StreamingCostEstimator.estimateCardinality(searchContext.searcher().getIndexReader(), ordinalsVS);
+            // HyperLogLog register count is 2^precision
+            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, 1L << precision());
         }
 
         return StreamingCostMetrics.nonStreamable();

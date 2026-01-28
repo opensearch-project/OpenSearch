@@ -123,8 +123,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // Check if streaming decision was made at AggregatorFactories level
-                    // FlushMode is already set before aggregator creation if streaming is enabled
                     if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
                         return createStreamStringTermsAggregator(
                             name,
@@ -234,7 +232,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,
@@ -696,16 +694,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
 
         // String terms with ordinals support - can estimate cardinality
         if (valuesSource instanceof WithOrdinals ordinalsVS) {
-            return StreamingCostEstimator.estimateStringTerms(searchContext.searcher().getIndexReader(), ordinalsVS, effectiveShardSize);
+            return StreamingCostEstimator.estimateOrdinals(searchContext.searcher().getIndexReader(), ordinalsVS, effectiveShardSize);
         }
 
-        // Numeric terms - estimation is less reliable
+        // Numeric terms - use doc count as cardinality estimate (Lucene doesn't expose unique value counts for numerics)
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return StreamingCostEstimator.estimateNumericTerms(
-                searchContext.searcher().getIndexReader(),
-                (ValuesSource.Numeric) valuesSource,
-                effectiveShardSize
-            );
+            return StreamingCostEstimator.estimateNumericTerms(searchContext.searcher().getIndexReader(), effectiveShardSize);
         }
 
         return StreamingCostMetrics.nonStreamable();

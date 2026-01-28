@@ -88,13 +88,11 @@ public final class FlushModeResolver {
         if (metrics.estimatedBucketCount() > maxBucketCount) {
             return defaultMode;
         }
-
         // Prevent regression for low cardinality cases
         // Check both absolute bucket count and cardinality ratio
         if (metrics.estimatedBucketCount() < minBucketCount) {
             return defaultMode;
         }
-
         if (metrics.estimatedDocCount() > 0) {
             double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
             if (cardinalityRatio < minCardinalityRatio) {

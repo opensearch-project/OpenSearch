@@ -9,7 +9,6 @@
 package org.opensearch.search.streaming;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -158,9 +157,9 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     // ======================================
 
     /**
-     * Test estimateStringTerms with normal data.
+     * Test estimateOrdinals with normal data.
      */
-    public void testEstimateStringTermsWithNormalData() throws IOException {
+    public void testEstimateOrdinalsWithNormalData() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Add 100 documents with 10 unique terms
@@ -173,7 +172,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                 try (IndexReader reader = DirectoryReader.open(writer)) {
                     ValuesSource.Bytes.WithOrdinals valuesSource = createMockOrdinalsValuesSource(reader);
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateStringTerms(reader, valuesSource, 50);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 50);
 
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should match shardSize", 50, metrics.topNSize());
@@ -185,9 +184,9 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateStringTerms with empty index.
+     * Test estimateOrdinals with empty index.
      */
-    public void testEstimateStringTermsWithEmptyIndex() throws IOException {
+    public void testEstimateOrdinalsWithEmptyIndex() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create at least one doc to have a valid index, then delete it
@@ -200,7 +199,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                 try (IndexReader reader = DirectoryReader.open(writer)) {
                     ValuesSource.Bytes.WithOrdinals valuesSource = createMockOrdinalsValuesSourceEmpty();
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateStringTerms(reader, valuesSource, 50);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 50);
 
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("Should have 0 unique terms", 0, metrics.estimatedBucketCount());
@@ -211,9 +210,9 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateStringTerms with multiple segments.
+     * Test estimateOrdinals with multiple segments.
      */
-    public void testEstimateStringTermsWithMultipleSegments() throws IOException {
+    public void testEstimateOrdinalsWithMultipleSegments() throws IOException {
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = new IndexWriterConfig();
             config.setMaxBufferedDocs(10); // Force multiple segments
@@ -231,7 +230,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                 try (IndexReader reader = DirectoryReader.open(writer)) {
                     ValuesSource.Bytes.WithOrdinals valuesSource = createMockOrdinalsValuesSource(reader);
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateStringTerms(reader, valuesSource, 10);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 10);
 
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should match shardSize", 10, metrics.topNSize());
@@ -244,9 +243,9 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateStringTerms handles IOException by returning non-streamable.
+     * Test estimateOrdinals handles IOException by returning non-streamable.
      */
-    public void testEstimateStringTermsWithIOException() throws IOException {
+    public void testEstimateOrdinalsWithIOException() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document doc = new Document();
@@ -258,7 +257,7 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                     ValuesSource.Bytes.WithOrdinals valuesSource = mock(ValuesSource.Bytes.WithOrdinals.class);
                     when(valuesSource.ordinalsValues(any(LeafReaderContext.class))).thenThrow(new IOException("Test exception"));
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateStringTerms(reader, valuesSource, 50);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 50);
 
                     assertFalse("Should be non-streamable on IOException", metrics.streamable());
                 }
@@ -267,26 +266,24 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateNumericTerms with normal data.
+     * Test estimateNumericTerms uses doc count as cardinality estimate.
      */
-    public void testEstimateNumericTerms() throws IOException {
+    public void testEstimateNumericTermsUsesDocCount() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
-                // Add 100 documents with numeric values
+                // Add 100 documents
                 for (int i = 0; i < 100; i++) {
                     Document doc = new Document();
-                    doc.add(new SortedNumericDocValuesField("number", i % 20));
+                    doc.add(new SortedSetDocValuesField("field", new BytesRef("term_" + i)));
                     writer.addDocument(doc);
                 }
 
                 try (IndexReader reader = DirectoryReader.open(writer)) {
-                    ValuesSource.Numeric valuesSource = mock(ValuesSource.Numeric.class);
-
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateNumericTerms(reader, valuesSource, 25);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateNumericTerms(reader, 25);
 
                     assertTrue("Should be streamable", metrics.streamable());
-                    assertEquals("TopN size should match shardSize", 25, metrics.topNSize());
-                    // Numeric terms use doc count as upper bound for cardinality
+                    assertEquals("TopN size should match", 25, metrics.topNSize());
+                    // Uses doc count as cardinality estimate
                     assertEquals("Cardinality estimate should be doc count", 100, metrics.estimatedBucketCount());
                     assertEquals("Should have 100 docs", 100, metrics.estimatedDocCount());
                 }
@@ -295,9 +292,30 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateCardinality with normal data.
+     * Test estimateNumericTerms with empty index.
      */
-    public void testEstimateCardinality() throws IOException {
+    public void testEstimateNumericTermsWithEmptyIndex() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create empty index
+                writer.commit();
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateNumericTerms(reader, 10);
+
+                    assertTrue("Should be streamable", metrics.streamable());
+                    assertEquals("TopN size should match", 10, metrics.topNSize());
+                    assertEquals("Cardinality estimate should be 0", 0, metrics.estimatedBucketCount());
+                    assertEquals("Should have 0 docs", 0, metrics.estimatedDocCount());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test estimateOrdinals for cardinality use case (topN = 1).
+     */
+    public void testEstimateOrdinalsForCardinality() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Add 50 documents with 15 unique terms
@@ -310,7 +328,8 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                 try (IndexReader reader = DirectoryReader.open(writer)) {
                     ValuesSource.Bytes.WithOrdinals valuesSource = createMockOrdinalsValuesSource(reader);
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateCardinality(reader, valuesSource);
+                    // Cardinality uses topN=1 (single result)
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 1);
 
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should be 1 for cardinality", 1, metrics.topNSize());
@@ -322,9 +341,9 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test estimateCardinality with empty index.
+     * Test estimateOrdinals for cardinality with empty index.
      */
-    public void testEstimateCardinalityWithEmptyIndex() throws IOException {
+    public void testEstimateOrdinalsForCardinalityWithEmptyIndex() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
                 Document doc = new Document();
@@ -336,34 +355,12 @@ public class StreamingCostEstimatorTests extends OpenSearchTestCase {
                 try (IndexReader reader = DirectoryReader.open(writer)) {
                     ValuesSource.Bytes.WithOrdinals valuesSource = createMockOrdinalsValuesSourceEmpty();
 
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateCardinality(reader, valuesSource);
+                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateOrdinals(reader, valuesSource, 1);
 
                     assertTrue("Should be streamable", metrics.streamable());
                     assertEquals("TopN size should be 1 for cardinality", 1, metrics.topNSize());
                     assertEquals("Should have 0 unique values", 0, metrics.estimatedBucketCount());
                     assertEquals("Should have 0 docs with field", 0, metrics.estimatedDocCount());
-                }
-            }
-        }
-    }
-
-    /**
-     * Test estimateCardinality handles IOException by returning non-streamable.
-     */
-    public void testEstimateCardinalityWithIOException() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
-                Document doc = new Document();
-                doc.add(new SortedSetDocValuesField("field", new BytesRef("term")));
-                writer.addDocument(doc);
-
-                try (IndexReader reader = DirectoryReader.open(writer)) {
-                    ValuesSource.Bytes.WithOrdinals valuesSource = mock(ValuesSource.Bytes.WithOrdinals.class);
-                    when(valuesSource.ordinalsValues(any(LeafReaderContext.class))).thenThrow(new IOException("Test exception"));
-
-                    StreamingCostMetrics metrics = StreamingCostEstimator.estimateCardinality(reader, valuesSource);
-
-                    assertFalse("Should be non-streamable on IOException", metrics.streamable());
                 }
             }
         }

@@ -28,7 +28,7 @@ public final class StreamingCostEstimator {
     }
 
     /**
-     * Estimates streaming cost metrics for string terms aggregation using ordinals.
+     * Estimates streaming cost metrics for ordinals-based aggregations.
      *
      * <p>Iterates through all segments to compute:
      * <ul>
@@ -36,16 +36,16 @@ public final class StreamingCostEstimator {
      *   <li>Total documents with the field</li>
      * </ul>
      *
+     * <p>This method is used by both string terms aggregation and cardinality aggregation.
+     * For terms aggregation, topN is typically the shard size. For cardinality aggregation,
+     * topN represents the HyperLogLog precision (1 &lt;&lt; precision).
+     *
      * @param indexReader The index reader to analyze
      * @param valuesSource Ordinals-based values source for the field
-     * @param shardSize Number of top buckets to collect per shard
+     * @param topN Number of top buckets to collect (or precision-derived value for cardinality)
      * @return Cost metrics for streaming decision, or non-streamable if an error occurs
      */
-    public static StreamingCostMetrics estimateStringTerms(
-        IndexReader indexReader,
-        ValuesSource.Bytes.WithOrdinals valuesSource,
-        int shardSize
-    ) {
+    public static StreamingCostMetrics estimateOrdinals(IndexReader indexReader, ValuesSource.Bytes.WithOrdinals valuesSource, long topN) {
         try {
             List<LeafReaderContext> leaves = indexReader.leaves();
             long maxCardinality = 0;
@@ -59,7 +59,7 @@ public final class StreamingCostEstimator {
                 }
             }
 
-            return new StreamingCostMetrics(true, shardSize, maxCardinality, totalDocsWithField);
+            return new StreamingCostMetrics(true, topN, maxCardinality, totalDocsWithField);
         } catch (IOException e) {
             return StreamingCostMetrics.nonStreamable();
         }
@@ -68,70 +68,16 @@ public final class StreamingCostEstimator {
     /**
      * Estimates streaming cost metrics for numeric terms aggregation.
      *
-     * <p>For numeric terms without ordinals, exact cardinality estimation is difficult.
-     * We use the document count as an upper bound estimate, which tends to favor
-     * streaming (since high cardinality relative to docs means streaming is beneficial).
-     *
-     * <p>Future improvements could use:
-     * <ul>
-     *   <li>Point values metadata for numeric range estimation</li>
-     *   <li>Index-time statistics if available</li>
-     *   <li>Sampling-based cardinality estimation</li>
-     * </ul>
+     * <p>Uses document count as the cardinality estimate. Unlike string fields which have
+     * ordinals providing exact cardinality, numeric fields in Lucene don't expose unique
+     * value counts directly. Document count serves as a conservative upper bound.
      *
      * @param indexReader The index reader to analyze
-     * @param valuesSource Numeric values source for the field
-     * @param shardSize Number of top buckets to collect per shard
-     * @return Streaming cost metrics using doc count as cardinality upper bound
+     * @param topN Number of top buckets to collect
+     * @return Streaming cost metrics with doc count as cardinality estimate
      */
-    public static StreamingCostMetrics estimateNumericTerms(IndexReader indexReader, ValuesSource.Numeric valuesSource, int shardSize) {
-        // For numeric terms, use doc count as an upper bound for cardinality.
-        // This tends to favor streaming since high cardinality/doc ratio indicates
-        // streaming would be beneficial.
+    public static StreamingCostMetrics estimateNumericTerms(IndexReader indexReader, int topN) {
         long totalDocs = indexReader.numDocs();
-
-        return new StreamingCostMetrics(
-            true,
-            shardSize,
-            totalDocs,  // Use doc count as cardinality upper bound
-            totalDocs
-        );
-    }
-
-    /**
-     * Estimates streaming cost metrics for cardinality aggregation using ordinals.
-     *
-     * <p>Cardinality aggregation returns a single value (the estimated unique count),
-     * so the bucket count is always 1. This makes it inherently suitable for streaming
-     * as it doesn't produce multiple buckets that need to be merged.
-     *
-     * @param indexReader The index reader to analyze
-     * @param valuesSource Ordinals-based values source for the field
-     * @return Cost metrics with topNSize=1 (single result), or non-streamable on error
-     */
-    public static StreamingCostMetrics estimateCardinality(IndexReader indexReader, ValuesSource.Bytes.WithOrdinals valuesSource) {
-        try {
-            List<LeafReaderContext> leaves = indexReader.leaves();
-            long maxCardinality = 0;
-            long totalDocsWithField = 0;
-
-            for (LeafReaderContext leaf : leaves) {
-                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
-                if (docValues != null) {
-                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
-                    totalDocsWithField += docValues.cost();
-                }
-            }
-
-            // Cardinality aggregation returns a single value
-            return new StreamingCostMetrics(
-                true,
-                1,  // topNSize - cardinality returns single value
-                maxCardinality,
-                totalDocsWithField
-            );
-        } catch (IOException e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
+        return new StreamingCostMetrics(true, topN, totalDocs, totalDocs);
     }
 }

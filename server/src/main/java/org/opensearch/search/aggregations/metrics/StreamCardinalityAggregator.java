@@ -118,6 +118,5 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        add.accept("streaming_precision", precision);
     }
 }
