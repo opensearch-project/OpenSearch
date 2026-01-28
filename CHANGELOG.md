@@ -86,6 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `dnsjava:dnsjava` from 3.6.3 to 3.6.4 ([#20440](https://github.com/opensearch-project/OpenSearch/pull/20440))
 - Bump `com.netflix.nebula.ospackage-base` from 12.1.1 to 12.2.0 ([#20439](https://github.com/opensearch-project/OpenSearch/pull/20439))
 - Bump OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.6 to 10.7 ([#20478](https://github.com/opensearch-project/OpenSearch/pull/20478))
 - Bump opensearch-protobufs from 1.1.0 to 1.2.0 ([#20480](https://github.com/opensearch-project/OpenSearch/pull/20480))
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 21.1.0 to 23.0.0 ([#20477](https://github.com/opensearch-project/OpenSearch/pull/20477))
 
