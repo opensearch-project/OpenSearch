@@ -865,7 +865,7 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
                         remoteDataDirectory.deleteFile(entry.getValue());
                         deletedSegmentFiles.add(file);
                         if (!activeSegmentFilesMetadataMap.containsKey(entry.getKey())) {
-                            removeFileFromSegmentsUploadedToRemoteStore(file);
+                            removeFileFromSegmentsUploadedToRemoteStore(entry.getValue());
                         }
                     } catch (NoSuchFileException e) {
                         logger.info("Segment file {} corresponding to metadata file {} does not exist in remote", file, metadataFile);
@@ -886,8 +886,8 @@ public class RemoteSegmentStoreDirectory extends FilterDirectory implements Remo
         logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
     }
 
-    protected void removeFileFromSegmentsUploadedToRemoteStore(String file) {
-        segmentsUploadedToRemoteStore.remove(getLocalSegmentFilename(file));
+    protected void removeFileFromSegmentsUploadedToRemoteStore(UploadedSegmentMetadata segmentMetadata) {
+        segmentsUploadedToRemoteStore.remove(segmentMetadata.getOriginalFilename());
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
