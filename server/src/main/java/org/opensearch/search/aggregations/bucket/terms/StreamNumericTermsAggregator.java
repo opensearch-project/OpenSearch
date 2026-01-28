@@ -128,16 +128,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     }
 
     /**
-     * Get segment size for TopN filtering at segment level.
-     * Returns max of requested shard_size and index-level min_shard_size setting.
-     */
-    protected int getSegmentSize() {
-        int requestedShardSize = bucketCountThresholds.getShardSize();
-        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
-        return Math.max(requestedShardSize, minShardSize);
-    }
-
-    /**
      * Strategy for building results.
      */
     public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>

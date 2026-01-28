@@ -58,6 +58,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -633,19 +634,6 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    /**
-     * Minimum shard size for streaming aggregations to ensure accuracy.
-     * This applies per-segment in streaming mode, not per-shard.
-     * Default is 1000. Can be adjusted based on accuracy requirements.
-     */
-    public static final Setting<Integer> STREAMING_AGGREGATION_MIN_SHARD_SIZE_SETTING = Setting.intSetting(
-        "index.aggregation.streaming.min_shard_size",
-        1000,
-        1,
-        Property.Dynamic,
-        Property.IndexScope
-    );
-
     public static final Setting<String> DEFAULT_PIPELINE = new Setting<>(
         "index.default_pipeline",
         IngestService.NOOP_PIPELINE_NAME,
@@ -1012,9 +1000,9 @@ public final class IndexSettings {
      */
     private volatile int maxRegexLength;
     /**
-     * The minimum shard size for streaming aggregations.
+     * The minimum segment size for streaming aggregations.
      */
-    private volatile int streamingAggregationMinShardSize;
+    private volatile int streamingAggregationMinSegmentSize;
 
     /**
      * The max amount of time to wait for merges
@@ -1184,7 +1172,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
-        streamingAggregationMinShardSize = scopedSettings.get(STREAMING_AGGREGATION_MIN_SHARD_SIZE_SETTING);
+        streamingAggregationMinSegmentSize = scopedSettings.get(FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
@@ -1317,7 +1305,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
-        scopedSettings.addSettingsUpdateConsumer(STREAMING_AGGREGATION_MIN_SHARD_SIZE_SETTING, this::setStreamingAggregationMinShardSize);
+        scopedSettings.addSettingsUpdateConsumer(
+            FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
+            this::setStreamingAggregationMinSegmentSize
+        );
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
@@ -2072,14 +2063,14 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the minimum shard size for streaming aggregations.
+     * Returns the minimum segment size for streaming aggregations.
      */
-    public int getStreamingAggregationMinShardSize() {
-        return streamingAggregationMinShardSize;
+    public int getStreamingAggregationMinSegmentSize() {
+        return streamingAggregationMinSegmentSize;
     }
 
-    private void setStreamingAggregationMinShardSize(int streamingAggregationMinShardSize) {
-        this.streamingAggregationMinShardSize = streamingAggregationMinShardSize;
+    private void setStreamingAggregationMinSegmentSize(int streamingAggregationMinSegmentSize) {
+        this.streamingAggregationMinSegmentSize = streamingAggregationMinSegmentSize;
     }
 
     /**

@@ -32,6 +32,19 @@ public final class FlushModeResolver {
     private FlushModeResolver() {}
 
     /**
+     * Minimum segment-level size for streaming aggregations to ensure accuracy.
+     * This applies per-segment in streaming mode to control the topN buckets collected.
+     * Default is 1000. Can be adjusted based on accuracy requirements.
+     */
+    public static final Setting<Integer> STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING = Setting.intSetting(
+        "index.aggregation.streaming.min_segment_size",
+        1000,
+        1,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    /**
      * Maximum estimated bucket count allowed for streaming aggregations.
      * If an aggregation is estimated to produce more buckets than this threshold,
      * traditional shard-level processing will be used instead of streaming.

@@ -696,7 +696,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
             effectiveShardSize = bucketCountThresholds.getRequiredSize();
         }
 
-        int minSegmentSize = queryShardContext.getIndexSettings().getStreamingAggregationMinShardSize();
+        int minSegmentSize = queryShardContext.getIndexSettings().getStreamingAggregationMinSegmentSize();
         return Math.max(minSegmentSize, effectiveShardSize);
     }
 

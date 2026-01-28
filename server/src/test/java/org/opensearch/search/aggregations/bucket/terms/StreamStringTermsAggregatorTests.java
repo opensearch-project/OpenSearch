@@ -1476,7 +1476,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1557,7 +1557,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1646,7 +1646,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1728,7 +1728,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1813,7 +1813,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1894,7 +1894,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2032,7 +2032,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2107,7 +2107,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)

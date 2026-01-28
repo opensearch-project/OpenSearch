@@ -131,12 +131,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         return resultStrategy.buildAggregationsBatch(owningBucketOrds);
     }
 
-    protected int getSegmentSize() {
-        int requestedShardSize = bucketCountThresholds.getShardSize();
-        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
-        return Math.max(requestedShardSize, minShardSize);
-    }
-
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return resultStrategy.buildEmptyResult();
