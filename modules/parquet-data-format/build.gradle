@@ -107,11 +107,11 @@ dependencies {
   implementation project(':libs:opensearch-vectorized-exec-spi')
 
   // Apache Arrow dependencies (using stable version with unsafe allocator)
-  implementation 'org.apache.arrow:arrow-vector:17.0.0'
-  implementation 'org.apache.arrow:arrow-memory-core:17.0.0'
-  implementation 'org.apache.arrow:arrow-memory-unsafe:17.0.0'
-  implementation 'org.apache.arrow:arrow-format:17.0.0'
-  implementation 'org.apache.arrow:arrow-c-data:17.0.0'
+  implementation 'org.apache.arrow:arrow-vector:18.3.0'
+  implementation 'org.apache.arrow:arrow-memory-core:18.3.0'
+  implementation 'org.apache.arrow:arrow-memory-unsafe:18.3.0'
+  implementation 'org.apache.arrow:arrow-format:18.3.0'
+  implementation 'org.apache.arrow:arrow-c-data:18.3.0'
 
   // Checker Framework annotations (required by Arrow)
   implementation 'org.checkerframework:checker-qual:3.42.0'
