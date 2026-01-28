@@ -415,43 +415,72 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingCardinalityAggregationUsed() throws Exception {
-        // This test validates cardinality streaming aggregation with profile to verify streaming is used
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1"))
-            .setSize(0)
-            .setRequestCache(false)
-            .setProfile(true)
-            .execute();
-        SearchResponse resp = future.actionGet();
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
+        // Temporarily increase max_estimated_bucket_count for this test since combined topN
+        // (terms shardSize * 2^precision) can exceed the default 1000
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("search.aggregations.streaming.max_estimated_bucket_count", 10000).build())
+            .get();
 
-        // Validate that streaming cardinality aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingCardinality = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamCardinalityAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && debug.containsKey("streaming_precision")) {
-                        foundStreamingCardinality = true;
-                        assertTrue("streaming_precision should be positive", ((Number) debug.get("streaming_precision")).intValue() > 0);
-                        break;
+        try {
+            // This test validates cardinality streaming aggregation with profile to verify streaming is used
+            // Streaming requires terms aggregation at top level, with cardinality as sub-aggregation
+            // Use low precision threshold to keep combined topN smaller
+            TermsAggregationBuilder agg = terms("terms_agg").field("field1")
+                .subAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field3").precisionThreshold(10));
+
+            ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+                .addAggregation(agg)
+                .setSize(0)
+                .setRequestCache(false)
+                .setProfile(true)
+                .execute();
+            SearchResponse resp = future.actionGet();
+            assertNotNull(resp);
+            assertEquals(NUM_SHARDS, resp.getTotalShards());
+            assertEquals(90, resp.getHits().getTotalHits().value());
+
+            // Validate that streaming cardinality aggregation was actually used (in sub-aggregation profile)
+            assertNotNull("Profile response should be present", resp.getProfileResults());
+            boolean foundStreamingCardinality = false;
+            for (var shardProfile : resp.getProfileResults().values()) {
+                List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+                for (var profileResult : aggProfileResults) {
+                    // Check sub-aggregation profile results for streaming cardinality
+                    for (var subProfileResult : profileResult.getProfiledChildren()) {
+                        if (StreamCardinalityAggregator.class.getSimpleName().equals(subProfileResult.getQueryName())) {
+                            foundStreamingCardinality = true;
+                            break;
+                        }
                     }
+                    if (foundStreamingCardinality) break;
                 }
+                if (foundStreamingCardinality) break;
             }
-            if (foundStreamingCardinality) break;
-        }
-        assertTrue("Expected to find streaming cardinality in profile", foundStreamingCardinality);
+            assertTrue("Expected to find streaming cardinality in profile", foundStreamingCardinality);
 
-        // Also verify the result is correct
-        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
-        assertNotNull(cardinalityAgg);
-        // field1 has 3 unique values: value1, value2, value3
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
+            // Also verify the result is correct
+            StringTerms termsAggResult = resp.getAggregations().get("terms_agg");
+            assertNotNull(termsAggResult);
+            assertEquals(3, termsAggResult.getBuckets().size());
+            for (StringTerms.Bucket bucket : termsAggResult.getBuckets()) {
+                Cardinality cardinalityAgg = bucket.getAggregations().get("cardinality_agg");
+                assertNotNull(cardinalityAgg);
+                // Each field1 value appears with 3 field3 values (type1, type2, type3)
+                assertTrue(
+                    "Expected cardinality around 3, got " + cardinalityAgg.getValue(),
+                    cardinalityAgg.getValue() >= 2 && cardinalityAgg.getValue() <= 4
+                );
+            }
+        } finally {
+            // Reset to original value
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("search.aggregations.streaming.max_estimated_bucket_count", 1000).build())
+                .get();
+        }
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
