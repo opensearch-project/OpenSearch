@@ -1,0 +1,13 @@
+################################################################
+## Expert settings
+################################################################
+##
+## All settings below this section are considered
+## expert settings. Don't tamper with them unless
+## you understand what you are doing
+##
+################################################################
+
+## JVM temporary directory
+-Djava.io.tmpdir=${OPENSEARCH_TMPDIR}
+
