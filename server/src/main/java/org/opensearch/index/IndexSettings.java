@@ -1572,7 +1572,7 @@ public final class IndexSettings {
      * Returns if remote translog store is enabled for this index.
      */
     public boolean isRemoteTranslogStoreEnabled() {
-        return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
+        return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false && assignedOnRemoteNode;
     }
 
     /**
