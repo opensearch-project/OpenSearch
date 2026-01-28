@@ -23,11 +23,11 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatStoreDirectory;
 import org.opensearch.index.store.GenericStoreDirectory;
@@ -78,7 +78,7 @@ import java.util.function.Supplier;
  *   <li>Memory management via {@link com.parquet.parquetdataformat.memory} package</li>
  * </ul>
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin {
     private Settings settings;
 
     public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
@@ -117,6 +117,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
+    }
+
+    @Override
+    public void canSupportFieldType(Mapper mapper) {
+        ArrowSchemaBuilder.canCreateParquetField(mapper);
     }
 
     @Override
