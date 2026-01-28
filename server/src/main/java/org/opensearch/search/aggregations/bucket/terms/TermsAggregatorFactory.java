@@ -133,7 +133,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                             context,
                             parent,
                             showTermDocCountError,
-                            segmentTopN,
+                            computeSegmentTopN(context, bucketCountThresholds, order),
                             metadata
                         );
                     }
@@ -246,7 +246,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                         includeExclude,
                         showTermDocCountError,
                         cardinality,
-                        segmentTopN,
+                        computeSegmentTopN(context, bucketCountThresholds, order),
                         metadata
                     );
                 }
@@ -683,29 +683,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     }
 
     /**
-     * Computes the effective segment streaming topN size
+     * Computes segmentTopN for use in streaming aggregation.
      */
-    private int computeSegTopN(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+    private static int computeSegmentTopN(SearchContext context, BucketCountThresholds bucketCountThresholds, BucketOrder order) {
         int effectiveShardSize = bucketCountThresholds.getShardSize();
         if (InternalOrder.isKeyOrder(order) == false
             && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             effectiveShardSize = BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize());
         }
-        // Ensure shardSize is valid (at minimum, use requiredSize)
         if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
             effectiveShardSize = bucketCountThresholds.getRequiredSize();
         }
-
-        int minSegmentSize = queryShardContext.getIndexSettings().getStreamingAggregationMinSegmentSize();
+        int minSegmentSize = context.getQueryShardContext().getIndexSettings().getStreamingAggregationMinSegmentSize();
+        // TODO we can have a factor multiplied on effectiveShardSize
         return Math.max(minSegmentSize, effectiveShardSize);
     }
-
-    private static int segmentTopN;
 
     @Override
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
-        segmentTopN = 2 * computeSegTopN(bucketCountThresholds, order);
+        int segmentTopN = computeSegmentTopN(searchContext, bucketCountThresholds, order);
 
         // Reject numeric aggregators with key-based ordering
         if (InternalOrder.isKeyOrder(order) && valuesSource instanceof ValuesSource.Numeric) {

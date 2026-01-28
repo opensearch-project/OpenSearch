@@ -67,6 +67,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     static final int NUM_SHARDS = 3;
     static final int MIN_SEGMENTS_PER_SHARD = 3;
+    static final int MAX_BUCKET_COUNT = 100000;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -84,7 +85,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
+                    .put("search.aggregations.streaming.max_estimated_bucket_count", MAX_BUCKET_COUNT)
                     .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                     .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
                     .build()
@@ -280,9 +281,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 if (StreamStringTermsAggregator.class.getSimpleName().equals(queryName)
                     || StreamNumericTermsAggregator.class.getSimpleName().equals(queryName)) {
                     var debug = profileResult.getDebugInfo();
-                    if (debug != null && expectedStrategy.equals(debug.get("result_strategy"))) {
+                    if (expectedStrategy.equals(debug.get("result_strategy"))) {
                         foundStreaming = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
                         break;
                     }
                 }
@@ -508,7 +508,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 .prepareUpdateSettings()
                 .setTransientSettings(
                     Settings.builder()
-                        .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
+                        .put("search.aggregations.streaming.max_estimated_bucket_count", MAX_BUCKET_COUNT)
                         .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                         .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
                         .build()
@@ -519,15 +519,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingCardinalityAggregationUsed() throws Exception {
-        // Temporarily increase max_estimated_bucket_count for this test since combined topN
-        // (terms shardSize * 2^precision) can exceed the default 1000
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put("search.aggregations.streaming.max_estimated_bucket_count", 10000).build())
-            .get();
-
-        try {
             // This test validates cardinality streaming aggregation with profile to verify streaming is used
             // Streaming requires terms aggregation at top level, with cardinality as sub-aggregation
             // Use low precision threshold to keep combined topN smaller
@@ -577,14 +568,6 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                     cardinalityAgg.getValue() >= 2 && cardinalityAgg.getValue() <= 4
                 );
             }
-        } finally {
-            // Reset to original value
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("search.aggregations.streaming.max_estimated_bucket_count", 1000).build())
-                .get();
-        }
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)

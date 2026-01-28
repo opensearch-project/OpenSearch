@@ -150,8 +150,8 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
 
         // Only term ordinals values sources support streaming cardinality
         if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            // HyperLogLog register count is 2^precision (max precision ~18, fits in int)
-            return new StreamingCostMetrics(true, 1 << precision());
+            // TODO topNSize can relate to precision
+            return new StreamingCostMetrics(true, 1);
         }
 
         return StreamingCostMetrics.nonStreamable();
