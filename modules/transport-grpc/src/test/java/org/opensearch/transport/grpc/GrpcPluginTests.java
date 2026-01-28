@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.env.Environment;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.SecureAuxTransportSettingsProvider;
 import org.opensearch.protobufs.QueryContainer;
@@ -83,6 +84,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
     @Mock
     private Client client;
 
+    @Mock
+    private Environment environment;
+
     private NetworkService networkService;
 
     private ClusterSettings clusterSettings;
@@ -102,8 +106,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Create a real ClusterSettings instance with the plugin's settings
         plugin = new GrpcPlugin();
 
-        // Mock ThreadPool and ThreadContext
+        // Mock ThreadPool/ThreadContext/Environment
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        when(environment.settings()).thenReturn(Settings.EMPTY);
 
         // Set the client in the plugin
         plugin.createComponents(
@@ -113,7 +118,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
             null, // ResourceWatcherService
             null, // ScriptService
             null, // NamedXContentRegistry
-            null, // Environment
+            environment, // Environment
             null, // NodeEnvironment
             null, // NamedWriteableRegistry
             null, // IndexNameExpressionResolver
@@ -448,7 +453,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, environment, null, null, null, null)
         );
 
         String errorMessage = exception.getMessage();
@@ -470,7 +475,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, environment, null, null, null, null)
         );
 
         String errorMessage = exception.getMessage();
@@ -498,7 +503,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, environment, null, null, null, null)
         );
 
         String errorMessage = exception.getMessage();
@@ -901,7 +906,9 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         ThreadPool mockThreadPool = Mockito.mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new org.opensearch.common.util.concurrent.ThreadContext(Settings.EMPTY));
 
-        assertDoesNotThrow(() -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null));
+        assertDoesNotThrow(
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, environment, null, null, null, null)
+        );
     }
 
     public void testGrpcInterceptorChainWithDuplicateOrders() {
@@ -929,7 +936,7 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         // Should throw exception due to duplicate orders during createComponents
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, null, null, null, null, null)
+            () -> plugin.createComponents(client, null, mockThreadPool, null, null, null, environment, null, null, null, null)
         );
 
         // Verify error message includes order value and interceptor class names
@@ -1040,4 +1047,87 @@ public class GrpcPluginTests extends OpenSearchTestCase {
         };
     }
 
+    /**
+     * Test interceptor provider that validates GrpcInterceptorProvider's access to settings.
+     * TestSettingsAwareInterceptorProvider will throw an exception if setting "test-setting" is not true.
+     */
+    private static class TestSettingsAwareInterceptorProvider implements GrpcInterceptorProvider {
+        private Settings settings;
+
+        @Override
+        public void initSettings(Settings settings) {
+            this.settings = settings;
+        }
+
+        @Override
+        public List<OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext) {
+            if (settings == null || !settings.getAsBoolean("test-setting", false)) {
+                throw new RuntimeException("test-setting not found or not set to true");
+            }
+
+            return List.of(new OrderedGrpcInterceptor() {
+                @Override
+                public int order() {
+                    return 100;
+                }
+
+                @Override
+                public ServerInterceptor getInterceptor() {
+                    return new ServerInterceptor() {
+                        @Override
+                        public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+                            ServerCall<ReqT, RespT> call,
+                            Metadata headers,
+                            ServerCallHandler<ReqT, RespT> next
+                        ) {
+                            // No-op interceptor - just pass through
+                            return next.startCall(call, headers);
+                        }
+                    };
+                }
+            });
+        }
+    }
+
+    public void testGrpcInterceptorProviderSettingsInitialization() {
+        // Mock extension loading for GrpcPlugin
+        TestSettingsAwareInterceptorProvider provider = new TestSettingsAwareInterceptorProvider();
+        ExtensiblePlugin.ExtensionLoader mockLoader = Mockito.mock(ExtensiblePlugin.ExtensionLoader.class);
+        when(mockLoader.loadExtensions(QueryBuilderProtoConverter.class)).thenReturn(null);
+        when(mockLoader.loadExtensions(GrpcInterceptorProvider.class)).thenReturn(List.of(provider));
+        GrpcPlugin plugin = new GrpcPlugin();
+        plugin.loadExtensions(mockLoader);
+
+        // Mock Environments
+        Settings validSetting = Settings.builder().put("test-setting", true).build();
+        Environment validEnv = Mockito.mock(Environment.class);
+        when(validEnv.settings()).thenReturn(validSetting);
+
+        Settings invalidSetting = Settings.builder().put("test-setting", false).build();
+        Environment invalidEnv = Mockito.mock(Environment.class);
+        when(invalidEnv.settings()).thenReturn(invalidSetting);
+
+        Settings emptySetting = Settings.builder().build();
+        Environment emptyEnv = Mockito.mock(Environment.class);
+        when(emptyEnv.settings()).thenReturn(emptySetting);
+
+        // createComponents initializes interceptor with the correct setting
+        assertDoesNotThrow(() -> plugin.createComponents(client, null, threadPool, null, null, null, validEnv, null, null, null, null));
+
+        // createComponents throws exception with the incorrect setting
+        try {
+            plugin.createComponents(client, null, threadPool, null, null, null, invalidEnv, null, null, null, null);
+            fail("Expect test interceptor with wrong settings throws exception.");
+        } catch (RuntimeException e) {
+            assertEquals("test-setting not found or not set to true", e.getMessage());
+        }
+
+        // createComponents throws exception with empty setting
+        try {
+            plugin.createComponents(client, null, threadPool, null, null, null, emptyEnv, null, null, null, null);
+            fail("Expect test interceptor with empty settings throws exception.");
+        } catch (RuntimeException e) {
+            assertEquals("test-setting not found or not set to true", e.getMessage());
+        }
+    }
 }
