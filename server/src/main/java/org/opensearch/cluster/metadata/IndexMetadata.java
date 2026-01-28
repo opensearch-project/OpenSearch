@@ -373,6 +373,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
     public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
+    public static final String SETTING_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED = "index.bulk.adaptive_shard_selection.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
@@ -423,6 +424,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Used to specify if the bulk should use adaptive shard selection to select one shard.
+     */
+    public static final Setting<Boolean> INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED = Setting.boolSetting(
+        SETTING_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
     );
 
     /**
@@ -1076,6 +1087,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int indexTotalRemoteCapableShardsPerNodeLimit;
     private final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
     private final boolean isAppendOnlyIndex;
+    private final boolean bulkAdaptiveShardSelectionEnabled;
 
     private final Context context;
     private final IngestionStatus ingestionStatus;
@@ -1154,6 +1166,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexTotalRemoteCapableShardsPerNodeLimit = indexTotalRemoteCapableShardsPerNodeLimit;
         this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
+        this.bulkAdaptiveShardSelectionEnabled = INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED.get(settings);
+        if (isAppendOnlyIndex == false && bulkAdaptiveShardSelectionEnabled) {
+            throw new IllegalArgumentException(
+                "index ["
+                    + index.getName()
+                    + "] is not append-only index, "
+                    + "bulk adaptive shard selection is enabled, "
+                    + "which is not supported. Please disable bulk adaptive shard selection or set index to append-only index."
+            );
+        }
         this.context = context;
         this.ingestionStatus = ingestionStatus;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
@@ -1385,6 +1407,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isAppendOnlyIndex() {
         return this.isAppendOnlyIndex;
+    }
+
+    public boolean bulkAdaptiveShardSelectionEnabled() {
+        return this.bulkAdaptiveShardSelectionEnabled;
     }
 
     @Nullable
