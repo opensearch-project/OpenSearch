@@ -272,8 +272,7 @@ class FlightClientChannel implements TcpChannel {
             Runnable task = () -> {
                 try (var ignored = threadContext.stashContext()) {
                     if (header == null) {
-                        cleanupStreamResponse(streamResponse);
-                        throw new StreamException(StreamErrorCode.INTERNAL, "Header is null");
+                        handleStreamException(streamResponse, new StreamException(StreamErrorCode.INTERNAL, "Header is null"));
                     }
                     threadContext.setHeaders(header.getHeaders());
                     handler.handleStreamResponse(streamResponse);

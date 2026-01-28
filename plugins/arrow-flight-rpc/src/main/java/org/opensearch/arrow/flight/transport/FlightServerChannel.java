@@ -55,7 +55,7 @@ class FlightServerChannel implements TcpChannel {
     private volatile boolean cancelled = false;
     private final ExecutorService executor;
     private final long correlationId;
-    private AtomicInteger batchNumber = new AtomicInteger(0);
+    private final AtomicInteger batchNumber = new AtomicInteger(0);
 
     public FlightServerChannel(
         ServerStreamListener serverStreamListener,
@@ -128,21 +128,14 @@ class FlightServerChannel implements TcpChannel {
             long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
             callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
             logger.debug(
-                "Batch #{} sent for correlation ID: {} in {}ms, size: {} bytes, putNext: {}ms",
+                "Batch #{} sent for correlation ID: {}, size: {} bytes, putNext: {}ms",
                 batchNumber,
                 correlationId,
-                putNextTime,
                 rootSize,
                 putNextTime
             );
         } else {
-            logger.debug(
-                "Batch #{} sent for correlation ID: {} in {}ms, bytes, putNext: {}ms",
-                batchNumber,
-                correlationId,
-                putNextTime,
-                putNextTime
-            );
+            logger.debug("Batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
         }
     }
 
