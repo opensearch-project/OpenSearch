@@ -55,13 +55,12 @@ import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchService;
-import org.opensearch.search.aggregations.AggregatorFactories;
-import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.StoredFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.opensearch.transport.client.node.NodeClient;
@@ -461,16 +460,9 @@ public class RestSearchAction extends BaseRestHandler {
      * @return true if the request can use stream search, false otherwise
      */
     static boolean canUseStreamSearch(SearchRequest searchRequest) {
-        if (searchRequest.source() == null || searchRequest.source().aggregations() == null) {
-            return false; // No aggregations, stream search is not allowed
+        if (searchRequest.source() == null) {
+            return false;
         }
-
-        AggregatorFactories.Builder aggregations = searchRequest.source().aggregations();
-        if (aggregations.count() != 1) {
-            return false; // Must have exactly one aggregation
-        }
-
-        // Check if the single aggregation is a terms aggregation
-        return aggregations.getAggregatorFactories().stream().anyMatch(factory -> factory instanceof TermsAggregationBuilder);
+        return FlushModeResolver.isStreamable(searchRequest.source().aggregations());
     }
 }

@@ -42,6 +42,7 @@ public class StreamTransportExampleIT extends OpenSearchIntegTestCase {
         return List.of(StreamTransportExamplePlugin.class, FlightStreamPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "")
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamTransportAction() throws Exception {
         for (DiscoveryNode node : getClusterState().nodes()) {

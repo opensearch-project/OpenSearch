@@ -31,8 +31,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +45,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements Streamable {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     private static final Logger logger = LogManager.getLogger(StreamStringTermsAggregator.class);
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
@@ -56,6 +54,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
     protected int segmentsWithMultiValuedOrds = 0;
     protected final ResultStrategy<?, ?> resultStrategy;
     private boolean leafCollectorCreated = false;
+    private final int segmentTopN;
 
     private Aggregator.BucketComparator ordinalComparator;
     private StringTerms.Bucket tempBucket1;
@@ -73,11 +72,13 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         Aggregator parent,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
         this.valuesSource = valuesSource;
         this.resultStrategy = resultStrategy.apply(this);
+        this.segmentTopN = segmentTopN;
     }
 
     @Override
@@ -128,12 +129,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregationsBatch(owningBucketOrds);
-    }
-
-    protected int getSegmentSize() {
-        int requestedShardSize = bucketCountThresholds.getShardSize();
-        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
-        return Math.max(requestedShardSize, minShardSize);
     }
 
     @Override
@@ -198,27 +193,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         });
     }
 
-    @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
-        try {
-            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-            long maxCardinality = 0;
-            long totalDocsWithField = 0;
-
-            for (LeafReaderContext leaf : leaves) {
-                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
-                if (docValues != null) {
-                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
-                    totalDocsWithField += docValues.cost();
-                }
-            }
-
-            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, leaves.size(), totalDocsWithField);
-        } catch (IOException e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
-    }
-
     /**
      * Strategy for building results.
      */
@@ -251,7 +225,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
             // for each owning bucket, there will be list of bucket ord of this aggregation
             B[][] topBucketsPerOwningOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
-            int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
 
@@ -260,7 +233,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
                 logger.debug("Cardinality post collection for ordIdx {}: {}", ordIdx, valueCount);
                 // using bucketCountThresholds since we don't do reduce across slice
                 // and send results per segment to coordinator
-                SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, bucketCountThresholds);
+                SelectionResult<B> selectionResult = selectTopBuckets(segmentTopN, bucketCountThresholds);
 
                 topBucketsPerOwningOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {
@@ -506,13 +479,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
-
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
-        add.accept("streaming_enabled", metrics.streamable());
-        add.accept("streaming_top_n_size", metrics.topNSize());
-        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
-        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
-        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 
     @Override

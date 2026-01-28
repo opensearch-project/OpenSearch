@@ -52,11 +52,14 @@ import org.opensearch.search.aggregations.bucket.terms.NumericTermsAggregator.Re
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,7 +71,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -119,8 +122,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    // Check if streaming is enabled and flush mode allows it (null means not yet evaluated)
-                    if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
                         return createStreamStringTermsAggregator(
                             name,
                             factories,
@@ -131,11 +133,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                             context,
                             parent,
                             showTermDocCountError,
+                            computeSegmentTopN(context, bucketCountThresholds, order),
                             metadata
                         );
-                    } else {
-                        execution = ExecutionMode.GLOBAL_ORDINALS;
                     }
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
                 if (subAggCollectMode == null) {
@@ -230,7 +232,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
-                if (context.isStreamSearch() && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
                     return createStreamNumericTermsAggregator(
                         name,
                         factories,
@@ -244,6 +246,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         includeExclude,
                         showTermDocCountError,
                         cardinality,
+                        computeSegmentTopN(context, bucketCountThresholds, order),
                         metadata
                     );
                 }
@@ -604,6 +607,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         SearchContext context,
         Aggregator parent,
         boolean showTermDocCountError,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         {
@@ -621,6 +625,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 parent,
                 SubAggCollectionMode.DEPTH_FIRST,
                 showTermDocCountError,
+                segmentTopN,
                 metadata
             );
         }
@@ -639,6 +644,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         IncludeExclude includeExclude,
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         Function<StreamNumericTermsAggregator, StreamNumericTermsAggregator.ResultStrategy<?, ?>> resultStrategy;
@@ -671,8 +677,43 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             SubAggCollectionMode.DEPTH_FIRST,
             longFilter,
             cardinality,
+            segmentTopN,
             metadata
         );
+    }
+
+    /**
+     * Computes segmentTopN for use in streaming aggregation.
+     */
+    private static int computeSegmentTopN(SearchContext context, BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+        int effectiveShardSize = bucketCountThresholds.getShardSize();
+        if (InternalOrder.isKeyOrder(order) == false
+            && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            effectiveShardSize = BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize());
+        }
+        if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
+            effectiveShardSize = bucketCountThresholds.getRequiredSize();
+        }
+        int minSegmentSize = context.getQueryShardContext().getIndexSettings().getStreamingAggregationMinSegmentSize();
+        // TODO we can have a factor multiplied on effectiveShardSize
+        return Math.max(minSegmentSize, effectiveShardSize);
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        ValuesSource valuesSource = config.getValuesSource();
+        int segmentTopN = computeSegmentTopN(searchContext, bucketCountThresholds, order);
+
+        // Reject numeric aggregators with key-based ordering
+        if (InternalOrder.isKeyOrder(order) && valuesSource instanceof ValuesSource.Numeric) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+
+        if (valuesSource instanceof WithOrdinals || valuesSource instanceof ValuesSource.Numeric) {
+            return new StreamingCostMetrics(true, segmentTopN);
+        }
+
+        return StreamingCostMetrics.nonStreamable();
     }
 
     @Override
