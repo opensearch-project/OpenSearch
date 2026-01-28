@@ -156,7 +156,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
-        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        source.aggregation(AggregationBuilders.sum("test_sum").field("price"));
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
@@ -164,7 +164,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
     public void testCanUseStreamSearchWithSingleNonTermsAggregation() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
-        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        source.aggregation(AggregationBuilders.sum("test_sum").field("price"));
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
@@ -183,11 +183,10 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         source.aggregation(
             AggregationBuilders.terms("test_terms")
                 .field("category")
-                .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
                 .subAggregation(AggregationBuilders.max("max_price").field("price"))
                 .subAggregation(AggregationBuilders.min("min_price").field("price"))
                 .subAggregation(AggregationBuilders.cardinality("unique_brands").field("brand"))
-                .subAggregation(AggregationBuilders.count("doc_count").field("id"))
         );
         searchRequest.source(source);
         assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
@@ -244,7 +243,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
                 .subAggregation(
                     AggregationBuilders.terms("level2_terms")
                         .field("brand")
-                        .subAggregation(AggregationBuilders.avg("avg_price").field("price"))
+                        .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
                 )
         );
         searchRequest.source(source);

@@ -13,11 +13,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 
 import java.util.Collection;
 
@@ -112,7 +111,7 @@ public final class FlushModeResolver {
      * <p>Streaming aggregations support:
      * <ul>
      *   <li>Top level: terms aggregations (string or numeric)</li>
-     *   <li>Sub-aggregations: numeric terms, cardinality, max, min, avg, value_count</li>
+     *   <li>Sub-aggregations: numeric terms, cardinality, max, min, sum</li>
      * </ul>
      *
      * @param aggregations the aggregation factories to validate
@@ -164,7 +163,6 @@ public final class FlushModeResolver {
         return agg instanceof CardinalityAggregationBuilder
             || agg instanceof MaxAggregationBuilder
             || agg instanceof MinAggregationBuilder
-            || agg instanceof AvgAggregationBuilder
-            || agg instanceof ValueCountAggregationBuilder;
+            || agg instanceof SumAggregationBuilder;
     }
 }
