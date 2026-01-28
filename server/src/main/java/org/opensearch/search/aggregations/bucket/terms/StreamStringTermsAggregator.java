@@ -231,7 +231,6 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
             // for each owning bucket, there will be list of bucket ord of this aggregation
             B[][] topBucketsPerOwningOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
-            int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
 
@@ -240,7 +239,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
                 logger.debug("Cardinality post collection for ordIdx {}: {}", ordIdx, valueCount);
                 // using bucketCountThresholds since we don't do reduce across slice
                 // and send results per segment to coordinator
-                SelectionResult<B> selectionResult = selectTopBuckets(segmentSize, bucketCountThresholds);
+                SelectionResult<B> selectionResult = selectTopBuckets(segmentTopN, bucketCountThresholds);
 
                 topBucketsPerOwningOrd[ordIdx] = buildBuckets(selectionResult.buckets.size());
                 for (int i = 0; i < topBucketsPerOwningOrd[ordIdx].length; i++) {

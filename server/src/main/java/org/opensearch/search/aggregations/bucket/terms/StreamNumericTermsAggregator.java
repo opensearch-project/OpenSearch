@@ -159,7 +159,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
-            int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 checkCancelled();
@@ -171,7 +170,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
                 SelectionResult<B> selectionResult = selectTopBuckets(
                     ordsEnum,
                     bucketsInOrd,
-                    segmentSize,
+                    segmentTopN,
                     bucketCountThresholds,
                     owningBucketOrds[ordIdx]
                 );

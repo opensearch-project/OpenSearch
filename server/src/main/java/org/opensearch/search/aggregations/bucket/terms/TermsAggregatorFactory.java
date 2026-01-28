@@ -683,9 +683,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     }
 
     /**
-     * Computes the effective shard size, applying default heuristics if needed.
+     * Computes the effective segment streaming topN size
      */
-    private static int computeEffectiveShardSize(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
+    private int computeSegTopN(BucketCountThresholds bucketCountThresholds, BucketOrder order) {
         int effectiveShardSize = bucketCountThresholds.getShardSize();
         if (InternalOrder.isKeyOrder(order) == false
             && effectiveShardSize == TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -695,7 +695,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
         if (effectiveShardSize < bucketCountThresholds.getRequiredSize()) {
             effectiveShardSize = bucketCountThresholds.getRequiredSize();
         }
-        return effectiveShardSize;
+
+        int minSegmentSize = queryShardContext.getIndexSettings().getStreamingAggregationMinShardSize();
+        return Math.max(minSegmentSize, effectiveShardSize);
     }
 
     private static int segmentTopN;
@@ -703,9 +705,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     @Override
     public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         ValuesSource valuesSource = config.getValuesSource();
-        segmentTopN = 2 * computeEffectiveShardSize(bucketCountThresholds, order);
+        segmentTopN = 2 * computeSegTopN(bucketCountThresholds, order);
 
-        // String terms with ordinals or numeric terms support streaming
+        // Reject numeric aggregators with key-based ordering
+        if (InternalOrder.isKeyOrder(order) && valuesSource instanceof ValuesSource.Numeric) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+
         if (valuesSource instanceof WithOrdinals || valuesSource instanceof ValuesSource.Numeric) {
             return new StreamingCostMetrics(true, segmentTopN);
         }
