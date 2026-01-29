@@ -596,7 +596,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (handleBlockExceptions(clusterState)) {
                 return;
             }
-            final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
+            final ConcreteIndices concreteIndices = new ConcreteIndices(indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
             // go over all the requests and create a ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
@@ -610,14 +610,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(clusterState, docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
-                if (addFailureIfAppendOnlyIndexAndOpsDeleteOrUpdate(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfAppendOnlyIndexAndOpsDeleteOrUpdate(clusterState, docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
 
-                Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
+                Index concreteIndex = concreteIndices.resolveIfAbsent(clusterState, docWriteRequest);
                 try {
                     // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
                     // an operation is allowed in index into a data stream, but this isn't done when resolve call is cached, so
@@ -821,12 +821,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private boolean addFailureIfAppendOnlyIndexAndOpsDeleteOrUpdate(
+            ClusterState clusterstate,
             DocWriteRequest<?> request,
             int idx,
             final ConcreteIndices concreteIndices,
             Metadata metadata
         ) {
-            Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+            Index concreteIndex = concreteIndices.resolveIfAbsent(clusterstate, request);
             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
             if (indexMetadata.isAppendOnlyIndex()) {
                 if ((request.opType() == DocWriteRequest.OpType.UPDATE || request.opType() == DocWriteRequest.OpType.DELETE)) {
@@ -874,6 +875,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private boolean addFailureIfIndexIsUnavailable(
+            ClusterState clusterstate,
             DocWriteRequest<?> request,
             int idx,
             final ConcreteIndices concreteIndices,
@@ -887,7 +889,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
             if (concreteIndex == null) {
                 try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
+                    concreteIndex = concreteIndices.resolveIfAbsent(clusterstate, request);
                 } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                     addFailure(request, idx, ex);
                     return true;
@@ -926,17 +928,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     /**
-     * Concrete indices
-     *
-     * @opensearch.internal
-     */
-    static class ConcreteIndices {
-        private final ClusterState state;
+    * Concrete indices
+    *
+    * @opensearch.internal
+    */
+    static final class ConcreteIndices {
+
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final Map<String, Index> indices = new HashMap<>();
 
-        ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
-            this.state = state;
+        private ConcreteIndices(IndexNameExpressionResolver indexNameExpressionResolver) {
             this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
@@ -944,7 +945,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return indices.get(indexOrAlias);
         }
 
-        Index resolveIfAbsent(DocWriteRequest<?> request) {
+        Index resolveIfAbsent(ClusterState state, DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
@@ -957,11 +958,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         includeDataStreams
                     );
                 } catch (IndexNotFoundException e) {
-                    if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
+                    if (!includeDataStreams && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
-                    } else {
-                        throw e;
                     }
+                    throw e;
                 }
                 indices.put(request.index(), concreteIndex);
             }
