@@ -229,7 +229,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null, INDEX_SETTINGS, logger);
+        CodecService codecService = new CodecService(null, INDEX_SETTINGS, logger, List.of());
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -274,7 +274,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -300,7 +300,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(analyzer)
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -326,7 +326,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(mergePolicy)
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -1006,7 +1006,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(mergePolicy)
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -1052,7 +1052,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -1089,7 +1089,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())

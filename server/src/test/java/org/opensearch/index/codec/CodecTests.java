@@ -59,6 +59,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import org.mockito.Mockito;
 
@@ -170,7 +171,7 @@ public class CodecTests extends OpenSearchTestCase {
     }
 
     public void testExceptionIndexSettingsNull() {
-        assertThrows(AssertionError.class, () -> new CodecService(null, null, LogManager.getLogger("test")));
+        assertThrows(AssertionError.class, () -> new CodecService(null, null, LogManager.getLogger("test"), List.of()));
     }
 
     // write some docs with it, inspect .si to see this was the used compression
@@ -188,7 +189,12 @@ public class CodecTests extends OpenSearchTestCase {
     private CodecService createCodecService(boolean isMapperServiceNull, boolean isCompositeIndexPresent) throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         if (isMapperServiceNull) {
-            return new CodecService(null, IndexSettingsModule.newIndexSettings("_na", nodeSettings), LogManager.getLogger("test"));
+            return new CodecService(
+                null,
+                IndexSettingsModule.newIndexSettings("_na", nodeSettings),
+                LogManager.getLogger("test"),
+                List.of()
+            );
         }
         if (isCompositeIndexPresent) {
             return buildCodecServiceWithCompositeIndex(nodeSettings);
@@ -212,7 +218,7 @@ public class CodecTests extends OpenSearchTestCase {
             () -> false,
             null
         );
-        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
+        return new CodecService(service, indexSettings, LogManager.getLogger("test"), List.of());
     }
 
     private CodecService buildCodecServiceWithCompositeIndex(Settings nodeSettings) throws IOException {
@@ -220,7 +226,7 @@ public class CodecTests extends OpenSearchTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         MapperService service = Mockito.mock(MapperService.class);
         Mockito.when(service.isCompositeIndexPresent()).thenReturn(true);
-        return new CodecService(service, indexSettings, LogManager.getLogger("test"));
+        return new CodecService(service, indexSettings, LogManager.getLogger("test"), List.of());
     }
 
     private SegmentReader getSegmentReader(Codec codec) throws IOException {
