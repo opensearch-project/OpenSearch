@@ -13,6 +13,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -24,11 +25,18 @@ public final class CodecServiceConfig {
     private final IndexSettings indexSettings;
     private final MapperService mapperService;
     private final Logger logger;
+    private final List<AdditionalCodecs> additionalCodecs;
 
-    public CodecServiceConfig(IndexSettings indexSettings, @Nullable MapperService mapperService, @Nullable Logger logger) {
+    public CodecServiceConfig(
+        IndexSettings indexSettings,
+        @Nullable MapperService mapperService,
+        @Nullable Logger logger,
+        List<AdditionalCodecs> additionalCodecs
+    ) {
         this.indexSettings = Objects.requireNonNull(indexSettings);
         this.mapperService = mapperService;
         this.logger = logger;
+        this.additionalCodecs = Objects.requireNonNull(additionalCodecs);
     }
 
     public IndexSettings getIndexSettings() {
@@ -43,5 +51,9 @@ public final class CodecServiceConfig {
     @Nullable
     public Logger getLogger() {
         return logger;
+    }
+
+    public List<AdditionalCodecs> getAdditionalCodecs() {
+        return additionalCodecs;
     }
 }
