@@ -75,14 +75,7 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesPlugin;
 import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
-import org.opensearch.cluster.metadata.AliasValidator;
-import org.opensearch.cluster.metadata.IndexTemplateMetadata;
-import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
-import org.opensearch.cluster.metadata.MetadataCreateIndexService;
-import org.opensearch.cluster.metadata.MetadataIndexUpgradeService;
-import org.opensearch.cluster.metadata.SystemIndexMetadataUpgradeService;
-import org.opensearch.cluster.metadata.TemplateUpgradeService;
+import org.opensearch.cluster.metadata.*;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.BatchedRerouteService;
@@ -1440,7 +1433,8 @@ public class Node implements Closeable {
                     persistedStateRegistry,
                     remoteStoreNodeService,
                     clusterManagerMetrics,
-                    remoteClusterStateService
+                    remoteClusterStateService,
+                    clusterService.getIndexMetadataCoordinatorService()
                 ).getDiscovery();
             }
             final SearchPipelineService searchPipelineService = new SearchPipelineService(
@@ -1832,6 +1826,7 @@ public class Node implements Closeable {
         Discovery discovery = injector.getInstance(Discovery.class);
         discovery.setNodeConnectionsService(nodeConnectionsService);
         clusterService.getClusterManagerService().setClusterStatePublisher(discovery);
+        clusterService.getIndexMetadataCoordinatorService().setIndexMetadataStatePublisher(discovery);
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);

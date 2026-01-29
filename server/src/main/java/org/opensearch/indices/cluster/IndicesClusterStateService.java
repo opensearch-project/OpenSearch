@@ -558,7 +558,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (Map.Entry<Index, List<ShardRouting>> entry : indicesToCreate.entrySet()) {
             final Index index = entry.getKey();
             final IndexMetadata indexMetadata = state.metadata().index(index);
-            logger.debug("[{}] creating index", index);
+            logger.info("[{}] creating index", index);
 
             AllocatedIndex<? extends Shard> indexService = null;
             try {
@@ -688,7 +688,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
-            logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
+            logger.info("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             indicesService.createShard(
                 shardRouting,
                 checkpointPublisher,

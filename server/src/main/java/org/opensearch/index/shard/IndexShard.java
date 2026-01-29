@@ -1113,7 +1113,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private IndexShardState changeState(IndexShardState newState, String reason) {
         assert Thread.holdsLock(mutex);
-        logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
+        logger.info("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
         this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
@@ -4064,7 +4064,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // }
         // }}
         // }
-        logger.debug("startRecovery type={}", recoveryState.getRecoverySource().getType());
+        logger.info("startRecovery type={}", recoveryState.getRecoverySource().getType());
         assert recoveryState.getRecoverySource().equals(shardRouting.recoverySource());
         switch (recoveryState.getRecoverySource().getType()) {
             case EMPTY_STORE:

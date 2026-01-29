@@ -80,6 +80,18 @@ public class ActiveShardsObserver {
         final Consumer<Boolean> onResult,
         final Consumer<Exception> onFailure
     ) {
+        waitForActiveShards(indexNames, activeShardCount, timeout, onResult, onFailure, false);
+    }
+
+
+    public void waitForActiveShards(
+        final String[] indexNames,
+        final ActiveShardCount activeShardCount,
+        final TimeValue timeout,
+        final Consumer<Boolean> onResult,
+        final Consumer<Exception> onFailure,
+        final boolean asyncUpdate
+    ) {
 
         // wait for the configured number of active shards to be allocated before executing the result consumer
         if (activeShardCount == ActiveShardCount.NONE) {
@@ -90,7 +102,7 @@ public class ActiveShardsObserver {
 
         final ClusterState state = clusterService.state();
         final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
-        if (activeShardCount.enoughShardsActive(state, indexNames)) {
+        if (asyncUpdate==false && activeShardCount.enoughShardsActive(state, indexNames)) {
             onResult.accept(true);
         } else {
             final Predicate<ClusterState> shardsAllocatedPredicate = newState -> activeShardCount.enoughShardsActive(newState, indexNames);

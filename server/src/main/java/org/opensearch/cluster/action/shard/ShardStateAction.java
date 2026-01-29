@@ -188,7 +188,7 @@ public class ShardStateAction {
             logger.warn("no cluster-manager known for action [{}] for shard entry [{}]", actionName, request);
             waitForNewClusterManagerAndRetry(actionName, observer, request, listener, changePredicate);
         } else {
-            logger.debug("sending [{}] to [{}] for shard entry [{}]", actionName, clusterManagerNode.getId(), request);
+            logger.info("sending [{}] to [{}] for shard entry [{}]", actionName, clusterManagerNode.getId(), request);
             transportService.sendRequest(clusterManagerNode, actionName, request, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                 @Override
                 public void handleResponse(TransportResponse.Empty response) {
@@ -747,7 +747,7 @@ public class ShardStateAction {
                     // requests might still be in flight even after the shard has already been started or failed on the cluster-manager. We
                     // just
                     // ignore these requests for now.
-                    logger.debug("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
+                    logger.info("{} ignoring shard started task [{}] (shard does not exist anymore)", task.shardId, task);
                     builder.success(task);
                 } else {
                     if (matched.primary() && task.primaryTerm > 0) {
@@ -761,7 +761,7 @@ public class ShardStateAction {
                                 + "] but current is ["
                                 + currentPrimaryTerm
                                 + "])";
-                            logger.debug(
+                            logger.info(
                                 "{} ignoring shard started task [{}] (primary term {} does not match current term {})",
                                 task.shardId,
                                 task,
@@ -775,7 +775,7 @@ public class ShardStateAction {
                     if (matched.initializing() == false) {
                         assert matched.active() : "expected active shard routing for task " + task + " but found " + matched;
                         // same as above, this might have been a stale in-flight request, so we just ignore.
-                        logger.debug(
+                        logger.info(
                             "{} ignoring shard started task [{}] (shard exists but is not initializing: {})",
                             task.shardId,
                             task,
@@ -785,7 +785,7 @@ public class ShardStateAction {
                     } else {
                         // remove duplicate actions as allocation service expects a clean list without duplicates
                         if (seenShardRoutings.contains(matched)) {
-                            logger.trace(
+                            logger.info(
                                 "{} ignoring shard started task [{}] (already scheduled to start {})",
                                 task.shardId,
                                 task,
@@ -793,7 +793,7 @@ public class ShardStateAction {
                             );
                             tasksToBeApplied.add(task);
                         } else {
-                            logger.debug("{} starting shard {} (shard started task: [{}])", task.shardId, matched, task);
+                            logger.info("{} starting shard {} (shard started task: [{}])", task.shardId, matched, task);
                             tasksToBeApplied.add(task);
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);

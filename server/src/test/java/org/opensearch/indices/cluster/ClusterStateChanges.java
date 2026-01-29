@@ -43,7 +43,9 @@ import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.opensearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
@@ -53,9 +55,12 @@ import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsA
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DestructiveOperations;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeActionUtils;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorActionUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -156,6 +161,7 @@ public class ClusterStateChanges {
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
+    private final MetadataCreateIndexService createIndexService;
     private final RepositoriesService repositoriesService;
     private final RemoteStoreNodeService remoteStoreNodeService;
 
@@ -323,6 +329,7 @@ public class ClusterStateChanges {
             DefaultRemoteStoreSettings.INSTANCE,
             null
         );
+        this.createIndexService = createIndexService;
 
         transportCloseIndexAction = new TransportCloseIndexAction(
             SETTINGS,
@@ -513,6 +520,35 @@ public class ClusterStateChanges {
             try {
                 TransportClusterManagerNodeActionUtils.runClusterManagerOperation(
                     masterNodeAction,
+                    request,
+                    clusterState,
+                    new ActionListener<Response>() {
+                        @Override
+                        public void onResponse(Response response) {
+
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e.getMessage(), e);
+                        }
+                    }
+                );
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> ClusterState execute(
+        TransportIndexMetadataCoordinatorAction<Request, Response> imcNodeAction,
+        Request request,
+        ClusterState clusterState
+    ) {
+        return executeClusterStateUpdateTask(clusterState, () -> {
+            try {
+                TransportIndexMetadataCoordinatorActionUtils.runIndexMetadataOperation(
+                    imcNodeAction,
                     request,
                     clusterState,
                     new ActionListener<Response>() {

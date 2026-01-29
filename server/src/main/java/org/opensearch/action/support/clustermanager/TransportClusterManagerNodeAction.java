@@ -433,6 +433,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     ClusterState clusterStateFromRemote = remoteClusterStateService.getClusterStateForManifest(
                         appliedState.getClusterName().value(),
                         clusterMetadataManifest.get(),
+                        null,
                         appliedState.nodes().getLocalNode().getId(),
                         true
                     );

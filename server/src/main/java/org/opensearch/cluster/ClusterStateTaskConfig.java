@@ -43,6 +43,12 @@ import org.opensearch.common.unit.TimeValue;
  */
 @PublicApi(since = "1.0.0")
 public interface ClusterStateTaskConfig {
+
+    @Nullable
+    default Boolean indexMetadataUpdate() {
+        return false;
+    }
+
     /**
      * The timeout for this cluster state update task configuration. If
      * the cluster state update task isn't processed within this
@@ -70,7 +76,7 @@ public interface ClusterStateTaskConfig {
      * @return the resulting cluster state update task configuration
      */
     static ClusterStateTaskConfig build(Priority priority) {
-        return new Basic(priority, null);
+        return new Basic(priority, null, false);
     }
 
     /**
@@ -84,7 +90,11 @@ public interface ClusterStateTaskConfig {
      * @return the result cluster state update task configuration
      */
     static ClusterStateTaskConfig build(Priority priority, TimeValue timeout) {
-        return new Basic(priority, timeout);
+        return new Basic(priority, timeout, false);
+    }
+
+    static ClusterStateTaskConfig build(Priority priority, TimeValue timeout, Boolean indexMetadataUpdate) {
+        return new Basic(priority, timeout, indexMetadataUpdate);
     }
 
     /**
@@ -95,10 +105,12 @@ public interface ClusterStateTaskConfig {
     class Basic implements ClusterStateTaskConfig {
         final TimeValue timeout;
         final Priority priority;
+        final Boolean indexMetadataUpdate;
 
-        public Basic(Priority priority, TimeValue timeout) {
+        public Basic(Priority priority, TimeValue timeout, Boolean indexMetadataUpdate) {
             this.timeout = timeout;
             this.priority = priority;
+            this.indexMetadataUpdate = indexMetadataUpdate;
         }
 
         @Override
@@ -109,6 +121,11 @@ public interface ClusterStateTaskConfig {
         @Override
         public Priority priority() {
             return priority;
+        }
+
+        @Override
+        public Boolean indexMetadataUpdate() {
+            return indexMetadataUpdate;
         }
     }
 }

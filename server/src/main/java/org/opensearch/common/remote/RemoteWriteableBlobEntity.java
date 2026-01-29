@@ -25,6 +25,7 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
     private final String clusterUUID;
     private final Compressor compressor;
     private String[] pathTokens;
+    private boolean clusterUUIDAgnostic = false;
 
     public RemoteWriteableBlobEntity(final String clusterUUID, final Compressor compressor) {
         this.clusterUUID = clusterUUID;
@@ -84,6 +85,14 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
 
     protected Compressor getCompressor() {
         return compressor;
+    }
+
+    public boolean isClusterUUIDAgnostic() {
+        return clusterUUIDAgnostic;
+    }
+
+    public void setClusterUUIDAgnostic(boolean clusterUUIDAgnostic) {
+        this.clusterUUIDAgnostic = clusterUUIDAgnostic;
     }
 
 }

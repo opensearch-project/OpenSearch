@@ -122,7 +122,7 @@ final class StoreRecovery {
     void recoverFromStore(final IndexShard indexShard, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
-                logger.debug("starting recovery from store ...");
+                logger.info("starting recovery from store ...");
                 if (indexShard.shardRouting.isSearchOnly()) {
                     internalRecoverFromStoreForSearchReplica(indexShard);
                 } else {

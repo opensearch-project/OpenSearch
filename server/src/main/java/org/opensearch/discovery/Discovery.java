@@ -34,6 +34,7 @@ package org.opensearch.discovery;
 
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.coordination.ClusterStatePublisher;
+import org.opensearch.cluster.coordination.IndexMetadataStatePublisher;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 
 /**
@@ -43,7 +44,7 @@ import org.opensearch.common.lifecycle.LifecycleComponent;
  *
  * @opensearch.internal
  */
-public interface Discovery extends LifecycleComponent, ClusterStatePublisher {
+public interface Discovery extends LifecycleComponent, ClusterStatePublisher, IndexMetadataStatePublisher {
 
     /**
      * @return stats about the discovery

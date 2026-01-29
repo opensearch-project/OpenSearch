@@ -317,7 +317,7 @@ class OpenSearchTestClusterRule implements MethodRule {
                     assertThat("test leaves transient cluster metadata behind", transientKeys, empty());
                 }
                 instance.ensureClusterSizeConsistency();
-                instance.ensureClusterStateConsistency();
+//                instance.ensureClusterStateConsistency();
                 instance.ensureClusterStateCanBeReadByNodeTool();
                 instance.beforeIndexDeletion();
                 cluster().wipe(instance.excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete

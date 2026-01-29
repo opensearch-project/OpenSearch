@@ -10,6 +10,8 @@ package org.opensearch.common.remote;
 
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
@@ -69,12 +71,45 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         }
     }
 
+    public String conditionallyUpdateVersionedBlob(final U entity, String version) throws IOException {
+        try (InputStream inputStream = entity.serialize()) {
+            BlobPath blobPath = getBlobPathForUpload(entity);
+            entity.setFullBlobName(blobPath);
+            return transferService.conditionallyUpdateBlobWithVersion(
+                inputStream,
+                getBlobPathForUpload(entity),
+                entity.getBlobFileName(),
+                version
+            );
+        }
+    }
+
+    public String writeVersionedBlob(final U entity) throws IOException {
+        try (InputStream inputStream = entity.serialize()) {
+            BlobPath blobPath = getBlobPathForUpload(entity);
+            entity.setFullBlobName(blobPath);
+            return transferService.writeVersionedBlob(
+                inputStream,
+                getBlobPathForUpload(entity),
+                entity.getBlobFileName()
+            );
+        }
+    }
+
     @Override
     public T read(final U entity) throws IOException {
         // TODO Add timing logs and tracing
         assert entity.getFullBlobName() != null;
         try (InputStream inputStream = transferService.downloadBlob(getBlobPathForDownload(entity), entity.getBlobFileName())) {
             return entity.deserialize(inputStream);
+        }
+    }
+
+    public Tuple<T, String> readWithVersion(final U entity) throws IOException {
+        assert entity.getFullBlobName() != null;
+        VersionedInputStream versionedStream = transferService.downloadVersionedBlob(getBlobPathForDownload(entity), entity.getBlobFileName());
+        try (InputStream inputStream = versionedStream.getInputStream()) {
+            return new Tuple<>(entity.deserialize(inputStream), versionedStream.getVersion());
         }
     }
 
@@ -93,12 +128,20 @@ public class RemoteWriteableEntityBlobStore<T, U extends RemoteWriteableBlobEnti
         return clusterName;
     }
 
+    public BlobPath getBlobPathPrefix(String clusterUUID, boolean clusterUUIDAgnostic) {
+        BlobPath path = blobStoreRepository.basePath().add(encodeString(getClusterName())).add(pathToken);
+        if (!clusterUUIDAgnostic) {
+            path = path.add(clusterUUID);
+        }
+        return path;
+    }
+
     public BlobPath getBlobPathPrefix(String clusterUUID) {
-        return blobStoreRepository.basePath().add(encodeString(getClusterName())).add(pathToken).add(clusterUUID);
+        return getBlobPathPrefix(clusterUUID, false);
     }
 
     public BlobPath getBlobPathForUpload(final RemoteWriteableBlobEntity<T> obj) {
-        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID());
+        BlobPath blobPath = getBlobPathPrefix(obj.clusterUUID(), obj.isClusterUUIDAgnostic());
         for (String token : obj.getBlobPathParameters().getPathTokens()) {
             blobPath = blobPath.add(token);
         }

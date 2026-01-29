@@ -44,6 +44,7 @@ import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedState
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.TriConsumer;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -51,6 +52,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.gateway.GatewayMetaState.RemotePersistedState;
 import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.IndexMetadataManifest;
 import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.BytesTransportRequest;
@@ -63,11 +65,14 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Transport handler for publication
@@ -87,6 +92,7 @@ public class PublicationTransportHandler {
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
 
     private final AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
+    private final Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter;
 
     // the cluster-manager needs the original non-serialized state as the cluster state contains some volatile information that we
     // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
@@ -113,10 +119,29 @@ public class PublicationTransportHandler {
         TriConsumer<ApplyCommitRequest, Consumer<ClusterState>, ActionListener<Void>> handleApplyCommit,
         RemoteClusterStateService remoteClusterStateService
     ) {
+        this(
+            transportService,
+            namedWriteableRegistry,
+            handlePublishRequest,
+            handleApplyCommit,
+            remoteClusterStateService,
+            null
+        );
+    }
+
+    public PublicationTransportHandler(
+        TransportService transportService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
+        TriConsumer<ApplyCommitRequest, Consumer<ClusterState>, ActionListener<Void>> handleApplyCommit,
+        RemoteClusterStateService remoteClusterStateService,
+        Consumer<String> lastSeenIndexMetadataManifestObjectVersionSetter
+    ) {
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
         this.remoteClusterStateService = remoteClusterStateService;
+        this.lastSeenIndexMetadataManifestObjectVersionSetter = lastSeenIndexMetadataManifestObjectVersionSetter;
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
@@ -245,6 +270,11 @@ public class PublicationTransportHandler {
             if (manifest == null) {
                 throw new IllegalStateException("Publication failed as manifest was not found for " + request);
             }
+
+            // Fetch IndexMetadataManifest if available
+            Optional<Tuple<IndexMetadataManifest,String>> indexManifestByVersion = remoteClusterStateService.getLatestIndexMetadataManifestAndObjectVersion();
+            IndexMetadataManifest indexManifest = indexManifestByVersion.map(Tuple::v1).orElse(null);
+
             final ClusterState lastSeen = lastSeenClusterState.get();
             if (lastSeen == null) {
                 logger.debug(() -> "Diff cannot be applied as there is no last cluster state");
@@ -269,12 +299,16 @@ public class PublicationTransportHandler {
                 ClusterState clusterState = remoteClusterStateService.getClusterStateForManifest(
                     request.getClusterName(),
                     manifest,
+                    indexManifest,
                     transportService.getLocalNode().getId(),
                     true
                 );
                 fullClusterStateReceivedCount.incrementAndGet();
                 final PublishWithJoinResponse response = acceptState(clusterState, manifest);
                 lastSeenClusterState.set(clusterState);
+                if (Objects.nonNull(lastSeenIndexMetadataManifestObjectVersionSetter)) {
+                    lastSeenIndexMetadataManifestObjectVersionSetter.accept(indexManifestByVersion.map(Tuple::v2).orElse(null));
+                }
                 return response;
             } else {
                 logger.debug(

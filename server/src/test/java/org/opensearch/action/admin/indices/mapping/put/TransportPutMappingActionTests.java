@@ -120,7 +120,7 @@ public class TransportPutMappingActionTests extends OpenSearchTestCase {
         doNothing().when(mappingTransformerRegistry).applyTransformers(anyString(), any(), listenerCaptor.capture());
 
         // Act: Call the method
-        action.clusterManagerOperation(request, clusterState, responseListener);
+        action.indexMetadataCoordinatorOperation(request, clusterState, responseListener);
 
         // Simulate transformation completion
         listenerCaptor.getValue().onResponse(transformedMapping);
