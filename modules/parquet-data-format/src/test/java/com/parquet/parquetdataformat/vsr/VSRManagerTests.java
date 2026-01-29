@@ -58,7 +58,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         Field nameField = new Field("name", FieldType.nullable(Types.MinorType.VARCHAR.getType()), null);
         testSchema = new Schema(Arrays.asList(idField, nameField));
 
-        testFileName = "test-file-" + System.currentTimeMillis() + ".parquet";
+        testFileName = createTempDir().resolve("test-file-" + System.currentTimeMillis() + ".parquet").toString();
     }
 
     @Override
