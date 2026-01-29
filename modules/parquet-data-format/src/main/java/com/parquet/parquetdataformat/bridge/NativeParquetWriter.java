@@ -8,6 +8,9 @@
 
 package com.parquet.parquetdataformat.bridge;
 
+import com.parquet.parquetdataformat.ParquetSettings;
+import org.opensearch.index.IndexSettings;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,11 +27,25 @@ public class NativeParquetWriter implements Closeable {
      * Creates a new native Parquet writer.
      * @param filePath path to the Parquet file
      * @param schemaAddress Arrow C Data Interface schema pointer
+     * @param indexSettings index-level settings
      * @throws IOException if writer creation fails
      */
-    public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
+    public NativeParquetWriter(String filePath, long schemaAddress, IndexSettings indexSettings) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress);
+
+        // Build writer configuration from index settings
+        WriterConfig config = new WriterConfig();
+        config.setCompressionType(indexSettings.getValue(ParquetSettings.COMPRESSION_TYPE));
+        config.setCompressionLevel(indexSettings.getValue(ParquetSettings.COMPRESSION_LEVEL));
+        config.setPageSize(indexSettings.getValue(ParquetSettings.PAGE_SIZE_BYTES).getBytes());
+        config.setPageRowLimit(indexSettings.getValue(ParquetSettings.PAGE_ROW_LIMIT));
+        config.setDictSizeBytes(indexSettings.getValue(ParquetSettings.DICT_SIZE_BYTES).getBytes());
+
+        try {
+            RustBridge.createWriter(filePath, schemaAddress, config.toJson());
+        } catch (Exception e) {
+            throw new IOException("Failed to create Parquet writer", e);
+        }
     }
 
     /**

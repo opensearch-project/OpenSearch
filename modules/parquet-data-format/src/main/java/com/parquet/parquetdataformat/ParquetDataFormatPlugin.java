@@ -23,7 +23,6 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.DataFormatPlugin;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
@@ -78,22 +77,13 @@ import java.util.function.Supplier;
  *   <li>Memory management via {@link com.parquet.parquetdataformat.memory} package</li>
  * </ul>
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin {
     private Settings settings;
-
-    public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
-
-    public static final Setting<String> INDEX_MAX_NATIVE_ALLOCATION = Setting.simpleString(
-        "index.parquet.max_native_allocation",
-        DEFAULT_MAX_NATIVE_ALLOCATION,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
-        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath, indexSettings);
     }
 
     @Override
@@ -148,7 +138,16 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(INDEX_MAX_NATIVE_ALLOCATION);
+        return List.of(
+            ParquetSettings.MAX_NATIVE_ALLOCATION,
+            ParquetSettings.PARQUET_SETTINGS,
+            ParquetSettings.ROW_GROUP_SIZE_BYTES,
+            ParquetSettings.PAGE_SIZE_BYTES,
+            ParquetSettings.PAGE_ROW_LIMIT,
+            ParquetSettings.DICT_SIZE_BYTES,
+            ParquetSettings.COMPRESSION_TYPE,
+            ParquetSettings.COMPRESSION_LEVEL
+        );
     }
 
     // for testing locally only

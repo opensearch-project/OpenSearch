@@ -829,6 +829,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> INDEX_COMPRESSION_ENABLED_SETTING = Setting.boolSetting(
+        "index.compression.enabled",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -969,6 +976,11 @@ public final class IndexSettings {
      * Denotes whether this is a composite index i.e star-tree index etc
      */
     private final boolean isCompositeIndex;
+
+    /**
+     * Denotes whether the Compression is enabled for this index
+     */
+    private final boolean isCompressionEnabled;
 
     /**
      * Denotes whether search via star tree index is enabled for this index
@@ -1142,6 +1154,7 @@ public final class IndexSettings {
         setEnableFuzzySetForDocId(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING));
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
+        isCompressionEnabled = scopedSettings.get(INDEX_COMPRESSION_ENABLED_SETTING);
         isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING);
         isOptimizedIndex = scopedSettings.get(OPTIMIZED_INDEX_ENABLED_SETTING);
 
@@ -1427,6 +1440,10 @@ public final class IndexSettings {
 
     public boolean isCompositeIndex() {
         return isCompositeIndex;
+    }
+
+    public boolean isCompressionEnabled() {
+        return isCompressionEnabled;
     }
 
     /**

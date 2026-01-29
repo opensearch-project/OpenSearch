@@ -10,8 +10,6 @@ use jni::sys::{jint, jlong, jobject};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;
-use parquet::basic::{Compression, ZstdLevel};
-use parquet::file::properties::WriterProperties;
 use std::fs::File;
 use std::sync::{Arc, Mutex};
 use parquet::format::FileMetaData as FormatFileMetaData;
@@ -21,8 +19,14 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 pub mod logger;
 pub mod parquet_merge;
 pub mod rate_limited_writer;
+pub mod writer_config;
+pub mod field_config;
+pub mod writer_properties_builder;
 
 pub use parquet_merge::*;
+pub use writer_config::WriterConfig;
+pub use field_config::FieldConfig;
+pub use writer_properties_builder::WriterPropertiesBuilder;
 
 // Re-export macros from the shared crate for logging
 pub use vectorized_exec_spi::{log_info, log_error, log_debug};
@@ -36,7 +40,7 @@ struct NativeParquetWriter;
 
 impl NativeParquetWriter {
 
-    fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_writer(filename: String, schema_address: i64, config_json: String) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
 
         if (schema_address as *mut u8).is_null() {
@@ -48,6 +52,13 @@ impl NativeParquetWriter {
             log_error!("[RUST] ERROR: Writer already exists for file: {}", filename);
             return Err("Writer already exists for this file".into());
         }
+
+        // Parse configuration from JSON
+        let config: WriterConfig = WriterConfig::from_json(&config_json)
+            .map_err(|e| {
+                log_error!("[RUST] ERROR: Failed to parse writer config JSON: {}", e);
+                format!("Invalid writer configuration JSON: {}", e)
+            })?;
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
@@ -61,9 +72,8 @@ impl NativeParquetWriter {
         let file = File::create(&filename)?;
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(filename.clone(), file_clone);
-        let props = WriterProperties::builder()
-            .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-            .build();
+
+        let props = WriterPropertiesBuilder::build(&config);
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
         WRITER_MANAGER.insert(filename, Arc::new(Mutex::new(writer)));
         Ok(())
@@ -290,12 +300,17 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
-    schema_address: jlong
+    schema_address: jlong,
+    config_json: JString
 ) -> jint {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
+    let config_json_str: String = env.get_string(&config_json).expect("Couldn't get config JSON string!").into();
+    match NativeParquetWriter::create_writer(filename, schema_address as i64, config_json_str) {
         Ok(_) => 0,
-        Err(_) => -1,
+        Err(e) => {
+            log_error!("[RUST] create_writer failed: {}", e);
+            -1
+        }
     }
 }
 
@@ -487,7 +502,8 @@ mod tests {
 
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
+        let config_json = r#"{"compression":true,"compressionType":"ZSTD","compressionLevel":3}"#.to_string();
+        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr, config_json);
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -520,7 +536,8 @@ mod tests {
         let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
         let (_schema, schema_ptr) = create_test_ffi_schema();
 
-        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
+        let config_json = r#"{"compression":true}"#.to_string();
+        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr, config_json);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
 
@@ -532,7 +549,8 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let result = NativeParquetWriter::create_writer(filename, 0);
+        let config_json = r#"{"compression":true}"#.to_string();
+        let result = NativeParquetWriter::create_writer(filename, 0, config_json);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
@@ -543,7 +561,8 @@ mod tests {
         let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
 
         // Second writer creation for same file should fail
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
+        let config_json = r#"{"compression":true}"#.to_string();
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr, config_json);
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
@@ -716,7 +735,8 @@ mod tests {
                 let filename = file_path.to_string_lossy().to_string();
                 let (_schema, schema_ptr) = create_test_ffi_schema();
 
-                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
+                let config_json = r#"{"compression":true}"#.to_string();
+                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr, config_json).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                     let _ = NativeParquetWriter::close_writer(filename);
                 }

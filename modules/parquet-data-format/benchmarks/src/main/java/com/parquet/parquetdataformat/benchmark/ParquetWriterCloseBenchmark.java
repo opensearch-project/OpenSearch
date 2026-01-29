@@ -60,7 +60,8 @@ public class ParquetWriterCloseBenchmark {
         writerCreationBenchmarkData = generator.generate("simple", fieldCount, 0);
         writerWriteBenchmarkData = generator.generate("simple", fieldCount, recordCount);
         filePath = generateTempFilePath();
-        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress());
+        String configJson = "{\"compression\":true,\"compressionType\":\"ZSTD\",\"compressionLevel\":3}";
+        RustBridge.createWriter(filePath, writerCreationBenchmarkData.getArrowSchema().memoryAddress(), configJson);
         RustBridge.write(filePath, writerWriteBenchmarkData.getArrowArray().memoryAddress(), writerWriteBenchmarkData.getArrowSchema().memoryAddress());
     }
 

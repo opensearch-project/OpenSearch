@@ -11,6 +11,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.Merger;
@@ -71,11 +72,18 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final ShardPath shardPath;
     private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
     private final ArrowBufferPool arrowBufferPool;
+    private final IndexSettings indexSettings;
 
-    public ParquetExecutionEngine(Settings settings, Supplier<Schema> schema, ShardPath shardPath) {
+    public ParquetExecutionEngine(
+        Settings settings,
+        Supplier<Schema> schema,
+        ShardPath shardPath,
+        IndexSettings indexSettings
+    ) {
         this.schema = schema;
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
+        this.indexSettings = indexSettings;
     }
 
     @Override
@@ -108,7 +116,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
         String fileName = Path.of(shardPath.getDataPath().toString(), getDataFormat().name(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
-        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool);
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, indexSettings);
     }
 
     @Override
