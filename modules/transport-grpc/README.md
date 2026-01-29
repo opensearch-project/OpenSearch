@@ -71,16 +71,30 @@ curl -X GET "localhost:9200/_nodes/stats/thread_pool?filter_path=nodes.*.thread_
 
 ## Testing
 
-### Unit Tests
+### Module Tests
 
 ```bash
 ./gradlew :modules:transport-grpc:test
 ```
 
-### Integration Tests
-
 ```bash
 ./gradlew :modules:transport-grpc:internalClusterTest
+```
+
+### Test Framework Tests
+
+```bash
+./gradlew modules:transport-grpc:test-framework:test
+```
+
+```bash
+./gradlew modules:transport-grpc:test-framework:internalClusterTest
+```
+
+### SPI Tests
+
+```bash
+./gradlew :modules:transport-grpc:spi:test
 ```
 
 ### Running OpenSearch with gRPC Enabled

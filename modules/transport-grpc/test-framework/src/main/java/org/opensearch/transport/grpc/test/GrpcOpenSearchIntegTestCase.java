@@ -1,0 +1,283 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.transport.grpc.test;
+
+import com.google.protobuf.ByteString;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.transport.TransportAddress;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.protobufs.BulkRequest;
+import org.opensearch.protobufs.BulkRequestBody;
+import org.opensearch.protobufs.BulkResponse;
+import org.opensearch.protobufs.IndexOperation;
+import org.opensearch.protobufs.Item;
+import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.OperationContainer;
+import org.opensearch.protobufs.QueryContainer;
+import org.opensearch.protobufs.Refresh;
+import org.opensearch.protobufs.SearchRequest;
+import org.opensearch.protobufs.SearchRequestBody;
+import org.opensearch.protobufs.SearchResponse;
+import org.opensearch.protobufs.services.DocumentServiceGrpc;
+import org.opensearch.protobufs.services.SearchServiceGrpc;
+import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.grpc.GrpcPlugin;
+import org.opensearch.transport.grpc.Netty4GrpcServerTransport;
+import org.opensearch.transport.grpc.ssl.NettyGrpcClient;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+import io.grpc.ManagedChannel;
+
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_KEY;
+import static org.opensearch.transport.grpc.Netty4GrpcServerTransport.GRPC_TRANSPORT_SETTING_KEY;
+
+/**
+ * Base test case for gRPC transport integration tests.
+ * Provides utilities for testing plugins that use gRPC transport.
+ */
+public abstract class GrpcOpenSearchIntegTestCase extends OpenSearchIntegTestCase {
+
+    /**
+     * Constructor for GrpcOpenSearchIntegTestCase.
+     */
+    protected GrpcOpenSearchIntegTestCase() {
+        super();
+    }
+
+    /**
+     * Response wrapper for gRPC bulk operations.
+     * Provides a high level summary which abstracts away schema details.
+     */
+    public static class GrpcTestBulkResponse {
+        private final BulkResponse protoBulkResponse;
+
+        /**
+         * Constructor for GrpcTestBulkResponse.
+         * @param protoBulkResponse the gRPC bulk response to wrap
+         */
+        GrpcTestBulkResponse(BulkResponse protoBulkResponse) {
+            this.protoBulkResponse = protoBulkResponse;
+        }
+
+        /**
+         * Gets the number of successfully indexed documents.
+         * @return the count of indexed documents
+         */
+        public int getCount() {
+            return protoBulkResponse.getItemsCount();
+        }
+
+        /**
+         * Gets the number of errors during bulk operation.
+         * @return the error count
+         */
+        public int getErrors() {
+            int errors = 0;
+            for (int i = 0; i < protoBulkResponse.getItemsCount(); i++) {
+                Item item = protoBulkResponse.getItems(i);
+                Item.ItemCase itemCase = item.getItemCase();
+                switch (itemCase) {
+                    case CREATE -> {
+                        if (item.hasCreate() && item.getCreate().hasError()) {
+                            errors++;
+                        }
+                    }
+                    case DELETE -> {
+                        if (item.hasDelete() && item.getDelete().hasError()) {
+                            errors++;
+                        }
+                    }
+                    case INDEX -> {
+                        if (item.hasIndex() && item.getIndex().hasError()) {
+                            errors++;
+                        }
+                    }
+                    case UPDATE -> {
+                        if (item.hasUpdate() && item.getUpdate().hasError()) {
+                            errors++;
+                        }
+                    }
+                    case ITEM_NOT_SET -> {
+                    }
+                }
+            }
+            return errors;
+        }
+    }
+
+    /**
+     * Response wrapper for gRPC search operations.
+     * Provides a high level summary which abstracts away schema details.
+     */
+    public static class GrpcTestSearchResponse {
+        private final SearchResponse protoSearchResponse;
+
+        /**
+         * Constructor for GrpcTestSearchResponse.
+         * @param protoSearchResponse the gRPC search response to wrap
+         */
+        GrpcTestSearchResponse(SearchResponse protoSearchResponse) {
+            this.protoSearchResponse = protoSearchResponse;
+        }
+
+        /**
+         * Gets the total number of search hits.
+         * @return the total hit count
+         */
+        public long getTotalCount() {
+            return protoSearchResponse.getHits().getTotal().getTotalHits().getValue();
+        }
+
+        /**
+         * Gets the source of a document at the specified index.
+         * @param i the index of the document
+         * @return the document source as a string, or throw IndexOutOfBoundsException if index is out of bounds
+         */
+        public String getDocumentSource(int i) {
+            return protoSearchResponse.getHits().getHits(i).getXSource().toString();
+        }
+    }
+
+    /**
+     * Configures node settings for gRPC transport.
+     * @param nodeOrdinal the ordinal number of the node
+     * @return the configured settings
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(AUX_TRANSPORT_TYPES_KEY, GRPC_TRANSPORT_SETTING_KEY).build();
+    }
+
+    /**
+     * Configures plugins for gRPC transport.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(GrpcPlugin.class);
+    }
+
+    /**
+     * Creates a gRPC client connected to a random node.
+     * @return A new NettyGrpcClient instance
+     * @throws javax.net.ssl.SSLException if there's an SSL error
+     */
+    protected NettyGrpcClient createGrpcClient() throws javax.net.ssl.SSLException {
+        return new NettyGrpcClient.Builder().setAddress(randomNetty4GrpcServerTransportAddr()).build();
+    }
+
+    /**
+     * Gets a random gRPC transport address from the cluster.
+     * @return A random transport address
+     */
+    protected TransportAddress randomNetty4GrpcServerTransportAddr() {
+        List<TransportAddress> addresses = new ArrayList<>();
+        for (Netty4GrpcServerTransport transport : internalCluster().getInstances(Netty4GrpcServerTransport.class)) {
+            TransportAddress tAddr = new TransportAddress(transport.getBoundAddress().publishAddress().address());
+            addresses.add(tAddr);
+        }
+        return randomFrom(addresses);
+    }
+
+    /**
+     * Creates a test document with the specified field and value.
+     * Useful for dependent plugins to generate consistent test data.
+     * @param field the field name
+     * @param value the field value
+     * @return a JSON string representing the document
+     */
+    protected static String createTestDocument(String field, String value) {
+        return String.format(Locale.ROOT, "{\"%s\": \"%s\"}", field, value);
+    }
+
+    /**
+     * Creates a list of test documents with sequential numbering.
+     * Useful for bulk operations in dependent plugin tests.
+     * @param field the field name for each document
+     * @param prefix the prefix for field values
+     * @param count the number of documents to create
+     * @return a list of JSON document strings
+     */
+    protected static List<String> createTestDocuments(String field, String prefix, int count) {
+        List<String> docs = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            docs.add(createTestDocument(field, prefix + " " + i));
+        }
+        return docs;
+    }
+
+    /**
+     * Helper method to index a number of auto generated test documents.
+     * Documents generated with the form: { "field": "doc 2 body" }
+     * @param channel The gRPC channel to use for the indexing operation.
+     * @param index The index to which documents should be indexed.
+     * @param numDocs The number of documents to generate and index.
+     * @return A GrpcTestBulkResponse containing the results of the indexing operation.
+     */
+    protected static GrpcTestBulkResponse doBulk(ManagedChannel channel, String index, long numDocs) {
+        BulkRequest.Builder requestBuilder = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_TRUE).setIndex(index);
+
+        for (int i = 0; (long) i < numDocs; ++i) {
+            String docBody = createTestDocument("field", String.valueOf(i));
+            IndexOperation.Builder indexOp = IndexOperation.newBuilder().setXId(String.valueOf(i));
+            OperationContainer.Builder opCont = OperationContainer.newBuilder().setIndex(indexOp);
+            BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+                .setOperationContainer(opCont)
+                .setObject(ByteString.copyFromUtf8(docBody))
+                .build();
+            requestBuilder.addBulkRequestBody(requestBody);
+        }
+
+        DocumentServiceGrpc.DocumentServiceBlockingStub stub = DocumentServiceGrpc.newBlockingStub(channel);
+        return new GrpcTestBulkResponse(stub.bulk(requestBuilder.build()));
+    }
+
+    /**
+     * Helper method to index a number of provided test documents.
+     * @param channel The gRPC channel to use for the indexing operation.
+     * @param index The index to which documents should be indexed.
+     * @param docs List of test documents to index.
+     * @return A GrpcTestBulkResponse containing the results of the indexing operation.
+     */
+    protected static GrpcTestBulkResponse doBulk(ManagedChannel channel, String index, List<String> docs) {
+        BulkRequest.Builder requestBuilder = BulkRequest.newBuilder().setRefresh(Refresh.REFRESH_TRUE).setIndex(index);
+
+        for (String doc : docs) {
+            IndexOperation.Builder indexOp = IndexOperation.newBuilder();
+            OperationContainer.Builder opCont = OperationContainer.newBuilder().setIndex(indexOp);
+            BulkRequestBody requestBody = BulkRequestBody.newBuilder()
+                .setOperationContainer(opCont)
+                .setObject(ByteString.copyFromUtf8(doc))
+                .build();
+            requestBuilder.addBulkRequestBody(requestBody);
+        }
+
+        DocumentServiceGrpc.DocumentServiceBlockingStub stub = DocumentServiceGrpc.newBlockingStub(channel);
+        return new GrpcTestBulkResponse(stub.bulk(requestBuilder.build()));
+    }
+
+    /**
+     * Helper method to perform a match-all search operation.
+     * @param channel The gRPC channel to use for the search operation.
+     * @param index The index to search.
+     * @param size The maximum number of results to return.
+     * @return A GrpcTestSearchResponse containing the results of the search operation.
+     */
+    protected static GrpcTestSearchResponse doMatchAll(ManagedChannel channel, String index, int size) {
+        QueryContainer query = QueryContainer.newBuilder().setMatchAll(MatchAllQuery.newBuilder().build()).build();
+        SearchRequestBody requestBody = SearchRequestBody.newBuilder().setSize(size).setQuery(query).build();
+        SearchRequest searchRequest = SearchRequest.newBuilder().addIndex(index).setSearchRequestBody(requestBody).build();
+        SearchServiceGrpc.SearchServiceBlockingStub stub = SearchServiceGrpc.newBlockingStub(channel);
+        return new GrpcTestSearchResponse(stub.search(searchRequest));
+    }
+}
