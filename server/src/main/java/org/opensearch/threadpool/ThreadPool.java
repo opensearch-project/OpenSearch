@@ -46,6 +46,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.QueueResizableOpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.SizeBlockingQueue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -130,7 +132,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
-    static Set<String> fixedThreadPoolKeys = new HashSet<>(Arrays.asList("size"));
+    static Set<String> fixedThreadPoolKeys = new HashSet<>(Arrays.asList("size", "queue_size"));
 
     /**
      * The threadpool type.
@@ -478,7 +480,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     @Override
     public ThreadPoolInfo info() {
-        return threadPoolInfo;
+        List<Info> infos = executors.values()
+            .stream()
+            .filter(holder -> holder.info.getName().equals("same") == false)
+            .map(ExecutorHolder::getCurrentInfo)
+            .collect(Collectors.toList());
+        return new ThreadPoolInfo(infos);
     }
 
     public Info info(String name) {
@@ -486,7 +493,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         if (holder == null) {
             return null;
         }
-        return holder.info;
+        return holder.getCurrentInfo();
     }
 
     public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
@@ -502,7 +509,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         cluster.threadpool.snapshot.core : "5",
         cluster.threadpool.get.size : "2",
      */
-    private void validateSetting(Settings tpSettings) {
+    void validateSetting(Settings tpSettings) {
         Map<String, Settings> tpGroups = tpSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
             String tpName = entry.getKey();
@@ -511,7 +518,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             }
             Settings tpGroup = entry.getValue();
             ExecutorHolder holder = executors.get(tpName);
-            // Skip validation for ForkJoinPool type since it does not support setting updates
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
                 continue;
             }
@@ -531,14 +537,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                     throw new IllegalArgumentException("core threadpool size cannot be greater than max");
                 }
             } else {
-                if (fixedThreadPoolKeys.containsAll(tpGroup.keySet()) == false) {
-                    throw new IllegalArgumentException(
-                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have " + fixedThreadPoolKeys
-                    );
+                // For non-SCALING pools, validate size parameter
+                if (tpGroup.hasValue("size")) {
+                    int size = tpGroup.getAsInt("size", threadPoolExecutor.getMaximumPoolSize());
+                    if (size < 1) {
+                        throw new IllegalArgumentException(
+                            "illegal value for [cluster.thread_pool." + tpName + ".size], has to be positive value"
+                        );
+                    }
                 }
-                int size = tpGroup.getAsInt("size", threadPoolExecutor.getMaximumPoolSize());
-                if (size < 1) {
-                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                // Only search and index_searcher support queue_size updates
+                if (tpGroup.hasValue("queue_size")) {
+                    if (tpName.equals(Names.SEARCH) || tpName.equals(Names.INDEX_SEARCHER)) {
+                        int queueSize = tpGroup.getAsInt("queue_size", -1);
+                        if (queueSize < 1) {
+                            throw new IllegalArgumentException(
+                                "illegal value for [cluster.thread_pool." + tpName + ".queue_size], has to be positive value"
+                            );
+                        }
+                    } else {
+                        throw new IllegalArgumentException("thread_pool [" + tpName + "] does not support dynamic queue_size updates");
+                    }
                 }
             }
         }
@@ -561,12 +580,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (holder.info.type == ThreadPoolType.SCALING) {
                 int max = tpGroup.getAsInt("max", executor.getMaximumPoolSize());
                 int core = tpGroup.getAsInt("core", executor.getCorePoolSize());
-                /*
-                 If we are decreasing, core pool size has to be decreased first.
-                 If we are increasing ,max pool size has to be increased first
-                 This ensures that core pool is always smaller than max pool size .
-                 Other wise IllegalArgumentException will be thrown from ThreadPoolExecutor
-                 */
                 if (core < executor.getCorePoolSize()) {
                     executor.setCorePoolSize(core);
                     executor.setMaximumPoolSize(max);
@@ -582,6 +595,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 } else {
                     executor.setMaximumPoolSize(size);
                     executor.setCorePoolSize(size);
+                }
+            }
+            // Queue size updates only for search and index_searcher
+            if ((tpName.equals(Names.SEARCH) || tpName.equals(Names.INDEX_SEARCHER)) && tpGroup.hasValue("queue_size")) {
+                if (executor instanceof QueueResizableOpenSearchThreadPoolExecutor) {
+                    int queueSize = tpGroup.getAsInt("queue_size", -1);
+                    ((QueueResizableOpenSearchThreadPoolExecutor) executor).resize(queueSize);
+                    logger.info("updated thread pool [{}] queue_size to [{}]", tpName, queueSize);
+                } else {
+                    logger.warn(
+                        "cannot update queue_size for thread pool [{}]: executor is not QueueResizableOpenSearchThreadPoolExecutor",
+                        tpName
+                    );
                 }
             }
         }
@@ -973,6 +999,21 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         ExecutorService executor() {
             return executor;
+        }
+
+        Info getCurrentInfo() {
+            if (executor instanceof OpenSearchThreadPoolExecutor) {
+                OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) executor;
+                int coreSize = threadPoolExecutor.getCorePoolSize();
+                int maxSize = threadPoolExecutor.getMaximumPoolSize();
+                SizeValue queueSize = info.getQueueSize();
+                if (threadPoolExecutor.getQueue() instanceof SizeBlockingQueue) {
+                    int capacity = ((SizeBlockingQueue<?>) threadPoolExecutor.getQueue()).capacity();
+                    queueSize = new SizeValue(capacity);
+                }
+                return new Info(info.getName(), info.getThreadPoolType(), coreSize, maxSize, info.getKeepAlive(), queueSize);
+            }
+            return info;
         }
     }
 
