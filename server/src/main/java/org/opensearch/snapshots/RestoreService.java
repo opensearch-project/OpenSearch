@@ -820,6 +820,9 @@ public class RestoreService implements ClusterStateApplier {
                         Settings settings = indexMetadata.getSettings();
                         Set<String> keyFilters = new HashSet<>();
                         List<String> simpleMatchPatterns = new ArrayList<>();
+                        Set<String> internalKeyFilters = new HashSet<>();
+                        List<String> internalSimpleMatchPatterns = new ArrayList<>();
+
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
                                 if (USER_UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
@@ -840,16 +843,29 @@ public class RestoreService implements ClusterStateApplier {
                             }
                         }
 
-                        // add internal settings to ignore settings list
+                        // add internal settings to separate ignore lists
                         for (String ignoredSetting : ignoreSettingsInternal) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                keyFilters.add(ignoredSetting);
+                                internalKeyFilters.add(ignoredSetting);
                             } else {
-                                simpleMatchPatterns.add(ignoredSetting);
+                                internalSimpleMatchPatterns.add(ignoredSetting);
                             }
                         }
 
                         Predicate<String> settingsFilter = k -> {
+                            // Check internal ignore patterns first (they override protection)
+                            for (String filterKey : internalKeyFilters) {
+                                if (k.equals(filterKey)) {
+                                    return false;
+                                }
+                            }
+                            for (String pattern : internalSimpleMatchPatterns) {
+                                if (Regex.simpleMatch(pattern, k)) {
+                                    return false;
+                                }
+                            }
+
+                            // Check user ignore patterns only for non-protected settings
                             if (USER_UNREMOVABLE_SETTINGS.contains(k) == false && !indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
                                 for (String filterKey : keyFilters) {
                                     if (k.equals(filterKey)) {
