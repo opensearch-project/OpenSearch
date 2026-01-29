@@ -65,7 +65,7 @@ public class SearchVirtualThreadsIT extends OpenSearchIntegTestCase {
         return -1;
     }
 
-    public void testDynamicMaxVirtualThreadsSizeUpdateIndependently() throws Exception {
+    public void testDynamicVirtualThreadPoolSizeUpdate() throws Exception {
         // Test dynamically changing the number of threads for search and index searcher threadpools, both increasing and decreasing.
         internalCluster().startNode(Settings.builder().put(FeatureFlags.SEARCH_VIRTUAL_THREADS_SETTING.getKey(), true).build());
 

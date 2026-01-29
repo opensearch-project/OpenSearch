@@ -132,7 +132,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
-    static Set<String> fixedThreadPoolKeys = new HashSet<>(Arrays.asList("size", "queue_size"));
 
     /**
      * The threadpool type.
@@ -251,19 +250,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
-    /**
-     * If virtual threads are enabled for the search/searcher threadpools, the maximum number of threads in that threadpool
-     * will be multiplied by this setting value. If the size settings are explicitly set, this multiplier does NOT apply.
-     * Increasing this value should be safe, besides increasing memory usage from per-request ThreadLocals.
-     */
-    public static final Setting<Integer> MAX_VIRTUAL_THREADS_MULTIPLIER = Setting.intSetting(
-        "thread_pool.search_threadpools.max_virtual_threads_multiplier",
-        100,
-        1,
-        1000,
-        Setting.Property.NodeScope
-    );
-
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         this(settings, null, customBuilders);
     }
@@ -293,14 +279,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
 
         if (searchVirtualThreadsEnabled) {
-            // TODO: We may be interested in extending the cat threadpools API to expose max size, queue size, and threadpool type. This can
-            // go in a future PR.
             builders.put(
                 Names.SEARCH,
                 new VirtualThreadExecutorBuilder(
                     settings,
                     Names.SEARCH,
-                    MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * searchThreadPoolSize(allocatedProcessors),
+                    searchThreadPoolSize(allocatedProcessors),
                     1000,
                     runnableTaskListener
                 )
@@ -310,7 +294,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 new VirtualThreadExecutorBuilder(
                     settings,
                     Names.INDEX_SEARCHER,
-                    MAX_VIRTUAL_THREADS_MULTIPLIER.get(settings) * twiceAllocatedProcessors(allocatedProcessors),
+                    twiceAllocatedProcessors(allocatedProcessors),
                     1000,
                     runnableTaskListener
                 )
