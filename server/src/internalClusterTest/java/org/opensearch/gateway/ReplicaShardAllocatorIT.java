@@ -32,6 +32,7 @@
 
 package org.opensearch.gateway;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -370,6 +371,15 @@ public class ReplicaShardAllocatorIT extends OpenSearchIntegTestCase {
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
+        // wait for cluster state to remove the stopped node and re-assign the primary before indexing again
+        ClusterHealthResponse postStopHealth = client().admin()
+            .cluster()
+            .prepareHealth(indexName)
+            .setWaitForYellowStatus()
+            .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true)
+            .get();
+        assertFalse("timed out waiting for cluster to stabilize after stopping a node", postStopHealth.isTimedOut());
         indexRandom(
             randomBoolean(),
             false,
