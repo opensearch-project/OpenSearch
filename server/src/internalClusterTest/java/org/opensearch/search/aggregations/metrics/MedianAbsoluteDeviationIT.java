@@ -347,8 +347,9 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     public void testScriptSingleValued() throws Exception {
         final SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
+            .addAggregation(new MedianAbsoluteDeviationAggregationBuilder("mad_field").field("value"))
             .addAggregation(
-                randomBuilder().script(
+                new MedianAbsoluteDeviationAggregationBuilder("mad").script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())
                 )
             )
@@ -356,10 +357,12 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(singleValueExactMAD));
+        final MedianAbsoluteDeviation madField = response.getAggregations().get("mad_field");
+        final MedianAbsoluteDeviation madScript = response.getAggregations().get("mad");
+        assertThat(madField, notNullValue());
+        assertThat(madScript, notNullValue());
+        assertThat(madScript.getName(), is("mad"));
+        assertThat(madScript.getMedianAbsoluteDeviation(), closeToRelative(madField.getMedianAbsoluteDeviation()));
     }
 
     @Override
@@ -369,6 +372,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         final SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
+            .addAggregation(new MedianAbsoluteDeviationAggregationBuilder("mad_field").field("value"))
             .addAggregation(
                 randomBuilder().script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params))
             )
@@ -376,18 +380,19 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-
-        final double fromIncrementedSampleMAD = calculateMAD(Arrays.stream(singleValueSample).map(point -> point + 1).toArray());
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(fromIncrementedSampleMAD));
+        final MedianAbsoluteDeviation madField = response.getAggregations().get("mad_field");
+        final MedianAbsoluteDeviation madScript = response.getAggregations().get("mad");
+        assertThat(madField, notNullValue());
+        assertThat(madScript, notNullValue());
+        assertThat(madScript.getName(), is("mad"));
+        assertThat(madScript.getMedianAbsoluteDeviation(), closeToRelative(madField.getMedianAbsoluteDeviation()));
     }
 
     @Override
     public void testScriptMultiValued() throws Exception {
         final SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
+            .addAggregation(new MedianAbsoluteDeviationAggregationBuilder("mad_field").field("values"))
             .addAggregation(
                 randomBuilder().script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())
@@ -397,10 +402,12 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
-        final MedianAbsoluteDeviation mad = response.getAggregations().get("mad");
-        assertThat(mad, notNullValue());
-        assertThat(mad.getName(), is("mad"));
-        assertThat(mad.getMedianAbsoluteDeviation(), closeToRelative(multiValueExactMAD));
+        final MedianAbsoluteDeviation madField = response.getAggregations().get("mad_field");
+        final MedianAbsoluteDeviation madScript = response.getAggregations().get("mad");
+        assertThat(madField, notNullValue());
+        assertThat(madScript, notNullValue());
+        assertThat(madScript.getName(), is("mad"));
+        assertThat(madScript.getMedianAbsoluteDeviation(), closeToRelative(madField.getMedianAbsoluteDeviation()));
     }
 
     @Override
