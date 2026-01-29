@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
@@ -75,6 +74,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -87,6 +87,7 @@ import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.junit.Assert.assertThat;
 
 @ParameterizedStaticSettingsOpenSearchIntegTestCase.ClusterScope(scope = ParameterizedStaticSettingsOpenSearchIntegTestCase.Scope.TEST)
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
@@ -643,7 +644,7 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
     }
 
-    public void testOpenIndexOverLimit() {
+    public void testOpenIndexOverLimit() throws Exception {
         int dataNodes = startTestNodes(3);
         Client client = client();
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
@@ -660,8 +661,18 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertFalse(healthResponse.isTimedOut());
 
-        AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-index-1").execute().actionGet();
-        assertTrue(closeIndexResponse.isAcknowledged());
+        client.admin().indices().prepareClose("test-index-1").execute().actionGet();
+        assertBusy(() -> {
+            ClusterState cs = client.admin()
+                .cluster()
+                .prepareState()
+                .setMetadata(true)
+                .setIndices("test-index-1")
+                .execute()
+                .actionGet()
+                .getState();
+            assertThat(cs.metadata().index("test-index-1").getState(), equalTo(IndexMetadata.State.CLOSE));
+        }, 30, TimeUnit.SECONDS);
 
         // Fill up the cluster
         setMaxShardLimit(counts.getShardsPerNode(), getShardsPerNodeKey());
@@ -673,6 +684,8 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
                 .put(SETTING_NUMBER_OF_REPLICAS, counts.getFirstIndexReplicas())
                 .build()
         );
+        ClusterHealthResponse fillHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertFalse(fillHealth.isTimedOut());
 
         try {
             client.admin().indices().prepareOpen("test-index-1").execute().actionGet();
@@ -680,7 +693,7 @@ public class ClusterShardLimitIT extends ParameterizedStaticSettingsOpenSearchIn
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
         }
-        ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
+        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().getState();
         assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
     }
 
