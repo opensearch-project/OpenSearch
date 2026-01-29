@@ -477,7 +477,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 )
             );
         }
-        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats, Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), nodeFileCacheStats, Map.of(), Map.of());
         testClusterNodes.nodes.values().forEach(node -> when(node.getMockClusterInfoService().getClusterInfo()).thenReturn(clusterInfo));
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseListener = new StepListener<>();
