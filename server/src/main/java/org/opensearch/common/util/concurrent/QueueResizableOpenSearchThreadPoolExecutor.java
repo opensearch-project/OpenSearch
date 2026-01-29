@@ -169,7 +169,9 @@ public final class QueueResizableOpenSearchThreadPoolExecutor extends OpenSearch
     public synchronized int resize(int capacity) {
         final ResizableBlockingQueue<Runnable> resizableWorkQueue = (ResizableBlockingQueue<Runnable>) workQueue;
         final int currentCapacity = resizableWorkQueue.capacity();
-        // Reusing adjustCapacity method instead of introducing the new one
+        if (currentCapacity == capacity) {
+            return currentCapacity;
+        }
         return resizableWorkQueue.adjustCapacity(
             currentCapacity < capacity ? capacity + 1 : capacity - 1,
             StrictMath.abs(capacity - currentCapacity),
