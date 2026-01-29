@@ -816,6 +816,36 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "index.search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "index.search.concurrent_segment_search.partition_min_segment_size",
+        500_000,
+        1000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
         false,

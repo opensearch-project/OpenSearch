@@ -587,4 +587,19 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean getStarTreeIndexEnabled() {
         return in.getStarTreeIndexEnabled();
     }
+
+    @Override
+    public String getPartitionStrategy() {
+        return in.getPartitionStrategy();
+    }
+
+    @Override
+    public int getPartitionMinSegmentSize() {
+        return in.getPartitionMinSegmentSize();
+    }
+
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return in.shouldUseIntraSegmentSearch();
+    }
 }

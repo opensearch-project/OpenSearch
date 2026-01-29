@@ -274,6 +274,15 @@ public class AggregatorFactories {
         return true;
     }
 
+    public boolean allFactoriesSupportIntraSegmentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsIntraSegmentSearch() == false || factory.evaluateChildFactoriesForIntraSegment() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
