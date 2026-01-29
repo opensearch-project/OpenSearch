@@ -1,69 +1,55 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch.client;
 
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.core5.concurrent.CancellableDependency;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Represents an operation that can be cancelled.
- * Returned when executing async requests through {@link RestClient#performRequestAsync(Request, ResponseListener)}, so that the request
- * can be cancelled if needed. Cancelling a request will result in calling {@link CancellableDependency#cancel()} on the underlying
- * request object, which will in turn cancel its corresponding {@link java.util.concurrent.Future}.
- * Note that cancelling a request does not automatically translate to aborting its execution on the server side, which needs to be
- * specifically implemented in each API.
+ * Returned when executing async requests through {@link RestClient#performRequestAsync(Request, ResponseListener)} so that the
+ * request can be cancelled if needed.
+ *
+ * <p>Important notes:
+ * <ul>
+ *   <li>Canceling the {@link CancellableDependency} will attempt to cancel the associated {@link java.util.concurrent.Future}.</li>
+ *   <li>Cancelling a request does not automatically abort execution on the server side; that must be implemented per-API.</li>
+ * </ul>
  */
 public class Cancellable implements org.apache.hc.core5.concurrent.Cancellable {
 
+    private static final Logger LOGGER = Logger.getLogger(Cancellable.class.getName());
+
+    /**
+     * A sentinel NO-OP instance used where cancellation is not supported.
+     * Methods on this instance intentionally throw {@link UnsupportedOperationException}.
+     */
     static final Cancellable NO_OP = new Cancellable(null) {
         @Override
-        public boolean cancel() {
-            throw new UnsupportedOperationException();
+        public synchronized boolean cancel() {
+            throw new UnsupportedOperationException("NO_OP Cancellable does not support cancel()");
         }
 
         @Override
         void runIfNotCancelled(Runnable runnable) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("NO_OP Cancellable does not support runIfNotCancelled()");
+        }
+
+        @Override
+        <T> T callIfNotCancelled(Callable<T> callable) throws IOException {
+            throw new UnsupportedOperationException("NO_OP Cancellable does not support callIfNotCancelled()");
         }
     };
 
-    static Cancellable fromRequest(CancellableDependency httpRequest) {
-        return new Cancellable(httpRequest);
-    }
-
+    /**
+     * Construct a Cancellable from an underlying {@link CancellableDependency}.
+     * Use {@link #fromRequest(CancellableDependency)} instead of calling this constructor directly.
+     */
     private final CancellableDependency httpRequest;
 
     private Cancellable(CancellableDependency httpRequest) {
@@ -71,45 +57,78 @@ public class Cancellable implements org.apache.hc.core5.concurrent.Cancellable {
     }
 
     /**
-     * Cancels the on-going request that is associated with the current instance of {@link Cancellable}.
+     * Factory that returns a new Cancellable bound to the given httpRequest.
      *
+     * @param httpRequest non-null cancellable dependency
+     * @return a new {@link Cancellable}
+     * @throws NullPointerException if httpRequest is null
      */
-    public synchronized boolean cancel() {
-        return this.httpRequest.cancel();
+    static Cancellable fromRequest(CancellableDependency httpRequest) {
+        return new Cancellable(Objects.requireNonNull(httpRequest, "httpRequest cannot be null"));
     }
 
     /**
-     * Executes some arbitrary code if the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
-     * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
-     * attempts of the same request. The low-level client reuses the same instance of the {@link CancellableDependency} by calling
-     * {@link HttpUriRequestBase#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
-     * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
-     * the subsequent attempt has not been started yet.
-     * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
-     * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next attempt.
-     * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
-     * when there is no future to cancel, which would make cancelling the request a no-op.
+     * Cancel the on-going request associated with this instance.
+     *
+     * @return true if the request was cancelled, false otherwise.
+     * @throws UnsupportedOperationException if this is the NO_OP instance
+     */
+    @Override
+    public synchronized boolean cancel() {
+        if (this.httpRequest == null) {
+            // NO_OP overrides cancel() but keep defensive behavior just in case.
+            throw new UnsupportedOperationException("Cancellation not supported for this instance");
+        }
+        try {
+            return this.httpRequest.cancel();
+        } catch (RuntimeException e) {
+            // Log unexpected runtime exceptions and rethrow as unchecked to avoid hiding errors.
+            LOGGER.log(Level.WARNING, "Unexpected exception while cancelling request", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Executes {@code runnable} only if the underlying request hasn't been cancelled.
+     * If it has been cancelled, a {@link CancellationException} is thrown.
+     *
+     * This method is synchronized to coordinate with {@link #cancel()} to avoid races
+     * where cancellation happens between attempts.
+     *
+     * @param runnable to execute if not cancelled
+     * @throws CancellationException        if the request was already cancelled
+     * @throws UnsupportedOperationException if this is the NO_OP instance
      */
     synchronized void runIfNotCancelled(Runnable runnable) {
+        if (this.httpRequest == null) {
+            throw new UnsupportedOperationException("Operation not supported on NO_OP instance");
+        }
         if (this.httpRequest.isCancelled()) {
             throw newCancellationException();
         }
-        runnable.run();
+        try {
+            runnable.run();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Runtime exception while running retry attempt", e);
+            throw e;
+        }
     }
 
     /**
-     * Executes some arbitrary code if the on-going request has not been cancelled, otherwise throws {@link CancellationException}.
-     * This is needed to guarantee that cancelling a request works correctly even in case {@link #cancel()} is called between different
-     * attempts of the same request. The low-level client reuses the same instance of the {@link CancellableDependency} by calling
-     * {@link HttpUriRequestBase#reset()} between subsequent retries. The {@link #cancel()} method can be called at anytime,
-     * and we need to handle the case where it gets called while there is no request being executed as one attempt may have failed and
-     * the subsequent attempt has not been started yet.
-     * If the request has already been cancelled we don't go ahead with the next attempt, and artificially raise the
-     * {@link CancellationException}, otherwise we run the provided {@link Runnable} which will reset the request and send the next attempt.
-     * Note that this method must be synchronized as well as the {@link #cancel()} method, to prevent a request from being cancelled
-     * when there is no future to cancel, which would make cancelling the request a no-op.
+     * Same as {@link #runIfNotCancelled(Runnable)} but for {@link Callable} that returns a value
+     * and may throw an {@link IOException}.
+     *
+     * @param callable operation to run if not cancelled
+     * @param <T>      return type
+     * @return callable result
+     * @throws IOException                 if the callable throws an IOException or wraps another exception
+     * @throws CancellationException       if the request was already cancelled
+     * @throws UnsupportedOperationException if this is the NO_OP instance
      */
     synchronized <T> T callIfNotCancelled(Callable<T> callable) throws IOException {
+        if (this.httpRequest == null) {
+            throw new UnsupportedOperationException("Operation not supported on NO_OP instance");
+        }
         if (this.httpRequest.isCancelled()) {
             throw newCancellationException();
         }
@@ -118,7 +137,12 @@ public class Cancellable implements org.apache.hc.core5.concurrent.Cancellable {
         } catch (final IOException ex) {
             throw ex;
         } catch (final Exception ex) {
-            throw new IOException(ex);
+            // Wrap checked or unchecked exceptions other than IOException
+            throw new IOException("Unexpected error executing callable", ex);
+        } catch (final Error err) {
+            // Errors should propagate but log for observability
+            LOGGER.log(Level.SEVERE, "Error while executing callable", err);
+            throw err;
         }
     }
 
