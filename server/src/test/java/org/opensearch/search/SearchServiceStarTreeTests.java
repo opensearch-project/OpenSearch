@@ -914,11 +914,33 @@ public class SearchServiceStarTreeTests extends OpenSearchSingleNodeTestCase {
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
         assertStarTreeContext(request, sourceBuilder, null, -1);
 
-        // Case 6: Range Aggregation on non-numeric field, should not use star tree
+        // Case 6: Range Aggregation on date field with DateDimension in star-tree, should use star tree
         rangeAggregationBuilder = range("range").field(TIMESTAMP_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);
         baseQuery = new MatchAllQueryBuilder();
         sourceBuilder = new SearchSourceBuilder().size(0).query(baseQuery).aggregation(rangeAggregationBuilder);
-        assertStarTreeContext(request, sourceBuilder, null, -1);
+        assertStarTreeContext(
+            request,
+            sourceBuilder,
+            getStarTreeQueryContext(
+                searchContext,
+                starTreeFieldConfiguration,
+                "startree1",
+                -1,
+                List.of(
+                    new DateDimension(
+                        TIMESTAMP_FIELD,
+                        List.of(new DateTimeUnitAdapter(Rounding.DateTimeUnit.MONTH_OF_YEAR)),
+                        DateFieldMapper.Resolution.MILLISECONDS
+                    ),
+                    new OrdinalDimension(KEYWORD_FIELD)
+                ),
+                List.of(new Metric(STATUS, List.of(MetricStat.SUM, MetricStat.MAX))),
+                baseQuery,
+                sourceBuilder,
+                true
+            ),
+            -1
+        );
 
         // Case 7: Valid range aggregation and valid metric aggregation, should use star tree & cache
         rangeAggregationBuilder = range("range").field(NUMERIC_FIELD).addRange(0, 100).subAggregation(maxAggNoSub);

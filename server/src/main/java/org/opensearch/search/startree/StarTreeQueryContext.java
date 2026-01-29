@@ -165,11 +165,13 @@ public class StarTreeQueryContext {
         CompositeDataCubeFieldType compositeIndexFieldInfo,
         RangeAggregatorFactory rangeAggregatorFactory
     ) {
-        // Validate request field is part of dimensions & is a numeric field
-        // TODO: Add support for date type ranges
+        // Validate request field is part of dimensions & is a numeric or date field
         return compositeIndexFieldInfo.getDimensions()
             .stream()
-            .anyMatch(dimension -> rangeAggregatorFactory.getField().equals(dimension.getField()) && dimension instanceof NumericDimension);
+            .anyMatch(
+                dimension -> rangeAggregatorFactory.getField().equals(dimension.getField())
+                    && (dimension instanceof NumericDimension || dimension instanceof DateDimension)
+            );
     }
 
     private StarTreeFilter getStarTreeFilter(
