@@ -1,6 +1,23 @@
 # Stream Transport Example
 
-Step-by-step guide to implement streaming transport actions in OpenSearch.
+Example plugin demonstrating streaming transport actions and transport performance benchmarking.
+
+## Benchmark API
+
+Compare Flight (stream) vs Netty4 (regular) transport performance. See [BENCHMARK.md](BENCHMARK.md).
+
+```bash
+# Run tests
+./gradlew :example-plugins:stream-transport-example:internalClusterTest --tests "org.opensearch.example.stream.BenchmarkStreamIT"
+
+# Compare transports
+curl -X POST "localhost:9200/_benchmark/stream?rows=1000&parallel_requests=10&use_stream_transport=true"
+curl -X POST "localhost:9200/_benchmark/stream?rows=1000&parallel_requests=10&use_stream_transport=false"
+```
+
+---
+
+## Streaming Transport Guide
 
 ## Step 1: Create Action Definition
 
