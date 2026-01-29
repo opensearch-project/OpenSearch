@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.ContextAwareGroupingScript;
 import org.opensearch.script.Script;
+import org.opensearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -104,7 +105,7 @@ public class ContextAwareGroupingFieldMapper extends ParametrizedFieldMapper {
             }
 
             Script s = Script.parse(o);
-            if (!s.getLang().equals(DEFAULT_SCRIPT_LANG)) {
+            if (s.getType() != ScriptType.STORED && !s.getLang().equals(DEFAULT_SCRIPT_LANG)) {
                 throw new MapperParsingException("context_aware_grouping only supports painless script");
             }
             return s;
