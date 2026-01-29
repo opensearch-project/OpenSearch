@@ -201,7 +201,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
 }
 
 /// Log runtime metrics with performance analysis
-#[allow(dead_code)]
 fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
     log_info!("=== Runtime Metrics ===");
     log_info!("  Workers: {}", metrics.workers_count);
@@ -228,7 +227,6 @@ fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
 }
 
 /// Log task metrics with performance analysis
-#[allow(dead_code)]
 fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
     log_info!("=== Task Metrics: {} ===", operation);
     log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);

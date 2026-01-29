@@ -13,6 +13,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.datafusion.core.DataFusionRuntimeEnv;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.datafusion.jni.handle.GlobalRuntimeHandle;
@@ -27,8 +28,11 @@ public class CacheManager {
 
     GlobalRuntimeHandle globalRuntimeHandle;
 
-    public CacheManager(GlobalRuntimeHandle runtimeHandle) {
+    public CacheManager(ClusterSettings clusterSettings, GlobalRuntimeHandle runtimeHandle) {
         this.globalRuntimeHandle = runtimeHandle;
+        for (CacheUtils.CacheType type : CacheUtils.CacheType.values()){
+            clusterSettings.addSettingsUpdateConsumer(type.getSizeLimitSetting(),(v) -> updateSizeLimit(type,v.getBytes()));
+        }
     }
 
     public void addFilesToCacheManager(List<String> files){
@@ -38,6 +42,7 @@ public class CacheManager {
             }
             String[] filesArray = files.toArray(new String[0]);
             NativeBridge.cacheManagerAddFiles(globalRuntimeHandle.getPointer(), filesArray);
+            logger.info("Memory consumed {}: {}", getMemoryConsumed(CacheUtils.CacheType.METADATA),getMemoryConsumed(CacheUtils.CacheType.STATISTICS));
         } catch (Exception e) {
             logger.error("Error adding files to cache manager: {}", e.getMessage(), e);
         }

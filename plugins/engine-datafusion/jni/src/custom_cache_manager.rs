@@ -183,11 +183,28 @@ impl CustomCacheManager {
         Ok(results)
     }
 
-    /// Check if a file exists in any cache
-    pub fn contains_file(&self, file_path: &str) -> bool {
-        let mut found = false;
+    /// Update the file metadata cache size limit
+    pub fn update_metadata_cache_limit(&self, new_limit: usize) {
+        if let Some(cache) = &self.file_metadata_cache {
+            cache.update_cache_limit(new_limit);
+        }
+    }
 
-        // Check metadata cache
+    /// Check if a file exists in any cache
+    pub fn check_file_exists_statistics_cache(&self, file_path: &str) -> bool {
+        let mut found = false;
+        // Check statistics cache
+        if let Some(cache) = &self.statistics_cache {
+            let path = Path::from(file_path);
+            if cache.contains_key(&path) {
+                found = true;
+            }
+        }
+        found
+    }
+
+    pub fn check_file_exists_metadata_cache(&self, file_path: &str) -> bool {
+        let mut found = false;
         match create_object_meta_from_file(file_path) {
             Ok(object_metas) => {
                 if let Some(cache) = &self.file_metadata_cache {
@@ -207,23 +224,7 @@ impl CustomCacheManager {
                 log_error!("Failed to get object metadata for {}: {}", file_path, e);
             }
         }
-
-        // Check statistics cache
-        if let Some(cache) = &self.statistics_cache {
-            let path = Path::from(file_path);
-            if cache.contains_key(&path) {
-                found = true;
-            }
-        }
-
         found
-    }
-
-    /// Update the file metadata cache size limit
-    pub fn update_metadata_cache_limit(&self, new_limit: usize) {
-        if let Some(cache) = &self.file_metadata_cache {
-            cache.update_cache_limit(new_limit);
-        }
     }
 
     /// Update the statistics cache size limit
