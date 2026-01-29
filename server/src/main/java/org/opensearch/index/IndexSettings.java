@@ -596,6 +596,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> INDEX_ENGINE_LEGO = Setting.boolSetting(
+        "index.engine.lego",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Determines a balance between file-based and operations-based peer recoveries. The number of operations that will be used in an
      * operations-based peer recovery is limited to this proportion of the total number of documents in the shard (including deleted
@@ -916,6 +923,7 @@ public final class IndexSettings {
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
     private volatile boolean shouldCleanupUnreferencedFiles;
+    private volatile boolean indexEngineLego;
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
@@ -1069,6 +1077,7 @@ public final class IndexSettings {
         this.remoteStoreSegmentPathPrefix = (rawPrefix != null && !rawPrefix.trim().isEmpty()) ? rawPrefix : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
+        this.indexEngineLego = INDEX_ENGINE_LEGO.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
@@ -2034,6 +2043,10 @@ public final class IndexSettings {
 
     private void setShouldCleanupUnreferencedFiles(boolean shouldCleanupUnreferencedFiles) {
         this.shouldCleanupUnreferencedFiles = shouldCleanupUnreferencedFiles;
+    }
+
+    public boolean getIndexEngineLego() {
+        return indexEngineLego;
     }
 
     public long getMappingNestedFieldsLimit() {
