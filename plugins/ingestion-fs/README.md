@@ -25,8 +25,11 @@ For example, create a file `${base_directory}/test-stream/0.ndjson` with data
 
 ### 2. Start OpenSearch with the Plugin
 
+We need to load the ingestion-fs plugin and also must specify the path.repo setting to allow OpenSearch to read from
+the local file system under `${base_directory}`.
+
 ```
-./gradlew run -PinstalledPlugins="['ingestion-fs']"
+./gradlew run -PinstalledPlugins="['ingestion-fs']" -Dtests.opensearch.path.repo="${base_directory}"
 ```
 
 ### 3. Create a pull-based index
