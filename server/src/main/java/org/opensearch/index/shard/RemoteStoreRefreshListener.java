@@ -21,6 +21,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.EngineNotInitializedException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.bridge.Indexer;
@@ -486,7 +487,13 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCloned.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
+        Indexer indexer = indexShard.getIndexer();
+
+        if(indexer == null) {
+            throw new EngineNotInitializedException("Engine is not initialized");
+        }
+
+        Translog.TranslogGeneration translogGeneration = indexer.translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {

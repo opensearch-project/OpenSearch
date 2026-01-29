@@ -252,7 +252,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Creates a temporary ShardPath for testing when none is provided
      */
     private static ShardPath createTempShardPath(ShardId shardId) {
-        Path tempPath = Path.of(System.getProperty("java.io.tmpdir"), "opensearch-test", shardId.toString());
+        Path tempPath = Path.of(
+            System.getProperty("java.io.tmpdir"),
+            "opensearch-test",
+            shardId.getIndex().getUUID(),
+            Integer.toString(shardId.id())
+        );
         return new ShardPath(false, tempPath, tempPath, shardId);
     }
 
