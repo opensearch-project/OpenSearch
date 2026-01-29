@@ -114,6 +114,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -753,10 +754,18 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, Optional.empty());
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        Optional<Set<String>> criteria
+    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -766,7 +775,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
         Releasable releasable = store::decRef;
         try {
             ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(scope);
-            OpenSearchDirectoryReader acquire = referenceManager.acquire();
+            OpenSearchDirectoryReader acquire;
+            assert criteria != null;
+            if (criteria.isPresent() && !criteria.get().isEmpty()) {
+                acquire = referenceManager.acquire().getCriteriaBasedReader(criteria.get());
+            } else {
+                acquire = referenceManager.acquire();
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -814,13 +829,22 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        return acquireSearcher(source, scope, Function.identity());
+        return acquireSearcher(source, scope, Function.identity(), Optional.empty());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcher(source, scope, wrapper, Optional.empty());
+    }
+
+    public Searcher acquireSearcher(
+        String source,
+        SearcherScope scope,
+        Function<Searcher, Searcher> wrapper,
+        Optional<Set<String>> contextAwareGroupingCriteria
+    ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope, contextAwareGroupingCriteria);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             return new Searcher(

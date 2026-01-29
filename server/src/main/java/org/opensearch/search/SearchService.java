@@ -112,6 +112,7 @@ import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseContext;
+import org.opensearch.search.contextaware.ContextAwareCriteriaQueryExtraction;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.dfs.DfsPhase;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -1117,7 +1118,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
-        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
+        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier(getContextAwareGroupingCriteria(indexService, request));
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
@@ -1879,6 +1880,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final IndexService indexService;
             final Engine.Searcher canMatchSearcher;
             final boolean hasRefreshPending;
+
             if (readerContext != null) {
                 indexService = readerContext.indexService();
                 canMatchSearcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
@@ -1887,7 +1889,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 hasRefreshPending = indexShard.hasRefreshPending() && checkRefreshPending;
-                canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                canMatchSearcher = indexShard.acquireSearcher(
+                    Engine.CAN_MATCH_SEARCH_SOURCE,
+                    getContextAwareGroupingCriteria(indexService, request)
+                );
             }
 
             try (Releasable ignored2 = canMatchSearcher) {
@@ -1916,6 +1921,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    private Set<String> getContextAwareGroupingCriteria(IndexService indexService, ShardSearchRequest request) {
+        if (indexService.getIndexSettings().isContextAwareEnabled() && request.source() != null) {
+            return new ContextAwareCriteriaQueryExtraction(indexService.mapperService()).extractCriteria(request.source().query());
+        }
+        return null;
     }
 
     public static boolean canMatchSearchAfter(

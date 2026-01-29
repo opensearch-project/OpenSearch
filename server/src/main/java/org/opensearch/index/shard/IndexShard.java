@@ -2189,15 +2189,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
+    public Engine.SearcherSupplier acquireSearcherSupplier(Set<String> groupingCriterias) {
+        return acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, groupingCriterias);
+    }
+
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     */
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, null);
+    }
+
+    /**
+     * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
+     */
+    public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope, Set<String> groupingCriterias) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+        return engine.acquireSearcherSupplier(this::wrapSearcher, scope, Optional.ofNullable(groupingCriterias));
     }
 
     public Engine.Searcher acquireSearcher(String source) {
-        return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+        return acquireSearcher(source, Engine.SearcherScope.EXTERNAL, null);
+    }
+
+    public Engine.Searcher acquireSearcher(String source, Set<String> contextAwareGroupingCriteria) {
+        return acquireSearcher(source, Engine.SearcherScope.EXTERNAL, contextAwareGroupingCriteria);
     }
 
     private void markSearcherAccessed() {
@@ -2205,10 +2223,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
+        return acquireSearcher(source, scope, null);
+    }
+
+    private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope, Set<String> contextAwareGroupingCriteria) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        return engine.acquireSearcher(source, scope, this::wrapSearcher);
+        return engine.acquireSearcher(source, scope, this::wrapSearcher, Optional.ofNullable(contextAwareGroupingCriteria));
     }
 
     private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
