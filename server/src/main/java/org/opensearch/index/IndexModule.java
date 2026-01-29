@@ -74,6 +74,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.exec.format.DataSourceRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -676,8 +677,33 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        throw new UnsupportedOperationException(
-            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            (s) -> {},
+            shardId -> ReplicationStats.empty(),
+            clusterDefaultMaxMergeAtOnceSupplier
         );
     }
 
@@ -741,7 +767,8 @@ public final class IndexModule {
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        DataSourceRegistry dataSourceRegistry
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -814,7 +841,8 @@ public final class IndexModule {
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
-                clusterMergeSchedulerConfig
+                clusterMergeSchedulerConfig,
+                dataSourceRegistry
             );
             success = true;
             return indexService;

@@ -537,10 +537,10 @@ public class InternalEngine extends Engine {
             translogManager.syncTranslog(); // to persist noops associated with the advancement of the local checkpoint
             assert localCheckpointTracker.getPersistedCheckpoint() == maxSeqNo
                 : "persisted local checkpoint did not advance to max seq no; is ["
-                    + localCheckpointTracker.getPersistedCheckpoint()
-                    + "], max seq no ["
-                    + maxSeqNo
-                    + "]";
+                + localCheckpointTracker.getPersistedCheckpoint()
+                + "], max seq no ["
+                + maxSeqNo
+                + "]";
             return numNoOpsAdded;
         }
     }
@@ -789,8 +789,8 @@ public class InternalEngine extends Engine {
         } else if (engineConfig.isEnableGcDeletes()
             && versionValue.isDelete()
             && (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
-                versionValue = null;
-            }
+            versionValue = null;
+        }
         return versionValue;
     }
 
@@ -974,18 +974,18 @@ public class InternalEngine extends Engine {
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                         && indexResult.getFailure() != null
                         && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                            // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                            final NoOp noOp = new NoOp(
-                                indexResult.getSeqNo(),
-                                index.primaryTerm(),
-                                index.origin(),
-                                index.startTime(),
-                                indexResult.getFailure().toString()
-                            );
-                            location = innerNoOp(noOp).getTranslogLocation();
-                        } else {
-                            location = null;
-                        }
+                        // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
+                        final NoOp noOp = new NoOp(
+                            indexResult.getSeqNo(),
+                            index.primaryTerm(),
+                            index.origin(),
+                            index.startTime(),
+                            indexResult.getFailure().toString()
+                        );
+                        location = innerNoOp(noOp).getTranslogLocation();
+                    } else {
+                        location = null;
+                    }
                     indexResult.setTranslogLocation(location);
                 }
                 if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
@@ -998,7 +998,7 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsProcessed(indexResult.getSeqNo());
                 if (indexResult.getTranslogLocation() == null
                     && !(indexResult.getFailure() != null
-                        && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
+                    && (indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException))) {
                     // the op is coming from the translog (and is hence persisted already) or it does not have a sequence number
                     assert index.origin().isFromTranslog() || indexResult.getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO;
                     localCheckpointTracker.markSeqNoAsPersisted(indexResult.getSeqNo());
@@ -1114,44 +1114,44 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.skipDueToVersionConflict(e, true, currentVersion);
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && (versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm())) {
-                    final VersionConflictEngineException e = new VersionConflictEngineException(
-                        shardId,
-                        index.id(),
-                        index.getIfSeqNo(),
-                        index.getIfPrimaryTerm(),
-                        versionValue.seqNo,
-                        versionValue.term
+                final VersionConflictEngineException e = new VersionConflictEngineException(
+                    shardId,
+                    index.id(),
+                    index.getIfSeqNo(),
+                    index.getIfPrimaryTerm(),
+                    versionValue.seqNo,
+                    versionValue.term
+                );
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+            } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
+                final VersionConflictEngineException e = new VersionConflictEngineException(
+                    shardId,
+                    index,
+                    currentVersion,
+                    currentNotFoundOrDeleted
+                );
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+            } else {
+                final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
+                if (reserveError != null) {
+                    plan = IndexingStrategy.failAsTooManyDocs(reserveError);
+                } else if (currentVersion >= 1 && engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
+                    // Retry happens for indexing requests for append only indices, since we are rejecting update requests
+                    // at Transport layer itself. So for any retry, we are reconstructing response from already indexed
+                    // document version for append only index.
+                    AppendOnlyIndexOperationRetryException retryException = new AppendOnlyIndexOperationRetryException(
+                        "Indexing operation retried for append only indices"
                     );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
-                } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
-                    final VersionConflictEngineException e = new VersionConflictEngineException(
-                        shardId,
-                        index,
-                        currentVersion,
-                        currentNotFoundOrDeleted
-                    );
-                    plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
+                    final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
+                    plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
                 } else {
-                    final Exception reserveError = tryAcquireInFlightDocs(index, reservingDocs);
-                    if (reserveError != null) {
-                        plan = IndexingStrategy.failAsTooManyDocs(reserveError);
-                    } else if (currentVersion >= 1 && engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex()) {
-                        // Retry happens for indexing requests for append only indices, since we are rejecting update requests
-                        // at Transport layer itself. So for any retry, we are reconstructing response from already indexed
-                        // document version for append only index.
-                        AppendOnlyIndexOperationRetryException retryException = new AppendOnlyIndexOperationRetryException(
-                            "Indexing operation retried for append only indices"
-                        );
-                        final IndexResult result = new IndexResult(retryException, currentVersion, versionValue.term, versionValue.seqNo);
-                        plan = IndexingStrategy.failAsIndexAppendOnly(result, currentVersion, 0);
-                    } else {
-                        plan = IndexingStrategy.processNormally(
-                            currentNotFoundOrDeleted,
-                            canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
-                            reservingDocs
-                        );
-                    }
+                    plan = IndexingStrategy.processNormally(
+                        currentNotFoundOrDeleted,
+                        canOptimizeAddDocument ? 1L : index.versionType().updateVersion(currentVersion, index.version()),
+                        reservingDocs
+                    );
                 }
+            }
         }
         return plan;
     }
@@ -1284,10 +1284,10 @@ public class InternalEngine extends Engine {
                 : "use lucene update is set to true, but we're not indexing into lucene";
             assert (indexIntoLucene && earlyResultOnPreFlightError != null) == false
                 : "can only index into lucene or have a preflight result but not both."
-                    + "indexIntoLucene: "
-                    + indexIntoLucene
-                    + "  earlyResultOnPreFlightError:"
-                    + earlyResultOnPreFlightError;
+                + "indexIntoLucene: "
+                + indexIntoLucene
+                + "  earlyResultOnPreFlightError:"
+                + earlyResultOnPreFlightError;
             assert reservedDocs == 0 || indexIntoLucene || addStaleOpToLucene : reservedDocs;
             this.currentNotFoundOrDeleted = currentNotFoundOrDeleted;
             this.useLuceneUpdateDocument = useLuceneUpdateDocument;
@@ -1574,32 +1574,32 @@ public class InternalEngine extends Engine {
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, true);
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
             && (versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm())) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(
-                    shardId,
-                    delete.id(),
-                    delete.getIfSeqNo(),
-                    delete.getIfPrimaryTerm(),
-                    versionValue.seqNo,
-                    versionValue.term
-                );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
-            } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(
-                    shardId,
-                    delete,
-                    currentVersion,
-                    currentlyDeleted
-                );
-                plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+            final VersionConflictEngineException e = new VersionConflictEngineException(
+                shardId,
+                delete.id(),
+                delete.getIfSeqNo(),
+                delete.getIfPrimaryTerm(),
+                versionValue.seqNo,
+                versionValue.term
+            );
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+        } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
+            final VersionConflictEngineException e = new VersionConflictEngineException(
+                shardId,
+                delete,
+                currentVersion,
+                currentlyDeleted
+            );
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted);
+        } else {
+            final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
+            if (reserveError != null) {
+                plan = DeletionStrategy.failAsTooManyDocs(reserveError);
             } else {
-                final Exception reserveError = tryAcquireInFlightDocs(delete, 1);
-                if (reserveError != null) {
-                    plan = DeletionStrategy.failAsTooManyDocs(reserveError);
-                } else {
-                    final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
-                    plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
-                }
+                final long versionOfDeletion = delete.versionType().updateVersion(currentVersion, delete.version());
+                plan = DeletionStrategy.processNormally(currentlyDeleted, versionOfDeletion, 1);
             }
+        }
         return plan;
     }
 
@@ -1668,10 +1668,10 @@ public class InternalEngine extends Engine {
         ) {
             assert (deleteFromLucene && earlyResultOnPreflightError != null) == false
                 : "can only delete from lucene or have a preflight result but not both."
-                    + "deleteFromLucene: "
-                    + deleteFromLucene
-                    + "  earlyResultOnPreFlightError:"
-                    + earlyResultOnPreflightError;
+                + "deleteFromLucene: "
+                + deleteFromLucene
+                + "  earlyResultOnPreFlightError:"
+                + earlyResultOnPreflightError;
             this.deleteFromLucene = deleteFromLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
             this.currentlyDeleted = currentlyDeleted;
@@ -1963,8 +1963,8 @@ public class InternalEngine extends Engine {
                     || force
                     || shouldPeriodicallyFlush
                     || getProcessedLocalCheckpoint() > Long.parseLong(
-                        lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
-                    )) {
+                    lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+                )) {
                     translogManager.ensureCanFlush();
                     try {
                         translogManager.rollTranslogGeneration();
@@ -3005,9 +3005,9 @@ public class InternalEngine extends Engine {
         final IndexSearcher searcher = new IndexSearcher(directoryReader);
         searcher.setQueryCache(null);
         final Query query = new BooleanQuery.Builder().add(
-            LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
-            BooleanClause.Occur.MUST
-        )
+                LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getPersistedLocalCheckpoint() + 1, Long.MAX_VALUE),
+                BooleanClause.Occur.MUST
+            )
             // exclude non-root nested documents
             .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST)
             .build();
