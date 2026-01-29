@@ -829,9 +829,11 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             )
         );
+        final String msg = ex.getMessage();
         assertTrue(
-            "Invalid exception message." + ex.getMessage(),
-            ex.getMessage().contains("specifies a context which cannot be used without enabling")
+            "Invalid exception message." + msg,
+            msg.contains("specifies a context which cannot be used without enabling")
+                || msg.contains("specifies a context which is not loaded on the cluster")
         );
     }
 
