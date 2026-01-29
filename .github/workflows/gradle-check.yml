@@ -21,33 +21,233 @@ jobs:
     outputs:
       RUN_GRADLE_CHECK: ${{ steps.changed-files-specific.outputs.any_changed }}
     steps:
-    - uses: actions/checkout@v6
-    - name: Get changed files
-      id: changed-files-specific
-      uses: tj-actions/changed-files@v47.0.1
-      with:
-        files_ignore: |
-          release-notes/*.md
-          .github/**
-          *.md
+      - uses: actions/checkout@v6
+      - name: Get changed files
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v47.0.1
+        with:
+          files_ignore: |
+            release-notes/*.md
+            .github/**
+            *.md
 
   gradle-check:
     needs: check-files
     if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
     permissions:
+      id-token: write # github oidc to assume aws roles
       contents: read # to fetch code (actions/checkout)
       pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
       issues: write # To create an issue if check fails on push.
+    env:
+      AWS_REGION: 'us-east-1'
+      CLAUDE_CODE_USE_BEDROCK: '1'
+      CLAUDE_CODE_MAX_INPUT_TOKENS: '200000'
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '4096'
+      MAX_THINKING_TOKENS: '1024'
+      DIFF_CONTENT_PATH: 'git_diff_content.txt'
+      DIFF_REPORT_PATH: 'git_diff_validation.json'
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
+      - name: Retrieve file diffs
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            base_sha="${{ github.event.before }}"
+            head_sha="${{ github.event.after }}"
+          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            bash_sha=${{ github.event.pull_request.base.sha }}
+            head_sha=${{ github.event.pull_request.head.sha }}
+            PR_LABELS=`echo "${{ toJson(github.event.pull_request.labels.*.name) }}" | sed -e 's/\[//g;s/\]//g;s/^\s*//g;s/\s*$//g' | tr -d '\n'`
+            echo "labels: $PR_LABELS"
+            export IFS=','
+            if [ -n "$PR_LABELS" ]; then
+              for label in $PR_LABELS
+              do
+                if [[ "$label" = "skip-diff-validation" ]]; then
+                  echo "Diff validation skipped due to label \"skip-diff-validation\", trigger gradle check."
+                  echo "DIFF_VALIDATED=skipped" >> $GITHUB_ENV
+                  exit 0
+                fi
+              done
+            fi
+          else
+            echo "wrong github event"
+            echo "DIFF_VALIDATED=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+          echo "HEAD_SHA=$head_sha" >> $GITHUB_ENV
+
+          echo "Get diff between base($bash_sha) and head($head_sha)"
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3.diff" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/${bash_sha}...${head_sha}" > $DIFF_CONTENT_PATH
+
+          echo "Check diff size"
+          DIFF_SIZE=$(cat $DIFF_CONTENT_PATH | wc -c)
+          DIFF_TOKEN_EST=$((DIFF_SIZE / 3))
+          if [ "$DIFF_TOKEN_EST" -gt "$CLAUDE_CODE_MAX_INPUT_TOKENS" ]; then
+            echo "Diff too large, requires validation skip by the maintainers after manual review"
+            echo "DIFF_VALIDATED=false" >> $GITHUB_ENV
+            diff_size_notice="Diff too large, requires validation skip by the maintainers after manual review"
+            echo "DIFF_SIZE_NOTICE=$diff_size_notice" >> $GITHUB_ENV
+            exit 1
+          fi
+          echo "-------------------------------------------------------"
+          cat $DIFF_CONTENT_PATH
+          echo "-------------------------------------------------------"
+  
+      - uses: actions/setup-node@v6
+        if: ${{ env.DIFF_VALIDATED != 'skipped'}}
+        with:
+          node-version: 24
+  
+      - name: Install necessary packages
+        if: ${{ env.DIFF_VALIDATED != 'skipped'}}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          pip install json-repair
+
+      - name: Load secret
+        if: ${{ env.DIFF_VALIDATED != 'false'}}
+        uses: 1password/load-secrets-action@v3
+        with:
+          # Export loaded secrets as environment variables
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          BEDROCK_ACCESS_ROLE: op://opensearch-infra-secrets/aws-iam-roles/bedrock-access-role
+          JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN: op://opensearch-infra-secrets/webhook/jenkins-gradle-check-generic-webhook-token
+          JENKINS_GITHUB_USER: op://opensearch-infra-secrets/github-bot/jenkins-github-user
+          JENKINS_GITHUB_USER_TOKEN: op://opensearch-infra-secrets/github-bot/jenkins-github-user-token
+
+      - name: Configure AWS credentials
+        if: ${{ env.DIFF_VALIDATED != 'skipped'}}
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.BEDROCK_ACCESS_ROLE }}
+          aws-region: us-east-1
+  
+      - name: Verify file diffs
+        if: ${{ env.DIFF_VALIDATED != 'skipped'}}
+        run: |
+          DIFF_CONTENT=$(cat $DIFF_CONTENT_PATH)
+          PROMPT=$(cat <<-EOF
+          	Analyze the git diff between current commit HEAD and origin/main for security vulnerabilities and malicious code patterns.
+          	
+          	Review for security issues including but not limited to:
+          	- Injection vulnerabilities (SQL, command, LDAP, template, etc.)
+          	- Cross-site scripting (XSS) and improper output encoding
+          	- Authentication and authorization flaws
+          	- Insecure deserialization and XML parsing
+          	- Malicious code (data exfiltration, backdoors, obfuscated logic)
+          	- Hardcoded secrets and credential exposure
+          	- Suspicious network calls or external communications
+          	- Privilege escalation attempts
+          	- Insecure file operations and path traversal
+          	- Cryptographic weaknesses and insecure randomness
+          	- Any other suspicious or anomalous code patterns
+          	
+          	
+          	Classify each issue by severity based on impact and exploitability:
+          	- **critical**: Allows immediate system compromise, data breach, or arbitrary code execution with minimal effort or authentication
+          	- **high**: Enables unauthorized access, significant data exposure, or system manipulation requiring moderate effort or preconditions
+          	- **medium**: Could lead to limited information disclosure, denial of service, or requires significant preconditions to exploit
+          	- **low**: Minor security weaknesses with minimal impact or requires extensive preconditions and authenticated access to exploit
+          	
+          	**OUTPUT CONSTRAINTS:**
+          	- Maximum 10 issues in the output
+          	- Prioritize by severity: critical > high > medium > low
+          	- If more than 10 issues found, include only the top 10 most severe
+          	- In "counts.total", report the ACTUAL total number of issues found (even if truncated)
+          	- Update the "truncated" boolean field to 'true' if issues were limited in output, else keep it 'false'
+          	
+          	**IMPORTANT: Your response must be ONLY the raw JSON object. Do NOT wrap it in markdown code blocks. Do NOT add any explanation before or after. Start your response with { and end with }.**
+          	
+          	Required JSON format:
+          	{
+          	  "counts": {
+          	    "total": <number>,
+          	    "critical": <number>,
+          	    "high": <number>,
+          	    "medium": <number>,
+          	    "low": <number>
+          	  },
+          	  "truncated": <boolean>,
+          	  "issues": [
+          	    {
+          	      "path": "path/to/file",
+          	      "line": <number>,
+          	      "severity": "critical|high|medium|low",
+          	      "description": "Brief explanation of the issue"
+          	    }
+          	  ]
+          	}
+          	
+          	Here is the diff to analyze:
+          	$DIFF_CONTENT
+          	EOF
+          )
+          claude -p "$PROMPT" > $DIFF_REPORT_PATH
+          json_repair $DIFF_REPORT_PATH --inline --strict
+          echo "Processing AI results"
+          diff_report_json=$(cat $DIFF_REPORT_PATH | jq -c '.')
+          echo "-------------------------------------------------------"
+          echo $diff_report_json | jq -r
+          echo "-------------------------------------------------------"
+          unset AWS_ACCESS_KEY_ID
+          unset AWS_SECRET_ACCESS_KEY  
+
+          echo "Start issue count"
+          DIFF_ISSUE_COUNT=$(echo $diff_report_json | jq -r .counts.total)
+          DIFF_TRUNCATED=$(echo $diff_report_json | jq -r .truncated)
+          echo "Found $DIFF_ISSUE_COUNT issues"
+          echo "-------------------------------------------------------"
+          if [ "$DIFF_ISSUE_COUNT" != "0" ]; then
+            echo "Diff has issues, please update your PR based on the validation results"
+            echo "DIFF_VALIDATED=false" >> $GITHUB_ENV
+            if [ "$DIFF_TRUNCATED" = "true" ]; then
+              truncated_notice="More than 10 issues were detected. The table below displays the top 10 most critical findings"
+              echo "TRUNCATED_NOTICE=$truncated_notice" >> $GITHUB_ENV
+            fi
+            diff_report=$(echo "$diff_report_json" | jq -r '
+              "<table><tr><th>Path</th><th>Line</th><th>Severity</th><th>Description</th></tr>" +
+              (
+                .issues | map(
+                  "<tr><td>" + .path + "</td><td>" + 
+                  (.line | tostring) + "</td><td>" + 
+                  .severity + "</td><td>" + 
+                  .description + "</td></tr>"
+                ) | join("")
+              ) +
+              "</table><p>Total: " + (.counts.total | tostring) + 
+              " | Critical: " + (.counts.critical | tostring) + 
+              " | High: " + (.counts.high | tostring) + 
+              " | Medium: " + (.counts.medium | tostring) + 
+              " | Low: " + (.counts.low | tostring) + "</p>"
+            ')
+            echo "DIFF_REPORT=$diff_report" >> $GITHUB_ENV
+            exit 1
+          else
+            echo "Diff is validated"
+            echo "DIFF_VALIDATED=true" >> $GITHUB_ENV
+          fi
+
       - name: Checkout OpenSearch repo
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.HEAD_SHA }}
 
+      - name: Checkout opensearch-build repo
+        uses: actions/checkout@v6
+        with:
+          repository: opensearch-project/opensearch-build
+          ref: main
+          path: opensearch-build
+  
       - name: Setup environment variables (PR)
-        if: github.event_name == 'pull_request_target'
+        if: ${{ always() && github.event_name == 'pull_request_target' }}
         run: |
           echo "event_name=pull_request_target" >> $GITHUB_ENV
           echo "branch_name=$(jq --raw-output .pull_request.base.ref $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
@@ -79,7 +279,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           repo_url="https://github.com/opensearch-project/OpenSearch"
-          ref_id=$(git rev-parse HEAD)
+          ref_id=${{ env.HEAD_SHA }}
           branch_name=$(git rev-parse --abbrev-ref HEAD)
           echo "branch_name=$branch_name" >> $GITHUB_ENV
           echo "event_name=push" >> $GITHUB_ENV
@@ -92,24 +292,22 @@ jobs:
           echo "pr_or_commit_description=$(jq --ascii-output .head_commit.message $GITHUB_EVENT_PATH)" >> $GITHUB_ENV
           echo "post_merge_action=true" >> $GITHUB_ENV
 
-      - name: Checkout opensearch-build repo
-        uses: actions/checkout@v6
-        with:
-          repository: opensearch-project/opensearch-build
-          ref: main
-          path: opensearch-build
-
       - name: Trigger jenkins workflow to run gradle check
         run: |
           set -e
           set -o pipefail
-          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} | tee -a gradle-check.log
+          bash opensearch-build/scripts/gradle/gradle-check.sh -t $JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN -u $JENKINS_GITHUB_USER -p $JENKINS_GITHUB_USER_TOKEN | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
         run: |
-          WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
-          RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          if [ "$DIFF_VALIDATED" = "true" ]; then
+            WORKFLOW_URL=`cat gradle-check.log | grep 'WORKFLOW_URL' | awk '{print $2}'`
+            RESULT=`cat gradle-check.log | grep 'Result:' | awk '{print $2}'`
+          else
+            WORKFLOW_URL=not_available
+            RESULT=$DIFF_VALIDATED
+          fi
           echo "workflow_url=$WORKFLOW_URL" >> $GITHUB_ENV
           echo "result=$RESULT" >> $GITHUB_ENV
 
@@ -129,7 +327,7 @@ jobs:
             :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
-        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request_target' && env.DIFF_VALIDATED == 'true' && env.result != 'SUCCESS' }}
         run: |
           TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
           if [[ "$TEST_FAILURES" != "" ]]
@@ -144,7 +342,7 @@ jobs:
           fi
 
       - name: Create Comment Flaky
-        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' && env.DIFF_VALIDATED == 'true'}}
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
@@ -154,7 +352,7 @@ jobs:
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
       - name: Create Comment Failure
-        if: ${{ github.event_name == 'pull_request_target' && failure() }}
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED == 'true'}}
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ env.pr_number }}
@@ -163,11 +361,35 @@ jobs:
 
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
+      - name: Create Comment Failure Git Diff Validation
+        if: ${{ github.event_name == 'pull_request_target' && failure() && env.DIFF_VALIDATED == 'false'}}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            :exclamation: Gradle check **WAS NOT STARTED** for ${{ env.pr_from_sha }} due to automated code diff validation findings.
+
+            **Pull Request Author**: Please update your Pull Request accordingly:
+
+            ${{ env.DIFF_SIZE_NOTICE }}
+
+            ${{ env.TRUNCATED_NOTICE }}
+
+            ${{ env.DIFF_REPORT }}
+
+            ***
+
+            **OpenSearch Maintainers**: you can `bypass this validation` by adding label `skip-diff-validation` after reviewing the changes carefully, `then re-trigger check with a new commit`.
+
+            :warning: Note: This validation helps protect against potentially harmful code patterns. Please ensure you have thoroughly reviewed the changes before bypassing.
+
+            Thanks.
+
   check-result:
     needs: [check-files, gradle-check]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Fail if gradle-check fails
-        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }}
+        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }} || ${{ env.DIFF_VALIDATED != 'true' }}
         run: exit 1
