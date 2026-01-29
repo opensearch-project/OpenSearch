@@ -1572,7 +1572,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
             .build();
-        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        final ReplicationTracker tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, () -> 0L, settings, true);
         tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         initializing.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));

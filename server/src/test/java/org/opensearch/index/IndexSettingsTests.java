@@ -721,6 +721,26 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }
 
+    public void testRemoteTranslogStoreDisabledWhenNodeHasNoRemoteStoreAttributes() {
+        // Corner case: Index settings have repository configured but node attributes don't have remote repositories setup
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
+                .put(IndexSettings.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
+                .build()
+        );
+        // Node settings without remote store attributes
+        Settings nodeSettings = Settings.EMPTY;
+        IndexSettings settings = new IndexSettings(metadata, nodeSettings);
+
+        // Verify repository is configured in index settings
+        assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
+        // But remote translog should be disabled since node doesn't have remote store attributes
+        assertFalse("Remote translog should be disabled when node has no remote store attributes", settings.isRemoteTranslogStoreEnabled());
+    }
+
     public void testUpdateSoftDeletesFails() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         SettingsException error = expectThrows(
