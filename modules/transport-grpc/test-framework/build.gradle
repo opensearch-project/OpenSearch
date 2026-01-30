@@ -6,54 +6,39 @@
  * compatible open source license.
  */
 
-apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.internal-cluster-test'
-apply from: "$rootDir/gradle/fips.gradle"
 
-opensearchplugin {
-  description = 'gRPC based transport implementation'
-  classname = 'org.opensearch.transport.grpc.GrpcPlugin'
-}
-
-testClusters {
-  integTest {
-    setting 'aux.transport.types', '[transport-grpc]'
-  }
-}
-
-configurations {
-  testArtifacts.extendsFrom testImplementation
-}
-
-task testJar(type: Jar) {
-  archiveClassifier = 'test'
-  from sourceSets.test.output
-}
-
-artifacts {
-  testArtifacts testJar
-}
+description = 'gRPC Transport Test Framework for Plugin Unit and Integration Tests'
 
 dependencies {
-  api project('spi')
+  api project(':test:framework')
+  api project(':modules:transport-grpc')
+  api project(path: ':modules:transport-grpc', configuration: 'testArtifacts')
+
+  api "org.opensearch:protobufs:${versions.opensearchprotobufs}"
+  api "io.grpc:grpc-protobuf:${versions.grpc}"
+  api "io.grpc:grpc-api:${versions.grpc}"
+  api "io.grpc:grpc-core:${versions.grpc}"
+  api "io.grpc:grpc-netty-shaded:${versions.grpc}"
+  api "io.grpc:grpc-protobuf-lite:${versions.grpc}"
+  api "io.grpc:grpc-services:${versions.grpc}"
+  api "io.grpc:grpc-stub:${versions.grpc}"
+  api "io.grpc:grpc-util:${versions.grpc}"
+
+  api "junit:junit:${versions.junit}"
+
   compileOnly "com.google.code.findbugs:jsr305:3.0.2"
   runtimeOnly "com.google.guava:guava:${versions.guava}"
   implementation "com.google.guava:failureaccess:1.0.2"
-  implementation "io.grpc:grpc-api:${versions.grpc}"
-  implementation "io.grpc:grpc-core:${versions.grpc}"
-  implementation "io.grpc:grpc-netty-shaded:${versions.grpc}"
-  implementation "io.grpc:grpc-protobuf-lite:${versions.grpc}"
-  implementation "io.grpc:grpc-protobuf:${versions.grpc}"
-  implementation "io.grpc:grpc-services:${versions.grpc}"
-  implementation "io.grpc:grpc-stub:${versions.grpc}"
-  implementation "io.grpc:grpc-util:${versions.grpc}"
   implementation "io.perfmark:perfmark-api:0.27.0"
-  implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
+
   testImplementation project(':test:framework')
-  testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
-  testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
-  testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"
+  internalClusterTestImplementation project(':modules:transport-grpc')
 }
+
+// Enable javadoc checks for precommit since this module has full coverage
+precommit.dependsOn missingJavadoc
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /grpc-.*/, to: 'grpc'
@@ -67,59 +52,12 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
-    // classes are missing
-
-    // from io.netty.logging.CommonsLoggerFactory (netty)
-    'org.apache.commons.logging.Log',
-    'org.apache.commons.logging.LogFactory',
-
-    // from Log4j (deliberate, Netty will fallback to Log4j 2)
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-
-    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-    'org.bouncycastle.cert.X509v3CertificateBuilder',
-    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
-    'org.bouncycastle.openssl.PEMParser',
-    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
-    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
-    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
-    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
-
-    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
-    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
-    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
-    'org.eclipse.jetty.npn.NextProtoNego',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-    'org.jboss.marshalling.ByteInput',
-
-    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-    'org.jboss.marshalling.ByteOutput',
-
-    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-    'org.jboss.marshalling.Marshaller',
-
-    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-    'org.jboss.marshalling.MarshallerFactory',
-    'org.jboss.marshalling.MarshallingConfiguration',
-    'org.jboss.marshalling.Unmarshaller',
-
-    // from io.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
-    'org.slf4j.helpers.FormattingTuple',
-    'org.slf4j.helpers.MessageFormatter',
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.slf4j.spi.LocationAwareLogger',
-
     'com.google.gson.stream.JsonReader',
     'com.google.gson.stream.JsonToken',
-    'com.google.protobuf.util.Durations',
-    'com.google.protobuf.util.Timestamps',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
+    'com.google.protobuf.util.Durations',
+    'com.google.protobuf.util.Timestamps',
     'com.google.rpc.Status',
     'com.google.rpc.Status$Builder',
     'com.ning.compress.BufferRecycler',
@@ -135,35 +73,51 @@ thirdPartyAudit {
     'net.jpountz.lz4.LZ4FastDecompressor',
     'net.jpountz.xxhash.XXHash32',
     'net.jpountz.xxhash.XXHashFactory',
-    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
-    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
-    'org.eclipse.jetty.alpn.ALPN',
-
+    'org.apache.log4j.Level',
+    'org.apache.log4j.Logger',
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',
     'org.conscrypt.Conscrypt',
     'org.conscrypt.HandshakeListener',
-
+    'org.eclipse.jetty.alpn.ALPN',
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.jboss.marshalling.ByteInput',
+    'org.jboss.marshalling.ByteOutput',
+    'org.jboss.marshalling.Marshaller',
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
     'reactor.blockhound.BlockHound$Builder',
     'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
     'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
     'io.grpc.netty.shaded.io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
