@@ -172,82 +172,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (flightStream != null) {
             try {
                 flightStream.close();
-            } catch (IllegalStateException ignore) {} catch (Exception e) {
+            } catch (IllegalStateException ignore) {
+                // this is fine if the allocator is already closed
+            } catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }
-            flightStream.close();
-        } catch (IllegalStateException ignore) {
-            // this is fine if the allocator is already closed
-        } catch (Exception e) {
-            throw new StreamException(StreamErrorCode.INTERNAL, "Error while closing flight stream", e);
-        } finally {
-            isClosed = true;
         }
+        closed = true;
     }
 
-    public TransportResponseHandler<T> getHandler() {
-        return handler;
-    }
-
-    /**
-     * Initializes the stream by fetching the first batch to extract headers.
-     */
-    private synchronized void initializeStreamIfNeeded() {
-        if (streamInitialized || streamExhausted) {
-            return;
-        }
-        long startTime = System.currentTimeMillis();
-        try {
-            if (flightStream.next()) {
-                currentRoot = flightStream.getRoot();
-                currentHeader = headerContext.getHeader(correlationId);
-                // Capture the batch size before deserialization
-                currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(currentRoot);
-                streamInitialized = true;
-            } else {
-                streamExhausted = true;
-            }
-        } catch (FlightRuntimeException e) {
-            // TODO maybe add a check - handshake and validate if node is connected
-            // Try to get headers even if stream failed
-            currentHeader = headerContext.getHeader(correlationId);
-            streamExhausted = true;
-            initializationException = FlightErrorMapper.fromFlightException(e);
-            logger.warn("Stream initialization failed", e);
-        } catch (Exception e) {
-            // Try to get headers even if stream failed
-            currentHeader = headerContext.getHeader(correlationId);
-            streamExhausted = true;
-            initializationException = new StreamException(StreamErrorCode.INTERNAL, "Stream initialization failed", e);
-            logger.warn("Stream initialization failed", e);
-        } finally {
-            logSlowOperation(startTime);
-        }
-    }
-
-    private T deserializeResponse() {
-        try (VectorStreamInput input = new VectorStreamInput(currentRoot, namedWriteableRegistry)) {
-            T response = handler.read(input);
-            if (response instanceof org.opensearch.search.query.QuerySearchResult) {
-                logger.info("Received QuerySearchResult hasAggs: {}", ((org.opensearch.search.query.QuerySearchResult) response).hasAggs());
-            }
-            return response;
-        } catch (IOException e) {
-            throw new StreamException(StreamErrorCode.INTERNAL, "Failed to deserialize response", e);
-        }
-    }
-
-    private void ensureOpen() {
-        if (isClosed) {
-            throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed");
-        }
-    }
-
-    private void logSlowOperation(long startTime) {
-        long took = System.currentTimeMillis() - startTime;
-        long thresholdMs = config.getSlowLogThreshold().millis();
-        if (took > thresholdMs) {
-            logger.warn("Flight stream next() took [{}ms], exceeding threshold [{}ms]", took, thresholdMs);
-        }
-    }
 }

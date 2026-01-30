@@ -1356,7 +1356,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         fieldType
                     );
 
-
                     // Verify factory correctly falls back to classic aggregator for multi-segment
                     // readers
                     // Verify factory creates StreamStringTermsAggregator even for multi-segment
