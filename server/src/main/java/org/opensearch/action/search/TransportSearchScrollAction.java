@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportOriginalIndicesAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
@@ -48,7 +49,9 @@ import org.opensearch.wlm.WorkloadGroupTask;
  *
  * @opensearch.internal
  */
-public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
+public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse>
+    implements
+        TransportOriginalIndicesAction<SearchScrollRequest> {
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
@@ -79,7 +82,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
 
-            ParsedScrollId scrollId = TransportSearchHelper.parseScrollId(request.scrollId());
+            ParsedScrollId scrollId = request.parseScrollId();
             Runnable action;
             switch (scrollId.getType()) {
                 case ParsedScrollId.QUERY_THEN_FETCH_TYPE:
@@ -112,6 +115,21 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             action.run();
         } catch (Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    @Override
+    public String[] originalIndices(SearchScrollRequest request) {
+        final String scrollIdString = request.scrollId();
+        if (scrollIdString == null || scrollIdString.isEmpty()) {
+            return null;
+        }
+        try {
+            ParsedScrollId parsed = request.parseScrollId();
+            final String[] originalIndices = (parsed == null) ? null : parsed.getOriginalIndices();
+            return (originalIndices == null || originalIndices.length == 0) ? null : originalIndices.clone();
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 }
