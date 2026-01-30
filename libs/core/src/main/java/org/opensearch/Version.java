@@ -56,6 +56,34 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public class Version implements Comparable<Version>, ToXContentFragment {
+    public static class UnsupportedVersionException extends RuntimeException {
+        private final String versionString;
+
+        public UnsupportedVersionException(int versionId) {
+            super(String.format(Locale.ROOT, "Unsupported version [%s]", legacyFriendlyIdToString(versionId)));
+            this.versionString = legacyFriendlyIdToString(versionId);
+        }
+
+        public String getVersionString() {
+            return versionString;
+        }
+    }
+
+    private static String legacyFriendlyIdToString(int versionId) {
+        String prefix;
+        if ((versionId & MASK) != 0) {
+            versionId = versionId ^ MASK;
+            prefix = "";
+        } else {
+            prefix = "ES ";
+        }
+        int major = (versionId / MAJOR_SHIFT) % VERSION_SHIFT;
+        int minor = (versionId / MINOR_SHIFT) % VERSION_SHIFT;
+        int revision = (versionId / REVISION_SHIFT) % VERSION_SHIFT;
+
+        return prefix + major + "." + minor + "." + revision;
+    }
+
     private static final int VERSION_SHIFT = 100; // Two digits per version part
     private static final int REVISION_SHIFT = VERSION_SHIFT;
     private static final int MINOR_SHIFT = VERSION_SHIFT * VERSION_SHIFT;
@@ -209,7 +237,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         if (id != 0 && (id & MASK) == 0) {
-            throw new IllegalArgumentException("Version id " + id + " must contain OpenSearch mask");
+            throw new UnsupportedVersionException(id);
         }
         final Version known = idToVersion.get(id);
         if (known != null) {

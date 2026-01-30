@@ -1216,6 +1216,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Gets the ingestion source.
+     *
      * @return ingestion source, or null if ingestion source is not enabled
      */
     public IngestionSource getIngestionSource() {
@@ -2549,6 +2550,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     private static final ToXContent.Params FORMAT_PARAMS;
+
     static {
         Map<String, String> params = new HashMap<>(2);
         params.put("binary", "true");
@@ -2562,7 +2564,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * This looks for the presence of the {@link Version} object with key {@link IndexMetadata#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(final Settings indexSettings) {
-        final Version indexVersion = SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        final Version indexVersion;
+        try {
+            indexVersion = SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        } catch (Version.UnsupportedVersionException e) {
+            final String message = String.format(
+                Locale.ROOT,
+                "index with UUID [%s] created on version [%s] is not supported by version [%s]",
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID),
+                e.getVersionString(),
+                Version.CURRENT.toString()
+            );
+            throw new IllegalArgumentException(message, e);
+        }
         if (indexVersion.equals(Version.V_EMPTY)) {
             final String message = String.format(
                 Locale.ROOT,
@@ -2612,9 +2626,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ID to split the given target shard off
-     * @param shardId the id of the target shard to split into
+     *
+     * @param shardId             the id of the target shard to split into
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a the source shard ID to split off from
      */
     public static ShardId selectSplitShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2631,9 +2646,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ID to clone the given target shard off
-     * @param shardId the id of the target shard to clone into
+     *
+     * @param shardId             the id of the target shard to clone into
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a the source shard ID to clone from
      */
     public static ShardId selectCloneShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2678,9 +2694,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Selects the source shards for a local shard recovery. This might either be a split or a shrink operation.
-     * @param shardId the target shard ID to select the source shards for
+     *
+     * @param shardId             the target shard ID to select the source shards for
      * @param sourceIndexMetadata the source metadata
-     * @param numTargetShards the number of target shards
+     * @param numTargetShards     the number of target shards
      */
     public static Set<ShardId> selectRecoverFromShards(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
         if (sourceIndexMetadata.getNumberOfShards() > numTargetShards) {
@@ -2694,9 +2711,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Returns the source shard ids to shrink into the given shard id.
-     * @param shardId the id of the target shard to shrink to
+     *
+     * @param shardId             the id of the target shard to shrink to
      * @param sourceIndexMetadata the source index metadata
-     * @param numTargetShards the total number of shards in the target index
+     * @param numTargetShards     the total number of shards in the target index
      * @return a set of shard IDs to shrink into the given shard ID.
      */
     public static Set<ShardId> selectShrinkShards(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
@@ -2732,7 +2750,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @param targetNumberOfShards the total number of shards in the target index
      * @return the routing factor for and shrunk index with the given number of target shards.
      * @throws IllegalArgumentException if the number of source shards is less than the number of target shards or if the source shards
-     * are not divisible by the number of target shards.
+     *                                  are not divisible by the number of target shards.
      */
     public static int getRoutingFactor(int sourceNumberOfShards, int targetNumberOfShards) {
         final int factor;
@@ -2761,8 +2779,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * E.g.
      * - For ".ds-logs-000002" it will return 2
      * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
+     *
      * @throws IllegalArgumentException if the index doesn't contain a "-" separator or if the last token after the separator is not a
-     * number
+     *                                  number
      */
     public static int parseIndexNameCounter(String indexName) {
         int numberIndex = indexName.lastIndexOf("-");
