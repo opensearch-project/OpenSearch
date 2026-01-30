@@ -35,6 +35,7 @@ package org.opensearch;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -56,10 +57,13 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public class Version implements Comparable<Version>, ToXContentFragment {
+    /**
+     * Exception thrown when an unsupported version ID is encountered.
+     */
     public static class UnsupportedVersionException extends RuntimeException {
         private final String versionString;
 
-        public UnsupportedVersionException(int versionId) {
+        private UnsupportedVersionException(int versionId) {
             super(String.format(Locale.ROOT, "Unsupported version [%s]", legacyFriendlyIdToString(versionId)));
             this.versionString = legacyFriendlyIdToString(versionId);
         }
@@ -294,7 +298,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (stringHasLength(version) == false) { // TODO replace with Strings.hasLength after refactoring Strings to core lib
+        if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);
@@ -624,11 +628,4 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return versions;
     }
 
-    /**
-     * Check that the given String is neither <code>null</code> nor of length 0.
-     * Note: Will return <code>true</code> for a String that purely consists of whitespace.
-     */
-    public static boolean stringHasLength(String str) {
-        return (str != null && str.length() > 0);
-    }
 }
