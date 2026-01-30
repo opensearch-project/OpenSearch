@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
@@ -58,6 +59,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -807,5 +809,224 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
+    }
+
+    /**
+     * Property test for result equivalence between skiplist and standard collectors.
+     * Feature: min-aggregator-skiplist, Property 19: Result equivalence
+     * Validates: Requirements 6.2, 6.3, 6.4
+     *
+     * For any set of documents and bucket configuration, the minimum values computed by the
+     * skiplist collector should equal the minimum values computed by the standard collector.
+     */
+    public void testSkiplistResultEquivalence() throws IOException {
+        // Run the property test multiple times with different random data
+        int iterations = 100;
+        for (int iter = 0; iter < iterations; iter++) {
+            // Generate random test parameters
+            int numDocs = randomIntBetween(10, 20);
+            long actualMin = Long.MAX_VALUE;
+            boolean includeNegatives = randomBoolean();
+            boolean includeMissingValues = randomBoolean();
+            double missingValueProbability = includeMissingValues ? randomDoubleBetween(0.1, 0.3, true) : 0.0;
+
+            // Generate random document values with filter field
+            List<Long> docValues = new ArrayList<>();
+            List<String> filterValues = new ArrayList<>();
+            for (int i = 0; i < numDocs; i++) {
+                if (random().nextDouble() < missingValueProbability) {
+                    // Skip this document (no value)
+                    docValues.add(null);
+                    filterValues.add(randomBoolean() ? "a" : "b");
+                } else {
+                    long value;
+                    if (includeNegatives) {
+                        value = randomLongBetween(-10000, 10000);
+                    } else {
+                        value = randomLongBetween(0, 10000);
+                    }
+                    docValues.add(value);
+                    // Randomly assign filter value "a" or "b"
+                    if (randomBoolean()) {
+                        filterValues.add("a");
+                        actualMin = Math.min(actualMin, value);
+                    } else {
+                        filterValues.add("b");
+                    }
+                }
+            }
+
+            // Test with skiplist-enabled field (single-valued with doc values and points)
+            try (Directory skiplistDir = newDirectory()) {
+                IndexWriterConfig skiplistConfig = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+                try (IndexWriter skiplistWriter = new IndexWriter(skiplistDir, skiplistConfig)) {
+                    for (int i = 0; i < docValues.size(); i++) {
+                        Long value = docValues.get(i);
+                        String filterValue = filterValues.get(i);
+                        Document doc = new Document();
+                        if (value != null) {
+                            doc.add(SortedNumericDocValuesField.indexedField("number", value));
+                        }
+                        // Add filter field
+                        doc.add(new StringField("filterField", filterValue, Field.Store.NO));
+                        skiplistWriter.addDocument(doc);
+                    }
+                }
+
+                // Test with standard field (multi-valued, no points - forces standard collector)
+                try (Directory standardDir = newDirectory()) {
+                    IndexWriterConfig standardConfig = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+                    try (IndexWriter standardWriter = new IndexWriter(standardDir, standardConfig)) {
+                        for (int i = 0; i < docValues.size(); i++) {
+                            Long value = docValues.get(i);
+                            String filterValue = filterValues.get(i);
+                            Document doc = new Document();
+                            if (value != null) {
+                                // Use SortedNumericDocValuesField to force multi-valued collector
+                                doc.add(new SortedNumericDocValuesField("number", value));
+                            }
+                            // Add filter field
+                            doc.add(new StringField("filterField", filterValue, Field.Store.NO));
+                            standardWriter.addDocument(doc);
+                        }
+                    }
+
+                    try (
+                        IndexReader skiplistReader = DirectoryReader.open(skiplistDir);
+                        IndexReader standardReader = DirectoryReader.open(standardDir)
+                    ) {
+                        IndexSearcher skiplistSearcher = newSearcher(skiplistReader, true, true);
+                        IndexSearcher standardSearcher = newSearcher(standardReader, true, true);
+
+                        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
+                            "number",
+                            NumberFieldMapper.NumberType.LONG
+                        );
+                        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
+
+                        // Create filter query to only include documents with filterField:a
+                        Query filterQuery = new org.apache.lucene.search.TermQuery(new Term("filterField", "a"));
+
+                        // Execute aggregation with skiplist optimization
+                        InternalMin skiplistResult = searchAndReduce(skiplistSearcher, filterQuery, aggregationBuilder, fieldType);
+
+                        // Execute aggregation with standard collector
+                        InternalMin standardResult = searchAndReduce(standardSearcher, filterQuery, aggregationBuilder, fieldType);
+
+                        // Verify results are equivalent
+                        assertEquals(
+                            "Iteration " + iter + ": Skiplist and standard collectors should produce the same minimum value: " + actualMin,
+                            standardResult.getValue(),
+                            skiplistResult.getValue(),
+                            0.0
+                        );
+
+                        // Verify both have the same "has value" status
+                        assertEquals(
+                            "Iteration " + iter + ": Skiplist and standard collectors should have the same 'has value' status",
+                            AggregationInspectionHelper.hasValue(standardResult),
+                            AggregationInspectionHelper.hasValue(skiplistResult)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Test skiplist optimization with terms aggregation and min sub-aggregation.
+     */
+    public void testSkiplistWithTermsAggregation() throws IOException {
+        // Create terms aggregation with min sub-aggregation
+        String categoryField = "category";
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("categories").field(categoryField)
+            .subAggregation(new MinAggregationBuilder("min_value").field("value"));
+
+        MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType(categoryField);
+        MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+        testCase(termsAgg, new MatchAllDocsQuery(), iw -> {
+            // Category "a": values 10, 15, 20 -> min should be 10
+            for (int i = 0; i < 4096 * 2; i++) {
+                Document doc1 = new Document();
+                doc1.add(new StringField(categoryField, "a", Field.Store.NO));
+                doc1.add(new SortedSetDocValuesField(categoryField, new BytesRef("a")));
+                doc1.add(SortedNumericDocValuesField.indexedField("value", 10));
+                iw.addDocument(doc1);
+
+                Document doc2 = new Document();
+                doc2.add(new StringField(categoryField, "a", Field.Store.NO));
+                doc2.add(new SortedSetDocValuesField(categoryField, new BytesRef("a")));
+                doc2.add(SortedNumericDocValuesField.indexedField("value", 15));
+                iw.addDocument(doc2);
+
+                Document doc3 = new Document();
+                doc3.add(new StringField(categoryField, "a", Field.Store.NO));
+                doc3.add(new SortedSetDocValuesField(categoryField, new BytesRef("a")));
+                doc3.add(SortedNumericDocValuesField.indexedField("value", 20));
+                iw.addDocument(doc3);
+            }
+            // Category "b": values 5, 25, 30 -> min should be 5
+            for (int i = 0; i < 4096 * 2; i++) {
+                Document doc4 = new Document();
+                doc4.add(new StringField(categoryField, "b", Field.Store.NO));
+                doc4.add(new SortedSetDocValuesField(categoryField, new BytesRef("b")));
+                doc4.add(SortedNumericDocValuesField.indexedField("value", 5));
+                iw.addDocument(doc4);
+
+                Document doc5 = new Document();
+                doc5.add(new StringField(categoryField, "b", Field.Store.NO));
+                doc5.add(new SortedSetDocValuesField(categoryField, new BytesRef("b")));
+                doc5.add(SortedNumericDocValuesField.indexedField("value", 25));
+                iw.addDocument(doc5);
+
+                Document doc6 = new Document();
+                doc6.add(new StringField(categoryField, "b", Field.Store.NO));
+                doc6.add(new SortedSetDocValuesField(categoryField, new BytesRef("b")));
+                doc6.add(SortedNumericDocValuesField.indexedField("value", 30));
+                iw.addDocument(doc6);
+            }
+            // Category "c": values 100, 200 -> min should be 100
+                for (int i = 0; i < 4096 * 2; i++) {
+                    Document doc7 = new Document();
+                    doc7.add(new StringField(categoryField, "c", Field.Store.NO));
+                    doc7.add(new SortedSetDocValuesField(categoryField, new BytesRef("c")));
+                    doc7.add(SortedNumericDocValuesField.indexedField("value", 100));
+                    iw.addDocument(doc7);
+
+                    Document doc8 = new Document();
+                    doc8.add(new StringField(categoryField, "c", Field.Store.NO));
+                    doc8.add(new SortedSetDocValuesField(categoryField, new BytesRef("c")));
+                    doc8.add(SortedNumericDocValuesField.indexedField("value", 200));
+                    iw.addDocument(doc8);
+                }
+        }, (Consumer<InternalTerms<?, ?>>) result -> {
+            // Verify we have 3 buckets
+            assertEquals(3, result.getBuckets().size());
+
+            // Find and verify each category bucket
+            Map<String, InternalMin> minByCategory = new HashMap<>();
+            for (Object bucketObj : result.getBuckets()) {
+                Terms.Bucket bucket = (Terms.Bucket) bucketObj;
+                String category = bucket.getKeyAsString();
+                InternalMin min = bucket.getAggregations().get("min_value");
+                minByCategory.put(category, min);
+            }
+
+            // Assert category "a" has min value of 10
+            assertTrue("Category 'a' should exist", minByCategory.containsKey("a"));
+            assertEquals("Category 'a' min should be 10", 10.0, minByCategory.get("a").getValue(), 0.0);
+            assertTrue("Category 'a' min should have value", AggregationInspectionHelper.hasValue(minByCategory.get("a")));
+
+            // Assert category "b" has min value of 5
+            assertTrue("Category 'b' should exist", minByCategory.containsKey("b"));
+            assertEquals("Category 'b' min should be 5", 5.0, minByCategory.get("b").getValue(), 0.0);
+            assertTrue("Category 'b' min should have value", AggregationInspectionHelper.hasValue(minByCategory.get("b")));
+
+            // Assert category "c" has min value of 100
+            assertTrue("Category 'c' should exist", minByCategory.containsKey("c"));
+            assertEquals("Category 'c' min should be 100", 100.0, minByCategory.get("c").getValue(), 0.0);
+            assertTrue("Category 'c' min should have value", AggregationInspectionHelper.hasValue(minByCategory.get("c")));
+        }, categoryFieldType, valueFieldType);
     }
 }
