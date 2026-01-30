@@ -607,4 +607,9 @@ public class Task {
 
         return count;
     }
+
+    public boolean enableDumpStack() {
+        return false;
+    }
+
 }

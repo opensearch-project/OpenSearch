@@ -84,4 +84,9 @@ public class SearchShardTask extends WorkloadGroupTask implements SearchBackpres
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
     }
+
+    @Override
+    public boolean enableDumpStack() {
+        return true;
+    }
 }
