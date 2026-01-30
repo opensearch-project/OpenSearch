@@ -17,7 +17,6 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.ResourceUsageCollectorService;
@@ -41,7 +40,6 @@ import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmi
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.is;
 
 /**
  * Single node integration tests for admission control
@@ -89,8 +87,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
             bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
         }
         // Verify that cluster state is updated
-        ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
-        assertThat(future2.isDone(), is(true));
+        ClusterStateResponse stateResponse = client().admin().cluster().stateAsync(new ClusterStateRequest()).toCompletableFuture().join();
+        assertNotNull(stateResponse.getState());
 
         // verify bulk request hits 429
         BulkResponse res = client().bulk(bulk.request()).actionGet();
@@ -206,8 +204,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionMonitorOnlyMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
-        assertThat(future2.isDone(), is(true));
+        ClusterStateResponse stateResponse = client().admin().cluster().stateAsync(new ClusterStateRequest()).toCompletableFuture().join();
+        assertNotNull(stateResponse.getState());
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(
@@ -306,8 +304,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlRejectionDisabledMode() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
-        assertThat(future2.isDone(), is(true));
+        ClusterStateResponse stateResponse = client().admin().cluster().stateAsync(new ClusterStateRequest()).toCompletableFuture().join();
+        assertNotNull(stateResponse.getState());
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(
@@ -372,8 +370,8 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     public void testAdmissionControlWithinLimits() throws Exception {
         assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
-        ActionFuture<ClusterStateResponse> future2 = client().admin().cluster().state(new ClusterStateRequest());
-        assertThat(future2.isDone(), is(true));
+        ClusterStateResponse stateResponse = client().admin().cluster().stateAsync(new ClusterStateRequest()).toCompletableFuture().join();
+        assertNotNull(stateResponse.getState());
 
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(
