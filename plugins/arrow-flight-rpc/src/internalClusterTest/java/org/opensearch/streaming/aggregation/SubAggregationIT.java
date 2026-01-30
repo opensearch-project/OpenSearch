@@ -47,6 +47,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
+import static org.opensearch.index.query.QueryBuilders.existsQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
@@ -290,8 +291,10 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingAggregationUsed() throws Exception {
         // This test validates streaming aggregation with 3 shards, each with at least 3 segments
+        // Use existsQuery to avoid match-all optimization that would disable streaming
         TermsAggregationBuilder agg = terms("agg1").field("field1").subAggregation(AggregationBuilders.max("agg2").field("field2"));
         ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .setQuery(existsQuery("field1"))
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
@@ -528,7 +531,9 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", false))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
+        // Use existsQuery to avoid match-all optimization that would disable streaming
         SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
             .addAggregation(agg)
             .setSize(0)
             .setProfile(true)
@@ -555,7 +560,9 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", true))
             .subAggregation(AggregationBuilders.max("max_value").field("value"));
 
+        // Use existsQuery to avoid match-all optimization that would disable streaming
         SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
             .addAggregation(agg)
             .setSize(0)
             .setProfile(true)
@@ -582,7 +589,9 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .order(org.opensearch.search.aggregations.BucketOrder.aggregation("unique_users", false))
             .subAggregation(AggregationBuilders.cardinality("unique_users").field("user_id"));
 
+        // Use existsQuery to avoid match-all optimization that would disable streaming
         SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
             .addAggregation(agg)
             .setSize(0)
             .setProfile(true)
