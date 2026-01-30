@@ -755,4 +755,27 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
         assertFalse(isAllActiveIngestionEnabled);
     }
+
+    public void testLegacyCreatedVersion() {
+        Index index = new Index("test-index", UUIDs.randomBase64UUID());
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, "7090199")
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .build();
+        try {
+            IndexMetadata.builder(index.getName())
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .version(1)
+                .system(false)
+                .build();
+            fail("Should not be able to create index with legacy created version");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getCause() instanceof Version.UnsupportedVersionException);
+            Version.UnsupportedVersionException versionException = (Version.UnsupportedVersionException) e.getCause();
+            assertEquals("ES 7.9.1", versionException.getVersionString());
+        }
+    }
 }
