@@ -6,7 +6,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 use arrow::record_batch::RecordBatch;
 use dashmap::DashMap;
 use jni::objects::{JClass, JString, JObject};
-use jni::sys::{jint, jlong, jobject};
+use jni::sys::{jint, jlong, jobject, jboolean};
 use jni::JNIEnv;
 use lazy_static::lazy_static;
 use parquet::arrow::ArrowWriter;

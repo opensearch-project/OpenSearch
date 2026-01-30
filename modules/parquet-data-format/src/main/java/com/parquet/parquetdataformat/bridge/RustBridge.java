@@ -40,4 +40,7 @@ public class RustBridge {
 
     // Native method declarations - these will be implemented in the JNI library
     public static native void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile);
+
+    // Verify merged parquet file contains expected records
+    public static native boolean verifyMergedFileContents(String filePath, String[] expectedRecords);
 }
