@@ -15,8 +15,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -652,9 +657,7 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
                     TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(10);
 
                     // Non-match-all query (using a term query) - should be streamable even with clean segments
-                    org.apache.lucene.search.Query termQuery = new org.apache.lucene.search.TermQuery(
-                        new org.apache.lucene.index.Term("category", "cat_100")
-                    );
+                    Query termQuery = new TermQuery(new Term("category", "cat_100"));
                     FactoryAndContext result = createAggregatorFactoryWithQuery(termsBuilder, searcher, termQuery, fieldType);
                     StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
 
@@ -687,10 +690,7 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
     ) throws IOException {
         // Use a BooleanQuery wrapper to avoid being detected as match-all
         // This simulates a filtered query scenario
-        org.apache.lucene.search.Query nonMatchAllQuery = new org.apache.lucene.search.BooleanQuery.Builder().add(
-            new MatchAllDocsQuery(),
-            org.apache.lucene.search.BooleanClause.Occur.MUST
-        ).build();
+        Query nonMatchAllQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST).build();
         SearchContext searchContext = createSearchContext(
             searcher,
             createIndexSettings(),
@@ -709,7 +709,7 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
     private FactoryAndContext createAggregatorFactoryWithQuery(
         AggregationBuilder aggregationBuilder,
         IndexSearcher searcher,
-        org.apache.lucene.search.Query query,
+        Query query,
         MappedFieldType... fieldTypes
     ) throws IOException {
         SearchContext searchContext = createSearchContext(searcher, createIndexSettings(), query, createBucketConsumer(), fieldTypes);
