@@ -35,6 +35,7 @@ package org.opensearch;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.Assertions;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -56,6 +57,37 @@ import java.util.Objects;
  */
 @PublicApi(since = "1.0.0")
 public class Version implements Comparable<Version>, ToXContentFragment {
+    /**
+     * Exception thrown when an unsupported version ID is encountered.
+     */
+    public static class UnsupportedVersionException extends RuntimeException {
+        private final String versionString;
+
+        private UnsupportedVersionException(int versionId) {
+            super(String.format(Locale.ROOT, "Unsupported version [%s]", legacyFriendlyIdToString(versionId)));
+            this.versionString = legacyFriendlyIdToString(versionId);
+        }
+
+        public String getVersionString() {
+            return versionString;
+        }
+    }
+
+    private static String legacyFriendlyIdToString(int versionId) {
+        String prefix;
+        if ((versionId & MASK) != 0) {
+            versionId = versionId ^ MASK;
+            prefix = "";
+        } else {
+            prefix = "ES ";
+        }
+        int major = (versionId / MAJOR_SHIFT) % VERSION_SHIFT;
+        int minor = (versionId / MINOR_SHIFT) % VERSION_SHIFT;
+        int revision = (versionId / REVISION_SHIFT) % VERSION_SHIFT;
+
+        return prefix + major + "." + minor + "." + revision;
+    }
+
     private static final int VERSION_SHIFT = 100; // Two digits per version part
     private static final int REVISION_SHIFT = VERSION_SHIFT;
     private static final int MINOR_SHIFT = VERSION_SHIFT * VERSION_SHIFT;
@@ -209,7 +241,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         if (id != 0 && (id & MASK) == 0) {
-            throw new IllegalArgumentException("Version id " + id + " must contain OpenSearch mask");
+            throw new UnsupportedVersionException(id);
         }
         final Version known = idToVersion.get(id);
         if (known != null) {
@@ -266,7 +298,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (stringHasLength(version) == false) { // TODO replace with Strings.hasLength after refactoring Strings to core lib
+        if (Strings.hasLength(version) == false) {
             return Version.CURRENT;
         }
         final Version cached = stringToVersion.get(version);
@@ -596,11 +628,4 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return versions;
     }
 
-    /**
-     * Check that the given String is neither <code>null</code> nor of length 0.
-     * Note: Will return <code>true</code> for a String that purely consists of whitespace.
-     */
-    public static boolean stringHasLength(String str) {
-        return (str != null && str.length() > 0);
-    }
 }

@@ -464,4 +464,13 @@ public class VersionTests extends OpenSearchTestCase {
         Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
         VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
     }
+
+    public void testLegacyVersion() {
+        try {
+            Version.fromId(7090199);
+            fail("Legacy version should throw an exception");
+        } catch (Version.UnsupportedVersionException e) {
+            assertEquals("ES 7.9.1", e.getVersionString());
+        }
+    }
 }
