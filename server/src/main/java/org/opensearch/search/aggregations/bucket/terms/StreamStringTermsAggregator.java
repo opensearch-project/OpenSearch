@@ -54,6 +54,11 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     protected int segmentsWithMultiValuedOrds = 0;
     protected final ResultStrategy<?, ?> resultStrategy;
 
+    private Aggregator.BucketComparator ordinalComparator;
+    private StringTerms.Bucket tempBucket1;
+    private StringTerms.Bucket tempBucket2;
+    private boolean leafCollectorCreated;
+
     public StreamStringTermsAggregator(
         String name,
         AggregatorFactories factories,
@@ -102,9 +107,18 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        // Allow multiple segments for streaming now that we support coordination
+        // if (this.leafCollectorCreated) {
+        // throw new IllegalStateException(
+        // "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the
+        // second segment: " + ctx
+        // );
+        // } else {
+        // this.leafCollectorCreated = true;
+        // }
         this.sortedDocValuesPerBatch = valuesSource.globalOrdinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount();
-        // cardinality
+
         if (docCounts == null) {
             this.docCounts = context.bigArrays().newLongArray(valueCount, true);
         } else {
