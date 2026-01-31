@@ -50,6 +50,9 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.NoopCircuitBreaker;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
@@ -73,6 +76,7 @@ import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GetMappingsActionTests extends OpenSearchTestCase {
     private TransportService transportService;
@@ -120,6 +124,10 @@ public class GetMappingsActionTests extends OpenSearchTestCase {
             Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
+        final CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        final CircuitBreaker noopBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(noopBreaker);
+
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
         setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
         transportAction = new TransportGetMappingsAction(
@@ -128,7 +136,8 @@ public class GetMappingsActionTests extends OpenSearchTestCase {
             GetMappingsActionTests.this.threadPool,
             new ActionFilters(emptySet()),
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            mock(IndicesService.class)
+            mock(IndicesService.class),
+            breakerService
         );
 
     }
