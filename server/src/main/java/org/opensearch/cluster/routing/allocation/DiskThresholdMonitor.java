@@ -54,6 +54,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
+import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
@@ -82,6 +83,7 @@ import static org.opensearch.cluster.routing.RoutingPool.getNodePool;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final FileCacheThresholdSettings fileCacheThresholdSettings;
     private final Client client;
@@ -110,6 +112,11 @@ public class DiskThresholdMonitor {
      * under the high threshold again. Tracked so that we can log when such nodes are no longer in this state.
      */
     private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
+
+    /**
+     * The IDs of the nodes that were over the file descriptor threshold in the last check.
+     */
+    private final Set<String> nodesOverHighFileDescriptorThreshold = Sets.newConcurrentHashSet();
 
     public DiskThresholdMonitor(
         Settings settings,
@@ -152,6 +159,7 @@ public class DiskThresholdMonitor {
         }
 
         logger.trace("processing new cluster info");
+        logger.debug("ClusterInfo has {} process stats entries", info.getNodeProcessStats().size());
 
         boolean reroute = false;
         String explanation = "";
@@ -162,6 +170,7 @@ public class DiskThresholdMonitor {
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
+        cleanUpRemovedNodes(nodes, nodesOverFileDescriptorThreshold);
 
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();
@@ -183,6 +192,16 @@ public class DiskThresholdMonitor {
             // Only for Dedicated Warm Nodes
             final boolean isWarmNode = REMOTE_CAPABLE.equals(getNodePool(routingNode));
             nodeDiskEvaluator.setNodeType(isWarmNode);
+
+            // Fetch process stats
+            ProcessStats processStats = info.getNodeProcessStats().get(usage.getNodeId());
+            logger.debug("check process stats for node [{}]", usage.getNodeName());
+
+            if (processStats != null) {
+                logger.debug("Process stats available for node [{}]", usage.getNodeName());
+            } else {
+                logger.debug("No process stats available for node [{}]", usage.getNodeName());
+            }
 
             if (isWarmNode) {
                 AggregateFileCacheStats aggregateFileCacheStats = info.getNodeFileCacheStats().getOrDefault(usage.getNodeId(), null);
@@ -213,6 +232,74 @@ public class DiskThresholdMonitor {
                     }
             }
 
+            // Check for file descriptor usage
+            long openFDs = 0;
+            long maxFDs = 0;
+            if (processStats != null) {
+                openFDs = processStats.getOpenFileDescriptors();
+                logger.debug("No of current open file handles: {}", openFDs);
+                maxFDs = processStats.getMaxFileDescriptors();
+                logger.debug("No of max file handles: {}", maxFDs);
+
+                if (maxFDs > 0) {
+                    double fdUsagePercent = (openFDs * 100.0) / maxFDs;
+                    double highThreshold = diskThresholdSettings.getFileDescriptorThresholdHigh();
+
+                    logger.debug(
+                        "Starting FD block check for node {}: usage={}% ({}/{}), high threshold={}%",
+                        usage.getNodeName(),
+                        String.format("%.1f", fdUsagePercent),
+                        openFDs,
+                        maxFDs,
+                        highThreshold
+                    );
+
+                    logger.debug("File handles currently being used: {}%", String.format("%.1f", fdUsagePercent));
+                    if (fdUsagePercent >= highThreshold) {
+                        nodesOverFileDescriptorThreshold.add(node);
+
+                        // marking indices read-only
+                        if (routingNode != null) {
+                            for (ShardRouting routing : routingNode) {
+                                String indexName = routing.index().getName();
+                                IndexMetadata indexMetadata = state.metadata().index(indexName);
+                                if (indexMetadata != null
+                                    && indexMetadata.getSettings().getAsBoolean("index.context_aware.enabled", true)) {
+                                    indicesToMarkReadOnly.add(indexName);
+                                    indicesNotToAutoRelease.add(indexName);
+                                    logger.warn(
+                                        "File descriptor usage [{}%] exceeded {}% threshold on {}, marking indices read-only",
+                                        String.format("%.1f", fdUsagePercent),
+                                        diskThresholdSettings.getFileDescriptorThresholdHigh(),
+                                        usage.getNodeName()
+                                    );
+                                }
+                            }
+                        }
+                    } else {
+                        if (nodesOverFileDescriptorThreshold.contains(node)) {
+                            logger.debug(
+                                "Node present in File descriptor block set, either file descriptor usage dropped or user increased low threshold setting to release block",
+                                String.format("%.1f", fdUsagePercent),
+                                String.format("%.1f", highThreshold),
+                                usage.getNodeName()
+                            );
+                        } else {
+                            logger.debug(
+                                "FD block NOT applied as file descriptor usage [{}%] is below high threshold setting[{}%] on {}",
+                                String.format("%.1f", fdUsagePercent),
+                                String.format("%.1f", highThreshold),
+                                usage.getNodeName()
+                            );
+                        }
+                    }
+                } else {
+                    logger.debug("File descriptor usage check skipped for node {}: maxFDs is 0 or invalid", usage.getNodeName());
+                }
+            } else {
+                logger.debug("File descriptor usage block check skipped for node {}: processStats not available", usage.getNodeName());
+            }
+
             if (nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -229,7 +316,57 @@ public class DiskThresholdMonitor {
                     diskThresholdSettings.describeFloodStageThreshold(),
                     usage
                 );
+
+                // FD release check for flood stage nodes
+                if (maxFDs > 0 && nodesOverFileDescriptorThreshold.contains(node)) {
+                    double fdUsagePercent = (openFDs * 100.0) / maxFDs;
+                    double lowThreshold = diskThresholdSettings.getFileDescriptorThresholdLow();
+
+                    if (fdUsagePercent <= lowThreshold) {
+                        logger.warn(
+                            "File descriptor usage [{}%] at or below low threshold [{}%] on {}, but disk at flood stage, block should remain due to flood stage",
+                            String.format("%.1f", fdUsagePercent),
+                            String.format("%.1f", lowThreshold),
+                            usage.getNodeName()
+                        );
+                    }
+                }
+
                 continue;
+            }
+
+            // FD release check for non-flood stage nodes
+            if (maxFDs > 0 && nodesOverFileDescriptorThreshold.contains(node)) {
+                double fdUsagePercent = (openFDs * 100.0) / maxFDs;
+                double lowThreshold = diskThresholdSettings.getFileDescriptorThresholdLow();
+
+                logger.debug(
+                    "Starting FD release check for node {}: usage={}% ({}/{}), high threshold={}%",
+                    usage.getNodeName(),
+                    String.format("%.1f", fdUsagePercent),
+                    openFDs,
+                    maxFDs,
+                    lowThreshold
+                );
+                logger.debug("File handles currently being used: {}%", String.format("%.1f", fdUsagePercent));
+                if (fdUsagePercent <= lowThreshold) {
+                    if (!nodeDiskEvaluator.isNodeExceedingFloodStageWatermark(usage)) {
+                        nodesOverFileDescriptorThreshold.remove(node);
+                        logger.info(
+                            "file descriptor usage [{}%] dropped below low threshold [{}%] on {}, indices are eligible to release",
+                            String.format("%.1f", fdUsagePercent),
+                            String.format("%.1f", lowThreshold),
+                            usage.getNodeName()
+                        );
+                    }
+                } else {
+                    logger.debug(
+                        "FD block NOT released as file descriptor usage [{}%] is above low threshold setting[{}%] on {}",
+                        String.format("%.1f", fdUsagePercent),
+                        String.format("%.1f", lowThreshold),
+                        usage.getNodeName()
+                    );
+                }
             }
 
             if (nodeDiskEvaluator.isNodeExceedingHighWatermark(usage)) {
@@ -290,6 +427,7 @@ public class DiskThresholdMonitor {
 
             } else {
                 nodesOverHighThresholdAndRelocating.remove(node);
+
                 if (nodesOverLowThreshold.contains(node)) {
                     // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
                     // shards
