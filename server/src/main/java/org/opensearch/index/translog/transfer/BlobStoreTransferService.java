@@ -24,6 +24,8 @@ import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.blobstore.versioned.VersionedBlobContainer;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
@@ -147,6 +149,39 @@ public class BlobStoreTransferService implements TransferService {
             null,
             null
         );
+    }
+
+    @Override
+    @ExperimentalApi
+    public String conditionallyUpdateBlobWithVersion(
+        InputStream inputStream,
+        Iterable<String> remotePath,
+        String fileName,
+        String version
+    ) throws IOException {
+        assert remotePath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remotePath;
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        assert blobContainer instanceof VersionedBlobContainer;
+        return ((VersionedBlobContainer) blobContainer).conditionallyWriteBlobWithVersion(fileName, inputStream, inputStream.available(), version);
+    }
+
+    /**
+     * Reads the input stream and updates a blob conditionally such that the version matches as the previous version
+     *
+     * @param inputStream the stream to read from
+     * @param remotePath  the remote path where upload should be made
+     * @param fileName    the name of blob file
+     * @return String the version of the blob after the upload is complete
+     * @throws IOException the exception thrown while uploading
+     */
+    @Override
+    public String writeVersionedBlob(InputStream inputStream, Iterable<String> remotePath, String fileName) throws IOException {
+        assert remotePath instanceof BlobPath;
+        BlobPath blobPath = (BlobPath) remotePath;
+        final BlobContainer blobContainer = blobStore.blobContainer(blobPath);
+        assert blobContainer instanceof VersionedBlobContainer: String.format("%s does not support conditional writes", blobContainer.getClass().getName());
+        return ((VersionedBlobContainer) blobContainer).writeVersionedBlobIfNotExists(fileName, inputStream, inputStream.available());
     }
 
     // Builds a metadata map containing the Base64-encoded checkpoint file data associated with a translog file.
@@ -278,6 +313,21 @@ public class BlobStoreTransferService implements TransferService {
         assert blobStore.isBlobMetadataEnabled();
         return blobStore.blobContainer((BlobPath) path).readBlobWithMetadata(fileName);
     }
+
+    /**
+     * @param path     the remote path from where download should be made
+     * @param fileName the name of the file
+     * @return {@link VersionedInputStream} of the remote file
+     * @throws IOException the exception while reading the data
+     */
+    @Override
+    @ExperimentalApi
+    public VersionedInputStream downloadVersionedBlob(Iterable<String> path, String fileName) throws IOException {
+        BlobContainer blobContainer = blobStore.blobContainer((BlobPath) path);
+        assert blobContainer instanceof VersionedBlobContainer;
+        return ((VersionedBlobContainer) blobContainer).readVersionedBlob(fileName);
+    }
+
 
     @Override
     public void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException {

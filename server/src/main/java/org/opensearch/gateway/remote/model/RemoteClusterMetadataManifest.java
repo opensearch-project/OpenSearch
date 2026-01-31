@@ -75,6 +75,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.clusterMetadataManifest = clusterMetadataManifest;
+        setClusterUUIDAgnostic(true);
     }
 
     public RemoteClusterMetadataManifest(
@@ -85,6 +86,7 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     ) {
         super(clusterUUID, compressor, namedXContentRegistry);
         this.blobName = blobName;
+        setClusterUUIDAgnostic(true);
     }
 
     @Override
@@ -104,10 +106,10 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
         String blobFileName = String.join(
             DELIMITER,
             MANIFEST,
-            RemoteStoreUtils.invertLong(clusterMetadataManifest.getClusterTerm()),
-            RemoteStoreUtils.invertLong(clusterMetadataManifest.getStateVersion()),
-            (clusterMetadataManifest.isCommitted() ? COMMITTED : PUBLISHED),
-            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
+//            RemoteStoreUtils.invertLong(clusterMetadataManifest.getClusterTerm()),
+//            RemoteStoreUtils.invertLong(clusterMetadataManifest.getStateVersion()),
+//            (clusterMetadataManifest.isCommitted() ? COMMITTED : PUBLISHED),
+//            RemoteStoreUtils.invertLong(System.currentTimeMillis()),
             String.valueOf(clusterMetadataManifest.getCodecVersion())
             // Keep the codec version at last place only, during we read last place to determine codec version.
         );
@@ -141,14 +143,15 @@ public class RemoteClusterMetadataManifest extends AbstractClusterMetadataWritea
     int getManifestCodecVersion() {
         assert blobName != null;
         String[] splitName = getBlobFileName().split(DELIMITER);
-        if (splitName.length == SPLITTED_MANIFEST_FILE_LENGTH) {
-            return Integer.parseInt(splitName[splitName.length - 1]); // Last value would be codec version.
-        } else if (splitName.length < SPLITTED_MANIFEST_FILE_LENGTH) { // Where codec is not part of file name, i.e. default codec version 0
-            // is used.
-            return ClusterMetadataManifest.CODEC_V0;
-        } else {
-            throw new IllegalArgumentException("Manifest file name is corrupted : " + blobName);
-        }
+        return ClusterMetadataManifest.CODEC_V4;
+//        if (splitName.length == SPLITTED_MANIFEST_FILE_LENGTH) {
+//            return Integer.parseInt(splitName[splitName.length - 1]); // Last value would be codec version.
+//        } else if (splitName.length < SPLITTED_MANIFEST_FILE_LENGTH) { // Where codec is not part of file name, i.e. default codec version 0
+//            // is used.
+//            return ClusterMetadataManifest.CODEC_V0;
+//        } else {
+//            throw new IllegalArgumentException("Manifest file name is corrupted : " + blobName);
+//        }
     }
 
     private ChecksumBlobStoreFormat<ClusterMetadataManifest> getClusterMetadataManifestBlobStoreFormat() {

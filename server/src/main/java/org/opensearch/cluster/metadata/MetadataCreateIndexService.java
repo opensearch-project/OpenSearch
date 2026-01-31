@@ -42,10 +42,12 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.opensearch.action.admin.indices.create.CreateIndexIndexMetadataCoordinatorRequest;
 import org.opensearch.action.admin.indices.shrink.ResizeType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
+import org.opensearch.cluster.AsyncClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
@@ -189,6 +191,7 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
     private AwarenessReplicaBalance awarenessReplicaBalance;
+    private final IndexRoutingNodeApplier indexRoutingNodeApplier;
 
     @Nullable
     private final RemoteStoreCustomMetadataResolver remoteStoreCustomMetadataResolver;
@@ -231,10 +234,26 @@ public class MetadataCreateIndexService {
             && RemoteStoreNodeAttribute.isTranslogRepoConfigured(settings)
                 ? new RemoteStoreCustomMetadataResolver(remoteStoreSettings, minNodeVersionSupplier, repositoriesServiceSupplier, settings)
                 : null;
+
+        // Initialize and register the routing node applier only on cluster manager nodes
+        this.indexRoutingNodeApplier = new IndexRoutingNodeApplier(clusterService, allocationService);
+        if (DiscoveryNode.isClusterManagerNode(settings)) {
+            clusterService.addHighPriorityApplier(this.indexRoutingNodeApplier);
+        }
     }
 
     public IndexScopedSettings getIndexScopedSettings() {
         return indexScopedSettings;
+    }
+
+    /**
+     * Cleanup method to remove the applier when service is stopped
+     */
+    public void cleanup() {
+        if (indexRoutingNodeApplier != null) {
+            indexRoutingNodeApplier.disable();
+            clusterService.removeApplier(indexRoutingNodeApplier);
+        }
     }
 
     /**
@@ -363,7 +382,8 @@ public class MetadataCreateIndexService {
                         }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     },
-                    listener::onFailure
+                    listener::onFailure,
+                    true
                 );
             } else {
                 listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
@@ -378,7 +398,7 @@ public class MetadataCreateIndexService {
         normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+            new AsyncClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -402,6 +422,12 @@ public class MetadataCreateIndexService {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     }
                     super.onFailure(source, e);
+                }
+
+                // Is an index metadata update -> Hence setting it to True
+                @Override
+                public Boolean indexMetadataUpdate() {
+                    return true;
                 }
             }
         );
