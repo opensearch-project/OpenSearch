@@ -247,6 +247,9 @@ public class ShardsLimitAllocationDeciderIT extends ParameterizedStaticSettingsO
             .build();
         createIndex("test1", indexSettingsWithLimit);
 
+        // Ensure test1 primaries are assigned; replicas can remain unassigned (yellow)
+        ensureYellow("test1");
+
         // Create the second index with 4 shards and 1 replica
         createIndex(
             "test2",
