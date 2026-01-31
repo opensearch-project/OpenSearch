@@ -889,21 +889,21 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         boolean isLenient = lenient == null ? context.queryStringLenient() : lenient;
         if (defaultField != null) {
             if (Regex.isMatchAllPattern(defaultField)) {
-                queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
+                queryParser = new QueryStringQueryParser(context, isLenient);
             } else {
                 queryParser = new QueryStringQueryParser(context, defaultField, isLenient);
             }
         } else if (fieldsAndWeights.size() > 0) {
             final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
             if (QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet())) {
-                queryParser = new QueryStringQueryParser(context, resolvedFields, lenient == null ? true : lenient);
+                queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
             } else {
                 queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
             }
         } else {
             List<String> defaultFields = context.defaultFields();
             if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
-                queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
+                queryParser = new QueryStringQueryParser(context, isLenient);
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(
                     context,
