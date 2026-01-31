@@ -19,11 +19,17 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
+tasks.register('prepareAgent', Copy) {
+  from(configurations.runtimeClasspath)
+  into layout.buildDirectory.dir("distributions")
+}
+
 var bootClasspath = configurations.bootstrap.incoming.artifactView { }.files
   .getFiles()
   .collect { it.name }
 
 jar {
+  dependsOn prepareAgent
   manifest {
     attributes(
       "Can-Redefine-Classes": "true",
@@ -47,12 +53,6 @@ tasks.named('forbiddenApisMain').configure {
   onlyIf { false }
 }
 
-task prepareAgent(type: Copy) {
-  from(configurations.runtimeClasspath)
-  into "$buildDir/distributions"
-  dependsOn jar
-}
-
 thirdPartyAudit {
   ignoreMissingClasses(
     'com.sun.jna.FunctionMapper',
@@ -73,15 +73,7 @@ tasks.named('validateNebulaPom') {
 }
 
 tasks.test {
-  dependsOn prepareAgent
+  dependsOn jar
   jvmArgs += ["-javaagent:" + project.jar.archiveFile.get()]
   forkEvery = 1
-}
-
-tasks.check {
-  dependsOn test
-}
-
-tasks.named('assemble') {
-  dependsOn prepareAgent
 }

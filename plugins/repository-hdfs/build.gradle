@@ -130,7 +130,7 @@ project(':test:fixtures:krb5kdc-fixture').tasks.preProcessFixture {
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   def tsk = tasks.register(fixtureName, org.opensearch.gradle.test.AntFixture) {
-    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture, project(':libs:agent-sm:agent').prepareAgent
+    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture, ':libs:agent-sm:agent:jar'
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> configurations.hdfsFixture.asPath}"
     maxWaitInSeconds = 60
