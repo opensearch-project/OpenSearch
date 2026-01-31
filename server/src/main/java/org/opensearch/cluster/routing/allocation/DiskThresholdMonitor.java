@@ -116,7 +116,7 @@ public class DiskThresholdMonitor {
     /**
      * The IDs of the nodes that were over the file descriptor threshold in the last check.
      */
-    private final Set<String> nodesOverFileDescriptorThreshold = Sets.newConcurrentHashSet();
+    private final Set<String> nodesOverHighFileDescriptorThreshold = Sets.newConcurrentHashSet();
 
     public DiskThresholdMonitor(
         Settings settings,
