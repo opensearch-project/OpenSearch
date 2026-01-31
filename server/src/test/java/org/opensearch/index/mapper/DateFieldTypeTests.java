@@ -492,9 +492,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "2020-01-01T00:00:00Z",
             null,
             "2021-01-01T00:00:00Z",
-            "+292278994-08-17T07:12:55.807Z",
+            // Max supported year is 9999
+            "9999-08-17T07:12:55.807Z",
             null,
-            "-292275055-05-16T16:47:04.192Z"
+            "-9999-05-16T16:47:04.192Z"
         );
 
         int numNullDates = 0;
@@ -548,16 +549,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null
         );
 
-        Query rangeQuery = ft.rangeQuery(
-            "-292275055-05-16T16:47:04.192Z",
-            "+292278994-08-17T07:12:55.807Z",
-            true,
-            true,
-            null,
-            null,
-            null,
-            context
-        );
+        Query rangeQuery = ft.rangeQuery("-9999-05-16T16:47:04.192Z", "9999-08-17T07:12:55.807Z", true, true, null, null, null, context);
 
         TopDocs topDocs = searcher.search(rangeQuery, dates.size());
         assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value());
