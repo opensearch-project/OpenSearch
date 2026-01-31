@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
 import org.opensearch.cli.MockTerminal;
 import org.opensearch.cli.UserException;
@@ -40,6 +39,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchIntegTestCase;
+
+import picocli.CommandLine;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -150,26 +151,26 @@ public class RemoveSettingsCommandIT extends OpenSearchIntegTestCase {
         );
         assertThat(
             ex.getMessage(),
-            containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were " + "found on this node")
+            containsString("No persistent cluster settings matching [cluster.routing.allocation.disk.bla.*] were found on this node")
         );
     }
 
     private MockTerminal executeCommand(OpenSearchNodeCommand command, Environment environment, boolean abort, String... args)
         throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        final OptionSet options = command.getParser().parse(args);
-        final String input;
 
+        new CommandLine(command).parseArgs(args);
+
+        final String input;
         if (abort) {
             input = randomValueOtherThanMany(c -> c.equalsIgnoreCase("y"), () -> randomAlphaOfLength(1));
         } else {
             input = randomBoolean() ? "y" : "Y";
         }
-
         terminal.addTextInput(input);
 
         try {
-            command.execute(terminal, options, environment);
+            command.execute(terminal, environment);
         } finally {
             assertThat(terminal.getOutput(), containsString(OpenSearchNodeCommand.STOP_WARNING_MSG));
         }

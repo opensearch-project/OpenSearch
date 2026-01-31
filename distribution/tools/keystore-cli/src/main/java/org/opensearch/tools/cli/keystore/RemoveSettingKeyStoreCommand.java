@@ -32,8 +32,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -42,26 +40,30 @@ import org.opensearch.env.Environment;
 
 import java.util.List;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
 /**
- * A subcommand for the keystore cli to remove a setting.
+ * A subcommand for the keystore CLI to remove a setting.
  */
+@Command(name = "remove", description = "Remove one or more settings from the keystore", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class RemoveSettingKeyStoreCommand extends BaseKeyStoreCommand {
 
-    private final OptionSpec<String> arguments;
+    @Parameters(arity = "1..*", paramLabel = "setting", description = "Setting names to remove from the keystore")
+    private List<String> settings;
 
     RemoveSettingKeyStoreCommand() {
         super("Remove settings from the keystore", true);
-        arguments = parser.nonOptions("setting names");
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        List<String> settings = arguments.values(options);
-        if (settings.isEmpty()) {
+    protected void executeCommand(Terminal terminal, Environment env) throws Exception {
+        if (settings == null || settings.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
         }
+
         final KeyStoreWrapper keyStore = getKeyStore();
-        for (String setting : arguments.values(options)) {
+        for (String setting : settings) {
             if (keyStore.getSettingNames().contains(setting) == false) {
                 throw new UserException(ExitCodes.CONFIG, "Setting [" + setting + "] does not exist in the keystore.");
             }
