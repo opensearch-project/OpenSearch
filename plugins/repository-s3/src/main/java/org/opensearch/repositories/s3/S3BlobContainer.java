@@ -426,19 +426,26 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     public DeleteResult delete() throws IOException {
         PlainActionFuture<DeleteResult> future = new PlainActionFuture<>();
         deleteAsync(future);
-        return getFutureValue(future);
+        return getFutureValue(future, DEFAULT_OPERATION_TIMEOUT);
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         deleteBlobsAsyncIgnoringIfNotExists(blobNames, future);
-        getFutureValue(future);
+        getFutureValue(future, DEFAULT_OPERATION_TIMEOUT);
     }
 
-    private <T> T getFutureValue(PlainActionFuture<T> future) throws IOException {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames, long timeoutInSeconds) throws IOException {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        deleteBlobsAsyncIgnoringIfNotExists(blobNames, future);
+        getFutureValue(future, timeoutInSeconds);
+    }
+
+    private <T> T getFutureValue(PlainActionFuture<T> future, long timeoutInSeconds) throws IOException {
         try {
-            return future.get(DEFAULT_OPERATION_TIMEOUT, TimeUnit.SECONDS);
+            return future.get(timeoutInSeconds, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Future got interrupted", e);
@@ -449,7 +456,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             throw new RuntimeException(e.getCause());
         } catch (TimeoutException e) {
             FutureUtils.cancel(future);
-            throw new IOException("Delete operation timed out after 30 seconds", e);
+            throw new IOException(String.format("Delete operation timed out after [%s] seconds", timeoutInSeconds), e);
         }
     }
 

@@ -101,6 +101,10 @@ public interface TransferService {
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
+    default void deleteBlobs(Iterable<String> path, List<String> fileNames, long timeoutInSeconds) throws IOException {
+        deleteBlobs(path, fileNames);
+    }
+
     /**
      * Deletes the list of files in async and uses the listener to propagate success or failure.
      * @param threadpoolName threadpool type which will be used to perform the deletion asynchronously.

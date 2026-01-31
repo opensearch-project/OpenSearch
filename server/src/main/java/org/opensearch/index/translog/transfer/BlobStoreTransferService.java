@@ -285,6 +285,11 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
+    public void deleteBlobs(Iterable<String> path, List<String> fileNames, long timeoutInSeconds) throws IOException {
+        blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames, timeoutInSeconds);
+    }
+
+    @Override
     public void deleteBlobsAsync(String threadpoolName, Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
         threadPool.executor(threadpoolName).execute(() -> {
             try {
