@@ -117,6 +117,7 @@ configure([
   project(":modules:lang-mustache"),
   project(":modules:lang-painless"),
   project(":modules:lang-painless:spi"),
+  project(":modules:lang-python"),
   project(":modules:mapper-extras"),
   project(":modules:opensearch-dashboards"),
   project(":modules:parent-join"),
