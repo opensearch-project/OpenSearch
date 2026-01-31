@@ -185,6 +185,26 @@ public class WorkloadGroupPersistenceServiceTests extends OpenSearchTestCase {
         assertThrows(IllegalArgumentException.class, () -> workloadGroupPersistenceService.setMaxWorkloadGroupCount(-1));
     }
 
+    public void testMaxWorkloadGroupCountCase() {
+        Settings settings = Settings.builder().put(WORKLOAD_GROUP_COUNT_SETTING_NAME, 1).build();
+        Metadata metadata = Metadata.builder().workloadGroups(Map.of(_ID_ONE, workloadGroupOne)).build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, clusterSettingsSet());
+        ClusterService clusterService = new ClusterService(settings, clusterSettings, mock(ThreadPool.class));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
+        WorkloadGroupPersistenceService workloadGroupPersistenceService1 = new WorkloadGroupPersistenceService(
+            clusterService,
+            settings,
+            clusterSettings
+        );
+        WorkloadGroup newWorkloadGroup = builder().name(NAME_NONE_EXISTED)
+            ._id("W5iIqHyhgi4K1qIAAAAIHw==")
+            .mutableWorkloadGroupFragment(new MutableWorkloadGroupFragment(ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.1)))
+            .updatedAt(1690934400000L)
+            .build();
+
+        assertThrows(IllegalStateException.class, () -> workloadGroupPersistenceService1.saveWorkloadGroupInClusterState(newWorkloadGroup, clusterState));
+    }
+
     /**
      * Tests the valid value of {@code node.workload_group.max_count}
      */
