@@ -10,6 +10,7 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.io.InputStreamContainer;
 import org.opensearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.mockito.ArgumentCaptor;
@@ -248,6 +250,66 @@ public class EncryptedBlobContainerTests extends OpenSearchTestCase {
 
         // Verify encryption length estimation was called
         verify(cryptoHandler).estimateEncryptedLengthOfEntireContent(cryptoContext, originalSize);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testListBlobsByPrefixInSortedOrder() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);
+        EncryptedBlobContainer<Object, Object> encryptedBlobContainer = new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+
+        BlobMetadata blob1 = new PlainBlobMetadata("blob1", 100);
+        BlobMetadata blob2 = new PlainBlobMetadata("blob2", 200);
+        List<BlobMetadata> mockBlobs = List.of(blob1, blob2);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("prefix", 10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)).thenReturn(
+            mockBlobs
+        );
+
+        List<BlobMetadata> result = encryptedBlobContainer.listBlobsByPrefixInSortedOrder(
+            "prefix",
+            10,
+            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+        );
+
+        assertEquals(2, result.size());
+        assertTrue(result.get(0) instanceof EncryptedBlobMetadata);
+        assertTrue(result.get(1) instanceof EncryptedBlobMetadata);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testListBlobsByPrefixInSortedOrderReturnsNull() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);
+        EncryptedBlobContainer<Object, Object> encryptedBlobContainer = new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("prefix", 10, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)).thenReturn(null);
+
+        List<BlobMetadata> result = encryptedBlobContainer.listBlobsByPrefixInSortedOrder(
+            "prefix",
+            10,
+            BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC
+        );
+
+        assertNull(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testEncryptedBlobContainerDoesNotCallListBlobsByPrefix() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);
+        EncryptedBlobContainer<Object, Object> encryptedBlobContainer = new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+
+        BlobMetadata blob1 = new PlainBlobMetadata("blob1", 100);
+        List<BlobMetadata> mockBlobs = List.of(blob1);
+
+        when(blobContainer.listBlobsByPrefixInSortedOrder("prefix", 5, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC)).thenReturn(
+            mockBlobs
+        );
+
+        encryptedBlobContainer.listBlobsByPrefixInSortedOrder("prefix", 5, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
+
+        verify(blobContainer).listBlobsByPrefixInSortedOrder("prefix", 5, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
 }
