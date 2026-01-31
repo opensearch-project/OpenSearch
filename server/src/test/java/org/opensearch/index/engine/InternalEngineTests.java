@@ -3814,7 +3814,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger);
+        CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger, List.of());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -4315,7 +4315,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -4357,7 +4357,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -8009,7 +8009,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .mergePolicy(config.getMergePolicy())
                 .analyzer(config.getAnalyzer())
                 .similarity(config.getSimilarity())
-                .codecService(new CodecService(null, config.getIndexSettings(), logger))
+                .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
                 .eventListener(config.getEventListener())
                 .queryCache(config.getQueryCache())
                 .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -9251,7 +9251,7 @@ public class InternalEngineTests extends EngineTestCase {
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .translogConfig(config.getTranslogConfig())
             .flushMergesAfter(config.getFlushMergesAfter())
             .externalRefreshListener(config.getExternalRefreshListener())

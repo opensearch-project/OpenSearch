@@ -58,6 +58,7 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.search.pipeline.SearchPipelineService;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -815,6 +816,36 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    public static final Setting<String> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "index.search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "index.search.concurrent_segment_search.partition_min_segment_size",
+        500_000,
+        1000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Boolean> INDEX_DOC_ID_FUZZY_SET_ENABLED_SETTING = Setting.boolSetting(
         "index.optimize_doc_id_lookup.fuzzy_set.enabled",
         false,
@@ -998,6 +1029,10 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+    /**
+     * The minimum segment size for streaming aggregations.
+     */
+    private volatile int streamingAggregationMinSegmentSize;
 
     /**
      * The max amount of time to wait for merges
@@ -1167,6 +1202,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
+        streamingAggregationMinSegmentSize = scopedSettings.get(FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
@@ -1299,6 +1335,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
+        scopedSettings.addSettingsUpdateConsumer(
+            FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
+            this::setStreamingAggregationMinSegmentSize
+        );
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(FINAL_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
@@ -2050,6 +2090,17 @@ public final class IndexSettings {
 
     private void setMaxRegexLength(int maxRegexLength) {
         this.maxRegexLength = maxRegexLength;
+    }
+
+    /**
+     * Returns the minimum segment size for streaming aggregations.
+     */
+    public int getStreamingAggregationMinSegmentSize() {
+        return streamingAggregationMinSegmentSize;
+    }
+
+    private void setStreamingAggregationMinSegmentSize(int streamingAggregationMinSegmentSize) {
+        this.streamingAggregationMinSegmentSize = streamingAggregationMinSegmentSize;
     }
 
     /**

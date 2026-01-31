@@ -155,4 +155,9 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     public String getWriteableName() {
         return NAME;
     }
+
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }

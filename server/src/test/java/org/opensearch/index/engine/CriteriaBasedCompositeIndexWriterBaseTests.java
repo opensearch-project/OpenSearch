@@ -315,7 +315,7 @@ public class CriteriaBasedCompositeIndexWriterBaseTests extends OpenSearchTestCa
             .mergePolicy(mergePolicy)
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())

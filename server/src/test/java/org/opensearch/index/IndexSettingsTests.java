@@ -58,6 +58,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -1172,5 +1174,37 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(TimeValue.MINUS_ONE, settings.getPeriodicFlushInterval());
+    }
+
+    public void testPartitionStrategyDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals("segment", INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+    }
+
+    public void testPartitionStrategyValidValues() {
+        for (String strategy : new String[] { "segment", "balanced", "force" }) {
+            IndexMetadata metadata = newIndexMeta(
+                "index",
+                Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), strategy).build()
+            );
+            IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+            assertEquals(strategy, INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+        }
+    }
+
+    public void testPartitionMinSegmentSizeDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(500_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
+    }
+
+    public void testPartitionMinSegmentSizeCustom() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 100_000).build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(100_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
     }
 }

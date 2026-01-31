@@ -341,6 +341,39 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // Partition strategy constants
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT = "segment";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED = "balanced";
+    public static final String CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE = "force";
+
+    // Partition strategy setting
+    public static final Setting<String> CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY = Setting.simpleString(
+        "search.concurrent_segment_search.partition_strategy",
+        CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED,
+        value -> {
+            switch (value) {
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_SEGMENT:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_BALANCED:
+                case CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY_FORCE:
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [segment, balanced, force]");
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Minimum segment size for balanced partitioning (only applies when partition_strategy = balanced)
+    public static final Setting<Integer> CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE = Setting.intSetting(
+        "search.concurrent_segment_search.partition_min_segment_size",
+        500_000,
+        1000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -1532,6 +1565,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // nothing to parse...
         if (source == null) {
             context.evaluateRequestShouldUseConcurrentSearch();
+            context.evaluateRequestShouldUseIntraSegmentSearch();
             return;
         }
 
@@ -1723,6 +1757,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.collapse(collapseContext);
         }
         context.evaluateRequestShouldUseConcurrentSearch();
+        context.evaluateRequestShouldUseIntraSegmentSearch();
         if (source.profile()) {
             final Function<Query, Collection<Supplier<ProfileMetric>>> pluginProfileMetricsSupplier = (query) -> pluginProfilers.stream()
                 .flatMap(p -> p.getQueryProfileMetrics(context, query).stream())
