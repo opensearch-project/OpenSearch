@@ -7,4 +7,4 @@
  */
 
 /** Common interfaces for knn codecs to extend. */
-package org.opensearch.index.codec.knn;
+package org.opensearch.index.knn.codec;

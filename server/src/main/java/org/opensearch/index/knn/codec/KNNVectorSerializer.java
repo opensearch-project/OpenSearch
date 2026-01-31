@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.knn;
+package org.opensearch.index.knn.codec;
 
 import org.apache.lucene.util.BytesRef;
 
