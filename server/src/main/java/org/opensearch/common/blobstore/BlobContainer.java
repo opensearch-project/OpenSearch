@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -359,5 +360,138 @@ public interface BlobContainer {
         List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
         blobNames.sort(blobNameSortOrder.comparator());
         return blobNames.subList(0, Math.min(blobNames.size(), limit));
+    }
+
+    /**
+     * Lists versions of a specific blob in the container, up to a given limit.
+     * @param blobName The name of the blob
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @return Map of version IDs to their metadata (in insertion order of versions)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
+     */
+    default Map<String, BlobMetadata> listBlobVersions(String blobName, int limit) throws IOException {
+        throw new UnsupportedOperationException("listBlobVersions(blobName, limit) not implemented");
+    }
+
+    /**
+     * Lists versions of a specific blob in the container, up to a given limit.
+     * @param blobName The name of the blob
+     * @return Map of version IDs to their metadata (in insertion order of versions)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
+     */
+    default Map<String, BlobMetadata> listBlobVersions(String blobName) throws IOException {
+        throw new UnsupportedOperationException("listBlobVersions(blobName, limit) not implemented");
+    }
+
+    /**
+     * Lists versions of a specific blob in the container, sorted by last modified time.
+     * @param blobName The name of the blob
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @return List of blob metadata objects (newest first)
+     * @throws IOException if there were any failures reading from the container
+     * @throws BlobStoreException if versioning is disabled or underlying store errors
+     */
+    default List<BlobMetadata> listBlobVersionsSorted(String blobName, int limit) throws IOException {
+        return listBlobVersions(blobName, limit).values()
+            .stream()
+            .sorted(Comparator.comparingLong(BlobMetadata::lastModified).reversed())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Asynchronously lists versions of a specific blob, up to a given limit.
+     * @param blobName The name of the blob
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @param listener The listener to be notified upon completion
+     */
+    default void listBlobVersions(String blobName, int limit, ActionListener<Map<String, BlobMetadata>> listener) {
+        try {
+            listener.onResponse(listBlobVersions(blobName, limit));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Lists all versions of a specific blob in the container asynchronously, sorted by last modified time.
+     * @param blobName The name of the blob
+     * @param limit Maximum number of versions to return, or -1 for no limit
+     * @param listener The listener to be notified upon completion
+     */
+    default void listBlobVersionsSorted(String blobName, int limit, ActionListener<List<BlobMetadata>> listener) {
+        try {
+            listener.onResponse(listBlobVersionsSorted(blobName, limit));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Retrieves a specific version of a blob from the container.
+     * @param blobName The name of the blob
+     * @param versionId The version ID to retrieve
+     * @return Input stream for the blob content
+     * @throws IOException if there were any failures in reading from the container
+     * @throws NoSuchFileException if the blob version does not exist
+     */
+    default InputStream readBlobVersion(String blobName, String versionId) throws IOException {
+        throw new UnsupportedOperationException("readBlobVersion is not implemented yet");
+    }
+
+    /**
+     * Retrieves a specific version of a blob from the container with range support.
+     * @param blobName The name of the blob
+     * @param versionId The version ID to retrieve
+     * @param position The start position (inclusive, bytes from the beginning)
+     * @param length The number of bytes to read
+     * @return Input stream for the blob content
+     * @throws IOException if there were any failures in reading from the container
+     * @throws NoSuchFileException if the blob version does not exist
+     * @throws IllegalArgumentException if position or length is negative
+     */
+    default InputStream readBlobVersion(String blobName, String versionId, long position, long length) throws IOException {
+        throw new UnsupportedOperationException("readBlobVersion is not implemented yet");
+    }
+
+    /**
+     * Retrieves a specific version of a blob from the container asynchronously.
+     * @param blobName The name of the blob
+     * @param versionId The version ID to retrieve
+     * @param listener The listener to be notified upon request completion
+     */
+    default void readBlobVersion(String blobName, String versionId, ActionListener<InputStream> listener) {
+        try {
+            listener.onResponse(readBlobVersion(blobName, versionId));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Gets metadata for a specific version without downloading content.
+     * @param blobName The name of the blob
+     * @param versionId The version ID to retrieve metadata for
+     * @return Metadata for the specified version
+     * @throws IOException if there were any failures in reading from the container
+     * @throws NoSuchFileException if the blob version does not exist
+     */
+    default BlobMetadata headBlobVersion(String blobName, String versionId) throws IOException {
+        throw new UnsupportedOperationException("headBlobVersion is not implemented yet");
+    }
+
+    /**
+     * Asynchronously retrieves metadata for a specific version.
+     * @param blobName The name of the blob
+     * @param versionId The version ID to retrieve metadata for
+     * @param listener The listener to be notified upon completion
+     */
+    default void headBlobVersion(String blobName, String versionId, ActionListener<BlobMetadata> listener) {
+        try {
+            listener.onResponse(headBlobVersion(blobName, versionId));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 }
