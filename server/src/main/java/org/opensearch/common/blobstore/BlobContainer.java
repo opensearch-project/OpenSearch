@@ -281,6 +281,17 @@ public interface BlobContainer {
     void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException;
 
     /**
+     * Deletes the blobs with given names. This method will not throw an exception
+     * when one or multiple of the given blobs don't exist and simply ignore this case.
+     *
+     * @param   blobNames  The names of the blob to delete.
+     * @throws  IOException if a subset of blob exists but could not be deleted.
+     */
+    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames, long timeoutInSeconds) throws IOException {
+        deleteBlobsIgnoringIfNotExists(blobNames);
+    }
+
+    /**
      * Lists all blobs in the container.
      *
      * @return  A map of all the blobs in the container.  The keys in the map are the names of the blobs and

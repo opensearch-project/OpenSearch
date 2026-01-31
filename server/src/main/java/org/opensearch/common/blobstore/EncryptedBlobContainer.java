@@ -180,6 +180,11 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     }
 
     @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames, long timeoutInSeconds) throws IOException {
+        blobContainer.deleteBlobsIgnoringIfNotExists(blobNames, timeoutInSeconds);
+    }
+
+    @Override
     public Map<String, BlobMetadata> listBlobs() throws IOException {
         Map<String, BlobMetadata> blobMetadataMap = blobContainer.listBlobs();
         return convertToEncryptedMetadataMap(blobMetadataMap);

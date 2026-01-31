@@ -48,8 +48,10 @@ public class RemoteClusterStateCleanupManager implements Closeable {
 
     public static final int RETAINED_MANIFESTS = 10;
     public static final int SKIP_CLEANUP_STATE_CHANGES = 10;
+    public static final int MANIFEST_CLEANUP_BATCH_SIZE_DEFAULT = 1000;
     public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
     public static final TimeValue CLUSTER_STATE_CLEANUP_INTERVAL_MINIMUM = TimeValue.MINUS_ONE;
+    public static final TimeValue CLUSTER_STATE_CLEANUP_TIMEOUT_DEFAULT = TimeValue.timeValueMinutes(1);
 
     /**
      * Setting to specify the interval to do run stale file cleanup job
@@ -62,11 +64,35 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Setting to specify the batch size for manifest cleanup operations
+     */
+    public static final Setting<Integer> REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING = Setting.intSetting(
+        "cluster.remote_store.state.cleanup_batch_size",
+        MANIFEST_CLEANUP_BATCH_SIZE_DEFAULT,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting to specify the timeout for deletion operations
+     */
+    public static final Setting<TimeValue> REMOTE_CLUSTER_STATE_CLEANUP_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.remote_store.state.cleanup_timeout",
+        CLUSTER_STATE_CLEANUP_TIMEOUT_DEFAULT,
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
     private static final Logger logger = LogManager.getLogger(RemoteClusterStateCleanupManager.class);
     private final RemoteClusterStateService remoteClusterStateService;
     private final RemotePersistenceStats remoteStateStats;
     private BlobStoreTransferService blobStoreTransferService;
     private TimeValue staleFileCleanupInterval;
+    private int cleanupBatchSize;
+    private TimeValue cleanupTimeout;
     private final AtomicBoolean deleteStaleMetadataRunning = new AtomicBoolean(false);
     private volatile AsyncStaleFileDeletion staleFileDeletionTask;
     private long lastCleanupAttemptStateVersion;
@@ -85,10 +111,14 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.clusterApplierService = clusterService.getClusterApplierService();
         this.staleFileCleanupInterval = clusterSettings.get(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING);
+        this.cleanupBatchSize = clusterSettings.get(REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING);
+        this.cleanupTimeout = clusterSettings.get(REMOTE_CLUSTER_STATE_CLEANUP_TIMEOUT_SETTING);
         this.threadpool = remoteClusterStateService.getThreadpool();
         // initialize with 0, a cleanup will be done when this node is elected master node and version is incremented more than threshold
         this.lastCleanupAttemptStateVersion = 0;
         clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_INTERVAL_SETTING, this::updateCleanupInterval);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING, this::updateCleanupBatchSize);
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTER_STATE_CLEANUP_TIMEOUT_SETTING, this::updateCleanupTimeout);
         this.remoteRoutingTableService = remoteRoutingTableService;
     }
 
@@ -118,6 +148,16 @@ public class RemoteClusterStateCleanupManager implements Closeable {
         if (staleFileDeletionTask != null && !staleFileDeletionTask.getInterval().equals(updatedInterval)) {
             staleFileDeletionTask.setInterval(updatedInterval);
         }
+    }
+
+    private void updateCleanupBatchSize(Integer updatedBatchSize) {
+        this.cleanupBatchSize = updatedBatchSize;
+        logger.info("updated remote state cleanup batch size to {}", updatedBatchSize);
+    }
+
+    private void updateCleanupTimeout(TimeValue updatedTimeout) {
+        this.cleanupTimeout = updatedTimeout;
+        logger.info("updated remote state cleanup timeout to {}", updatedTimeout);
     }
 
     // visible for testing
@@ -366,42 +406,45 @@ public class RemoteClusterStateCleanupManager implements Closeable {
             logger.info("Delete stale cluster metadata task is already in progress.");
             return;
         }
-        try {
-            getBlobStoreTransferService().listAllInSortedOrderAsync(
-                ThreadPool.Names.REMOTE_PURGE,
-                remoteManifestManager.getManifestFolderPath(clusterName, clusterUUID),
-                MANIFEST,
-                Integer.MAX_VALUE,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(List<BlobMetadata> blobMetadata) {
-                        if (blobMetadata.size() > manifestsToRetain) {
-                            deleteClusterMetadata(
-                                clusterName,
-                                clusterUUID,
-                                blobMetadata.subList(0, manifestsToRetain),
-                                blobMetadata.subList(manifestsToRetain, blobMetadata.size())
-                            );
-                        }
-                        deleteStaleMetadataRunning.set(false);
+
+        logger.info(
+            "Starting batch cleanup for cluster [{}] with batch size [{}] and retaining [{}] manifests",
+            clusterName,
+            cleanupBatchSize,
+            manifestsToRetain
+        );
+
+        threadpool.executor(ThreadPool.Names.REMOTE_PURGE).execute(() -> {
+            try {
+                boolean hasMoreManifests = true;
+
+                while (hasMoreManifests) {
+
+                    List<BlobMetadata> batchManifests = getBlobStoreTransferService().listAllInSortedOrder(
+                        remoteManifestManager.getManifestFolderPath(clusterName, clusterUUID),
+                        MANIFEST,
+                        cleanupBatchSize
+                    );
+
+                    if (batchManifests.size() > manifestsToRetain) {
+                        deleteClusterMetadata(
+                            clusterName,
+                            clusterUUID,
+                            batchManifests.subList(0, manifestsToRetain),
+                            batchManifests.subList(manifestsToRetain, batchManifests.size())
+                        );
                     }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(
-                            new ParameterizedMessage(
-                                "Exception occurred while deleting Remote Cluster Metadata for clusterUUIDs {}",
-                                clusterUUID
-                            )
-                        );
-                        deleteStaleMetadataRunning.set(false);
-                    }
+                    hasMoreManifests = batchManifests.size() == cleanupBatchSize;
                 }
-            );
-        } catch (Exception e) {
-            deleteStaleMetadataRunning.set(false);
-            throw e;
-        }
+                logger.info("Completed batch cleanup");
+            } catch (Exception e) {
+                logger.error("Error during batch cleanup of manifests for cluster [{}]", clusterName, e);
+            } finally {
+                deleteStaleMetadataRunning.set(false);
+                logger.debug("Released cleanup lock for cluster [{}]", clusterName);
+            }
+        });
     }
 
     /**
@@ -444,7 +487,7 @@ public class RemoteClusterStateCleanupManager implements Closeable {
     // package private for testing
     void deleteStalePaths(List<String> stalePaths) throws IOException {
         logger.debug(String.format(Locale.ROOT, "Deleting stale files from remote - %s", stalePaths));
-        getBlobStoreTransferService().deleteBlobs(BlobPath.cleanPath(), stalePaths);
+        getBlobStoreTransferService().deleteBlobs(BlobPath.cleanPath(), stalePaths, cleanupTimeout.seconds());
     }
 
     /**
