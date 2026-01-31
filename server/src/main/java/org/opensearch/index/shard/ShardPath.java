@@ -41,6 +41,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.format.DataFormat;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -91,6 +92,13 @@ public final class ShardPath {
 
     public Path resolveIndex() {
         return path.resolve(INDEX_FOLDER_NAME);
+    }
+
+    public Path resolveDataFormatPath(DataFormat dataFormat) {
+        if (dataFormat.name().equals("LUCENE")) {
+            return resolveIndex();
+        }
+        return path.resolve(dataFormat.name());
     }
 
     public Path getDataPath() {
