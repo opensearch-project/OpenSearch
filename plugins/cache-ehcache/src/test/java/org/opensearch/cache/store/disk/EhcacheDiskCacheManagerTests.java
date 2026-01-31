@@ -15,8 +15,6 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
@@ -39,48 +37,72 @@ public class EhcacheDiskCacheManagerTests extends OpenSearchSingleNodeTestCase {
     @SuppressWarnings("rawTypes")
     public void testCreateAndCloseCacheConcurrently() throws Exception {
         Settings settings = Settings.builder().build();
-        String path = null;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            path = env.nodePaths()[0].path.toString() + "/request_cache";
+            final String path = env.nodePaths()[0].path.resolve("request_cache").toString();
             EhcacheDiskCacheManager.getCacheManager(CacheType.INDICES_REQUEST_CACHE, path, settings, THREAD_POOL_ALIAS);
-        }
-        int randomThreads = randomIntBetween(5, 10);
-        Thread[] threads = new Thread[randomThreads];
-        Phaser phaser = new Phaser(randomThreads + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(randomThreads);
-        List<String> diskCacheAliases = new ArrayList<>();
-        for (int i = 0; i < randomThreads; i++) {
-            threads[i] = new Thread(() -> {
-                String diskCacheAlias = UUID.randomUUID().toString();
-                diskCacheAliases.add(diskCacheAlias);
-                phaser.arriveAndAwaitAdvance();
-                EhcacheDiskCacheManager.createCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAlias, getCacheConfigurationBuilder());
-                countDownLatch.countDown();
-            });
-            threads[i].start();
-        }
-        phaser.arriveAndAwaitAdvance();
-        countDownLatch.await();
-        assertEquals(randomThreads, EhcacheDiskCacheManager.getCacheManagerMap().get(CacheType.INDICES_REQUEST_CACHE).v2().get());
+            final int threadCount = randomIntBetween(5, 10);
+            final String[] diskCacheAliases = new String[threadCount];
+            // ---- Phase 1: create caches concurrently ----
+            final Thread[] createThreads = new Thread[threadCount];
+            final Phaser createPhaser = new Phaser(threadCount + 1);
+            final CountDownLatch createdLatch = new CountDownLatch(threadCount);
+            final java.util.concurrent.atomic.AtomicReference<Throwable> createFailure =
+                new java.util.concurrent.atomic.AtomicReference<>();
 
-        threads = new Thread[randomThreads];
-        Phaser phaser2 = new Phaser(randomThreads + 1);
-        CountDownLatch countDownLatch2 = new CountDownLatch(randomThreads);
-        for (int i = 0; i < randomThreads; i++) {
-            String finalPath = path;
-            int finalI = i;
-            threads[i] = new Thread(() -> {
-                phaser2.arriveAndAwaitAdvance();
-                EhcacheDiskCacheManager.closeCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAliases.get(finalI), finalPath);
-                countDownLatch2.countDown();
-            });
-            threads[i].start();
-        }
-        phaser2.arriveAndAwaitAdvance();
-        countDownLatch2.await();
+            for (int i = 0; i < threadCount; i++) {
+                final int idx = i;
+                createThreads[i] = new Thread(() -> {
+                    diskCacheAliases[idx] = UUID.randomUUID().toString();
+                    createPhaser.arriveAndAwaitAdvance();
+                    try {
+                        EhcacheDiskCacheManager.createCache(
+                            CacheType.INDICES_REQUEST_CACHE,
+                            diskCacheAliases[idx],
+                            getCacheConfigurationBuilder()
+                        );
+                    } catch (Throwable t) {
+                        createFailure.compareAndSet(null, t);
+                    } finally {
+                        createdLatch.countDown();
+                    }
+                }, "cache-create-" + i);
+                createThreads[i].start();
+            }
 
-        assertNull(EhcacheDiskCacheManager.getCacheManagerMap().get(CacheType.INDICES_REQUEST_CACHE));
-        assertFalse(EhcacheDiskCacheManager.doesCacheManagerExist(CacheType.INDICES_REQUEST_CACHE));
+            createPhaser.arriveAndAwaitAdvance();
+            assertTrue("Timed out waiting for cache creation threads", createdLatch.await(60, java.util.concurrent.TimeUnit.SECONDS));
+            if (createFailure.get() != null) {
+                throw new AssertionError("Failure in cache creation thread", createFailure.get());
+            }
+
+            assertEquals(threadCount, EhcacheDiskCacheManager.getCacheManagerMap().get(CacheType.INDICES_REQUEST_CACHE).v2().get());
+            // ---- Phase 2: close caches concurrently ----
+            final Thread[] closeThreads = new Thread[threadCount];
+            final Phaser closePhaser = new Phaser(threadCount + 1);
+            final CountDownLatch closedLatch = new CountDownLatch(threadCount);
+            final java.util.concurrent.atomic.AtomicReference<Throwable> closeFailure = new java.util.concurrent.atomic.AtomicReference<>();
+            for (int i = 0; i < threadCount; i++) {
+                final int idx = i;
+                closeThreads[i] = new Thread(() -> {
+                    closePhaser.arriveAndAwaitAdvance();
+                    try {
+                        EhcacheDiskCacheManager.closeCache(CacheType.INDICES_REQUEST_CACHE, diskCacheAliases[idx], path);
+                    } catch (Throwable t) {
+                        closeFailure.compareAndSet(null, t);
+                    } finally {
+                        closedLatch.countDown();
+                    }
+                }, "cache-close-" + i);
+                closeThreads[i].start();
+            }
+            closePhaser.arriveAndAwaitAdvance();
+            assertTrue("Timed out waiting for cache close threads", closedLatch.await(60, java.util.concurrent.TimeUnit.SECONDS));
+            if (closeFailure.get() != null) {
+                throw new AssertionError("Failure in cache close thread", closeFailure.get());
+            }
+            assertNull(EhcacheDiskCacheManager.getCacheManagerMap().get(CacheType.INDICES_REQUEST_CACHE));
+            assertFalse(EhcacheDiskCacheManager.doesCacheManagerExist(CacheType.INDICES_REQUEST_CACHE));
+        }
     }
 
     public void testCreateCacheWithNullArguments() {
