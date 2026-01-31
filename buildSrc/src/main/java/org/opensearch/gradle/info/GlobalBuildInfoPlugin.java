@@ -164,6 +164,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final Jvm gradleJvm = Jvm.current();
         final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getDisplayName();
 
+        String[] lines = {
+            " ####  #####  ###### #    #  ##### ######   ##    #####   #### #    # ",
+            "#    # #    # #      ##   # #      #       #  #  #    # #    # #    # ",
+            "#    # #    # #      # #  # #      #      #    # #    # #      #    # ",
+            "#    # #####  #####  #  # #  ####  #####  ###### #####  #      ###### ",
+            "#    # #      #      #   ##      # #      #    # #   #  #      #    # ",
+            "#    # #      #      #    # #    # #      #    # #    # #    # #    # ",
+            " ####  #      ###### #    #  ####  ###### #    # #    #  ####  #    # "
+        };
+
+        for (String line : lines) {
+            LOGGER.quiet(line);
+        }
         LOGGER.quiet("=======================================");
         LOGGER.quiet("OpenSearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
