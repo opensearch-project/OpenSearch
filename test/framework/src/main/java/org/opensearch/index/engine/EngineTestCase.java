@@ -379,9 +379,9 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
-    protected static ParseContext.Document testContextSpecificDocument() {
+    protected static ParseContext.Document testContextSpecificDocument(String groupingCriteria) {
         ParseContext.Document doc = testDocumentWithTextField("criteria");
-        doc.setGroupingCriteria("grouping_criteria");
+        doc.setGroupingCriteria(groupingCriteria);
         return doc;
     }
 
