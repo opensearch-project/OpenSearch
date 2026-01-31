@@ -502,7 +502,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    final boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
+    public final boolean assertSearcherIsWarmedUp(String source, SearcherScope scope) {
         if (scope == SearcherScope.EXTERNAL) {
             switch (source) {
                 // we can access segment_stats while a shard is still in the recovering state.
@@ -2396,7 +2396,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected final ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    public final ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         switch (scope) {
             case INTERNAL:
                 return internalReaderManager;
