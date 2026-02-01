@@ -22,7 +22,6 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -45,10 +44,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Tests format-aware metadata preservation, CatalogSnapshot recovery, and
  * remote store recovery validation with Parquet/Arrow files.
  */
-@TestLogging(
-    value = "org.opensearch.index.shard:DEBUG,org.opensearch.index.store:DEBUG,org.opensearch.datafusion:DEBUG",
-    reason = "Validate DataFusion recovery with format-aware metadata"
-)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase {
 
@@ -91,7 +86,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
-        logger.info("--> Skipping beforeIndexDeletion cleanup to avoid DataFusion engine type conflicts");
     }
 
     @Override
@@ -112,7 +106,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
 
         Map<String, UploadedSegmentMetadata> uploadedSegmentsRaw = remoteDir.getSegmentsUploadedToRemoteStore();
         if (uploadedSegmentsRaw.isEmpty()) {
-            logger.warn("--> No segments uploaded yet at stage: {}", stageName);
             return;
         }
 
@@ -136,7 +129,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
                 return Arrays.stream(files).filter(f -> f.contains("parquet") || f.endsWith(".parquet")).count();
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to list local shard files at stage {}: {}", stageName, e.getMessage());
             return -1;
         }
     }
@@ -148,7 +140,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         try {
             RemoteSegmentMetadata metadata = remoteDir.readLatestMetadataFile();
             if (metadata == null) {
-                logger.warn("--> RemoteSegmentMetadata not found at stage {}", stageName);
                 return;
             }
 
@@ -162,7 +153,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
                 assertTrue("Checkpoint version should be positive", checkpoint.getSegmentInfosVersion() > 0);
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to read metadata at stage {}: {}", stageName, e.getMessage());
         }
     }
 
@@ -190,7 +180,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         validateRemoteStoreSegments(indexShard, "before recovery");
         validateCatalogSnapshot(indexShard, "before recovery");
 
-        // Capture state before recovery for comparison
         long docCountBeforeRecovery = indexShard.docStats().getCount();
         long localFilesBeforeRecovery = validateLocalShardFiles(indexShard, "before recovery");
 
@@ -219,7 +208,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         long docCountAfterRecovery = recoveredIndexShard.docStats().getCount();
 
-        // Verify before/after comparison
         assertEquals("Doc count should be same before and after recovery", docCountBeforeRecovery, docCountAfterRecovery);
         assertEquals("Local file count should be same before and after recovery", localFilesBeforeRecovery, localFilesAfterRecovery);
 
@@ -259,7 +247,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         long parquetFileCount = uploadedSegments.keySet().stream().filter(fm -> "parquet".equals(fm.dataFormat())).count();
         assertTrue("Should have multiple Parquet generation files", parquetFileCount >= numGenerations);
 
-        // Capture state before recovery for comparison
         long docCountBeforeRecovery = indexShard.docStats().getCount();
         long localFilesBeforeRecovery = validateLocalShardFiles(indexShard, "before recovery");
 
@@ -290,7 +277,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         long docCountAfterRecovery = recoveredIndexShard.docStats().getCount();
 
-        // Verify before/after comparison
         assertEquals("Doc count should be same before and after recovery", docCountBeforeRecovery, docCountAfterRecovery);
         assertEquals("Local file count should be same before and after recovery", localFilesBeforeRecovery, localFilesAfterRecovery);
         assertEquals("Cluster UUID should remain same", clusterUUID, clusterService().state().metadata().clusterUUID());
@@ -335,7 +321,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         Thread.sleep(2000);
         validateRemoteStoreSegments(replicaShard, "replica before promotion");
 
-        // Capture state before promotion for comparison
         long docCountBeforePromotion = replicaShard.docStats().getCount();
         long localFilesBeforePromotion = validateLocalShardFiles(replicaShard, "replica before promotion");
 
@@ -362,9 +347,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         long localFilesAfterPromotion = validateLocalShardFiles(promotedShard, "after promotion and new docs");
         assertTrue("Should have local files after promotion", localFilesAfterPromotion >= 0);
 
-        // Verify final state (5 original + 3 new docs)
         assertEquals("Final document count should match", 8, promotedShard.docStats().getCount());
-        // Local files should increase after adding new docs
         assertTrue("Local files should exist after new writes", localFilesAfterPromotion >= localFilesBeforePromotion);
     }
 
@@ -387,7 +370,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
             client().prepareIndex(INDEX_NAME).setId("doc" + i)
                 .setSource("{ \"value\": " + (i * 100) + ", \"name\": \"doc" + i + "\" }", MediaTypeRegistry.JSON).get();
         }
-        // Intentionally NOT calling flush or refresh - documents exist only in translog
         Thread.sleep(1000);
 
         String dataNodeName = internalCluster().getDataNodeNames().iterator().next();
@@ -449,7 +431,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
             client().prepareIndex(INDEX_NAME).setId("uncommitted_doc" + i)
                 .setSource("{ \"value\": " + (i * 200) + ", \"phase\": \"uncommitted\" }", MediaTypeRegistry.JSON).get();
         }
-        // Intentionally NOT calling flush or refresh - docs exist only in translog
         Thread.sleep(1000);
 
         var clusterState = clusterService().state();
@@ -531,7 +512,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         IndexShard indexShard = getIndexShard(dataNodeName, INDEX_NAME);
         validateRemoteStoreSegments(indexShard, "initial upload");
 
-        // Capture state before extra docs and restart for comparison
         long docCountAfterInitial = indexShard.docStats().getCount();
         long localFilesAfterInitial = validateLocalShardFiles(indexShard, "after initial flush");
 
@@ -545,7 +525,6 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
             latestCommit.commit(indexShard.store().directory());
             latestCommit.commit(indexShard.store().directory());
         } catch (Exception e) {
-            logger.warn("--> Could not create extra commits: {}", e.getMessage());
         }
 
         String nodeToRestart = internalCluster().getDataNodeNames().iterator().next();
@@ -568,9 +547,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         long docCountAfterRestart = recoveredShard.docStats().getCount();
 
-        // Verify doc count: initial 4 + extra 3 = 7
         assertEquals("Document count should match total docs after restart", 7, docCountAfterRestart);
-        // Local files should be at least as many as after initial flush
         assertTrue("Local files should be preserved after restart", localFilesAfterRecovery >= localFilesAfterInitial);
 
         client().prepareIndex(INDEX_NAME).setId("post_recovery_doc")

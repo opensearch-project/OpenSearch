@@ -27,7 +27,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,15 +43,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 /**
  * Integration tests for DataFusion engine snapshot and restore recovery scenarios.
  * Tests snapshot/restore operations with Parquet format metadata preservation.
- * 
- * Note: These tests are marked with @AwaitsFix because snapshot/restore functionality
- * for optimized indices (Parquet format) is not yet implemented. Once the feature
- * is complete, remove the @AwaitsFix annotations.
  */
-@TestLogging(
-    value = "org.opensearch.index.shard:DEBUG,org.opensearch.index.store:DEBUG,org.opensearch.datafusion:DEBUG,org.opensearch.snapshots:DEBUG",
-    reason = "Validate DataFusion snapshot/restore with format-aware metadata"
-)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestCase {
 
@@ -99,7 +90,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
-        logger.info("--> Skipping beforeIndexDeletion cleanup to avoid DataFusion engine type conflicts");
     }
 
     @Override
@@ -107,8 +97,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
 
     @Override
     protected void ensureClusterStateConsistency() {}
-
-    // ==================== Helper Methods ====================
 
     private IndexShard getIndexShard(String nodeName, String indexName) {
         return internalCluster().getInstance(org.opensearch.indices.IndicesService.class, nodeName)
@@ -132,7 +120,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
 
         Map<String, UploadedSegmentMetadata> uploadedSegmentsRaw = remoteDir.getSegmentsUploadedToRemoteStore();
         if (uploadedSegmentsRaw.isEmpty()) {
-            logger.warn("--> No segments uploaded yet at stage: {}", stageName);
             return;
         }
 
@@ -143,7 +130,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
             assertNotNull("FileMetadata should have format information at " + stageName, fileMetadata.dataFormat());
             assertFalse("Format should not be empty at " + stageName, fileMetadata.dataFormat().isEmpty());
         }
-        logger.info("--> Validated {} segments at stage: {}", uploadedSegments.size(), stageName);
     }
 
     private long validateLocalShardFiles(IndexShard shard, String stageName) {
@@ -151,16 +137,12 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
             CompositeStoreDirectory compositeDir = shard.store().compositeStoreDirectory();
             if (compositeDir != null) {
                 FileMetadata[] allFiles = compositeDir.listFileMetadata();
-                long parquetCount = Arrays.stream(allFiles).filter(fm -> "parquet".equals(fm.dataFormat())).count();
-                logger.info("--> Found {} Parquet files at stage: {}", parquetCount, stageName);
-                return parquetCount;
+                return Arrays.stream(allFiles).filter(fm -> "parquet".equals(fm.dataFormat())).count();
             } else {
                 String[] files = shard.store().directory().listAll();
-                long parquetCount = Arrays.stream(files).filter(f -> f.contains("parquet") || f.endsWith(".parquet")).count();
-                return parquetCount;
+                return Arrays.stream(files).filter(f -> f.contains("parquet") || f.endsWith(".parquet")).count();
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to list local shard files at stage {}: {}", stageName, e.getMessage());
             return -1;
         }
     }
@@ -172,7 +154,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         try {
             RemoteSegmentMetadata metadata = remoteDir.readLatestMetadataFile();
             if (metadata == null) {
-                logger.warn("--> RemoteSegmentMetadata not found at stage {}", stageName);
                 return;
             }
 
@@ -186,46 +167,31 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
                 assertTrue("Checkpoint version should be positive at " + stageName, checkpoint.getSegmentInfosVersion() > 0);
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to read metadata at stage {}: {}", stageName, e.getMessage());
         }
     }
 
     private long countParquetFilesInRemote(IndexShard shard) {
         RemoteSegmentStoreDirectory remoteDir = shard.getRemoteDirectory();
         if (remoteDir == null) return 0;
-        
+
         return remoteDir.getSegmentsUploadedToRemoteStore().entrySet().stream()
             .map(e -> new FileMetadata(e.getKey()))
             .filter(fm -> "parquet".equals(fm.dataFormat()))
             .count();
     }
 
-    // ==================== Test Methods ====================
-
     /**
      * Tests that snapshot and restore operations preserve Parquet format metadata
      * and CatalogSnapshot for optimized indices.
-     * 
-     * This test validates:
-     * - Document count matches before/after snapshot restore
-     * - Parquet file count matches
-     * - FileMetadata.dataFormat() returns "parquet" for all Parquet files
-     * - CatalogSnapshot bytes are properly restored
-     * - Search operations work correctly after restore
      */
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TBD")
     public void testDataFusionSnapshotRestore() throws Exception {
-        logger.info("--> Starting testDataFusionSnapshotRestore");
-        
-        // Setup cluster
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        // Create snapshot repository
         createSnapshotRepository(SNAPSHOT_REPOSITORY_NAME, snapshotRepoPath);
 
-        // Create index and index documents
         String mappings = "{ \"properties\": { \"message\": { \"type\": \"long\" }, \"value\": { \"type\": \"long\" } } }";
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping(mappings).get());
         ensureGreen(INDEX_NAME);
@@ -238,18 +204,13 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         client().admin().indices().prepareFlush(INDEX_NAME).get();
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
-        // Capture state before snapshot
         IndexShard indexShard = getIndexShard(dataNode, INDEX_NAME);
         validateRemoteStoreSegments(indexShard, "before snapshot");
         validateCatalogSnapshot(indexShard, "before snapshot");
-        
+
         long docCountBeforeSnapshot = indexShard.docStats().getCount();
         long parquetFilesBeforeSnapshot = countParquetFilesInRemote(indexShard);
-        
-        logger.info("--> State before snapshot: docs={}, parquetFiles={}", docCountBeforeSnapshot, parquetFilesBeforeSnapshot);
 
-        // Create snapshot
-        logger.info("--> Creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -261,12 +222,8 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         assertEquals("Snapshot should succeed", SnapshotState.SUCCESS, snapshotInfo.state());
         assertTrue("Snapshot should include index", snapshotInfo.indices().contains(INDEX_NAME));
 
-        // Delete the index
-        logger.info("--> Deleting index before restore");
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
 
-        // Restore from snapshot
-        logger.info("--> Restoring from snapshot");
         RestoreSnapshotResponse restoreResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -277,7 +234,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         assertEquals("Restore should succeed", RestStatus.OK, restoreResponse.status());
         ensureGreen(INDEX_NAME);
 
-        // Validate format metadata after restore
         String newDataNode = internalCluster().getDataNodeNames().iterator().next();
         IndexShard restoredShard = getIndexShard(newDataNode, INDEX_NAME);
         validateRemoteStoreSegments(restoredShard, "after restore");
@@ -287,44 +243,29 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         long docCountAfterRestore = restoredShard.docStats().getCount();
         long parquetFilesAfterRestore = countParquetFilesInRemote(restoredShard);
 
-        // Verify consistency
         assertEquals("Document count should match after restore", docCountBeforeSnapshot, docCountAfterRestore);
         assertEquals("Parquet file count should match after restore", parquetFilesBeforeSnapshot, parquetFilesAfterRestore);
-
-        // Verify document count matches expected number
         assertEquals("Document count should match expected", numDocs, docCountAfterRestore);
 
-        logger.info("--> testDataFusionSnapshotRestore completed successfully");
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
     }
 
     /**
-     * Tests recovery after force merge operations to ensure merged Parquet files 
+     * Tests recovery after force merge operations to ensure merged Parquet files
      * maintain format integrity through snapshot/restore.
-     * 
-     * This test validates:
-     * - Single merged Parquet file exists after force merge
-     * - Format metadata preserved post-merge
-     * - Document count correct after restore
      */
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TBD")
     public void testDataFusionRestoreWithForceMerge() throws Exception {
-        logger.info("--> Starting testDataFusionRestoreWithForceMerge");
-        
-        // Setup cluster
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        // Create snapshot repository
         createSnapshotRepository(SNAPSHOT_REPOSITORY_NAME, snapshotRepoPath);
 
-        // Create index
         String mappings = "{ \"properties\": { \"message\": { \"type\": \"long\" }, \"batch\": { \"type\": \"keyword\" } } }";
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping(mappings).get());
         ensureGreen(INDEX_NAME);
 
-        // Index documents in multiple batches to create multiple Parquet files
         int numBatches = 4;
         int docsPerBatch = 5;
         int totalDocs = numBatches * docsPerBatch;
@@ -338,25 +279,18 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         }
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
-        // Capture state before merge
         IndexShard shardBeforeMerge = getIndexShard(dataNode, INDEX_NAME);
         long parquetFilesBeforeMerge = countParquetFilesInRemote(shardBeforeMerge);
-        logger.info("--> Parquet files before merge: {}", parquetFilesBeforeMerge);
         assertTrue("Should have multiple Parquet files before merge", parquetFilesBeforeMerge >= numBatches);
 
-        // Force merge to single segment
-        logger.info("--> Executing force merge");
         client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
-        // Validate merged state
         IndexShard shardAfterMerge = getIndexShard(dataNode, INDEX_NAME);
         validateRemoteStoreSegments(shardAfterMerge, "after force merge");
         long docCountAfterMerge = shardAfterMerge.docStats().getCount();
         assertEquals("Doc count should be preserved after merge", totalDocs, docCountAfterMerge);
 
-        // Create snapshot of merged index
-        logger.info("--> Creating snapshot of merged index");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -366,11 +300,8 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         
         assertEquals("Snapshot should succeed", SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
 
-        // Delete the index
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
 
-        // Restore from snapshot
-        logger.info("--> Restoring merged index from snapshot");
         RestoreSnapshotResponse restoreResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -381,39 +312,28 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         assertEquals("Restore should succeed", RestStatus.OK, restoreResponse.status());
         ensureGreen(INDEX_NAME);
 
-        // Validate restored merged state
         String newDataNode = internalCluster().getDataNodeNames().iterator().next();
         IndexShard restoredShard = getIndexShard(newDataNode, INDEX_NAME);
         validateRemoteStoreSegments(restoredShard, "after restore");
         
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         long docCountAfterRestore = restoredShard.docStats().getCount();
-        
+
         assertEquals("Document count should be preserved after restore", totalDocs, docCountAfterRestore);
 
-        logger.info("--> testDataFusionRestoreWithForceMerge completed successfully");
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
     }
 
     /**
-     * Tests shallow copy snapshot specifically for optimized indices to ensure 
+     * Tests shallow copy snapshot specifically for optimized indices to ensure
      * format-aware metadata references are preserved.
-     * 
-     * This test validates:
-     * - Remote store file paths preserved
-     * - No data copied during snapshot (shallow)
-     * - Format metadata intact post-restore
      */
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/TBD")
     public void testDataFusionShallowCopySnapshotRestore() throws Exception {
-        logger.info("--> Starting testDataFusionShallowCopySnapshotRestore");
-        
-        // Setup cluster
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
-        // Create snapshot repository with shallow copy enabled
         assertAcked(
             client().admin()
                 .cluster()
@@ -422,17 +342,14 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
                 .setSettings(Settings.builder()
                     .put("location", snapshotRepoPath)
                     .put("compress", false)
-                    // Enable shallow copy for remote store indices
                     .put("shallow_snapshot_v2", true)
                 )
         );
 
-        // Create index
         String mappings = "{ \"properties\": { \"message\": { \"type\": \"long\" } } }";
         assertAcked(client().admin().indices().prepareCreate(INDEX_NAME).setSettings(indexSettings()).setMapping(mappings).get());
         ensureGreen(INDEX_NAME);
 
-        // Index documents
         int numDocs = randomIntBetween(10, 30);
         for (int i = 1; i <= numDocs; i++) {
             client().prepareIndex(INDEX_NAME).setId("doc" + i)
@@ -441,18 +358,13 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         client().admin().indices().prepareFlush(INDEX_NAME).get();
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
-        // Capture remote store file references before snapshot
         IndexShard shardBeforeSnapshot = getIndexShard(dataNode, INDEX_NAME);
         validateRemoteStoreSegments(shardBeforeSnapshot, "before shallow snapshot");
-        
+
         Map<String, UploadedSegmentMetadata> remoteFilesBefore = shardBeforeSnapshot.getRemoteDirectory()
             .getSegmentsUploadedToRemoteStore();
         long docCountBefore = shardBeforeSnapshot.docStats().getCount();
-        
-        logger.info("--> Remote files before snapshot: {}", remoteFilesBefore.size());
 
-        // Create shallow copy snapshot
-        logger.info("--> Creating shallow copy snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
             .prepareCreateSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -463,11 +375,8 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertEquals("Snapshot should succeed", SnapshotState.SUCCESS, snapshotInfo.state());
 
-        // Delete the index
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
 
-        // Restore from shallow copy snapshot
-        logger.info("--> Restoring from shallow copy snapshot");
         RestoreSnapshotResponse restoreResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(SNAPSHOT_REPOSITORY_NAME, SNAPSHOT_NAME)
@@ -478,7 +387,6 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
         assertEquals("Restore should succeed", RestStatus.OK, restoreResponse.status());
         ensureGreen(INDEX_NAME);
 
-        // Validate restored index uses same remote store files (shallow restore)
         String newDataNode = internalCluster().getDataNodeNames().iterator().next();
         IndexShard restoredShard = getIndexShard(newDataNode, INDEX_NAME);
         validateRemoteStoreSegments(restoredShard, "after shallow restore");
@@ -486,28 +394,20 @@ public class DataFusionSnapshotRestoreRecoveryTests extends OpenSearchIntegTestC
 
         Map<String, UploadedSegmentMetadata> remoteFilesAfter = restoredShard.getRemoteDirectory()
             .getSegmentsUploadedToRemoteStore();
-        
+
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         long docCountAfter = restoredShard.docStats().getCount();
 
-        // Verify consistency
         assertEquals("Document count should match after shallow restore", docCountBefore, docCountAfter);
-        
-        // Verify remote store file paths are preserved (shallow copy behavior)
-        // In shallow copy, files should reference the same remote store locations
-        logger.info("--> Remote files after restore: {}", remoteFilesAfter.size());
-        
-        // Verify format metadata preserved
+
         for (Map.Entry<String, UploadedSegmentMetadata> entry : remoteFilesAfter.entrySet()) {
             FileMetadata metadata = new FileMetadata(entry.getKey());
             assertNotNull("Format should not be null", metadata.dataFormat());
             assertFalse("Format should not be empty", metadata.dataFormat().isEmpty());
         }
 
-        // Verify document count matches expected number
         assertEquals("Document count should match expected", numDocs, docCountAfter);
 
-        logger.info("--> testDataFusionShallowCopySnapshotRestore completed successfully");
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
     }
 }

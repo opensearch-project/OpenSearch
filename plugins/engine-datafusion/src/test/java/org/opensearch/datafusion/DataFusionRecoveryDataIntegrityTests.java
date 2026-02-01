@@ -26,7 +26,6 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,10 +47,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * Tests sequence number integrity, segment info commits, old commit cleanup, and
  * segment file consistency with Parquet format metadata preservation.
  */
-@TestLogging(
-    value = "org.opensearch.index.shard:DEBUG,org.opensearch.index.store:DEBUG,org.opensearch.datafusion:DEBUG",
-    reason = "Validate DataFusion data integrity with format-aware metadata"
-)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCase {
 
@@ -94,7 +89,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
 
     @Override
     protected void beforeIndexDeletion() throws Exception {
-        logger.info("--> Skipping beforeIndexDeletion cleanup to avoid DataFusion engine type conflicts");
     }
 
     @Override
@@ -117,7 +111,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
 
         Map<String, UploadedSegmentMetadata> uploadedSegmentsRaw = remoteDir.getSegmentsUploadedToRemoteStore();
         if (uploadedSegmentsRaw.isEmpty()) {
-            logger.warn("--> No segments uploaded yet at stage: {}", stageName);
             return;
         }
 
@@ -128,7 +121,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
             assertNotNull("FileMetadata should have format information at " + stageName, fileMetadata.dataFormat());
             assertFalse("Format should not be empty at " + stageName, fileMetadata.dataFormat().isEmpty());
         }
-        logger.info("--> Validated {} segments at stage: {}", uploadedSegments.size(), stageName);
     }
 
     private long validateLocalShardFiles(IndexShard shard, String stageName) {
@@ -136,16 +128,13 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
             CompositeStoreDirectory compositeDir = shard.store().compositeStoreDirectory();
             if (compositeDir != null) {
                 FileMetadata[] allFiles = compositeDir.listFileMetadata();
-                long parquetCount = Arrays.stream(allFiles).filter(fm -> "parquet".equals(fm.dataFormat())).count();
-                logger.info("--> Found {} Parquet files at stage: {}", parquetCount, stageName);
-                return parquetCount;
+                return Arrays.stream(allFiles).filter(fm -> "parquet".equals(fm.dataFormat())).count();
             } else {
                 String[] files = shard.store().directory().listAll();
                 long parquetCount = Arrays.stream(files).filter(f -> f.contains("parquet") || f.endsWith(".parquet")).count();
                 return parquetCount;
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to list local shard files at stage {}: {}", stageName, e.getMessage());
             return -1;
         }
     }
@@ -157,7 +146,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
         try {
             RemoteSegmentMetadata metadata = remoteDir.readLatestMetadataFile();
             if (metadata == null) {
-                logger.warn("--> RemoteSegmentMetadata not found at stage {}", stageName);
                 return;
             }
 
@@ -171,7 +159,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
                 assertTrue("Checkpoint version should be positive at " + stageName, checkpoint.getSegmentInfosVersion() > 0);
             }
         } catch (IOException e) {
-            logger.warn("--> Failed to read metadata at stage {}: {}", stageName, e.getMessage());
         }
     }
 
@@ -203,9 +190,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
      * Ensures no duplicate sequence numbers exist after multiple replication cycles.
      */
     public void testDataFusionNoDuplicateSeqNo() throws Exception {
-        logger.info("--> Starting testDataFusionNoDuplicateSeqNo");
-        
-        // Setup cluster with primary and replica
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -282,8 +266,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
             assertEquals("Replica should have same doc count", totalDocs, replica.docStats().getCount());
         }, 30, TimeUnit.SECONDS);
 
-        // Promote replica to primary by stopping primary
-        logger.info("--> Promoting replica by stopping primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName));
         ensureStableCluster(2);
         
@@ -305,7 +287,6 @@ public class DataFusionRecoveryDataIntegrityTests extends OpenSearchIntegTestCas
         // Validate format metadata preserved
         validateRemoteStoreSegments(promotedShard, "after promotion");
 
-        logger.info("--> testDataFusionNoDuplicateSeqNo completed successfully");
         assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
     }
 
