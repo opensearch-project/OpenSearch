@@ -435,7 +435,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
             .setMapping(mappings).get());
         ensureGreen(INDEX_NAME);
 
-        int initialDocs = 5;
+        int initialDocs = randomIntBetween(1, 10);
         for (int i = 1; i <= initialDocs; i++) {
             client().prepareIndex(INDEX_NAME).setId("initial_doc" + i)
                 .setSource("{ \"value\": " + (i * 100) + ", \"phase\": \"initial\" }", MediaTypeRegistry.JSON).get();
@@ -444,7 +444,7 @@ public class DataFusionRemoteStoreRecoveryTests extends OpenSearchIntegTestCase 
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
         ensureGreen(INDEX_NAME);
 
-        int uncommittedDocs = 7;
+        int uncommittedDocs = randomIntBetween(1, 10);
         for (int i = 1; i <= uncommittedDocs; i++) {
             client().prepareIndex(INDEX_NAME).setId("uncommitted_doc" + i)
                 .setSource("{ \"value\": " + (i * 200) + ", \"phase\": \"uncommitted\" }", MediaTypeRegistry.JSON).get();
