@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
@@ -58,6 +60,9 @@ import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.FlushModeResolver;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,6 +92,7 @@ import static java.util.stream.Collectors.toMap;
  */
 @PublicApi(since = "1.0.0")
 public class AggregatorFactories {
+    private static final Logger logger = LogManager.getLogger(AggregatorFactories.class);
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
@@ -249,7 +255,7 @@ public class AggregatorFactories {
         }
     };
 
-    private AggregatorFactory[] factories;
+    private final AggregatorFactory[] factories;
 
     public static Builder builder() {
         return new Builder();
@@ -268,9 +274,19 @@ public class AggregatorFactories {
         return true;
     }
 
+    public boolean allFactoriesSupportIntraSegmentSearch() {
+        for (AggregatorFactory factory : factories) {
+            if (factory.supportsIntraSegmentSearch() == false || factory.evaluateChildFactoriesForIntraSegment() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
+     *
      * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
      *                    that {@link Aggregator}s created by this method will
      *                    be asked to collect.
@@ -303,7 +319,33 @@ public class AggregatorFactories {
 
     private List<Aggregator> createTopLevelAggregators(SearchContext searchContext, Predicate<AggregatorFactory> factoryFilter)
         throws IOException {
-        // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == null) {
+            FlushMode decision;
+            if (factories.length == 0) {
+                decision = FlushMode.PER_SHARD;
+            } else {
+                StreamingCostMetrics metrics = StreamingCostMetrics.estimateFromFactories(factories, searchContext);
+                long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
+                decision = FlushModeResolver.decideFlushMode(
+                    metrics,
+                    FlushMode.PER_SHARD,
+                    maxBucket,
+                    searchContext.getStreamingMinCardinalityRatio(),
+                    searchContext.getStreamingMinEstimatedBucketCount()
+                );
+                logger.debug(
+                    "Streaming aggregation decision: {} | streamable={}, topN={} | maxBucket={}",
+                    decision,
+                    metrics.streamable(),
+                    metrics.topNSize(),
+                    maxBucket
+                );
+            }
+            searchContext.setFlushModeIfAbsent(decision);
+        }
+
+        // These aggregators are going to be used with a single bucket ordinal, no need
+        // to wrap the PER_BUCKET ones
         List<Aggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < factories.length; i++) {
             /*
@@ -348,7 +390,8 @@ public class AggregatorFactories {
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
-        // Using LinkedHashSets to preserve the order of insertion, that makes the results
+        // Using LinkedHashSets to preserve the order of insertion, that makes the
+        // results
         // ordered nicely, although technically order does not matter
         private final Collection<AggregationBuilder> aggregationBuilders = new LinkedHashSet<>();
         private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new LinkedHashSet<>();

@@ -149,6 +149,7 @@ import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.startree.StarTreeQueryContext;
+import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
@@ -180,23 +181,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
- * Provides helpers for constructing and searching an {@link Aggregator} implementation based on a provided
+ * Provides helpers for constructing and searching an {@link Aggregator}
+ * implementation based on a provided
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends OpenSearchTestCase {
     private static final String NESTEDFIELD_PREFIX = "nested_";
     private List<Releasable> releasables = new ArrayList<>();
-    private static final String TYPE_NAME = "type";
+
     protected ValuesSourceRegistry valuesSourceRegistry;
 
-    // A list of field types that should not be tested, or are not currently supported
+    // A list of field types that should not be tested, or are not currently
+    // supported
     private static List<String> TYPE_TEST_DENYLIST;
 
     protected static final TriConsumer<Document, String, String> ADD_SORTED_SET_FIELD_NOT_INDEXED = (document, field, value) -> document
@@ -222,7 +224,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Allows subclasses to provide alternate names for the provided field type, which
+     * Allows subclasses to provide alternate names for the provided field type,
+     * which
      * can be useful when testing aggregations on field aliases.
      */
     protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
@@ -243,7 +246,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         }
     }
 
-    // Make this @Before instead of @BeforeClass so it can call the non-static getSearchPlugins method
+    // Make this @Before instead of @BeforeClass so it can call the non-static
+    // getSearchPlugins method
     @Before
     public void initValuesSourceRegistry() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
@@ -253,7 +257,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Test cases should override this if they have plugins that need to be loaded, e.g. the plugins their aggregators are in.
+     * Test cases should override this if they have plugins that need to be loaded,
+     * e.g. the plugins their aggregators are in.
      */
     protected List<SearchPlugin> getSearchPlugins() {
         return Collections.emptyList();
@@ -333,6 +338,9 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         SearchContext searchContext = createSearchContext(indexSearcher, indexSettings, query, bucketConsumer, fieldTypes);
         when(searchContext.isStreamSearch()).thenReturn(true);
         when(searchContext.isStreamingModeRequested()).thenReturn(true);
+        // Force streaming aggregator creation by setting flushMode to PER_SEGMENT
+        // This bypasses the cost estimation decision logic in the factory
+        when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
         return createAggregator(aggregationBuilder, searchContext);
     }
 
@@ -512,13 +520,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.bucketCollectorProcessor()).thenReturn(new BucketCollectorProcessor());
         when(searchContext.asLocalBucketCountThresholds(any())).thenCallRealMethod();
         /*
-         * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
+         * Always use the circuit breaking big arrays instance so that the
+         * CircuitBreakerService
          * we're passed gets a chance to break.
          */
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), circuitBreakerService).withCircuitBreaking();
         when(searchContext.bigArrays()).thenReturn(bigArrays);
 
-        // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
+        // TODO: now just needed for top_hits, this will need to be revised for other
+        // agg unit tests:
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
@@ -552,8 +562,12 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         );
         registerFieldTypes(searchContext, mapperService, fieldNameToType);
         doAnswer(invocation -> {
-            /* Store the release-ables so we can release them at the end of the test case. This is important because aggregations don't
-             * close their sub-aggregations. This is fairly similar to what the production code does. */
+            /*
+             * Store the release-ables so we can release them at the end of the test case.
+             * This is important because aggregations don't
+             * close their sub-aggregations. This is fairly similar to what the production
+             * code does.
+             */
             releasables.add((Releasable) invocation.getArguments()[0]);
             return null;
         }).when(searchContext).addReleasable(any());
@@ -611,7 +625,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Sub-tests that need a more complex index field data provider can override this
+     * Sub-tests that need a more complex index field data provider can override
+     * this
      */
     protected TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> getIndexFieldDataLookup(
         MapperService mapperService,
@@ -624,7 +639,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Sub-tests that need scripting can override this method to provide a script service and pre-baked scripts
+     * Sub-tests that need scripting can override this method to provide a script
+     * service and pre-baked scripts
      */
     protected ScriptService getMockScriptService() {
         return null;
@@ -1061,12 +1077,16 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Added to randomly run with more assertions on the index searcher level,
-     * like {@link org.apache.lucene.tests.util.LuceneTestCase#newSearcher(IndexReader)}, which can't be used because it also
-     * wraps in the IndexSearcher's IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     * like
+     * {@link org.apache.lucene.tests.util.LuceneTestCase#newSearcher(IndexReader)},
+     * which can't be used because it also
+     * wraps in the IndexSearcher's IndexReader with other implementations that we
+     * can't handle. (e.g. ParallelCompositeReader)
      */
     protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
         if (randomBoolean()) {
-            // this executes basic query checks and asserts that weights are normalized only once etc.
+            // this executes basic query checks and asserts that weights are normalized only
+            // once etc.
             return new AssertingIndexSearcher(random(), indexReader);
         } else {
             return new IndexSearcher(indexReader);
@@ -1075,8 +1095,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Added to randomly run with more assertions on the index reader level,
-     * like {@link org.apache.lucene.tests.util.LuceneTestCase#wrapReader(IndexReader)}, which can't be used because it also
-     * wraps in the IndexReader with other implementations that we can't handle. (e.g. ParallelCompositeReader)
+     * like
+     * {@link org.apache.lucene.tests.util.LuceneTestCase#wrapReader(IndexReader)},
+     * which can't be used because it also
+     * wraps in the IndexReader with other implementations that we can't handle.
+     * (e.g. ParallelCompositeReader)
      */
     protected static IndexReader maybeWrapReaderEs(DirectoryReader reader) throws IOException {
         if (randomBoolean()) {
@@ -1087,28 +1110,37 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Implementors should return a list of {@link ValuesSourceType} that the aggregator supports.
-     * This is used to test the matrix of supported/unsupported field types against the aggregator
+     * Implementors should return a list of {@link ValuesSourceType} that the
+     * aggregator supports.
+     * This is used to test the matrix of supported/unsupported field types against
+     * the aggregator
      * and verify it works (or doesn't) as expected.
      * <p>
-     * If this method is implemented, {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
+     * If this method is implemented,
+     * {@link AggregatorTestCase#createAggBuilderForTypeTest(MappedFieldType, String)}
      * should be implemented as well.
      *
      * @return list of supported ValuesSourceTypes
      */
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // If aggs don't override this method, an empty list allows the test to be skipped.
-        // Once all aggs implement this method we should make it abstract and not allow skipping.
+        // If aggs don't override this method, an empty list allows the test to be
+        // skipped.
+        // Once all aggs implement this method we should make it abstract and not allow
+        // skipping.
         return Collections.emptyList();
     }
 
     /**
-     * This method is invoked each time a field type is tested in {@link AggregatorTestCase#testSupportedFieldTypes()}.
-     * The field type and name are provided, and the implementor is expected to return an AggBuilder accordingly.
-     * The AggBuilder should be returned even if the aggregation does not support the field type, because
+     * This method is invoked each time a field type is tested in
+     * {@link AggregatorTestCase#testSupportedFieldTypes()}.
+     * The field type and name are provided, and the implementor is expected to
+     * return an AggBuilder accordingly.
+     * The AggBuilder should be returned even if the aggregation does not support
+     * the field type, because
      * the test will check if an exception is thrown in that case.
      * <p>
-     * The list of supported types are provided by {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
+     * The list of supported types are provided by
+     * {@link AggregatorTestCase#getSupportedValuesSourceTypes()},
      * which must also be implemented.
      *
      * @param fieldType the type of the field that will be tested
@@ -1122,25 +1154,36 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * A method that allows implementors to specifically denylist particular field types (based on their content_name).
-     * This is needed in some areas where the ValuesSourceType is not granular enough, for example integer values
-     * vs floating points, or `keyword` bytes vs `binary` bytes (which are not searchable)
+     * A method that allows implementors to specifically denylist particular field
+     * types (based on their content_name).
+     * This is needed in some areas where the ValuesSourceType is not granular
+     * enough, for example integer values
+     * vs floating points, or `keyword` bytes vs `binary` bytes (which are not
+     * searchable)
      * <p>
-     * This is a denylist instead of an allowlist because there are vastly more field types than ValuesSourceTypes,
-     * and it's expected that these unsupported cases are exceptional rather than common
+     * This is a denylist instead of an allowlist because there are vastly more
+     * field types than ValuesSourceTypes,
+     * and it's expected that these unsupported cases are exceptional rather than
+     * common
      */
     protected List<String> unsupportedMappedFieldTypes() {
         return Collections.emptyList();
     }
 
     /**
-     * This test will validate that an aggregator succeeds or fails to run against all the field types
-     * that are registered in {@link IndicesModule} (e.g. all the core field types).  An aggregator
-     * is provided by the implementor class, and it is executed against each field type in turn.  If
-     * an exception is thrown when the field is supported, that will fail the test.  Similarly, if
-     * an exception _is not_ thrown when a field is unsupported, that will also fail the test.
+     * This test will validate that an aggregator succeeds or fails to run against
+     * all the field types
+     * that are registered in {@link IndicesModule} (e.g. all the core field types).
+     * An aggregator
+     * is provided by the implementor class, and it is executed against each field
+     * type in turn. If
+     * an exception is thrown when the field is supported, that will fail the test.
+     * Similarly, if
+     * an exception _is not_ thrown when a field is unsupported, that will also fail
+     * the test.
      * <p>
-     * Exception types/messages are not currently checked, just presence/absence of an exception.
+     * Exception types/messages are not currently checked, just presence/absence of
+     * an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
@@ -1150,13 +1193,15 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         List<String> unsupportedMappedFieldTypes = unsupportedMappedFieldTypes();
 
         if (supportedVSTypes.isEmpty()) {
-            // If the test says it doesn't support any VStypes, it has not been converted yet so skip
+            // If the test says it doesn't support any VStypes, it has not been converted
+            // yet so skip
             return;
         }
 
         for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
 
-            // Some field types should not be tested, or require more work and are not ready yet
+            // Some field types should not be tested, or require more work and are not ready
+            // yet
             if (TYPE_TEST_DENYLIST.contains(mappedType.getKey())) {
                 continue;
             }
@@ -1179,7 +1224,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
             MappedFieldType fieldType = mapper.fieldType();
 
-            // Non-aggregatable fields are not testable (they will throw an error on all aggs anyway), so skip
+            // Non-aggregatable fields are not testable (they will throw an error on all
+            // aggs anyway), so skip
             if (fieldType.isAggregatable() == false) {
                 continue;
             }
@@ -1194,7 +1240,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
                     AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, fieldName);
 
                     ValuesSourceType vst = fieldToVST(fieldType);
-                    // TODO in the future we can make this more explicit with expectThrows(), when the exceptions are standardized
+                    // TODO in the future we can make this more explicit with expectThrows(), when
+                    // the exceptions are standardized
                     AssertionError failure = null;
                     try {
                         searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
@@ -1234,9 +1281,11 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Helper method to write a single document with a single value specific to the requested fieldType.
+     * Helper method to write a single document with a single value specific to the
+     * requested fieldType.
      * <p>
-     * Throws an exception if it encounters an unknown field type, to prevent new ones from sneaking in without
+     * Throws an exception if it encounters an unknown field type, to prevent new
+     * ones from sneaking in without
      * being tested.
      */
     private void writeTestDoc(MappedFieldType fieldType, String fieldName, RandomIndexWriter iw) throws IOException {
@@ -1396,7 +1445,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a {@code geo_point}.
+     * Make a {@linkplain GeoPointFieldMapper.GeoPointFieldType} for a
+     * {@code geo_point}.
      */
     protected GeoPointFieldMapper.GeoPointFieldType geoPointField(String name) {
         return new GeoPointFieldMapper.GeoPointFieldType(name);
@@ -1506,7 +1556,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
 
     /**
      * Wrapper around Aggregator class
-     * Maintains a count for times collect() is invoked - number of documents visited
+     * Maintains a count for times collect() is invoked - number of documents
+     * visited
      */
     protected static class CountingAggregator extends Aggregator {
         private final AtomicInteger collectCounter;

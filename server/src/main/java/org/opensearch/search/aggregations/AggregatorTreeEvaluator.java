@@ -88,22 +88,13 @@ public final class AggregatorTreeEvaluator {
      * @return the resolved flush mode for this query
      */
     private static FlushMode getFlushMode(Collector collector, SearchContext searchContext) {
-        if (searchContext.hasCachedFlushMode()) {
-            return searchContext.getFlushMode();
-        }
-
         long maxBucketCount = searchContext.getStreamingMaxEstimatedBucketCount();
 
         double minCardinalityRatio = searchContext.getStreamingMinCardinalityRatio();
         long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
         FlushMode mode = FlushModeResolver.resolve(collector, FlushMode.PER_SHARD, maxBucketCount, minCardinalityRatio, minBucketCount);
 
-        if (!searchContext.setFlushModeIfAbsent(mode)) {
-            // this could happen in case of race condition, we go ahead with what's been set
-            // already
-            FlushMode existingMode = searchContext.getFlushMode();
-            mode = existingMode != null ? existingMode : mode;
-        }
+        searchContext.setFlushMode(mode);
 
         logger.debug(
             "flushMode={} isStreamSearch={} minRatio={} minBuckets={} maxBuckets={}",

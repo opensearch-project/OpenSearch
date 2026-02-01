@@ -42,7 +42,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.composite.CompositeCodecFactory;
 import org.opensearch.index.mapper.MapperService;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -67,7 +70,20 @@ public class CodecService {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
     private final CompositeCodecFactory compositeCodecFactory = new CompositeCodecFactory();
 
+    /**
+     * @deprecated Please use {@code CodecService(MapperService, IndexSettings, Logger, Collection<CodecRegistry>)}
+     */
+    @Deprecated(forRemoval = true)
     public CodecService(@Nullable MapperService mapperService, IndexSettings indexSettings, Logger logger) {
+        this(mapperService, indexSettings, logger, List.of());
+    }
+
+    public CodecService(
+        @Nullable MapperService mapperService,
+        IndexSettings indexSettings,
+        Logger logger,
+        Collection<AdditionalCodecs> registries
+    ) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         assert null != indexSettings;
         if (mapperService == null) {
@@ -94,6 +110,28 @@ public class CodecService {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
+
+        // Register all additional codecs (if available)
+        final Supplier<Codec> defaultCodec = () -> codecs.get(DEFAULT_CODEC);
+        for (AdditionalCodecs registry : registries) {
+            final Map<String, Codec> additionalCodecs = registry.getCodecs(mapperService, indexSettings, defaultCodec);
+            for (Map.Entry<String, Codec> additionalCodec : additionalCodecs.entrySet()) {
+                final String name = additionalCodec.getKey();
+
+                // Default codec could not be changed
+                if (name.equalsIgnoreCase(LUCENE_DEFAULT_CODEC) == true) {
+                    throw new IllegalStateException("The default codec could not be replaced");
+                }
+
+                final Codec existing = codecs.get(name);
+                if (existing == null) {
+                    codecs.put(name, additionalCodec.getValue());
+                } else {
+                    throw new IllegalStateException("The codec with name " + name + " is already registered.");
+                }
+            }
+        }
+
         this.codecs = codecs.immutableMap();
     }
 

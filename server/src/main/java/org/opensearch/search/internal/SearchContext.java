@@ -43,6 +43,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -92,6 +93,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a
@@ -655,6 +659,14 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
+     * Sets the flush mode, overwriting any existing value.
+     */
+    @ExperimentalApi
+    public void setFlushMode(FlushMode flushMode) {
+        // no-op by default
+    }
+
+    /**
      * Checks if the flush mode has been explicitly set in the cache.
      */
     @ExperimentalApi
@@ -662,4 +674,19 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
+    public String getPartitionStrategy() {
+        return CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getDefault(Settings.EMPTY);
+    }
+
+    public int getPartitionMinSegmentSize() {
+        return CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getDefault(Settings.EMPTY);
+    }
+
+    /**
+     * Evaluates whether this request should use intra-segment search based on query
+     * and aggregation analysis.
+     */
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
 }

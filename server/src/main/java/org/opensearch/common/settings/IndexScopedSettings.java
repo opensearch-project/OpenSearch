@@ -61,6 +61,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -72,6 +73,7 @@ import java.util.function.Predicate;
 
 /**
  * Encapsulates all valid index level settings.
+ *
  * @see Property#IndexScope
  *
  * @opensearch.api
@@ -171,7 +173,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_SCROLL,
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
-                IndexSettings.STREAMING_AGGREGATION_MIN_SHARD_SIZE_SETTING,
+                FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
+                FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
+                FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
+                FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
@@ -310,7 +315,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                         }
                     }
                 }, Property.IndexScope), // this allows similarity settings to be passed
-                Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
+                Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis
+                                                                             // settings to be passed
 
             )
         )
@@ -356,7 +362,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyProvider.INDEX_MERGE_ENABLED:
                 // we keep the shrink settings for BWC - this can be removed in 8.0
-                // we can't remove in 7 since this setting might be baked into an index coming in via a full cluster restart from 6.0
+                // we can't remove in 7 since this setting might be baked into an index coming
+                // in via a full cluster restart from 6.0
             case "index.shrink.source.uuid":
             case "index.shrink.source.name":
             case IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY:

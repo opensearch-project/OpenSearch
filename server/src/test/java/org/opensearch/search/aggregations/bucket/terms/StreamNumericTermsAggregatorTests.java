@@ -1874,7 +1874,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1917,7 +1917,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max1.getValue(), equalTo(900.0));
                     assertThat(max2.getValue(), equalTo(1000.0));
 
-                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3, other=7
+                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3,
+                    // other=7
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(7L));
                 }
             }
@@ -1957,7 +1958,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2000,7 +2001,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max1.getValue(), equalTo(204.0));
                     assertThat(max2.getValue(), equalTo(304.0));
 
-                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15,
+                    // other=35
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
                 }
             }
@@ -2038,7 +2040,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2112,7 +2114,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2144,7 +2146,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     List<LongTerms.Bucket> buckets = result.getBuckets();
                     assertThat(buckets.size(), equalTo(5));
 
-                    // Default order is count DESC, so top 5 should be 9, 8, 7, 6, 5 (highest counts)
+                    // Default order is count DESC, so top 5 should be 9, 8, 7, 6, 5 (highest
+                    // counts)
                     // Returned in alphabetical order at shard level
                     assertThat(buckets.get(0).getKeyAsNumber().longValue(), equalTo(5L));
                     assertThat(buckets.get(0).getDocCount(), equalTo(6L));
@@ -2157,7 +2160,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(buckets.get(4).getKeyAsNumber().longValue(), equalTo(9L));
                     assertThat(buckets.get(4).getDocCount(), equalTo(10L));
 
-                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40 (10+9+8+7+6), other=15
+                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40
+                    // (10+9+8+7+6), other=15
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(15L));
                 }
             }
@@ -2216,7 +2220,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2305,7 +2309,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2440,7 +2444,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2490,7 +2494,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card3.getValue(), equalTo(18L));
                     assertThat(card4.getValue(), equalTo(20L));
 
-                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=12+14+16+18+20=80, other=30
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110,
+                    // selected=12+14+16+18+20=80, other=30
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(30L));
                 }
             }
@@ -2500,7 +2505,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
     public void testOrderByCardinalitySubAggregationAscending() throws Exception {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically first
+                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically
+                // first
                 for (int i = 0; i < 10; i++) {
                     int uniqueUsers = (i + 1) * 2;
                     for (int j = 0; j < uniqueUsers; j++) {
@@ -2530,7 +2536,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2574,7 +2580,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card1.getValue(), equalTo(4L));
                     assertThat(card2.getValue(), equalTo(6L));
 
-                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=2+4+6=12, other=98
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110,
+                    // selected=2+4+6=12, other=98
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(98L));
                 }
             }
@@ -2610,7 +2617,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2680,7 +2687,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2752,7 +2759,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2822,7 +2829,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2885,7 +2892,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                     Settings settings = Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put("index.aggregation.streaming.min_shard_size", 1)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
                         .build();
                     IndexSettings indexSettings = new IndexSettings(
                         IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
@@ -2918,7 +2925,8 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
                     LongTerms result = (LongTerms) aggregator.buildAggregations(new long[] { 0 })[0];
                     List<LongTerms.Bucket> buckets = result.getBuckets();
 
-                    // Should get 5 buckets, and they should be sorted by key after coordinator reduce
+                    // Should get 5 buckets, and they should be sorted by key after coordinator
+                    // reduce
                     assertEquals(5, buckets.size());
                     for (int i = 0; i < buckets.size() - 1; i++) {
                         assertTrue(buckets.get(i).getKeyAsNumber().longValue() < buckets.get(i + 1).getKeyAsNumber().longValue());
@@ -2947,7 +2955,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                     Settings settings = Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put("index.aggregation.streaming.min_shard_size", 1)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
                         .build();
                     IndexSettings indexSettings = new IndexSettings(
                         IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),
@@ -3014,7 +3022,7 @@ public class StreamNumericTermsAggregatorTests extends AggregatorTestCase {
 
                     Settings settings = Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put("index.aggregation.streaming.min_shard_size", 1)
+                        .put("index.aggregation.streaming.min_segment_size", 1)
                         .build();
                     IndexSettings indexSettings = new IndexSettings(
                         IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build(),

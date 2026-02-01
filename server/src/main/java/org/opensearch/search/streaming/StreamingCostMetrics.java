@@ -9,6 +9,8 @@
 package org.opensearch.search.streaming;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.internal.SearchContext;
 
 import java.util.Objects;
 
@@ -85,12 +87,34 @@ public final class StreamingCostMetrics {
     }
 
     /**
+     * Convenience constructor for backward compatibility and internal use.
+     */
+    public StreamingCostMetrics(boolean streamable, long topNSize) {
+        this(streamable, topNSize, 0, 0, 0);
+    }
+
+    /**
      * Creates metrics indicating an aggregation does not support streaming.
      *
-     * @return metrics with streamable=false and zero values for all cost parameters
+     * @return metrics with streamable=false and zero for topNSize
      */
     public static StreamingCostMetrics nonStreamable() {
-        return new StreamingCostMetrics(false, 0, 0, 0, 0);
+        return new StreamingCostMetrics(false, 0);
+    }
+
+    /**
+     * Creates metrics for aggregations that are compatible with streaming but don't
+     * contribute to the streaming cost decision (e.g., metrics aggregations like
+     * max, min, avg).
+     *
+     * <p>
+     * These aggregations can be nested within streaming bucket aggregations without
+     * blocking streaming, but their cost is negligible (single value output).
+     *
+     * @return metrics with streamable=true and topNSize=1
+     */
+    public static StreamingCostMetrics neutral() {
+        return new StreamingCostMetrics(true, 1);
     }
 
     /**
@@ -107,31 +131,17 @@ public final class StreamingCostMetrics {
      *         non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSubAggregation(StreamingCostMetrics subAggMetrics) {
-        if (!this.streamable || subAggMetrics == null || !subAggMetrics.streamable) {
+        assert subAggMetrics != null : "subAggMetrics must not be null";
+        if (!this.streamable || !subAggMetrics.streamable) {
             return nonStreamable();
         }
 
-        long combinedTopNSize;
         try {
-            combinedTopNSize = Math.multiplyExact(this.topNSize, subAggMetrics.topNSize);
+            long combinedTopNSize = Math.multiplyExact(this.topNSize, subAggMetrics.topNSize);
+            return new StreamingCostMetrics(true, combinedTopNSize);
         } catch (ArithmeticException e) {
             return nonStreamable();
         }
-
-        long combinedEstimatedBucketCount;
-        try {
-            combinedEstimatedBucketCount = Math.multiplyExact(this.estimatedBucketCount, subAggMetrics.estimatedBucketCount);
-        } catch (ArithmeticException e) {
-            return nonStreamable();
-        }
-
-        return new StreamingCostMetrics(
-            true,
-            combinedTopNSize,
-            combinedEstimatedBucketCount,
-            Math.max(this.segmentCount, subAggMetrics.segmentCount),
-            Math.max(this.estimatedDocCount, subAggMetrics.estimatedDocCount)
-        );
     }
 
     /**
@@ -147,35 +157,77 @@ public final class StreamingCostMetrics {
      *         non-streamable if either input is non-streamable
      */
     public StreamingCostMetrics combineWithSibling(StreamingCostMetrics siblingMetrics) {
-        if (!this.streamable || siblingMetrics == null || !siblingMetrics.streamable) {
+        assert siblingMetrics != null : "siblingMetrics must not be null";
+        if (!this.streamable || !siblingMetrics.streamable) {
             return nonStreamable();
         }
 
-        long combinedTopNSize;
         try {
-            combinedTopNSize = Math.addExact(this.topNSize, siblingMetrics.topNSize);
+            long combinedTopNSize = Math.addExact(this.topNSize, siblingMetrics.topNSize);
+            return new StreamingCostMetrics(true, combinedTopNSize);
         } catch (ArithmeticException e) {
             return nonStreamable();
         }
-
-        long combinedEstimatedBucketCount;
-        try {
-            combinedEstimatedBucketCount = Math.addExact(this.estimatedBucketCount, siblingMetrics.estimatedBucketCount);
-        } catch (ArithmeticException e) {
-            return nonStreamable();
-        }
-
-        return new StreamingCostMetrics(
-            true,
-            combinedTopNSize,
-            combinedEstimatedBucketCount,
-            Math.max(this.segmentCount, siblingMetrics.segmentCount),
-            this.estimatedDocCount + siblingMetrics.estimatedDocCount
-        );
     }
 
-    public boolean isStreamable() {
-        return streamable;
+    /**
+     * Recursively estimates streaming cost from the factory tree.
+     *
+     * @param factories     Array of aggregator factories to estimate (must be
+     *                      non-empty)
+     * @param searchContext Search context providing access to index metadata
+     * @return Combined streaming cost metrics, or non-streamable if any factory
+     *         cannot be streamed
+     */
+    public static StreamingCostMetrics estimateFromFactories(AggregatorFactory[] factories, SearchContext searchContext) {
+        assert factories.length > 0 : "factories array must be non-empty";
+        StreamingCostMetrics combined = null;
+        for (AggregatorFactory factory : factories) {
+            StreamingCostMetrics metrics = estimateFromFactory(factory, searchContext);
+            if (!metrics.streamable()) {
+                return nonStreamable();
+            }
+            combined = (combined == null) ? metrics : combined.combineWithSibling(metrics);
+        }
+        return combined;
+    }
+
+    /**
+     * Estimates streaming cost from a single factory, including its sub-factories.
+     *
+     * <p>
+     * Factories must implement {@link StreamingCostEstimable} to participate in
+     * streaming.
+     * Factories that don't implement the interface will block streaming for the
+     * entire
+     * aggregation tree.
+     *
+     * @param factory       The aggregator factory to estimate
+     * @param searchContext Search context providing access to index metadata
+     * @return Streaming cost metrics for this factory and its sub-aggregations
+     *         (never null)
+     */
+    private static StreamingCostMetrics estimateFromFactory(AggregatorFactory factory, SearchContext searchContext) {
+        if (!(factory instanceof StreamingCostEstimable estimable)) {
+            return nonStreamable();
+        }
+
+        StreamingCostMetrics factoryMetrics = estimable.estimateStreamingCost(searchContext);
+        if (!factoryMetrics.streamable()) {
+            return nonStreamable();
+        }
+
+        // Recursively estimate sub-factories
+        AggregatorFactory[] subFactories = factory.getSubFactories().getFactories();
+        if (subFactories.length > 0) {
+            StreamingCostMetrics subMetrics = estimateFromFactories(subFactories, searchContext);
+            if (!subMetrics.streamable()) {
+                return nonStreamable();
+            }
+            factoryMetrics = factoryMetrics.combineWithSubAggregation(subMetrics);
+        }
+
+        return factoryMetrics;
     }
 
     @Override

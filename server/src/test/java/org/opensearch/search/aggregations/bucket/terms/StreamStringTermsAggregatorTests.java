@@ -66,8 +66,6 @@ import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.streaming.FlushMode;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1425,53 +1423,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         return aggregator.buildTopLevel();
     }
 
-    public void testStreamingCostMetrics() {
-        assertTrue(
-            "StreamStringTermsAggregator should implement Streamable",
-            Streamable.class.isAssignableFrom(StreamStringTermsAggregator.class)
-        );
-    }
-
-    public void testStreamingCostMetricsValues() throws Exception {
-        try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                for (int i = 0; i < 100; i++) {
-                    Document document = new Document();
-                    document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 10))));
-                    indexWriter.addDocument(document);
-                }
-
-                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
-
-                    StreamStringTermsAggregator aggregator = createStreamAggregator(
-                        null,
-                        aggregationBuilder,
-                        indexSearcher,
-                        createIndexSettings(),
-                        new MultiBucketConsumerService.MultiBucketConsumer(
-                            DEFAULT_MAX_BUCKETS,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                        ),
-                        fieldType
-                    );
-
-                    StreamingCostMetrics metrics = aggregator.getStreamingCostMetrics();
-
-                    assertThat(metrics, notNullValue());
-                    assertTrue("Should be streamable", metrics.streamable());
-                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
-                    assertEquals("Segment count should be 1", 1, metrics.segmentCount());
-                    assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
-                    assertEquals("Should have 100 documents", 100, metrics.estimatedDocCount());
-                }
-            }
-        }
-    }
-
     public void testCollectDebugInfo() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
@@ -1510,17 +1461,10 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                 assertTrue("Should contain segments_with_single_valued_ords", debugInfo.containsKey("segments_with_single_valued_ords"));
                 assertTrue("Should contain segments_with_multi_valued_ords", debugInfo.containsKey("segments_with_multi_valued_ords"));
-
                 assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
                 assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
                 assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
                 assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
-                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
-
-                assertTrue(debugInfo.containsKey("streaming_enabled"));
-
-                // Assert other metric keys are present
-                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
                 assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
 
                 // We don't assert specific values for streaming metrics here as they depend on
@@ -1557,7 +1501,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1601,7 +1545,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max1.getValue(), equalTo(900.0));
                     assertThat(max2.getValue(), equalTo(1000.0));
 
-                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3, other=7
+                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3,
+                    // other=7
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(7L));
                 }
             }
@@ -1638,7 +1583,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1688,7 +1633,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card3.getValue(), equalTo(18L));
                     assertThat(card4.getValue(), equalTo(20L));
 
-                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=12+14+16+18+20=80, other=30
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110,
+                    // selected=12+14+16+18+20=80, other=30
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(30L));
                 }
             }
@@ -1698,8 +1644,10 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testOrderByCardinalitySubAggregationAscending() throws Exception {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically first
-                // cat_z=2, cat_y=4, cat_x=6, cat_a=8, cat_b=10, cat_c=12, cat_d=14, cat_e=16, cat_f=18, cat_g=20
+                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically
+                // first
+                // cat_z=2, cat_y=4, cat_x=6, cat_a=8, cat_b=10, cat_c=12, cat_d=14, cat_e=16,
+                // cat_f=18, cat_g=20
                 String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
                 for (int i = 0; i < 10; i++) {
                     int uniqueUsers = (i + 1) * 2;
@@ -1727,7 +1675,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1771,7 +1719,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(card1.getValue(), equalTo(4L));
                     assertThat(card2.getValue(), equalTo(2L));
 
-                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=6+4+2=12, other=98
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110,
+                    // selected=6+4+2=12, other=98
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(98L));
                 }
             }
@@ -1782,7 +1731,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create categories where alphabetical order != count order
-                // cat_z=10 docs (highest), cat_y=9, cat_x=8, cat_a=7, cat_b=6, cat_c=5, cat_d=4, cat_e=3, cat_f=2, cat_g=1 (lowest)
+                // cat_z=10 docs (highest), cat_y=9, cat_x=8, cat_a=7, cat_b=6, cat_c=5,
+                // cat_d=4, cat_e=3, cat_f=2, cat_g=1 (lowest)
                 String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
                 for (int i = 0; i < 10; i++) {
                     int numDocs = 10 - i;
@@ -1809,7 +1759,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1842,7 +1792,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     List<StringTerms.Bucket> buckets = result.getBuckets();
                     assertThat(buckets.size(), equalTo(5));
 
-                    // Default order is count DESC, so top 5 should be cat_z, cat_y, cat_x, cat_a, cat_b (highest counts)
+                    // Default order is count DESC, so top 5 should be cat_z, cat_y, cat_x, cat_a,
+                    // cat_b (highest counts)
                     // Returned in alphabetical order at shard level
                     assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_a"));
                     assertThat(buckets.get(0).getDocCount(), equalTo(7L));
@@ -1855,7 +1806,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_z"));
                     assertThat(buckets.get(4).getDocCount(), equalTo(10L));
 
-                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40 (10+9+8+7+6), other=15
+                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40
+                    // (10+9+8+7+6), other=15
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(15L));
                 }
             }
@@ -1894,7 +1846,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -1938,7 +1890,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max1.getValue(), equalTo(204.0));
                     assertThat(max2.getValue(), equalTo(104.0));
 
-                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15,
+                    // other=35
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
                 }
             }
@@ -1975,7 +1928,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2019,7 +1972,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(max1.getValue(), equalTo(904.0));
                     assertThat(max2.getValue(), equalTo(1004.0));
 
-                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15,
+                    // other=35
                     assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
                 }
             }
@@ -2029,7 +1983,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
     public void testMinDocCount() throws Exception {
         try (Directory directory = newDirectory()) {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                // Create categories with varying doc counts: cat_0=1, cat_1=2, cat_2=3, cat_3=4, cat_4=5
+                // Create categories with varying doc counts: cat_0=1, cat_1=2, cat_2=3,
+                // cat_3=4, cat_4=5
                 for (int i = 0; i < 5; i++) {
                     for (int j = 0; j <= i; j++) {
                         Document doc = new Document();
@@ -2087,7 +2042,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create terms where top 5 by count != first 5 alphabetically
                 // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
-                // By count: zzz(100), yyy(90), xxx(80), www(70), vvv(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                // By count: zzz(100), yyy(90), xxx(80), www(70), vvv(60), aaa(50), bbb(40),
+                // ccc(30), ddd(20), eee(10)
                 String[] terms = { "zzz", "yyy", "xxx", "www", "vvv", "aaa", "bbb", "ccc", "ddd", "eee" };
                 int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
                 for (int i = 0; i < terms.length; i++) {
@@ -2102,7 +2058,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    // Request size=5 with key order ascending - should return first 5 alphabetically
+                    // Request size=5 with key order ascending - should return first 5
+                    // alphabetically
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .size(5)
                         .shardSize(5)
@@ -2113,7 +2070,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2145,7 +2102,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     List<StringTerms.Bucket> buckets = result.getBuckets();
                     assertThat(buckets.size(), equalTo(5));
 
-                    // With key order ASC, should return first 5 alphabetically: aaa, bbb, ccc, ddd, eee
+                    // With key order ASC, should return first 5 alphabetically: aaa, bbb, ccc, ddd,
+                    // eee
                     // NOT the top 5 by doc count (zzz, yyy, xxx, www, vvv)
                     assertThat(buckets.get(0).getKeyAsString(), equalTo("aaa"));
                     assertThat(buckets.get(1).getKeyAsString(), equalTo("bbb"));
@@ -2162,7 +2120,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                 // Create terms where top 5 by count != last 5 alphabetically
                 // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
-                // By count: jjj(100), iii(90), hhh(80), ggg(70), fff(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                // By count: jjj(100), iii(90), hhh(80), ggg(70), fff(60), aaa(50), bbb(40),
+                // ccc(30), ddd(20), eee(10)
                 String[] terms = { "jjj", "iii", "hhh", "ggg", "fff", "aaa", "bbb", "ccc", "ddd", "eee" };
                 int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
                 for (int i = 0; i < terms.length; i++) {
@@ -2177,7 +2136,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     IndexSearcher indexSearcher = newIndexSearcher(indexReader);
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    // Request size=5 with key order descending - should return last 5 alphabetically
+                    // Request size=5 with key order descending - should return last 5
+                    // alphabetically
                     TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
                         .size(5)
                         .shardSize(5)
@@ -2188,7 +2148,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             .settings(
                                 Settings.builder()
                                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put("index.aggregation.streaming.min_shard_size", 1)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
                             )
                             .numberOfShards(1)
                             .numberOfReplicas(0)
@@ -2220,7 +2180,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     List<StringTerms.Bucket> buckets = result.getBuckets();
                     assertThat(buckets.size(), equalTo(5));
 
-                    // With key order DESC, should return last 5 alphabetically: jjj, iii, hhh, ggg, fff
+                    // With key order DESC, should return last 5 alphabetically: jjj, iii, hhh, ggg,
+                    // fff
                     // NOT the top 5 by doc count
                     assertThat(buckets.get(0).getKeyAsString(), equalTo("fff"));
                     assertThat(buckets.get(1).getKeyAsString(), equalTo("ggg"));

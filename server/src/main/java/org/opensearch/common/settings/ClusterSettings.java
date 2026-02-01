@@ -169,7 +169,6 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.pipeline.SearchPipelineService;
-import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.snapshots.InternalSnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
 import org.opensearch.tasks.TaskCancellationMonitoringSettings;
@@ -371,7 +370,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING,
                 InternalSnapshotsInfoService.INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING,
                 DestructiveOperations.REQUIRES_NAME_SETTING,
-                NoClusterManagerBlockService.NO_MASTER_BLOCK_SETTING,  // deprecated
+                NoClusterManagerBlockService.NO_MASTER_BLOCK_SETTING, // deprecated
                 NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING,
                 GatewayService.EXPECTED_DATA_NODES_SETTING,
                 GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
@@ -677,7 +676,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING,
                 Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION,
                 TransportAddVotingConfigExclusionsAction.MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING,
-                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING,  // deprecated
+                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING, // deprecated
                 ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING,
                 ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
                 LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
@@ -737,9 +736,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO, // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE, // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST, // deprecated
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_BACKPRESSURE_SETTING,
@@ -811,6 +810,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
@@ -835,9 +836,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_ALLOW_DERIVED_FIELD_SETTING,
                 SearchService.QUERY_REWRITING_ENABLED_SETTING,
                 SearchService.QUERY_REWRITING_TERMS_THRESHOLD_SETTING,
-                FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT,
-                FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO,
-                FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT,
 
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
@@ -894,7 +892,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
     /**
-     * Map of feature flag name to feature-flagged cluster settings. Once each feature
+     * Map of feature flag name to feature-flagged cluster settings. Once each
+     * feature
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */

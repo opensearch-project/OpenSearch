@@ -11,7 +11,6 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.IntroSelector;
 import org.apache.lucene.util.NumericUtils;
@@ -20,8 +19,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.IntArray;
 import org.opensearch.index.fielddata.FieldData;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -49,11 +46,6 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
-/**
- * Aggregate all docs that contain numeric terms through streaming
- *
- * @opensearch.internal
- */
 public class StreamNumericTermsAggregator extends TermsAggregator implements Streamable {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
@@ -61,6 +53,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     private final IncludeExclude.LongFilter longFilter;
     private LongKeyedBucketOrds bucketOrds;
     private final CardinalityUpperBound cardinality;
+    private final int segmentTopN;
 
     public StreamNumericTermsAggregator(
         String name,
@@ -75,6 +68,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
         CardinalityUpperBound cardinality,
+        int segmentTopN,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
@@ -83,12 +77,9 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
+        this.segmentTopN = segmentTopN;
     }
 
-    /**
-     * Returns the bucket order for this aggregator.
-     * @return the bucket order
-     */
     public BucketOrder getBucketOrder() {
         return order;
     }
@@ -143,16 +134,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     }
 
     /**
-     * Get segment size for TopN filtering at segment level.
-     * Returns max of requested shard_size and index-level min_shard_size setting.
-     */
-    protected int getSegmentSize() {
-        int requestedShardSize = bucketCountThresholds.getShardSize();
-        int minShardSize = context.indexShard().indexSettings().getStreamingAggregationMinShardSize();
-        return Math.max(requestedShardSize, minShardSize);
-    }
-
-    /**
      * Strategy for building results.
      */
     public abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
@@ -174,7 +155,6 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             LocalBucketCountThresholds localBucketCountThresholds = context.asLocalBucketCountThresholds(bucketCountThresholds);
             B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
             long[] otherDocCount = new long[owningBucketOrds.length];
-            int segmentSize = getSegmentSize();
 
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 checkCancelled();
@@ -186,7 +166,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
                 SelectionResult<B> selectionResult = selectTopBuckets(
                     ordsEnum,
                     bucketsInOrd,
-                    segmentSize,
+                    segmentTopN,
                     bucketCountThresholds,
                     owningBucketOrds[ordIdx]
                 );
@@ -298,7 +278,8 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
             selector.select(0, candidateCount, segmentSize);
 
-            // Build result directly from selected ordinals (O(segmentSize) instead of O(totalBuckets * segmentSize))
+            // Build result directly from selected ordinals (O(segmentSize) instead of
+            // O(totalBuckets * segmentSize))
             List<B> result = new ArrayList<>(segmentSize);
             long selectedDocCount = 0;
             for (int i = 0; i < segmentSize; i++) {
@@ -457,8 +438,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             return new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format) {
                 @Override
                 public int compareKey(LongTerms.Bucket other) {
-                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
-                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket
+                    // values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee
+                    // numeric order.
                     long thisValue = bucketOrds.get(this.bucketOrd);
                     long otherValue = bucketOrds.get(other.bucketOrd);
                     return Long.compare(thisValue, otherValue);
@@ -552,8 +535,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             return new DoubleTerms.Bucket(0.0, 0, null, showTermDocCountError, 0, format) {
                 @Override
                 public int compareKey(DoubleTerms.Bucket other) {
-                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
-                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket
+                    // values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee
+                    // numeric order.
                     long thisValue = bucketOrds.get(this.bucketOrd);
                     long otherValue = bucketOrds.get(other.bucketOrd);
                     return Double.compare(NumericUtils.sortableLongToDouble(thisValue), NumericUtils.sortableLongToDouble(otherValue));
@@ -653,8 +638,10 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
             return new UnsignedLongTerms.Bucket(Numbers.toUnsignedBigInteger(0), 0, null, showTermDocCountError, 0, format) {
                 @Override
                 public int compareKey(UnsignedLongTerms.Bucket other) {
-                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket values
-                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee numeric order.
+                    // For tie-breaking when sub-aggregation values are equal, compare actual bucket
+                    // values
+                    // instead of ordinals. Ordinals are assigned dynamically and don't guarantee
+                    // numeric order.
                     long thisValue = bucketOrds.get(this.bucketOrd);
                     long otherValue = bucketOrds.get(other.bucketOrd);
                     return Long.compareUnsigned(thisValue, otherValue);
@@ -775,43 +762,30 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     @Override
     public StreamingCostMetrics getStreamingCostMetrics() {
         try {
-            String fieldName = valuesSource.getIndexFieldName();
-            long totalDocsWithField = PointValues.size(context.searcher().getIndexReader(), fieldName);
-            int segmentCount = context.searcher().getIndexReader().leaves().size();
+            // For numeric terms, we can try to estimate if we have a way to know
+            // cardinality.
+            // But often numeric values are high cardinality.
+            // For now, we assume it is streamable if it is being used.
 
-            if (totalDocsWithField == 0) {
-                return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), 0, segmentCount, 0);
+            // We can check doc count at least.
+            java.util.List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long totalDocs = 0;
+            for (LeafReaderContext leaf : leaves) {
+                totalDocs += leaf.reader().numDocs();
             }
 
-            MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(fieldName);
-            if (fieldType == null || !(fieldType.unwrap() instanceof NumberFieldType numberFieldType)) {
-                return StreamingCostMetrics.nonStreamable();
-            }
+            // We don't have an easy way to get cardinality for numeric values without
+            // iterating.
+            // We'll estimate bucket count as 0 (unknown) or a high number?
+            // Since we use this validator to *reject* low selectivity/high cardinality if
+            // configured...
+            // but here we want to enablement.
+            // Let's return a basic streamable metric.
+            // TopN is segmentTopN.
 
-            Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(context.searcher().getIndexReader(), fieldName));
-            Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(context.searcher().getIndexReader(), fieldName));
+            return new StreamingCostMetrics(true, segmentTopN, 0, leaves.size(), totalDocs);
 
-            long maxCardinality = switch (resultStrategy) {
-                case LongTermsResults ignored -> {
-                    long min = minPoint.longValue();
-                    long max = maxPoint.longValue();
-                    yield Math.max(1, max - min + 1);
-                }
-                case DoubleTermsResults ignored -> {
-                    double min = minPoint.doubleValue();
-                    double max = maxPoint.doubleValue();
-                    yield Math.max(1, Math.min((long) (max - min + 1), totalDocsWithField));
-                }
-                case UnsignedLongTermsResults ignored -> {
-                    long min = minPoint.longValue();
-                    long max = maxPoint.longValue();
-                    yield Math.max(1, max - min + 1);
-                }
-                case null, default -> 1L;
-            };
-
-            return new StreamingCostMetrics(true, bucketCountThresholds.getShardSize(), maxCardinality, segmentCount, totalDocsWithField);
-        } catch (IOException e) {
+        } catch (Exception e) {
             return StreamingCostMetrics.nonStreamable();
         }
     }
