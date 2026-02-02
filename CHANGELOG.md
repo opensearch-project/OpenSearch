@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add the ability to automatically dump jstack for transient query cost spikes. ([#20521](https://github.com/opensearch-project/OpenSearch/pull/20521))
 
 ### Changed
 
