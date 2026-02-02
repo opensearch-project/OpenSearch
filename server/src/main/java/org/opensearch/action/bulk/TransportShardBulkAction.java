@@ -536,7 +536,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 });
             }
 
-            private void finishRequest(long serviceTimeEWMA, int nodeQueueSize) {
+            private void finishRequest(long serviceTimeEWMAInNanos, int nodeQueueSize) {
                 // If no actual writes occurred (locationToSync is null), we should not trigger refresh
                 // even if the request has RefreshPolicy.IMMEDIATE
                 final Translog.Location locationToSync = context.getLocationToSync();
@@ -561,7 +561,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     listener,
                     () -> new WritePrimaryResult<>(
                         requestForResult,
-                        context.buildShardResponse(serviceTimeEWMA, nodeQueueSize),
+                        context.buildShardResponse(serviceTimeEWMAInNanos, nodeQueueSize),
                         locationToSync,
                         null,
                         context.getPrimary(),

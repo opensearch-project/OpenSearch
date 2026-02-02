@@ -737,7 +737,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                final long startTime = System.nanoTime();
+                final long startTimeNanos = relativeTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
                 String targetNodeId = primary != null ? primary.currentNodeId() : null;
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
@@ -766,13 +766,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                 @Override
                                 public void onResponse(BulkShardResponse bulkShardResponse) {
                                     if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
-                                        assert bulkShardResponse.getNodeQueueSize() >= 0 : "node queue size must be non-negative";
-                                        assert bulkShardResponse.getServiceTimeEWMA() >= 0 : "service time ewma must be non-negative";
+                                        if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
+                                            throw new IllegalStateException(
+                                                "node queue size and service time ewma must be non-negative, got "
+                                                    + bulkShardResponse.getNodeQueueSize()
+                                                    + " and "
+                                                    + bulkShardResponse.getServiceTimeEWMAInNanos()
+                                            );
+                                        }
                                         nodeMetricsCollector.addNodeStatistics(
                                             targetNodeId,
                                             bulkShardResponse.getNodeQueueSize(),
-                                            System.nanoTime() - startTime,
-                                            bulkShardResponse.getServiceTimeEWMA()
+                                            relativeTime() - startTimeNanos,
+                                            bulkShardResponse.getServiceTimeEWMAInNanos()
                                         );
                                     }
                                     for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {

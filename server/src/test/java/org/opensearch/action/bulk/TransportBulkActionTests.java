@@ -93,7 +93,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_QUEUE_SIZE;
-import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME;
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME_IN_NANOS;
 import static org.opensearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
@@ -408,7 +408,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         IndexRoutingTable routingTable = createIndexRoutingTable(3, 100);
         String[] dataNodes = TransportBulkAction.getIndexPrimaryShards(routingTable).v2().keySet().toArray(new String[0]);
         assertEquals(3, dataNodes.length);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME_IN_NANOS);
         shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMetricsCollector, clientConnections);
         // check non-nulls after null values
         assertNotEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
@@ -416,17 +416,17 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         // check the less count of connection will be chosen
         clientConnections.put(dataNodes[1], 2L);
         clientConnections.put(dataNodes[2], 2L);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME_IN_NANOS);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME_IN_NANOS);
         shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMetricsCollector, clientConnections);
         assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
 
         // check the less request time will be chosen.
         clientConnections.clear();
         nodeMetricsCollector = new ResponseCollectorService(clusterService);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 299999999, DEFAULT_SERVICE_TIME);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
-        nodeMetricsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[0], DEFAULT_QUEUE_SIZE, 299999999, DEFAULT_SERVICE_TIME_IN_NANOS);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[1], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME_IN_NANOS);
+        nodeMetricsCollector.addNodeStatistics(dataNodes[2], DEFAULT_QUEUE_SIZE, 300000000, DEFAULT_SERVICE_TIME_IN_NANOS);
         shardId = TransportBulkAction.bulkAdaptiveSelectShard(routingTable, nodeMetricsCollector, clientConnections);
         assertEquals(dataNodes[0], routingTable.shard(shardId.getId()).primaryShard().currentNodeId());
     }

@@ -46,7 +46,7 @@ import org.opensearch.index.translog.Translog;
 import java.util.Arrays;
 
 import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_QUEUE_SIZE;
-import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME;
+import static org.opensearch.action.bulk.BulkShardResponse.DEFAULT_SERVICE_TIME_IN_NANOS;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -353,18 +353,18 @@ class BulkPrimaryExecutionContext {
     }
 
     /** builds the bulk shard response to return to the user */
-    public BulkShardResponse buildShardResponse(long serviceTimeEWMA, int nodeQueueSize) {
+    public BulkShardResponse buildShardResponse(long serviceTimeEWMAInNanos, int nodeQueueSize) {
         assert hasMoreOperationsToExecute() == false;
         return new BulkShardResponse(
             request.shardId(),
             Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new),
-            serviceTimeEWMA,
+            serviceTimeEWMAInNanos,
             nodeQueueSize
         );
     }
 
     public BulkShardResponse buildShardResponse() {
-        return buildShardResponse(DEFAULT_SERVICE_TIME, DEFAULT_QUEUE_SIZE);
+        return buildShardResponse(DEFAULT_SERVICE_TIME_IN_NANOS, DEFAULT_QUEUE_SIZE);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
