@@ -50,6 +50,8 @@ import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
 import org.opensearch.action.admin.cluster.filecache.TransportPruneFileCacheAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.admin.cluster.node.Nodes.CatNodesAction;
+import org.opensearch.action.admin.cluster.node.Nodes.TransportCatNodesAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -683,6 +685,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterDeleteWeightedRoutingAction.INSTANCE, TransportDeleteWeightedRoutingAction.class);
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(CatShardsAction.INSTANCE, TransportCatShardsAction.class);
+        actions.register(CatNodesAction.INSTANCE, TransportCatNodesAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(IndicesShardStoresAction.INSTANCE, TransportIndicesShardStoresAction.class);
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
