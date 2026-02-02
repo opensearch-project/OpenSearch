@@ -46,7 +46,9 @@ public class StackDumperTests extends OpenSearchSingleNodeTestCase {
         searchService.setOnRemoveContext(id -> {
             try {
                 Thread.sleep(1000);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
         });
 
         createIndex("index");
@@ -61,7 +63,9 @@ public class StackDumperTests extends OpenSearchSingleNodeTestCase {
         assertNotNull(path);
         assertTrue(Files.exists(path.resolve("0.stack")));
         assertFalse(Files.exists(path.resolve("1.stack")));
-        for (File file : new File(path.toString()).listFiles()) {
+        File[] files = new File(path.toString()).listFiles();
+        assertNotNull(files);
+        for (File file : files) {
             Files.delete(file.toPath());
         }
         IOUtils.rm(path);

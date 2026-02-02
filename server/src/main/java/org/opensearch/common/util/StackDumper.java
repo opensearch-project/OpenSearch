@@ -10,7 +10,7 @@ package org.opensearch.common.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -33,8 +33,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 import static org.opensearch.env.Environment.PATH_LOGS_SETTING;
 
@@ -44,7 +46,8 @@ import static org.opensearch.env.Environment.PATH_LOGS_SETTING;
 @PublicApi(since = "3.5.0")
 public class StackDumper extends AbstractAsyncTask {
     private static final Logger logger = LogManager.getLogger(StackDumper.class);
-    private static final Calendar calendar = Calendar.getInstance();
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT)
+        .withZone(ZoneId.systemDefault());
     public static final String SLOW_TASK_DIR_NAME = "_slow";
     public static final String STACK_FILE_EXTENSION = ".stack";
     private final SetOnce<Path> directory = new SetOnce<>();
@@ -192,8 +195,7 @@ public class StackDumper extends AbstractAsyncTask {
 
     private synchronized void dumpStack(StringBuilder threadDump) {
         try {
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            threadDump.append(formatter.format(calendar.getTime())).append("\n");
+            threadDump.append(DATE_FORMATTER.format(Instant.now())).append('\n');
 
             long currentTimeNano = System.nanoTime();
             if (currentTimeNano - lastDumpTimeNano < taskStackDumpFreqNano) {
