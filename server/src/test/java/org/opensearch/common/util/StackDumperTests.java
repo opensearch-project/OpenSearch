@@ -21,8 +21,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -63,10 +63,10 @@ public class StackDumperTests extends OpenSearchSingleNodeTestCase {
         assertNotNull(path);
         assertTrue(Files.exists(path.resolve("0.stack")));
         assertFalse(Files.exists(path.resolve("1.stack")));
-        File[] files = new File(path.toString()).listFiles();
-        assertNotNull(files);
-        for (File file : files) {
-            Files.delete(file.toPath());
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+            for (Path file : stream) {
+                Files.delete(file);
+            }
         }
         IOUtils.rm(path);
     }
