@@ -173,6 +173,78 @@ public class RestoreService implements ClusterStateApplier {
         USER_UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
     }
 
+    /**
+     * Creates a settings filter predicate that separates internal ignore patterns from user ignore patterns.
+     * Internal ignore patterns override protection and can filter any setting.
+     * User ignore patterns respect protected settings and cannot filter them.
+     *
+     * @param userIgnoreSettings array of user-provided settings to ignore
+     * @param internalIgnoreSettings array of internal settings to ignore (override protection)
+     * @param protectedSettings set of settings that user cannot remove
+     * @return a predicate that returns true if the setting should be kept, false if it should be filtered out
+     */
+    static Predicate<String> createSettingsFilterPredicate(
+        String[] userIgnoreSettings,
+        String[] internalIgnoreSettings,
+        Set<String> protectedSettings
+    ) {
+        Set<String> userKeyFilters = new HashSet<>();
+        List<String> userSimpleMatchPatterns = new ArrayList<>();
+        Set<String> internalKeyFilters = new HashSet<>();
+        List<String> internalSimpleMatchPatterns = new ArrayList<>();
+
+        // Process user ignore settings
+        for (String ignoredSetting : userIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                userKeyFilters.add(ignoredSetting);
+            } else {
+                userSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        // Process internal ignore settings
+        for (String ignoredSetting : internalIgnoreSettings) {
+            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                internalKeyFilters.add(ignoredSetting);
+            } else {
+                internalSimpleMatchPatterns.add(ignoredSetting);
+            }
+        }
+
+        return k -> {
+            // Check internal ignore patterns first (they override protection)
+            if (internalKeyFilters.contains(k)) {
+                return false;
+            }
+            for (String pattern : internalSimpleMatchPatterns) {
+                if (Regex.simpleMatch(pattern, k)) {
+                    return false;
+                }
+            }
+
+            // Check user ignore patterns only for non-protected settings
+            if (!protectedSettings.contains(k)) {
+                if (userKeyFilters.contains(k)) {
+                    return false;
+                }
+                for (String pattern : userSimpleMatchPatterns) {
+                    if (Regex.simpleMatch(pattern, k)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+    }
+
+    /**
+     * Returns the set of settings that users cannot remove during restore.
+     * Exposed for testing purposes.
+     */
+    static Set<String> getUserUnremovableSettings() {
+        return USER_UNREMOVABLE_SETTINGS;
+    }
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -818,10 +890,6 @@ public class RestoreService implements ClusterStateApplier {
                         }
                         IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                         Settings settings = indexMetadata.getSettings();
-                        Set<String> keyFilters = new HashSet<>();
-                        List<String> simpleMatchPatterns = new ArrayList<>();
-                        Set<String> internalKeyFilters = new HashSet<>();
-                        List<String> internalSimpleMatchPatterns = new ArrayList<>();
 
                         for (String ignoredSetting : ignoreSettings) {
                             if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
@@ -835,51 +903,24 @@ public class RestoreService implements ClusterStateApplier {
                                         snapshot,
                                         "cannot remove UnmodifiableOnRestore setting [" + ignoredSetting + "] on restore"
                                     );
-                                } else {
-                                    keyFilters.add(ignoredSetting);
                                 }
-                            } else {
-                                simpleMatchPatterns.add(ignoredSetting);
                             }
                         }
 
-                        // add internal settings to separate ignore lists
-                        for (String ignoredSetting : ignoreSettingsInternal) {
-                            if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
-                                internalKeyFilters.add(ignoredSetting);
-                            } else {
-                                internalSimpleMatchPatterns.add(ignoredSetting);
+                        // Build combined protected settings set including dynamic unmodifiable settings
+                        Set<String> protectedSettings = new HashSet<>(USER_UNREMOVABLE_SETTINGS);
+                        for (String key : settings.keySet()) {
+                            if (indexScopedSettings.isUnmodifiableOnRestoreSetting(key)) {
+                                protectedSettings.add(key);
                             }
                         }
 
-                        Predicate<String> settingsFilter = k -> {
-                            // Check internal ignore patterns first (they override protection)
-                            for (String filterKey : internalKeyFilters) {
-                                if (k.equals(filterKey)) {
-                                    return false;
-                                }
-                            }
-                            for (String pattern : internalSimpleMatchPatterns) {
-                                if (Regex.simpleMatch(pattern, k)) {
-                                    return false;
-                                }
-                            }
+                        Predicate<String> settingsFilter = createSettingsFilterPredicate(
+                            ignoreSettings,
+                            ignoreSettingsInternal,
+                            protectedSettings
+                        );
 
-                            // Check user ignore patterns only for non-protected settings
-                            if (USER_UNREMOVABLE_SETTINGS.contains(k) == false && !indexScopedSettings.isUnmodifiableOnRestoreSetting(k)) {
-                                for (String filterKey : keyFilters) {
-                                    if (k.equals(filterKey)) {
-                                        return false;
-                                    }
-                                }
-                                for (String pattern : simpleMatchPatterns) {
-                                    if (Regex.simpleMatch(pattern, k)) {
-                                        return false;
-                                    }
-                                }
-                            }
-                            return true;
-                        };
                         Settings.Builder settingsBuilder = Settings.builder()
                             .put(settings.filter(settingsFilter))
                             .put(normalizedChangeSettings.filter(k -> {
