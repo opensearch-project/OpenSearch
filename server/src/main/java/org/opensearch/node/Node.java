@@ -234,6 +234,7 @@ import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.plugins.SearchBackpressurePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.plugins.SecureSettingsFactory;
@@ -253,6 +254,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
+import org.opensearch.search.backpressure.SearchBackpressureCancellationListener;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
@@ -1342,6 +1344,13 @@ public class Node implements Closeable {
                 transportService.getTaskManager(),
                 workloadGroupService
             );
+
+            // Register search backpressure cancellation listeners from plugins
+            for (SearchBackpressurePlugin plugin : pluginsService.filterPlugins(SearchBackpressurePlugin.class)) {
+                for (SearchBackpressureCancellationListener listener : plugin.getSearchBackpressureCancellationListeners()) {
+                    searchBackpressureService.addCancellationListener(listener);
+                }
+            }
 
             final SegmentReplicationStatsTracker segmentReplicationStatsTracker = new SegmentReplicationStatsTracker(indicesService);
             RepositoriesModule repositoriesModule = new RepositoriesModule(

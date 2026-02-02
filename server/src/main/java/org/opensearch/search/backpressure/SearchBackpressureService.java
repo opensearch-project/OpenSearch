@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -88,6 +89,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
     private final TaskManager taskManager;
     private final WorkloadGroupService workloadGroupService;
+    private final List<SearchBackpressureCancellationListener> cancellationListeners = new CopyOnWriteArrayList<>();
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
@@ -258,6 +260,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             }
 
             Class<? extends SearchBackpressureTask> taskType = getTaskType(taskCancellation.getTask());
+            String reasonString = taskCancellation.getReasonString();
 
             // Independently remove tokens from both token buckets.
             SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
@@ -268,10 +271,12 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             if (rateLimitReached && ratioLimitReached) {
                 logger.debug("task cancellation limit reached");
                 searchBackpressureState.incrementLimitReachedCount();
+                notifyListenersOnLimitReached(taskCancellation.getTask(), taskType, reasonString);
                 break;
             }
 
             taskCancellation.cancelTaskAndDescendants(taskManager);
+            notifyListenersOnCancellation(taskCancellation.getTask(), taskType, reasonString);
         }
     }
 
@@ -374,6 +379,58 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     SearchBackpressureSettings getSettings() {
         return settings;
+    }
+
+    /**
+     * Registers a listener to receive task cancellation events.
+     *
+     * @param listener the listener to register
+     */
+    public void addCancellationListener(SearchBackpressureCancellationListener listener) {
+        cancellationListeners.add(listener);
+    }
+
+    /**
+     * Unregisters a previously registered listener.
+     *
+     * @param listener the listener to unregister
+     */
+    public void removeCancellationListener(SearchBackpressureCancellationListener listener) {
+        cancellationListeners.remove(listener);
+    }
+
+    /**
+     * Notifies all registered listeners about a task cancellation.
+     */
+    private void notifyListenersOnCancellation(
+        CancellableTask task,
+        Class<? extends SearchBackpressureTask> taskType,
+        String reasonString
+    ) {
+        for (SearchBackpressureCancellationListener listener : cancellationListeners) {
+            try {
+                listener.onTaskCancelled(task, taskType, reasonString);
+            } catch (Exception e) {
+                logger.warn("Failed to notify cancellation listener", e);
+            }
+        }
+    }
+
+    /**
+     * Notifies all registered listeners about a cancellation that was skipped due to rate limits.
+     */
+    private void notifyListenersOnLimitReached(
+        CancellableTask task,
+        Class<? extends SearchBackpressureTask> taskType,
+        String reasonString
+    ) {
+        for (SearchBackpressureCancellationListener listener : cancellationListeners) {
+            try {
+                listener.onCancellationLimitReached(task, taskType, reasonString);
+            } catch (Exception e) {
+                logger.warn("Failed to notify cancellation listener on limit reached", e);
+            }
+        }
     }
 
     SearchBackpressureState getSearchBackpressureState(Class<? extends SearchBackpressureTask> taskType) {
