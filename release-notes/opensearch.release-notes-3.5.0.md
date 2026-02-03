@@ -3,36 +3,66 @@
 Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 
 ### Features
+
+* Add X-Request-Id header to uniquely identify a search request ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
+* Add Alt-Svc header support to advertise HTTP/3 availability ([#20434](https://github.com/opensearch-project/OpenSearch/pull/20434))
+* Add index-level-encryption support for snapshots and remote-store ([#20095](https://github.com/opensearch-project/OpenSearch/pull/20095))
+* HLL field Mapper for Cardinality Rollups ([#20129](https://github.com/opensearch-project/OpenSearch/pull/20129))
 * Introduce AdditionalCodecs and EnginePlugin::getAdditionalCodecs hook to allow additional Codec registration ([#20411](https://github.com/opensearch-project/OpenSearch/pull/20411))
 * Support for HTTP/3 (server side) ([#20017](https://github.com/opensearch-project/OpenSearch/pull/20017))
-* Implementation for enabling intra-segment search ([#19704](https://github.com/opensearch-project/OpenSearch/pull/19704))
+* Support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
 
 ### Enhancements
-* Add Add X-Request-Id header to uniquely identify a search request ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
-* Add Alt-Svc header support to advertise HTTP/3 availability ([#20434](https://github.com/opensearch-project/OpenSearch/pull/20434))
+
 * Add cluster.initial_cluster_manager_nodes to testClusters OVERRIDABLE_SETTINGS ([#20348](https://github.com/opensearch-project/OpenSearch/pull/20348))
 * Add tracing support for StreamingRestChannel ([#20361](https://github.com/opensearch-project/OpenSearch/pull/20361))
-* Fix SearchPhaseExecutionException to properly initCause ([#20320](https://github.com/opensearch-project/OpenSearch/pull/20320))
-* HLL field Mapper for Cardinality Rollups ([#20129](https://github.com/opensearch-project/OpenSearch/pull/20129))
+* Implementation for enabling intra-segment search ([#19704](https://github.com/opensearch-project/OpenSearch/pull/19704))
+* Introduce concurrent translog recovery to accelerate segment replication primary promotion ([#20251](https://github.com/opensearch-project/OpenSearch/pull/20251))
+* Introduce new libs/netty4 module to share common implementation between netty-based plugins and modules (transport-netty4, transport-reactor-netty4) ([#20447](https://github.com/opensearch-project/OpenSearch/pull/20447))
 * Public getIncludes method in SourceFieldMapper ([#20290](https://github.com/opensearch-project/OpenSearch/pull/20290))
 * Refactor streaming agg query phase planning ([#20471](https://github.com/opensearch-project/OpenSearch/pull/20471))
+* Remove legacy v1.x skip tags from YAML REST tests ([#20374](https://github.com/opensearch-project/OpenSearch/pull/20374))
 * Stream transport refactor ([#20359](https://github.com/opensearch-project/OpenSearch/pull/20359))
+* Streaming agg planning fallback enhancement ([#20510](https://github.com/opensearch-project/OpenSearch/pull/20528))
 * TopN selection for streaming terms aggregations ([#20481](https://github.com/opensearch-project/OpenSearch/pull/20481))
 * Use compact object headers with JDK25+ ([#20392](https://github.com/opensearch-project/OpenSearch/pull/20392))
-* Introduce new libs/netty4 module to share common implementation between netty-based plugins and modules (transport-netty4, transport-reactor-netty4) ([#20447](https://github.com/opensearch-project/OpenSearch/pull/20447))
 
 ### Bug Fixes
+
 * Allow removing plugin that's optionally extended ([#20417](https://github.com/opensearch-project/OpenSearch/pull/20417))
+* Determinize Automaton for simple_pattern and simple_pattern_split tokenizer ([#20350](https://github.com/opensearch-project/OpenSearch/pull/20350))
+* Fix SearchPhaseExecutionException to properly initCause ([#20320](https://github.com/opensearch-project/OpenSearch/pull/20320))
 * Fix X-Opaque-Id header propagation (along with other response headers) for streaming Reactor Netty 4 transport ([#20371](https://github.com/opensearch-project/OpenSearch/pull/20371))
 * Fix node local term/version log truncation with long host provider addresses ([#20432](https://github.com/opensearch-project/OpenSearch/pull/20432))
 * Fix segment replication failure during rolling restart ([#20422](https://github.com/opensearch-project/OpenSearch/pull/20422))
 * Fix stats aggregation returning zero results with `size:0` ([#20427](https://github.com/opensearch-project/OpenSearch/pull/20427))
-* Fix Netty deprecation warnings in transport-reactor-netty4 module ([#20429](https://github.com/opensearch-project/OpenSearch/pull/20429))
-* [BugFix] Restrict rename replacement field size for snapshot restore ([#20465](https://github.com/opensearch-project/OpenSearch/pull/20465))
+* Fixes #20464: [BugFix] Restrict rename replacement field size for snapshot restore ([#20465](https://github.com/opensearch-project/OpenSearch/pull/20465))
 * [Plugins] Relax jar hell check when extended plugins share transitive dependencies ([#20103](https://github.com/opensearch-project/OpenSearch/pull/20103))
-* transport-netty4 module set TLS SNI when server_name is provided ([#20321](https://github.com/opensearch-project/OpenSearch/pull/20321))
+* Bug fix for Restore with Index Sort ([#20284](https://github.com/opensearch-project/OpenSearch/pull/20284))
+* Transport-netty4 module set TLS SNI when server_name is provided ([#20321](https://github.com/opensearch-project/OpenSearch/pull/20321))
 
-### Dependencies
+### Infrastructure
+
+* Add Circuit breaker support for gRPC ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
+* Add integ test for simulating node join left event when data node clu… ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907))
+* Adding BWC test for remote publication enabled cluster ([#20221](https://github.com/opensearch-project/OpenSearch/pull/20221))
+* Cleanup HttpServerTransport.Dispatcher in Netty tests ([#20160](https://github.com/opensearch-project/OpenSearch/pull/20160))
+* Fix Netty deprecation warnings in transport-reactor-netty4 module ([#20429](https://github.com/opensearch-project/OpenSearch/pull/20429))
+* Fixing indexing regression and bug fixes for grouping criteria ([#20145](https://github.com/opensearch-project/OpenSearch/pull/20145))
+* Improve experience when no issue component is selected ([#20279](https://github.com/opensearch-project/OpenSearch/pull/20279))
+* Install demo security information when running ./gradlew run -PinstalledPlugins="['opensearch-security']" ([#20372](https://github.com/opensearch-project/OpenSearch/pull/20372))
+* Set Gradle warning mode back to fail ([#20390](https://github.com/opensearch-project/OpenSearch/pull/20390))
+* Support for HTTP/3 (server side), a few minor fixes ([#20394](https://github.com/opensearch-project/OpenSearch/pull/20394))
+* Update to Gradle 9.2.1 ([#20391](https://github.com/opensearch-project/OpenSearch/pull/20391))
+* Update to `almalinux:10` ([#20482](https://github.com/opensearch-project/OpenSearch/pull/20482))
+
+### Documentation
+
+* Fix CHANGELOG.md entry ([#20502](https://github.com/opensearch-project/OpenSearch/pull/20502))
+
+### Maintenance
+
+* Add hook to provide GrpcInterceptorProvider Settings ([#20493](https://github.com/opensearch-project/OpenSearch/pull/20493))
 * Bump Apache HttpClient5 to 5.6 and Apache HttpCore5 to 5.4 ([#20358](https://github.com/opensearch-project/OpenSearch/pull/20358))
 * Bump actions/setup-java from 4 to 5 ([#20304](https://github.com/opensearch-project/OpenSearch/pull/20304))
 * Bump actions/upload-artifact from 5 to 6 ([#20333](https://github.com/opensearch-project/OpenSearch/pull/20333))
@@ -48,6 +78,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Bump dnsjava:dnsjava from 3.6.3 to 3.6.4 in /test/fixtures/hdfs-fixture ([#20440](https://github.com/opensearch-project/OpenSearch/pull/20440))
 * Bump log4j from 2.21.0 to 2.25.3 ([#20308](https://github.com/opensearch-project/OpenSearch/pull/20308))
 * Bump lycheeverse/lychee-action from 2.6.1 to 2.7.0 ([#20370](https://github.com/opensearch-project/OpenSearch/pull/20370))
+* Bump opensearch-protobufs from 1.1.0 to 1.2.0 ([#20480](https://github.com/opensearch-project/OpenSearch/pull/20480))
 * Bump org.apache.logging.log4j:log4j-core from 2.25.2 to 2.25.3 in /buildSrc/src/testKit/thirdPartyAudit/sample_jars ([#20300](https://github.com/opensearch-project/OpenSearch/pull/20300))
 * Bump org.apache.maven:maven-model from 3.9.6 to 3.9.12 ([#20438](https://github.com/opensearch-project/OpenSearch/pull/20438))
 * Bump org.jline:jline from 3.30.5 to 3.30.6 in /test/fixtures/hdfs-fixture ([#20369](https://github.com/opensearch-project/OpenSearch/pull/20369))
@@ -55,34 +86,19 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Bump org.wiremock:wiremock-standalone from 3.6.0 to 3.13.2 ([#20406](https://github.com/opensearch-project/OpenSearch/pull/20406))
 * Bump reactor-netty to 1.3.2 and reactor to 3.8.2 ([#20419](https://github.com/opensearch-project/OpenSearch/pull/20419))
 * Bump tj-actions/changed-files from 47.0.0 to 47.0.1 ([#20408](https://github.com/opensearch-project/OpenSearch/pull/20408))
+* Make crypto store settings immutable ([#20123](https://github.com/opensearch-project/OpenSearch/pull/20123))
+* Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
 * Update Jackson to 2.20.1 ([#20343](https://github.com/opensearch-project/OpenSearch/pull/20343))
 * Update OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
-
-### Unknown
-* Add Circuit breaker support for gRPC ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
-* Add hook to provide GrpcInterceptorProvider Settings ([#20493](https://github.com/opensearch-project/OpenSearch/pull/20493))
-* Add index-level-encryption support for snapshots and remote-store ([#20095](https://github.com/opensearch-project/OpenSearch/pull/20095))
-* Add integ test for simulating node join left event when data node clu… ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907))
-* Add benchmark configs to support intra segment on open PR ([#20479](https://github.com/opensearch-project/OpenSearch/pull/20479))
-* Adding BWC test for remote publication enabled cluster ([#20221](https://github.com/opensearch-project/OpenSearch/pull/20221))
-* Batch deletes in remote segment store ([#20146](https://github.com/opensearch-project/OpenSearch/pull/20146))
-* Bump opensearch-protobufs from 1.1.0 to 1.2.0 ([#20480](https://github.com/opensearch-project/OpenSearch/pull/20480))
-* Cleanup HttpServerTransport.Dispatcher in Netty tests ([#20160](https://github.com/opensearch-project/OpenSearch/pull/20160))
-* Determinize Automaton for simple_pattern and simple_pattern_split tokenizer ([#20350](https://github.com/opensearch-project/OpenSearch/pull/20350))
-* Fix CHANGELOG.md entry ([#20500](https://github.com/opensearch-project/OpenSearch/pull/20500))
-* Fixing indexing regression and bug fixes for grouping criteria ([#20145](https://github.com/opensearch-project/OpenSearch/pull/20145))
-* Install demo security information when running ./gradlew run -PinstalledPlugins="['opensearch-security']" ([#20372](https://github.com/opensearch-project/OpenSearch/pull/20372))
-* Introduce concurrent translog recovery to accelerate segment replication primary promotion ([#20251](https://github.com/opensearch-project/OpenSearch/pull/20251))
-* LeafReader should not remove SubReaderWrappers incase IndexWriter encounters a non aborting Exception ([#20193](https://github.com/opensearch-project/OpenSearch/pull/20193))
-* Make crypto store settings immutable ([#20123](https://github.com/opensearch-project/OpenSearch/pull/20123))
-* Remove child level directory on refresh for CompositeIndexWriter ([#20326](https://github.com/opensearch-project/OpenSearch/pull/20326))
-* Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
-* Streaming agg planning fallback enhancement ([#20510](https://github.com/opensearch-project/OpenSearch/pull/20510))
-* Support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
-* Support for HTTP/3 (server side), a few minor fixes ([#20394](https://github.com/opensearch-project/OpenSearch/pull/20394))
-* Update to `almalinux:10` ([#20482](https://github.com/opensearch-project/OpenSearch/pull/20482))
-* [GRPC] Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
 * [GRPC] Upgrade protobufs to 1.1.0 ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
 * [GRPC] Upgrade to protobufs 1.0.0 ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
+
+### Refactoring
+
+* LeafReader should not remove SubReaderWrappers incase IndexWriter encounters a non aborting Exception ([#20193](https://github.com/opensearch-project/OpenSearch/pull/20193))
+* Remove child level directory on refresh for CompositeIndexWriter ([#20326](https://github.com/opensearch-project/OpenSearch/pull/20326))
+* Replace multi-line strings with java text blocks ([#20269](https://github.com/opensearch-project/OpenSearch/pull/20269))
+* Replace usages of java.security.AccessController in modules/ ([#20137](https://github.com/opensearch-project/OpenSearch/pull/20137))
+* [GRPC] Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
 * [repository-s3] remove endpointOverride and let AWS SDK V2 S3 determine the s3 url based on bucket name or arn provided ([#20345](https://github.com/opensearch-project/OpenSearch/pull/20345))
-* bug fix for Restore with Index Sort ([#20073](https://github.com/opensearch-project/OpenSearch/pull/20073))
+* Register translog read forward config ([#20280](https://github.com/opensearch-project/OpenSearch/pull/20280))
