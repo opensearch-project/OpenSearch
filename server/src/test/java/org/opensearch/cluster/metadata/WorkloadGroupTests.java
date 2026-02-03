@@ -179,6 +179,45 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         assertEquals(1717187289, workloadGroup.getUpdatedAtInMillis());
     }
 
+    public void testUpdatedAtAllowsCurrentTimestamp() {
+        long currentTimestamp = Instant.now().getMillis();
+        WorkloadGroup workloadGroup = new WorkloadGroup(
+            "analytics",
+            "_id",
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+            currentTimestamp
+        );
+
+        assertEquals(currentTimestamp, workloadGroup.getUpdatedAtInMillis());
+    }
+
+    public void testUpdatedAtAllowsJitterAroundNow() {
+        long now = Instant.now().getMillis();
+        long[] timestamps = new long[] { Math.max(0L, now - 20L), now + 20L };
+
+        for (long timestamp : timestamps) {
+            WorkloadGroup workloadGroup = new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+                timestamp
+            );
+            assertEquals(timestamp, workloadGroup.getUpdatedAtInMillis());
+        }
+    }
+
+    public void testUpdatedAtRejectsNegativeTimestamp() {
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new WorkloadGroup(
+                "analytics",
+                "_id",
+                new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, randomDoubleBetween(0.01, 0.8, false))),
+                -1L
+            )
+        );
+    }
+
     public void testToXContent() throws IOException {
         long currentTimeInMillis = Instant.now().getMillis();
         String workloadGroupId = UUIDs.randomBase64UUID();
