@@ -93,6 +93,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.StackDumper;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.discovery.DiscoveryModule;
@@ -596,6 +597,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
+                StackDumper.TASK_STACK_DUMP_ENABLED,
+                StackDumper.TASK_STACK_DUMP_INTERVAL,
+                StackDumper.TASK_STACK_DUMP_THRESHOLD,
+                StackDumper.TASK_STACK_DUMP_MAX_DEPTH,
+                StackDumper.TASK_STACK_DUMP_FREQ,
                 CreatePitController.PIT_INIT_KEEP_ALIVE,
                 Node.WRITE_PORTS_FILE_SETTING,
                 Node.NODE_NAME_SETTING,

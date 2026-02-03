@@ -62,6 +62,8 @@ public class MockSearchService extends SearchService {
 
     private Consumer<ReaderContext> onPutContext = context -> {};
 
+    private Consumer<Long> onRemoveContext = context -> {};
+
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
         final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
@@ -127,6 +129,7 @@ public class MockSearchService extends SearchService {
 
     @Override
     protected ReaderContext removeReaderContext(long id) {
+        onRemoveContext.accept(id);
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             removeActiveContext(removed);
@@ -136,5 +139,9 @@ public class MockSearchService extends SearchService {
 
     public void setOnPutContext(Consumer<ReaderContext> onPutContext) {
         this.onPutContext = onPutContext;
+    }
+
+    public void setOnRemoveContext(Consumer<Long> onRemoveContext) {
+        this.onRemoveContext = onRemoveContext;
     }
 }

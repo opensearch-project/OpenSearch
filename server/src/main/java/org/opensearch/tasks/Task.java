@@ -607,4 +607,14 @@ public class Task {
 
         return count;
     }
+
+    /**
+     * This parameter specifies whether to enable the dump jstack function for tasks,
+     * helping identify why task execution takes longer than expected.
+     * @return true if dump jstack is enabled, false otherwise.
+     */
+    public boolean enableDumpStack() {
+        return false;
+    }
+
 }

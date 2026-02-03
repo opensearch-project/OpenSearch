@@ -418,7 +418,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     protected void doStop() {
         try {
-            IOUtils.close(connectionManager, remoteClusterService, transport::stop);
+            IOUtils.close(connectionManager, remoteClusterService, transport::stop, taskManager::close);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {

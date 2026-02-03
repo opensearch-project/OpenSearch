@@ -49,6 +49,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.StackDumper;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
@@ -89,7 +90,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_
  *
  * @opensearch.internal
  */
-public class TaskManager implements ClusterStateApplier {
+public class TaskManager implements ClusterStateApplier, Releasable {
 
     private static final Logger logger = LogManager.getLogger(TaskManager.class);
 
@@ -131,6 +132,7 @@ public class TaskManager implements ClusterStateApplier {
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
     private final List<TaskEventListeners> taskEventListeners = new ArrayList<>();
+    private final StackDumper stackDumper;
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -138,17 +140,33 @@ public class TaskManager implements ClusterStateApplier {
         ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
-        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
         return taskManager;
     }
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        this(settings, threadPool, taskHeaders, null);
+    }
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
         taskResourceConsumer = new HashSet<>();
+        if (clusterSettings != null) {
+            this.stackDumper = new StackDumper(clusterSettings, settings, threadPool);
+        } else {
+            this.stackDumper = null;
+        }
+    }
+
+    @Override
+    public void close() {
+        if (stackDumper != null) {
+            stackDumper.close();
+        }
     }
 
     /**
@@ -209,7 +227,9 @@ public class TaskManager implements ClusterStateApplier {
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }
-
+        if (task.enableDumpStack() && stackDumper != null) {
+            stackDumper.addTask(task);
+        }
         if (task.supportsResourceTracking()) {
             boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
                 @Override
@@ -318,6 +338,10 @@ public class TaskManager implements ClusterStateApplier {
                     logger.error("error encountered when updating the consumer", e);
                 }
             }
+        }
+
+        if (task.enableDumpStack() && stackDumper != null) {
+            stackDumper.removeTask(task);
         }
 
         if (task instanceof CancellableTask) {
@@ -809,5 +833,10 @@ public class TaskManager implements ClusterStateApplier {
             assert false : "TaskCancellationService is not initialized";
             throw new IllegalStateException("TaskCancellationService is not initialized");
         }
+    }
+
+    // for test
+    public StackDumper getStackDumper() {
+        return stackDumper;
     }
 }
