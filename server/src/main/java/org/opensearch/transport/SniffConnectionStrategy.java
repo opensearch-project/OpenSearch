@@ -147,7 +147,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTER_EXPECTED_NAME = Setting.affixKeySetting(
         "cluster.remote.",
-        "expected_cluster_name",
+        "cluster_name",
         (ns, key) -> Setting.simpleString(
             key,
             new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
@@ -646,7 +646,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             builder.field("num_nodes_connected", numNodesConnected);
             builder.field("max_connections_per_cluster", maxConnectionsPerCluster);
             if (expectedClusterName != null) {
-                builder.field("expected_cluster_name", expectedClusterName);
+                builder.field("cluster_name", expectedClusterName);
             }
             return builder;
         }

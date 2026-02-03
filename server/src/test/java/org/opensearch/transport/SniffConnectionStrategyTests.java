@@ -1026,7 +1026,7 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
         }
     }
 
-    public void testExpectedClusterNameValidation() {
+    public void testExpectedClusterNameValidationScenarios() {
         List<DiscoveryNode> wrongClusterKnownNodes = new CopyOnWriteArrayList<>();
         List<DiscoveryNode> correctKnownNodes = new CopyOnWriteArrayList<>();
         Settings wrongClusterSettings = Settings.builder().put("cluster.name", "wrong-cluster").build();
