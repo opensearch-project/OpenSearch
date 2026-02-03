@@ -3,7 +3,7 @@ opensearch        = "2.19.5"
 lucene            = "9.12.3"
 
 bundled_jdk_vendor = "adoptium"
-bundled_jdk = "21.0.9+10"
+bundled_jdk = "21.0.10+7"
 
 # optional dependencies
 spatial4j         = "0.7"
