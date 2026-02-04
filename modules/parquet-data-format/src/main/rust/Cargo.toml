@@ -7,6 +7,10 @@ edition = "2024"
 name = "parquet_dataformat_jni"
 crate-type = ["cdylib", "lib"]
 
+[[bin]]
+name = "profiler"
+path = "src/bin/profiler.rs"
+
 [dependencies]
 
 arrow = { version = "53.0.0", features = ["ffi"] }

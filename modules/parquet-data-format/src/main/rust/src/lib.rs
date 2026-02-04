@@ -14,6 +14,8 @@ use parquet::file::properties::WriterProperties;
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+pub mod profiler;
+
 
 pub mod logger;
 // pub mod parquet_merge;

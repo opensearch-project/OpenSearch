@@ -9,8 +9,8 @@ use polars::prelude::*;
 use polars_core::utils::concat_df;
 use std::sync::Arc;
 
-const ROW_ID_COLUMN_NAME: &str = "___row_id";
-const BATCH_SIZE: usize = 100000;
+const ROW_ID_COLUMN_NAME: &str = "__row_id";
+const BATCH_SIZE: usize = 1_00_000;
 
 #[derive(Debug)]
 struct DataFrameItem {
@@ -31,10 +31,10 @@ impl PartialEq for DataFrameItem {
 impl Ord for DataFrameItem {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.reverse_sort {
-            // For descending order (reverse sort)
+            // descending
             self.sort_value.cmp(&other.sort_value)
         } else {
-            // For ascending order (normal sort)
+            // ascending
             other.sort_value.cmp(&self.sort_value)
         }
     }
@@ -44,6 +44,12 @@ impl PartialOrd for DataFrameItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
+}
+
+struct RowRange {
+    file_idx: usize,
+    start: usize,
+    end: usize, // exclusive
 }
 
 #[unsafe(no_mangle)]
@@ -110,8 +116,12 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
     }
 }
 
-fn merge_with_priority_queue(input_files: &[String], output_path: &str, sort_column: &str, reverse_sort: bool) -> PolarsResult<()> {
-    // Load all files as DataFrames
+pub fn merge_with_priority_queue(
+    input_files: &[String],
+    output_path: &str,
+    sort_column: &str,
+    reverse_sort: bool,
+) -> PolarsResult<()> {
     let mut dataframes: Vec<DataFrame> = Vec::new();
     for file_path in input_files {
         let df = LazyFrame::scan_parquet(
@@ -124,7 +134,6 @@ fn merge_with_priority_queue(input_files: &[String], output_path: &str, sort_col
         dataframes.push(df);
     }
 
-    // Initialize priority queue with first row from each file
     let mut heap = BinaryHeap::new();
     let mut row_indices = vec![0usize; dataframes.len()];
 
@@ -144,48 +153,79 @@ fn merge_with_priority_queue(input_files: &[String], output_path: &str, sort_col
     let mut current_batch_indices = Vec::new();
     let mut current_row_id = 0i64;
     let mut batch_count = 0;
-
+    let mut current_batch_rows: usize = 0;
     while let Some(item) = heap.pop() {
-        current_batch_indices.push((item.file_index, item.row_index));
+        let start_row = item.row_index;
+        let df = &dataframes[item.file_index];
+        let mut end_row = start_row + 1;
 
-        // Add next row from same file to heap
-        row_indices[item.file_index] += 1;
-        let next_row = row_indices[item.file_index];
-        if next_row < dataframes[item.file_index].height() {
-            let sort_value = get_sort_value(&dataframes[item.file_index], next_row, sort_column)?;
+        let heap_top_sort_value = heap.peek()
+            .map_or(if reverse_sort { i64::MIN } else { i64::MAX },
+                    |top| top.sort_value);
+
+        // Collect contiguous rows from same file as long as global ordering is safe
+        while end_row < df.height() {
+            let next_sort_value = get_sort_value(df, end_row, sort_column)?;
+
+            let take = if reverse_sort {
+                next_sort_value >= heap_top_sort_value
+            } else {
+                next_sort_value <= heap_top_sort_value
+            };
+
+            if take {
+                end_row += 1;
+            } else {
+                break;
+            }
+        }
+
+        current_batch_indices.push(RowRange {
+            file_idx: item.file_index,
+            start: start_row,
+            end: end_row,
+        });
+
+        // Update row index and push next unprocessed row
+        row_indices[item.file_index] = end_row;
+        if end_row < df.height() {
+            let sort_value = get_sort_value(df, end_row, sort_column)?;
             heap.push(DataFrameItem {
                 sort_value,
                 file_index: item.file_index,
-                row_index: next_row,
+                row_index: end_row,
                 reverse_sort,
             });
         }
 
-        // Write batch when full
-        if current_batch_indices.len() >= BATCH_SIZE {
-            let batch_df = create_batch_from_indices(&dataframes, &current_batch_indices, current_row_id)?;
+        // Write batch if full
+        let rows_added = end_row - start_row;
+        current_batch_rows += rows_added;
+        if current_batch_rows >= BATCH_SIZE {
+            let batch_df = create_batch_from_ranges(&dataframes, &current_batch_indices, current_row_id)?;
             let temp_path = format!("{}.batch_{}", output_path, batch_count);
             write_batch_to_file(&batch_df, &temp_path)?;
             temp_files.push(temp_path);
 
-            current_row_id += current_batch_indices.len() as i64;
+            current_row_id += current_batch_rows as i64;
             current_batch_indices.clear();
+            current_batch_rows = 0;
             batch_count += 1;
         }
     }
 
+    let total_rows: usize = current_batch_indices.iter().map(|r| r.end - r.start).sum();
     // Write remaining rows
     if !current_batch_indices.is_empty() {
-        let batch_df = create_batch_from_indices(&dataframes, &current_batch_indices, current_row_id)?;
+        let batch_df = create_batch_from_ranges(&dataframes, &current_batch_indices, current_row_id)?;
         let temp_path = format!("{}.batch_{}", output_path, batch_count);
         write_batch_to_file(&batch_df, &temp_path)?;
         temp_files.push(temp_path);
     }
 
-    // Concatenate temp files to final output
     concatenate_temp_files(&temp_files, output_path)?;
 
-    // // Clean up temp files
+    // Clean up temp files
     for temp_file in temp_files {
         let _ = std::fs::remove_file(temp_file);
     }
@@ -196,19 +236,16 @@ fn merge_with_priority_queue(input_files: &[String], output_path: &str, sort_col
 fn get_sort_value(df: &DataFrame, row_idx: usize, sort_column: &str) -> PolarsResult<i64> {
     let series = df.column(sort_column)?;
 
-    // Handle different data types for sorting
     match series.dtype() {
         DataType::Int64 => {
             series.i64()?.get(row_idx)
                 .ok_or_else(|| PolarsError::InvalidOperation("Sort value not found".into()))
         }
         DataType::Datetime(_, _) => {
-            // Convert datetime to timestamp (milliseconds since epoch)
             series.datetime()?.phys.get(row_idx)
                 .ok_or_else(|| PolarsError::InvalidOperation("Sort value not found".into()))
         }
         DataType::Date => {
-            // Convert date to days since epoch
             series.date()?.phys.get(row_idx)
                 .map(|d| d as i64)
                 .ok_or_else(|| PolarsError::InvalidOperation("Sort value not found".into()))
@@ -219,6 +256,31 @@ fn get_sort_value(df: &DataFrame, row_idx: usize, sort_column: &str) -> PolarsRe
             ))
         }
     }
+}
+
+fn create_batch_from_ranges(
+    dataframes: &[DataFrame],
+    ranges: &[RowRange],
+    start_row_id: i64,
+) -> PolarsResult<DataFrame> {
+    let mut slices = Vec::with_capacity(ranges.len());
+
+    for r in ranges {
+        let slice = dataframes[r.file_idx]
+            .slice(r.start as i64, r.end - r.start);
+        slices.push(slice);
+    }
+
+    let mut batch = concat_df(&slices)?;
+
+    let num_rows = batch.height();
+    let row_ids = Series::new(
+        ROW_ID_COLUMN_NAME.into(),
+        (start_row_id..start_row_id + num_rows as i64).collect::<Vec<_>>(),
+    );
+    batch.replace(ROW_ID_COLUMN_NAME, row_ids)?;
+
+    Ok(batch)
 }
 
 fn create_batch_from_indices(
@@ -266,11 +328,9 @@ fn concatenate_temp_files(temp_files: &[String], output_path: &str) -> PolarsRes
     }
 
     let combined_df = concat(&lazy_frames, UnionArgs::default())?;
-
     let mut file = std::fs::File::create(output_path)
         .map_err(|e| PolarsError::InvalidOperation(format!("Failed to create output file: {}", e).into()))?;
     ParquetWriter::new(&mut file).finish(&mut combined_df.collect()?)?;
-
     Ok(())
 }
 
