@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.io.InputStream;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
