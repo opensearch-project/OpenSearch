@@ -12,6 +12,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
@@ -28,7 +29,7 @@ public interface DataSourcePlugin {
         return Optional.empty();
     }
 
-    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(EngineConfig engineConfig, MapperService mapperService, ShardPath shardPath);
 
     FormatStoreDirectory<?> createFormatStoreDirectory(
         IndexSettings indexSettings,

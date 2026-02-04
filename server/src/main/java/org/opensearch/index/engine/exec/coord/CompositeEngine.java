@@ -10,8 +10,8 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
@@ -92,8 +92,8 @@ import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
-import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -127,7 +127,6 @@ import static org.opensearch.index.engine.exec.coord.CatalogSnapshot.LAST_COMPOS
 
 @ExperimentalApi
 public class CompositeEngine implements LifecycleAware, Closeable, Indexer, CheckpointState, IndexingThrottler, StatsHolder {
-
 
     private static final Consumer<ReferenceManager.RefreshListener> PRE_REFRESH_LISTENER_CONSUMER = refreshListener -> {
         try {
@@ -303,6 +302,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
+                engineConfig,
                 mapperService,
                 pluginsService,
                 shardPath,
@@ -983,6 +983,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
+
+                    refresh("flush");
 
                     translogManager.ensureCanFlush();
 

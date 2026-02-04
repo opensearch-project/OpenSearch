@@ -60,15 +60,25 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
 
     // Abstract methods that subclasses must implement
     public abstract Collection<FileMetadata> getFileMetadataList() throws IOException;
+
     public abstract Map<String, String> getUserData();
+
     public abstract long getId();
+
     public abstract List<Segment> getSegments();
+
     public abstract Collection<WriterFileSet> getSearchableFiles(String dataFormat);
+
     public abstract Set<String> getDataFormats();
+
     public abstract long getLastWriterGeneration();
+
     public abstract String serializeToString() throws IOException;
+
     public abstract void remapPaths(Path newShardDataPath);
+
     public abstract void setIndexFileDeleterSupplier(java.util.function.Supplier<IndexFileDeleter> supplier);
+
     public abstract void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> catalogSnapshotMap);
 
     public CatalogSnapshot cloneNoAcquire() {

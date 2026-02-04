@@ -7,32 +7,32 @@
  */
 package com.parquet.parquetdataformat;
 
+import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetDataFormat;
-import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
+import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
 import com.parquet.parquetdataformat.engine.read.ParquetDataSourceCodec;
+import com.parquet.parquetdataformat.fields.ArrowSchemaBuilder;
 import com.parquet.parquetdataformat.writer.ParquetWriter;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.engine.DataFormatPlugin;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
-import com.parquet.parquetdataformat.bridge.RustBridge;
-import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatStoreDirectory;
 import org.opensearch.index.store.GenericStoreDirectory;
 import org.opensearch.plugins.DataSourcePlugin;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 import org.opensearch.repositories.RepositoriesService;
@@ -42,11 +42,11 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -78,7 +78,7 @@ import java.util.function.Supplier;
  *   <li>Memory management via {@link com.parquet.parquetdataformat.memory} package</li>
  * </ul>
  */
-public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin, DataSourcePlugin {
+public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin {
     private Settings settings;
 
     public static String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
@@ -92,8 +92,16 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
-        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath);
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(
+        EngineConfig engineConfig,
+        MapperService mapperService,
+        ShardPath shardPath
+    ) {
+        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(
+            settings,
+            () -> ArrowSchemaBuilder.getSchema(mapperService),
+            shardPath
+        );
     }
 
     @Override
@@ -111,7 +119,19 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = clusterService.getSettings();
-        return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, indexNameExpressionResolver, repositoriesServiceSupplier);
+        return super.createComponents(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            indexNameExpressionResolver,
+            repositoriesServiceSupplier
+        );
     }
 
     @Override
@@ -130,14 +150,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     }
 
     @Override
-    public FormatStoreDirectory<?> createFormatStoreDirectory(
-        IndexSettings indexSettings,
-        ShardPath shardPath
-    ) throws IOException {
-        return new GenericStoreDirectory<>(
-            new ParquetDataFormat(),
-            shardPath
-        );
+    public FormatStoreDirectory<?> createFormatStoreDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+        return new GenericStoreDirectory<>(new ParquetDataFormat(), shardPath);
     }
 
     @Override
@@ -154,22 +168,22 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
     // for testing locally only
     public void indexDataToParquetEngine() throws IOException {
         //Create Engine (take Schema as Input)
-//        IndexingExecutionEngine<ParquetDataFormat> indexingExecutionEngine = indexingEngine();
-//        //Create Writer
-//        ParquetWriter writer = (ParquetWriter) indexingExecutionEngine.createWriter();
-//        for (int i=0;i<10;i++) {
-//            //Get DocumentInput
-//            DocumentInput documentInput = writer.newDocumentInput();
-//            ParquetDocumentInput parquetDocumentInput = (ParquetDocumentInput) documentInput;
-//            //Populate data
-//            DummyDataUtils.populateDocumentInput(parquetDocumentInput);
-//            //Write document
-//            writer.addDoc(parquetDocumentInput);
-//        }
-//        writer.flush(null);
-//        writer.close();
-//        //refresh engine
-//        indexingExecutionEngine.refresh(null);
+        //        IndexingExecutionEngine<ParquetDataFormat> indexingExecutionEngine = indexingEngine();
+        //        //Create Writer
+        //        ParquetWriter writer = (ParquetWriter) indexingExecutionEngine.createWriter();
+        //        for (int i=0;i<10;i++) {
+        //            //Get DocumentInput
+        //            DocumentInput documentInput = writer.newDocumentInput();
+        //            ParquetDocumentInput parquetDocumentInput = (ParquetDocumentInput) documentInput;
+        //            //Populate data
+        //            DummyDataUtils.populateDocumentInput(parquetDocumentInput);
+        //            //Write document
+        //            writer.addDoc(parquetDocumentInput);
+        //        }
+        //        writer.flush(null);
+        //        writer.close();
+        //        //refresh engine
+        //        indexingExecutionEngine.refresh(null);
     }
 
 }

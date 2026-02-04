@@ -8,13 +8,8 @@
 
 package org.opensearch.index.engine.exec.composite;
 
-import org.opensearch.index.engine.exec.coord.Segment;
-
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -25,7 +20,7 @@ import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeDataFormatWriterPool;
-import org.opensearch.index.engine.exec.text.TextEngine;
+import org.opensearch.index.engine.exec.coord.Segment;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
@@ -34,9 +29,12 @@ import org.opensearch.plugins.PluginsService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine<Any> {
 
@@ -46,6 +44,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
 
     public CompositeIndexingExecutionEngine(
+        EngineConfig engineConfig,
         MapperService mapperService,
         PluginsService pluginsService,
         ShardPath shardPath,
@@ -53,23 +52,16 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         List<DataFormat> dataFormats = new ArrayList<>();
-        try {
-            DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
-                .stream()
-                .findAny()
-                .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
-            dataFormats.add(plugin.getDataFormat());
-            delegates.add(plugin.indexingEngine(mapperService, shardPath));
-        } catch (NullPointerException e) {
-            delegates.add(new TextEngine());
-        }
+        pluginsService.filterPlugins(DataSourcePlugin.class).forEach(dataSourcePlugin -> {
+            dataFormats.add(dataSourcePlugin.getDataFormat());
+            delegates.add(dataSourcePlugin.indexingEngine(engineConfig, mapperService, shardPath));
+        });
         this.dataFormat = new Any(dataFormats, dataFormats.getFirst());
-        this.dataFormatWriterPool =
-            new CompositeDataFormatWriterPool(
-                () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
-                LinkedList::new,
-                Runtime.getRuntime().availableProcessors()
-            );
+        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
+            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
+            LinkedList::new,
+            Runtime.getRuntime().availableProcessors()
+        );
     }
 
     @Override

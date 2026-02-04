@@ -14,6 +14,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
@@ -25,8 +26,8 @@ import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 
-
 public class TextDF extends Plugin implements DataFormat, DataSourcePlugin {
+
     @Override
     public Setting<Settings> dataFormatSettings() {
         return null;
@@ -48,16 +49,17 @@ public class TextDF extends Plugin implements DataFormat, DataSourcePlugin {
     }
 
     @Override
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath) {
-        return  (IndexingExecutionEngine<T>) new TextEngine();
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(
+        EngineConfig engineConfig,
+        MapperService mapperService,
+        ShardPath shardPath
+    ) {
+        return (IndexingExecutionEngine<T>) new TextEngine();
     }
 
     @Override
     public FormatStoreDirectory<?> createFormatStoreDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
-        return new GenericStoreDirectory<>(
-            new TextDF(),
-            shardPath
-        );
+        return new GenericStoreDirectory<>(new TextDF(), shardPath);
     }
 
     @Override

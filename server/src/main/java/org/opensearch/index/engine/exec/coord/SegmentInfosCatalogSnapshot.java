@@ -40,11 +40,8 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     public SegmentInfosCatalogSnapshot(StreamInput in) throws IOException {
         super(in);
         byte[] segmentInfosBytes = in.readByteArray();
-        this.segmentInfos = SegmentInfos.readCommit(
-            null,
-            new BufferedChecksumIndexInput(new ByteArrayIndexInput("SegmentInfos", segmentInfosBytes)),
-            0L
-        );
+        this.segmentInfos =
+            SegmentInfos.readCommit(null, new BufferedChecksumIndexInput(new ByteArrayIndexInput("SegmentInfos", segmentInfosBytes)), 0L);
     }
 
     @Override
@@ -127,8 +124,7 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public  void setUserData(Map<String, String> userData, boolean b)
-    {
+    public void setUserData(Map<String, String> userData, boolean b) {
         // TODO no op since SegmentInfosCatalogSnapshot is not refcounted
     }
 }
