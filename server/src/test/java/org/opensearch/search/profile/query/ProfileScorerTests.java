@@ -101,4 +101,15 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         fakeScorer.maxScore = 42f;
         assertEquals(42f, profileScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
     }
+
+    public void testGetWrappedScorer() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // Verify getWrappedScorer returns the original scorer
+        assertSame(fakeScorer, profileScorer.getWrappedScorer());
+    }
 }
