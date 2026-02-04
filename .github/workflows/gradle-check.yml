@@ -31,8 +31,23 @@ jobs:
           .github/**
           *.md
 
-  gradle-check:
+  Code-Diff-Analyzer:
+    uses: opensearch-project/opensearch-build/.github/workflows/code-diff-analyzer.yml@main
+    if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
     needs: check-files
+    permissions:
+      id-token: write # github oidc to assume aws roles
+      pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    with:
+      skip_validation_on_push: true
+      skip_validation_label_name: 'skip-diff-validation'
+      update_pr_comment_with_validation_report: true
+      hard_fail_level: 3 # issues with high severity or above
+  
+  gradle-check:
+    needs: [check-files, Code-Diff-Analyzer]
     if: github.repository == 'opensearch-project/OpenSearch' && needs.check-files.outputs.RUN_GRADLE_CHECK == 'true'
     permissions:
       contents: read # to fetch code (actions/checkout)
@@ -169,5 +184,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fail if gradle-check fails
-        if: ${{ needs.check-files.outputs.RUN_GRADLE_CHECK && needs.gradle-check.result == 'failure' }}
+        if: |
+          needs.check-files.outputs.RUN_GRADLE_CHECK == 'true' &&
+          (needs.gradle-check.result == 'failure' || needs.Code-Diff-Analyzer.result == 'failure' || needs.Code-Diff-Analyzer.result == 'cancelled')
         run: exit 1
