@@ -17,5 +17,5 @@ grant codeBase "${codebase.grpc-netty-shaded}" {
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
 
    // Netty on Windows uses WEPollSelectorImpl which needs to delete temporary socket files
-   permission java.io.FilePermission "${java.io.tmpdir}${/}socket_*", "delete";
+   permission java.net.NetPermission "accessUnixDomainSocket";
 };
