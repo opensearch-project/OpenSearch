@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -103,7 +105,9 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         );
         flightTransport.start();
         TransportService transportService = mock(TransportService.class);
-        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+        TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.taskExecutionStarted(any())).thenReturn(mock(ThreadContext.StoredContext.class));
+        when(transportService.getTaskManager()).thenReturn(taskManager);
         streamTransportService = spy(
             new StreamTransportService(
                 settings,

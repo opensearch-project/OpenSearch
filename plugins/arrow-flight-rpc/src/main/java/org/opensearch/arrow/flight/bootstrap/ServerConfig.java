@@ -204,7 +204,8 @@ public class ServerConfig {
                 ARROW_ENABLE_DEBUG_ALLOCATOR,
                 ARROW_ENABLE_UNSAFE_MEMORY_ACCESS,
                 ARROW_SSL_ENABLE,
-                FLIGHT_EVENT_LOOP_THREADS
+                FLIGHT_EVENT_LOOP_THREADS,
+                FLIGHT_THREAD_POOL_MIN_SIZE
             )
         );
     }

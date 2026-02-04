@@ -346,6 +346,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
+                RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE,
+                RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -809,6 +811,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,

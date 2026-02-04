@@ -24,6 +24,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceConfig;
 import org.opensearch.index.codec.CodecServiceFactory;
@@ -39,6 +40,7 @@ import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -56,6 +58,7 @@ import java.util.function.Supplier;
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
+    private final List<AdditionalCodecs> additionalCodecs;
 
     /** default ctor primarily used for tests without plugins */
     public EngineConfigFactory(IndexSettings idxSettings) {
@@ -71,6 +74,7 @@ public class EngineConfigFactory {
 
     /* private constructor to construct the factory from specific EnginePlugins and IndexSettings */
     EngineConfigFactory(Collection<EnginePlugin> enginePlugins, IndexSettings idxSettings) {
+        final List<AdditionalCodecs> codecRegistries = new ArrayList<>();
         Optional<CodecService> codecService = Optional.empty();
         String codecServiceOverridingPlugin = null;
         Optional<CodecServiceFactory> codecServiceFactory = Optional.empty();
@@ -113,6 +117,9 @@ public class EngineConfigFactory {
                         + enginePlugin.getClass().getName()
                 );
             }
+
+            // collect all available CodecRegistry instances
+            enginePlugin.getAdditionalCodecs(idxSettings).ifPresent(codecRegistries::add);
         }
 
         if (codecService.isPresent() && codecServiceFactory.isPresent()) {
@@ -127,6 +134,7 @@ public class EngineConfigFactory {
         final CodecService instance = codecService.orElse(null);
         this.codecServiceFactory = (instance != null) ? (config) -> instance : codecServiceFactory.orElse(null);
         this.translogDeletionPolicyFactory = translogDeletionPolicyFactory.orElse((idxs, rtls) -> null);
+        this.additionalCodecs = Collections.unmodifiableList(codecRegistries);
     }
 
     /**
@@ -203,6 +211,10 @@ public class EngineConfigFactory {
             .build();
     }
 
+    public CodecService newDefaultCodecService(IndexSettings indexSettings, @Nullable MapperService mapperService, Logger logger) {
+        return new CodecService(mapperService, indexSettings, logger, additionalCodecs);
+    }
+
     public CodecService newCodecServiceOrDefault(
         IndexSettings indexSettings,
         @Nullable MapperService mapperService,
@@ -210,7 +222,7 @@ public class EngineConfigFactory {
         CodecService defaultCodecService
     ) {
         return this.codecServiceFactory != null
-            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger))
+            ? this.codecServiceFactory.createCodecService(new CodecServiceConfig(indexSettings, mapperService, logger, additionalCodecs))
             : defaultCodecService;
     }
 }

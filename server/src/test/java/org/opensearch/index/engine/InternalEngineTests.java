@@ -1878,7 +1878,7 @@ public class InternalEngineTests extends EngineTestCase {
                 writer.forceMerge(1);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     assertEquals(1, reader.leaves().size());
-                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false));
+                    assertNull(VersionsAndSeqNoResolver.loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "1"), false, null));
                 }
             }
         }
@@ -3814,7 +3814,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger);
+        CodecService codecService = new CodecService(null, engine.config().getIndexSettings(), logger, List.of());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -4315,7 +4315,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -4357,7 +4357,7 @@ public class InternalEngineTests extends EngineTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -8009,7 +8009,7 @@ public class InternalEngineTests extends EngineTestCase {
                 .mergePolicy(config.getMergePolicy())
                 .analyzer(config.getAnalyzer())
                 .similarity(config.getSimilarity())
-                .codecService(new CodecService(null, config.getIndexSettings(), logger))
+                .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
                 .eventListener(config.getEventListener())
                 .queryCache(config.getQueryCache())
                 .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -8495,7 +8495,7 @@ public class InternalEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(
                         Integer.toString(i),
                         null,
-                        testContextSpecificDocument(),
+                        testContextSpecificDocument("grouping_criteria"),
                         null, // No source, it should be derived
                         null
                     );
@@ -8686,7 +8686,7 @@ public class InternalEngineTests extends EngineTestCase {
                     ParsedDocument doc = testParsedDocument(
                         Integer.toString(i),
                         null,
-                        testContextSpecificDocument(),
+                        testContextSpecificDocument("grouping_criteria"),
                         null, // No source, it should be derived
                         null
                     );
@@ -9049,9 +9049,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
 
             AtomicReference<AddIndexesFailingIndexWriter> throwingIndexWriter = new AtomicReference<>();
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
@@ -9094,9 +9094,9 @@ public class InternalEngineTests extends EngineTestCase {
         MockDirectoryWrapper wrapper = newMockDirectory();
         final Path translogPath = createTempDir("testFailEngineOnRandomIO");
         try (Store store = createStore(wrapper)) {
-            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument(), B_1, null);
-            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "test",
                 Settings.builder()
@@ -9131,6 +9131,59 @@ public class InternalEngineTests extends EngineTestCase {
                     // fine
                 }
             }
+        }
+    }
+
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testDoesNotAllowGroupingCriteriaUpdate() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            )
+        ) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria_update"), B_1, null);
+            engine.index(indexForDoc(doc1));
+            assertThrows(UnsupportedOperationException.class, () -> engine.index(indexForDoc(doc2)));
+        }
+    }
+
+    @LockFeatureFlag(CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG)
+    public void testAllowGroupingCriteriaUpdateWithTombstone() throws IOException, InterruptedException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+                .build()
+        );
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(
+                config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get)
+            )
+        ) {
+            final ParsedDocument doc1 = testParsedDocument("1", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            engine.index(indexForDoc(doc1));
+            ParsedDocument doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            IndexResult indexResult = engine.index(indexForDoc(doc2));
+            doc2 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria"), B_1, null);
+            Engine.Index index = indexForDoc(doc2);
+            engine.index(index);
+            engine.delete(new Engine.Delete(index.id(), index.uid(), primaryTerm.get()));
+            engine.refresh("test");
+            ParsedDocument doc3 = testParsedDocument("2", null, testContextSpecificDocument("grouping_criteria_update"), B_1, null);
+            engine.index(indexForDoc(doc3));
         }
     }
 
@@ -9198,7 +9251,7 @@ public class InternalEngineTests extends EngineTestCase {
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .translogConfig(config.getTranslogConfig())
             .flushMergesAfter(config.getFlushMergesAfter())
             .externalRefreshListener(config.getExternalRefreshListener())

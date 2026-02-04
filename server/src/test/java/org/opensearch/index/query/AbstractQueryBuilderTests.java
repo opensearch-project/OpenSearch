@@ -108,4 +108,9 @@ public class AbstractQueryBuilderTests extends OpenSearchTestCase {
         return xContentRegistry;
     }
 
+    public void testDefaultSupportsIntraSegmentSearch() {
+        QueryBuilder query = new MatchAllQueryBuilder();
+        assertFalse(query.supportsIntraSegmentSearch());
+    }
+
 }
