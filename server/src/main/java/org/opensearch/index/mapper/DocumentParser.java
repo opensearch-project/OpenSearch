@@ -45,9 +45,12 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.script.ContextAwareGroupingScript;
+
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -58,6 +61,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.io.InputStream;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
 
@@ -766,8 +770,7 @@ final class DocumentParser {
         if (mapper instanceof ObjectMapper objectMapper) {
             parseObjectMapper(context, objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
-            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+            parseFieldWithCopyTo(context, fieldMapper);
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
         } else {
@@ -847,8 +850,7 @@ final class DocumentParser {
         throws IOException {
         switch (existingMapper) {
             case FieldMapper fm -> {
-                fm.parse(context);
-                parseCopyFields(context, fm.copyTo().copyToFields());
+                parseFieldWithCopyTo(context, fm);
             }
             case ObjectMapper om -> {
                 // Even with disable_objects, we can have nested ObjectMappers for explicitly defined sub-objects
@@ -1339,6 +1341,44 @@ final class DocumentParser {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
+    private static void parseCopyFields(ParseContext context, List<String> copyToFields, byte[] sourceBytes) throws IOException {
+        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+            context = context.createCopyToContext();
+            for (String field : copyToFields) {
+                // In case of a hierarchy of nested documents, we need to figure out
+                // which document the field should go to
+                ParseContext.Document targetDoc = null;
+                for (ParseContext.Document doc = context.doc(); doc != null; doc = doc.getParent()) {
+                    if (field.startsWith(doc.getPrefix())) {
+                        targetDoc = doc;
+                        break;
+                    }
+                }
+                assert targetDoc != null;
+                ParseContext copyToContext;
+                if (targetDoc == context.doc()) {
+                    copyToContext = context;
+                } else {
+                    copyToContext = context.switchDoc(targetDoc);
+                }
+
+                XContentParser parser = copyToContext.parser();
+                try (
+                    XContentParser innerParser = parser.contentType()
+                        .xContent()
+                        .createParser(parser.getXContentRegistry(),
+                        parser.getDeprecationHandler(),
+                        sourceBytes)
+                ) {
+                    innerParser.nextToken();
+                    copyToContext = copyToContext.switchParser(innerParser);
+                    parseCopy(field, copyToContext);
+                }
+                
+            }
+        }
+    }
+
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
@@ -1353,12 +1393,13 @@ final class DocumentParser {
                     }
                 }
                 assert targetDoc != null;
-                final ParseContext copyToContext;
+                ParseContext copyToContext;
                 if (targetDoc == context.doc()) {
                     copyToContext = context;
                 } else {
                     copyToContext = context.switchDoc(targetDoc);
                 }
+
                 parseCopy(field, copyToContext);
             }
         }
@@ -1528,6 +1569,36 @@ final class DocumentParser {
             }
         }
         return objectMapper.getMapper(subfields[subfields.length - 1]);
+    }
+
+    private static byte[] parseChildToBytes(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+        return BytesReference.toBytes(BytesReference.bytes(builder));
+    }
+
+    private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
+        XContentParser.Token token = context.parser().currentToken();
+        if (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT) {
+            byte[] childBytes = parseChildToBytes(context);
+            XContentParser parser = context.parser();
+            try (
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(),
+                        parser.getDeprecationHandler(),
+                        childBytes)
+            ) {
+                innerParser.nextToken();
+                context = context.switchParser(innerParser);
+                fieldMapper.parse(context);
+            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields(), childBytes);
+        } else {
+            fieldMapper.parse(context);
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+        }
     }
 
     // Throws exception if no dynamic templates found but `dynamic` is set to strict_allow_templates
