@@ -41,10 +41,10 @@ jobs:
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     with:
-      skip_validation_on_push: true
-      skip_validation_label_name: 'skip-diff-validation'
-      update_pr_comment_with_validation_report: true
-      hard_fail_level: 3 # issues with high severity or above
+      skip_diff_analyzer_on_push: true
+      skip_diff_analyzer_with_label_name: 'skip-diff-analyzer'
+      update_pr_comment_with_analyzer_report: true
+      hard_fail_level: 3 # issues with high severity or above will hard fail the check
   
   gradle-check:
     needs: [check-files, Code-Diff-Analyzer]
@@ -179,7 +179,7 @@ jobs:
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
   check-result:
-    needs: [check-files, gradle-check]
+    needs: [check-files, gradle-check, Code-Diff-Analyzer]
     if: always()
     runs-on: ubuntu-latest
     steps:
