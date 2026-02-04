@@ -1578,7 +1578,9 @@ final class DocumentParser {
 
     private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
         XContentParser.Token token = context.parser().currentToken();
-        if (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT) {
+        if ((token == XContentParser.Token.START_ARRAY || 
+            token == XContentParser.Token.START_OBJECT) && 
+            fieldMapper.copyTo().copyToFields().size() > 0) {
             byte[] childBytes = parseChildToBytes(context);
             XContentParser parser = context.parser();
             try (
