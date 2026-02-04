@@ -504,8 +504,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             @Override
             public boolean test(ClusterName c) {
                 // Check against the configured expected cluster name (if set)
-                if (expectedClusterName != null && expectedClusterName.equals(c.value()) == false) {
-                    return false;
+                if (expectedClusterName != null) {
+                    return expectedClusterName.equals(c.value());
                 }
 
                 // Check against the first cluster name seen if user has not provided an expected cluster name
