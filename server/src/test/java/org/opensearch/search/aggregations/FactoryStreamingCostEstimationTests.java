@@ -15,7 +15,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -35,6 +41,7 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 import java.io.IOException;
 
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for factory-level streaming cost estimation.
@@ -520,6 +527,147 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
     }
 
     // ========================================
+    // Streaming Fallback Tests
+    // ========================================
+
+    /**
+     * Test that string terms aggregation falls back to non-streamable when cardinality is low.
+     * Low cardinality means maxCardinality is less than minEstimatedBucketCount setting.
+     */
+    public void testTermsFactoryFallbackLowCardinality() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create index with low cardinality (only 5 unique terms)
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + (i % 5))));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(5);
+
+                    // Create context with high minBucketCount so cardinality (5) < minBucketCount (1000)
+                    FactoryAndContext result = createAggregatorFactoryWithMinBucketCount(termsBuilder, searcher, 1000L, fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertFalse("Low cardinality should NOT be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that string terms aggregation falls back to non-streamable for match-all query
+     * when majority of segments have no deleted docs (traditional aggregator can use term frequency optimization).
+     */
+    public void testTermsFactoryFallbackMatchAllWithCleanSegments() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create index with high cardinality (more than default minBucketCount)
+                for (int i = 0; i < 5000; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(10);
+
+                    // Create context with MatchAllDocsQuery - should fall back due to term frequency optimization
+                    FactoryAndContext result = createAggregatorFactoryWithQuery(termsBuilder, searcher, new MatchAllDocsQuery(), fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertFalse("Match-all with clean segments should NOT be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that string terms with match-all but deleted docs IS streamable
+     * (term frequency optimization won't work when segments have deletions).
+     */
+    public void testTermsFactoryStreamableMatchAllWithDeletedDocs() throws IOException {
+        try (Directory directory = newDirectory()) {
+            // Use IndexWriterConfig that doesn't merge away deletions
+            IndexWriterConfig config = new IndexWriterConfig();
+            config.setMergePolicy(org.apache.lucene.index.NoMergePolicy.INSTANCE);
+
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                // Create index with high cardinality in multiple batches to create multiple segments
+                for (int batch = 0; batch < 5; batch++) {
+                    for (int i = 0; i < 1000; i++) {
+                        Document doc = new Document();
+                        String catValue = "cat_" + (batch * 1000 + i);
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef(catValue)));
+                        // Add indexed field for deletion
+                        doc.add(new org.apache.lucene.document.StringField("id", catValue, org.apache.lucene.document.Field.Store.NO));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit(); // Create a segment per batch
+                }
+
+                // Delete documents from all segments to make them "dirty"
+                for (int batch = 0; batch < 5; batch++) {
+                    writer.deleteDocuments(new org.apache.lucene.index.Term("id", "cat_" + (batch * 1000)));
+                }
+                writer.commit();
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(10);
+
+                    // Match-all but with deleted docs - should be streamable
+                    FactoryAndContext result = createAggregatorFactoryWithQuery(termsBuilder, searcher, new MatchAllDocsQuery(), fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    // With deletions in all segments, cleanRatio will be 0, so streaming is preferred
+                    assertTrue("Match-all with deleted docs should be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that non-match-all query with high cardinality IS streamable.
+     */
+    public void testTermsFactoryStreamableNonMatchAllQuery() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create index with high cardinality
+                for (int i = 0; i < 5000; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                    writer.addDocument(doc);
+                }
+
+                try (IndexReader reader = DirectoryReader.open(writer)) {
+                    IndexSearcher searcher = newIndexSearcher(reader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    TermsAggregationBuilder termsBuilder = new TermsAggregationBuilder("terms").field("category").size(10);
+
+                    // Non-match-all query (using a term query) - should be streamable even with clean segments
+                    Query termQuery = new TermQuery(new Term("category", "cat_100"));
+                    FactoryAndContext result = createAggregatorFactoryWithQuery(termsBuilder, searcher, termQuery, fieldType);
+                    StreamingCostMetrics metrics = ((StreamingCostEstimable) result.factory).estimateStreamingCost(result.searchContext);
+
+                    assertTrue("Non-match-all query should be streamable", metrics.streamable());
+                }
+            }
+        }
+    }
+
+    // ========================================
     // Helper methods
     // ========================================
 
@@ -533,13 +681,55 @@ public class FactoryStreamingCostEstimationTests extends AggregatorTestCase {
     /**
      * Creates an AggregatorFactory from an AggregationBuilder using the test infrastructure.
      * Returns the factory and the SearchContext used to create it.
+     * Uses a non-match-all query to avoid triggering the match-all optimization fallback.
      */
     private FactoryAndContext createAggregatorFactory(
         AggregationBuilder aggregationBuilder,
         IndexSearcher searcher,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        // Use a BooleanQuery wrapper to avoid being detected as match-all
+        // This simulates a filtered query scenario
+        Query nonMatchAllQuery = new BooleanQuery.Builder().add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST).build();
+        SearchContext searchContext = createSearchContext(
+            searcher,
+            createIndexSettings(),
+            nonMatchAllQuery,
+            createBucketConsumer(),
+            fieldTypes
+        );
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+        AggregatorFactory factory = aggregationBuilder.rewrite(queryShardContext).build(queryShardContext, null);
+        return new FactoryAndContext(factory, searchContext);
+    }
+
+    /**
+     * Creates an AggregatorFactory with a specific query.
+     */
+    private FactoryAndContext createAggregatorFactoryWithQuery(
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher searcher,
+        Query query,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        SearchContext searchContext = createSearchContext(searcher, createIndexSettings(), query, createBucketConsumer(), fieldTypes);
+        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+        AggregatorFactory factory = aggregationBuilder.rewrite(queryShardContext).build(queryShardContext, null);
+        return new FactoryAndContext(factory, searchContext);
+    }
+
+    /**
+     * Creates an AggregatorFactory with a mocked minEstimatedBucketCount.
+     */
+    private FactoryAndContext createAggregatorFactoryWithMinBucketCount(
+        AggregationBuilder aggregationBuilder,
+        IndexSearcher searcher,
+        long minBucketCount,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         SearchContext searchContext = createSearchContext(searcher, createIndexSettings(), null, createBucketConsumer(), fieldTypes);
+        // Mock the minEstimatedBucketCount setting
+        when(searchContext.getStreamingMinEstimatedBucketCount()).thenReturn(minBucketCount);
         QueryShardContext queryShardContext = searchContext.getQueryShardContext();
         AggregatorFactory factory = aggregationBuilder.rewrite(queryShardContext).build(queryShardContext, null);
         return new FactoryAndContext(factory, searchContext);

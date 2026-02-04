@@ -139,6 +139,23 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         )
     );
 
+    /**
+     * Optional expected cluster name for the remote cluster. If set, the connection will fail during handshake
+     * if the remote cluster's name does not match this value. This prevents accidentally
+     * connecting to the wrong cluster when seeds are misconfigured or stale. If the validation fails for a seed,
+     * the connection attempt will continue to the next available seed. This is only supported in the sniff mode.
+     */
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_EXPECTED_NAME = Setting.affixKeySetting(
+        "cluster.remote.",
+        "cluster_name",
+        (ns, key) -> Setting.simpleString(
+            key,
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
+    );
+
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
@@ -150,6 +167,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
+    private final String expectedClusterName;
 
     SniffConnectionStrategy(
         String clusterAlias,
@@ -165,32 +183,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             settings,
             REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
-            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings)
-        );
-    }
-
-    SniffConnectionStrategy(
-        String clusterAlias,
-        TransportService transportService,
-        RemoteConnectionManager connectionManager,
-        String proxyAddress,
-        Settings settings,
-        int maxNumRemoteConnections,
-        Predicate<DiscoveryNode> nodePredicate,
-        List<String> configuredSeedNodes
-    ) {
-        this(
-            clusterAlias,
-            transportService,
-            connectionManager,
-            proxyAddress,
-            settings,
-            maxNumRemoteConnections,
-            nodePredicate,
-            configuredSeedNodes,
-            configuredSeedNodes.stream()
-                .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
-                .collect(Collectors.toList())
+            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(clusterAlias).get(settings)
         );
     }
 
@@ -203,7 +197,35 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
-        List<Supplier<DiscoveryNode>> seedNodes
+        String expectedClusterName
+    ) {
+        this(
+            clusterAlias,
+            transportService,
+            connectionManager,
+            proxyAddress,
+            settings,
+            maxNumRemoteConnections,
+            nodePredicate,
+            configuredSeedNodes,
+            configuredSeedNodes.stream()
+                .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
+                .collect(Collectors.toList()),
+            expectedClusterName
+        );
+    }
+
+    SniffConnectionStrategy(
+        String clusterAlias,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
+        String proxyAddress,
+        Settings settings,
+        int maxNumRemoteConnections,
+        Predicate<DiscoveryNode> nodePredicate,
+        List<String> configuredSeedNodes,
+        List<Supplier<DiscoveryNode>> seedNodes,
+        String expectedClusterName
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
         this.proxyAddress = proxyAddress;
@@ -211,6 +233,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
+        this.expectedClusterName = Strings.hasText(expectedClusterName) ? expectedClusterName : null;
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -231,9 +254,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String newExpectedClusterName = REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return nodeConnections != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, addresses)
-            || proxyChanged(proxyAddress, proxy);
+            || proxyChanged(proxyAddress, proxy)
+            || expectedClusterNameChanged(expectedClusterName, newExpectedClusterName);
     }
 
     @Override
@@ -248,7 +273,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size());
+        return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size(), expectedClusterName);
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
@@ -478,11 +503,20 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return new Predicate<ClusterName>() {
             @Override
             public boolean test(ClusterName c) {
+                // Check against the configured expected cluster name (if set)
+                if (expectedClusterName != null) {
+                    return expectedClusterName.equals(c.value());
+                }
+
+                // Check against the first cluster name seen if user has not provided an expected cluster name
                 return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
             }
 
             @Override
             public String toString() {
+                if (expectedClusterName != null) {
+                    return "expected remote cluster name [" + expectedClusterName + "]";
+                }
                 return remoteClusterName.get() == null
                     ? "any cluster name"
                     : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
@@ -562,6 +596,12 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         return Objects.equals(oldProxy, newProxy) == false;
     }
 
+    private boolean expectedClusterNameChanged(String oldExpectedName, String newExpectedName) {
+        String oldClusterName = Strings.hasText(oldExpectedName) ? oldExpectedName : null;
+        String newClusterName = Strings.hasText(newExpectedName) ? newExpectedName : null;
+        return Objects.equals(oldClusterName, newClusterName) == false;
+    }
+
     /**
      * Information about the sniff mode
      *
@@ -572,17 +612,28 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         final List<String> seedNodes;
         final int maxConnectionsPerCluster;
         final int numNodesConnected;
+        final String expectedClusterName;
 
         public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
+            this(seedNodes, maxConnectionsPerCluster, numNodesConnected, null);
+        }
+
+        public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected, String expectedClusterName) {
             this.seedNodes = seedNodes;
             this.maxConnectionsPerCluster = maxConnectionsPerCluster;
             this.numNodesConnected = numNodesConnected;
+            this.expectedClusterName = expectedClusterName;
         }
 
         private SniffModeInfo(StreamInput input) throws IOException {
             seedNodes = Arrays.asList(input.readStringArray());
             maxConnectionsPerCluster = input.readVInt();
             numNodesConnected = input.readVInt();
+            if (input.getVersion().onOrAfter(Version.V_3_5_0)) {
+                expectedClusterName = input.readOptionalString();
+            } else {
+                expectedClusterName = null;
+            }
         }
 
         @Override
@@ -594,6 +645,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             builder.endArray();
             builder.field("num_nodes_connected", numNodesConnected);
             builder.field("max_connections_per_cluster", maxConnectionsPerCluster);
+            if (expectedClusterName != null) {
+                builder.field("cluster_name", expectedClusterName);
+            }
             return builder;
         }
 
@@ -602,6 +656,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             out.writeStringArray(seedNodes.toArray(new String[0]));
             out.writeVInt(maxConnectionsPerCluster);
             out.writeVInt(numNodesConnected);
+            if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
+                out.writeOptionalString(expectedClusterName);
+            }
         }
 
         @Override
@@ -626,6 +683,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return numNodesConnected;
         }
 
+        public String getExpectedClusterName() {
+            return expectedClusterName;
+        }
+
         @Override
         public RemoteConnectionStrategy.ConnectionStrategy modeType() {
             return RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
@@ -638,12 +699,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             SniffModeInfo sniff = (SniffModeInfo) o;
             return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
                 && numNodesConnected == sniff.numNodesConnected
-                && Objects.equals(seedNodes, sniff.seedNodes);
+                && Objects.equals(seedNodes, sniff.seedNodes)
+                && Objects.equals(expectedClusterName, sniff.expectedClusterName);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected);
+            return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected, expectedClusterName);
         }
     }
 }

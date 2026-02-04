@@ -180,14 +180,10 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
             );
 
             Engine.Index operation = indexForDoc(createParsedDoc("id", null, DEFAULT_CRITERIA));
-            try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
-                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
-            }
+            compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
 
             operation = indexForDoc(createParsedDoc("id2", null, "testingNewCriteria"));
-            try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
-                compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
-            }
+            compositeIndexWriter.addDocuments(operation.docs(), operation.uid());
 
             compositeIndexWriter.beforeRefresh();
             compositeIndexWriter.afterRefresh(true);
@@ -348,7 +344,7 @@ public class CompositeIndexWriterForAppendTests extends CriteriaBasedCompositeIn
 
         String id = Integer.toString(randomIntBetween(1, 100));
         Engine.Index operation = indexForDoc(createParsedDoc(id, null, DEFAULT_CRITERIA));
-        try (Releasable ignore1 = compositeIndexWriter.acquireLock(operation.uid().bytes())) {
+        try {
             addDocException.set(new IOException("simulated"));
             expectThrows(IOException.class, () -> compositeIndexWriter.addDocuments(operation.docs(), operation.uid()));
         } finally {

@@ -32,7 +32,11 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
@@ -63,6 +67,7 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -709,11 +714,82 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
             return StreamingCostMetrics.nonStreamable();
         }
 
-        if (valuesSource instanceof WithOrdinals || valuesSource instanceof ValuesSource.Numeric) {
+        if (valuesSource instanceof WithOrdinals ordinalsValuesSource) {
+            if (shouldDisableStreamingForOrdinals(searchContext, ordinalsValuesSource)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+            return new StreamingCostMetrics(true, segmentTopN);
+        }
+
+        if (valuesSource instanceof ValuesSource.Numeric) {
             return new StreamingCostMetrics(true, segmentTopN);
         }
 
         return StreamingCostMetrics.nonStreamable();
+    }
+
+    /**
+     * Determines if streaming should be disabled for ordinal-based string terms aggregation.
+     *
+     * <p>Streaming is disabled when:
+     * <ul>
+     *   <li>Low cardinality: max cardinality across segments is below the minimum bucket threshold</li>
+     *   <li>Match-all optimization eligible: query is match-all and the majority of docs are in
+     *       segments without deletions, allowing the traditional aggregator to use its
+     *       term frequency optimization</li>
+     * </ul>
+     */
+    private boolean shouldDisableStreamingForOrdinals(SearchContext searchContext, WithOrdinals valuesSource) {
+        List<LeafReaderContext> leaves = searchContext.searcher().getIndexReader().leaves();
+        if (leaves.isEmpty()) {
+            return false;
+        }
+
+        long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
+        long maxCardinality = 0;
+        long totalDocs = 0;
+        // A segment is "clean" if it has no deletions
+        long docsInCleanSegments = 0;
+
+        for (LeafReaderContext leaf : leaves) {
+            try {
+                SortedSetDocValues docValues = valuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                }
+            } catch (IOException e) {
+                // If we can't read doc values, skip this check
+                return false;
+            }
+
+            int segmentDocs = leaf.reader().maxDoc();
+            totalDocs += segmentDocs;
+
+            if (!leaf.reader().hasDeletions()) {
+                docsInCleanSegments += segmentDocs;
+            }
+        }
+
+        // Check 1: Low cardinality - streaming overhead not worth it
+        if (maxCardinality < minBucketCount) {
+            return true;
+        }
+
+        // Check 2: Match-all query with the majority of docs in clean segments
+        // Traditional aggregator can use term frequency optimization for these segments
+        if (isMatchAllQuery(searchContext.query())) {
+            double cleanRatio = totalDocs > 0 ? (double) docsInCleanSegments / totalDocs : 0;
+            return cleanRatio > 0.8;
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if the query is a match-all query.
+     */
+    private static boolean isMatchAllQuery(Query query) {
+        return query instanceof MatchAllDocsQuery;
     }
 
     @Override
