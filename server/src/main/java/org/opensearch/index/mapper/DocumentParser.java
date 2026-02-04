@@ -51,7 +51,6 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.script.ContextAwareGroupingScript;
 
-
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -1399,7 +1398,6 @@ final class DocumentParser {
                 } else {
                     copyToContext = context.switchDoc(targetDoc);
                 }
-
                 parseCopy(field, copyToContext);
             }
         }
