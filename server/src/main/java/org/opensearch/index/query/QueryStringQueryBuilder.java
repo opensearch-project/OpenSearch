@@ -987,9 +987,4 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         return query;
     }
-
-    @Override
-    public boolean supportsIntraSegmentSearch() {
-        return true;
-    }
 }
