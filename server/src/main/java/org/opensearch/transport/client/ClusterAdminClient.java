@@ -168,6 +168,9 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.MediaType;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+
 /**
  * Administrative actions/operations against indices.
  *
@@ -958,4 +961,319 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Deletes a stored search pipeline
      */
     ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request);
+
+    /** Cluster health - CompletionStage version */
+    default CompletionStage<ClusterHealthResponse> healthAsync(ClusterHealthRequest request) {
+        CompletableFuture<ClusterHealthResponse> future = new CompletableFuture<>();
+        health(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Cluster state - CompletionStage version */
+    default CompletionStage<ClusterStateResponse> stateAsync(ClusterStateRequest request) {
+        CompletableFuture<ClusterStateResponse> future = new CompletableFuture<>();
+        state(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Update settings - CompletionStage version */
+    default CompletionStage<ClusterUpdateSettingsResponse> updateSettingsAsync(ClusterUpdateSettingsRequest request) {
+        CompletableFuture<ClusterUpdateSettingsResponse> future = new CompletableFuture<>();
+        updateSettings(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Reroute - CompletionStage version */
+    default CompletionStage<ClusterRerouteResponse> rerouteAsync(ClusterRerouteRequest request) {
+        CompletableFuture<ClusterRerouteResponse> future = new CompletableFuture<>();
+        reroute(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Nodes info - CompletionStage version */
+    default CompletionStage<NodesInfoResponse> nodesInfoAsync(NodesInfoRequest request) {
+        CompletableFuture<NodesInfoResponse> future = new CompletableFuture<>();
+        nodesInfo(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Cluster stats - CompletionStage version */
+    default CompletionStage<ClusterStatsResponse> clusterStatsAsync(ClusterStatsRequest request) {
+        CompletableFuture<ClusterStatsResponse> future = new CompletableFuture<>();
+        clusterStats(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Nodes stats - CompletionStage version */
+    default CompletionStage<NodesStatsResponse> nodesStatsAsync(NodesStatsRequest request) {
+        CompletableFuture<NodesStatsResponse> future = new CompletableFuture<>();
+        nodesStats(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Nodes usage - CompletionStage version */
+    default CompletionStage<NodesUsageResponse> nodesUsageAsync(NodesUsageRequest request) {
+        CompletableFuture<NodesUsageResponse> future = new CompletableFuture<>();
+        nodesUsage(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Nodes hot threads - CompletionStage version */
+    default CompletionStage<NodesHotThreadsResponse> nodesHotThreadsAsync(NodesHotThreadsRequest request) {
+        CompletableFuture<NodesHotThreadsResponse> future = new CompletableFuture<>();
+        nodesHotThreads(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** List tasks - CompletionStage version */
+    default CompletionStage<ListTasksResponse> listTasksAsync(ListTasksRequest request) {
+        CompletableFuture<ListTasksResponse> future = new CompletableFuture<>();
+        listTasks(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get task - CompletionStage version */
+    default CompletionStage<GetTaskResponse> getTaskAsync(GetTaskRequest request) {
+        CompletableFuture<GetTaskResponse> future = new CompletableFuture<>();
+        getTask(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Cancel tasks - CompletionStage version */
+    default CompletionStage<CancelTasksResponse> cancelTasksAsync(CancelTasksRequest request) {
+        CompletableFuture<CancelTasksResponse> future = new CompletableFuture<>();
+        cancelTasks(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Search shards - CompletionStage version */
+    default CompletionStage<ClusterSearchShardsResponse> searchShardsAsync(ClusterSearchShardsRequest request) {
+        CompletableFuture<ClusterSearchShardsResponse> future = new CompletableFuture<>();
+        searchShards(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put repository - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putRepositoryAsync(PutRepositoryRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putRepository(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete repository - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteRepositoryAsync(DeleteRepositoryRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteRepository(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get repositories - CompletionStage version */
+    default CompletionStage<GetRepositoriesResponse> getRepositoriesAsync(GetRepositoriesRequest request) {
+        CompletableFuture<GetRepositoriesResponse> future = new CompletableFuture<>();
+        getRepositories(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Cleanup repository - CompletionStage version */
+    default CompletionStage<CleanupRepositoryResponse> cleanupRepositoryAsync(CleanupRepositoryRequest request) {
+        CompletableFuture<CleanupRepositoryResponse> future = new CompletableFuture<>();
+        cleanupRepository(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Verify repository - CompletionStage version */
+    default CompletionStage<VerifyRepositoryResponse> verifyRepositoryAsync(VerifyRepositoryRequest request) {
+        CompletableFuture<VerifyRepositoryResponse> future = new CompletableFuture<>();
+        verifyRepository(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Create snapshot - CompletionStage version */
+    default CompletionStage<CreateSnapshotResponse> createSnapshotAsync(CreateSnapshotRequest request) {
+        CompletableFuture<CreateSnapshotResponse> future = new CompletableFuture<>();
+        createSnapshot(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Clone snapshot - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> cloneSnapshotAsync(CloneSnapshotRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        cloneSnapshot(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get snapshots - CompletionStage version */
+    default CompletionStage<GetSnapshotsResponse> getSnapshotsAsync(GetSnapshotsRequest request) {
+        CompletableFuture<GetSnapshotsResponse> future = new CompletableFuture<>();
+        getSnapshots(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete snapshot - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteSnapshotAsync(DeleteSnapshotRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteSnapshot(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Restore snapshot - CompletionStage version */
+    default CompletionStage<RestoreSnapshotResponse> restoreSnapshotAsync(RestoreSnapshotRequest request) {
+        CompletableFuture<RestoreSnapshotResponse> future = new CompletableFuture<>();
+        restoreSnapshot(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Pending cluster tasks - CompletionStage version */
+    default CompletionStage<PendingClusterTasksResponse> pendingClusterTasksAsync(PendingClusterTasksRequest request) {
+        CompletableFuture<PendingClusterTasksResponse> future = new CompletableFuture<>();
+        pendingClusterTasks(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Snapshots status - CompletionStage version */
+    default CompletionStage<SnapshotsStatusResponse> snapshotsStatusAsync(SnapshotsStatusRequest request) {
+        CompletableFuture<SnapshotsStatusResponse> future = new CompletableFuture<>();
+        snapshotsStatus(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put pipeline - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putPipelineAsync(PutPipelineRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putPipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete pipeline - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deletePipelineAsync(DeletePipelineRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deletePipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get pipeline - CompletionStage version */
+    default CompletionStage<GetPipelineResponse> getPipelineAsync(GetPipelineRequest request) {
+        CompletableFuture<GetPipelineResponse> future = new CompletableFuture<>();
+        getPipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Simulate pipeline - CompletionStage version */
+    default CompletionStage<SimulatePipelineResponse> simulatePipelineAsync(SimulatePipelineRequest request) {
+        CompletableFuture<SimulatePipelineResponse> future = new CompletableFuture<>();
+        simulatePipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Allocation explain - CompletionStage version */
+    default CompletionStage<ClusterAllocationExplainResponse> allocationExplainAsync(ClusterAllocationExplainRequest request) {
+        CompletableFuture<ClusterAllocationExplainResponse> future = new CompletableFuture<>();
+        allocationExplain(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete stored script - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteStoredScriptAsync(DeleteStoredScriptRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteStoredScript(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put stored script - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putStoredScriptAsync(PutStoredScriptRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putStoredScript(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get stored script - CompletionStage version */
+    default CompletionStage<GetStoredScriptResponse> getStoredScriptAsync(GetStoredScriptRequest request) {
+        CompletableFuture<GetStoredScriptResponse> future = new CompletableFuture<>();
+        getStoredScript(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** List dangling indices - CompletionStage version */
+    default CompletionStage<ListDanglingIndicesResponse> listDanglingIndicesAsync(ListDanglingIndicesRequest request) {
+        CompletableFuture<ListDanglingIndicesResponse> future = new CompletableFuture<>();
+        listDanglingIndices(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Import dangling index - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> importDanglingIndexAsync(ImportDanglingIndexRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        importDanglingIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete dangling index - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteDanglingIndexAsync(DeleteDanglingIndexRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteDanglingIndex(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put weighted routing - CompletionStage version */
+    default CompletionStage<ClusterPutWeightedRoutingResponse> putWeightedRoutingAsync(ClusterPutWeightedRoutingRequest request) {
+        CompletableFuture<ClusterPutWeightedRoutingResponse> future = new CompletableFuture<>();
+        putWeightedRouting(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get weighted routing - CompletionStage version */
+    default CompletionStage<ClusterGetWeightedRoutingResponse> getWeightedRoutingAsync(ClusterGetWeightedRoutingRequest request) {
+        CompletableFuture<ClusterGetWeightedRoutingResponse> future = new CompletableFuture<>();
+        getWeightedRouting(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete weighted routing - CompletionStage version */
+    default CompletionStage<ClusterDeleteWeightedRoutingResponse> deleteWeightedRoutingAsync(ClusterDeleteWeightedRoutingRequest request) {
+        CompletableFuture<ClusterDeleteWeightedRoutingResponse> future = new CompletableFuture<>();
+        deleteWeightedRouting(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Decommission - CompletionStage version */
+    default CompletionStage<DecommissionResponse> decommissionAsync(DecommissionRequest request) {
+        CompletableFuture<DecommissionResponse> future = new CompletableFuture<>();
+        decommission(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get decommission state - CompletionStage version */
+    default CompletionStage<GetDecommissionStateResponse> getDecommissionStateAsync(GetDecommissionStateRequest request) {
+        CompletableFuture<GetDecommissionStateResponse> future = new CompletableFuture<>();
+        getDecommissionState(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete decommission state - CompletionStage version */
+    default CompletionStage<DeleteDecommissionStateResponse> deleteDecommissionStateAsync(DeleteDecommissionStateRequest request) {
+        CompletableFuture<DeleteDecommissionStateResponse> future = new CompletableFuture<>();
+        deleteDecommissionState(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Put search pipeline - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> putSearchPipelineAsync(PutSearchPipelineRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        putSearchPipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Get search pipeline - CompletionStage version */
+    default CompletionStage<GetSearchPipelineResponse> getSearchPipelineAsync(GetSearchPipelineRequest request) {
+        CompletableFuture<GetSearchPipelineResponse> future = new CompletableFuture<>();
+        getSearchPipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Delete search pipeline - CompletionStage version */
+    default CompletionStage<AcknowledgedResponse> deleteSearchPipelineAsync(DeleteSearchPipelineRequest request) {
+        CompletableFuture<AcknowledgedResponse> future = new CompletableFuture<>();
+        deleteSearchPipeline(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
 }
