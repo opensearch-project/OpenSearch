@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.index.mapper.ParseContext;
 
@@ -225,5 +226,9 @@ public class LuceneIndexWriter implements DocumentIndexWriter {
     @Override
     public Releasable obtainWriteLockOnAllMap() {
         return () -> {};
+    }
+
+    public boolean validateImmutableFieldNotUpdated(ParseContext.Document previousDocument, BytesRef currentUID) {
+        return false;
     }
 }

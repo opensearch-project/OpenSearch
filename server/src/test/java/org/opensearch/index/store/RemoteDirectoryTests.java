@@ -105,7 +105,8 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
                     fail("Listener responded with exception" + e);
                 }
             },
-            false
+            false,
+            null
         );
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertTrue(postUploadInvoked.get());
@@ -143,7 +144,8 @@ public class RemoteDirectoryTests extends OpenSearchTestCase {
                     countDownLatch.countDown();
                 }
             },
-            false
+            false,
+            null
         );
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertFalse(postUploadInvoked.get());

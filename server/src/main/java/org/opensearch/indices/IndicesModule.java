@@ -56,6 +56,7 @@ import org.opensearch.index.mapper.FieldAliasMapper;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.FlatObjectFieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
@@ -160,6 +161,7 @@ public class IndicesModule extends AbstractModule {
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, BooleanFieldMapper.PARSER);
         mappers.put(BinaryFieldMapper.CONTENT_TYPE, BinaryFieldMapper.PARSER);
+        mappers.put(HllFieldMapper.CONTENT_TYPE, HllFieldMapper.PARSER);
         DateFieldMapper.Resolution milliseconds = DateFieldMapper.Resolution.MILLISECONDS;
         mappers.put(milliseconds.type(), DateFieldMapper.MILLIS_PARSER);
         DateFieldMapper.Resolution nanoseconds = DateFieldMapper.Resolution.NANOSECONDS;

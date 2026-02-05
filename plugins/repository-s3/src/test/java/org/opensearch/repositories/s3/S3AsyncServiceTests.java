@@ -22,7 +22,9 @@ import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -203,5 +205,37 @@ public class S3AsyncServiceTests extends OpenSearchTestCase implements ConfigPat
         );
         assertNotNull(asyncClient);
         assertTrue(asyncClient instanceof AwsCrtAsyncHttpClient);
+    }
+
+    public void testResolveEndpointOverrideAbsentWhenEndpointNotProvided() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("no-endpoint", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected no endpoint override when endpoint setting is absent", override.isEmpty());
+    }
+
+    public void testResolveEndpointOverrideAddsSchemeWhenMissing() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").put("endpoint", "s3.us-east-1.amazonaws.com").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-no-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint setting is provided", override.isPresent());
+        assertEquals("https://s3.us-east-1.amazonaws.com", override.get().toString());
+    }
+
+    public void testResolveEndpointOverridePreservesExplicitScheme() {
+        final S3AsyncService s3AsyncService = new S3AsyncService(configPath());
+        final Settings repoSettings = Settings.builder().put("region", "us-east-1").put("endpoint", "http://localhost:9000").build();
+        final RepositoryMetadata metadata = new RepositoryMetadata("endpoint-with-scheme", "s3", repoSettings);
+
+        final S3ClientSettings clientSettings = s3AsyncService.settings(metadata);
+        final Optional<URI> override = s3AsyncService.resolveEndpointOverride(clientSettings);
+        assertTrue("Expected endpoint override to be present when endpoint has explicit scheme", override.isPresent());
+        assertEquals("http://localhost:9000", override.get().toString());
     }
 }

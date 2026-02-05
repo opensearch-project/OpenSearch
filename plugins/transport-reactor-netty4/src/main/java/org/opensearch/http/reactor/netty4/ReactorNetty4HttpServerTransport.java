@@ -10,6 +10,7 @@ package org.opensearch.http.reactor.netty4;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -26,8 +27,8 @@ import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpReadTimeoutException;
 import org.opensearch.http.HttpServerChannel;
-import org.opensearch.http.reactor.netty4.http3.Http3Utils;
-import org.opensearch.http.reactor.netty4.http3.SecureQuicTokenHandler;
+import org.opensearch.http.netty4.http3.Http3Utils;
+import org.opensearch.http.netty4.http3.SecureQuicTokenHandler;
 import org.opensearch.http.reactor.netty4.ssl.SslUtils;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTransportParameters;
@@ -35,8 +36,8 @@ import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.netty4.Netty4Utils;
 import org.opensearch.transport.reactor.SharedGroupFactory;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
 
 import javax.net.ssl.KeyManagerFactory;
 
@@ -354,7 +355,7 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                         )
                         .handle((req, res) -> incomingRequest(req, res))
                         .http3Settings(
-                            spec -> spec.tokenHandler(new SecureQuicTokenHandler())
+                            spec -> spec.tokenHandler(new SecureQuicTokenHandler(Randomness.createSecure()))
                                 .idleTimeout(Duration.ofMillis(connectTimeoutMillis))
                                 .maxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes())
                                 .maxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
@@ -488,6 +489,8 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             method,
             request.params()
         );
+
+        final HttpResponseHeadersFactory responseHeadersFactory = HttpResponseHeadersFactories.newDefault(settings, this);
         if (dispatchHandlerOpt.map(RestHandler::supportsStreaming).orElse(false)) {
             final ReactorNetty4StreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4StreamingRequestConsumer<>(
                 this,
@@ -499,17 +502,21 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
                 .subscribe(consumer, error -> {}, () -> consumer.accept(DefaultLastHttpContent.EMPTY_LAST_CONTENT));
 
-            incomingStream(new ReactorNetty4HttpRequest(request), consumer.httpChannel());
+            incomingStream(new ReactorNetty4HttpRequest(request, responseHeadersFactory), consumer.httpChannel());
             return response.sendObject(consumer);
         } else {
             final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(
                 this,
+                responseHeadersFactory,
                 request,
                 response,
                 maxCompositeBufferComponents
             );
 
-            request.receiveContent().switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT)).subscribe(consumer);
+            request.receiveContent()
+                .concatWith(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .switchIfEmpty(Mono.just(DefaultLastHttpContent.EMPTY_LAST_CONTENT))
+                .subscribe(consumer);
 
             return Mono.from(consumer).flatMap(hc -> {
                 final FullHttpResponse r = (FullHttpResponse) hc;

@@ -349,6 +349,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         // Then add plugin-provided interceptors
         if (!interceptorProviders.isEmpty()) {
             for (GrpcInterceptorProvider provider : interceptorProviders) {
+                provider.initNodeSettings(environment.settings());
                 orderedList.addAll(provider.getOrderedGrpcInterceptors(threadPool.getThreadContext()));
             }
 

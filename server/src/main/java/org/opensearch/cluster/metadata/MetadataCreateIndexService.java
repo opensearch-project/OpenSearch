@@ -77,7 +77,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -870,6 +869,10 @@ public class MetadataCreateIndexService {
 
         Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
         result.add(parsedRequestMappings);
+
+        // Apply disable_objects override logic to ensure template priority ordering is respected
+        applyDisableObjectsOverrides(result);
+
         return result;
     }
 
@@ -940,27 +943,162 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings,
         NamedXContentRegistry xContentRegistry
     ) throws Exception {
-        Map<String, Object> mappings = MapperService.parseMapping(xContentRegistry, requestMappings);
-        // apply templates, merging the mappings into the request mapping if exists
+        // Step 1: Collect all mappings into a list
+        List<Map<String, Object>> allMappings = new ArrayList<>();
+
+        // Add template mappings first (lower priority)
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
                 Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
-                if (templateMapping.isEmpty()) {
-                    // Someone provided an empty '{}' for mappings, which is okay, but to avoid
-                    // tripping the below assertion, we can safely ignore it
-                    continue;
-                }
-                assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
-                // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
-                templateMapping = Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next());
-                if (mappings.isEmpty()) {
-                    mappings = templateMapping;
-                } else {
-                    XContentHelper.mergeDefaults(mappings, templateMapping);
+                if (!templateMapping.isEmpty()) {
+                    assert templateMapping.size() == 1 : "expected exactly one mapping value, got: " + templateMapping;
+                    // pre-8x templates may have a wrapper type other than _doc, so we re-wrap things here
+                    templateMapping = new HashMap<>(Map.of(MapperService.SINGLE_MAPPING_NAME, templateMapping.values().iterator().next()));
+                    allMappings.add(templateMapping);
                 }
             }
         }
-        return mappings;
+
+        // Add request mapping last (highest priority)
+        Map<String, Object> requestMapping = MapperService.parseMapping(xContentRegistry, requestMappings);
+        if (!requestMapping.isEmpty()) {
+            allMappings.add(requestMapping);
+        }
+
+        // Step 2: Apply shared disable_objects override logic (same as V2 templates)
+        applyDisableObjectsOverrides(allMappings);
+
+        // Step 3: Merge all mappings using field-aware replacement logic
+        // Process mappings in forward order, with special handling for request mappings
+        Map<String, Object> result = new HashMap<>();
+        boolean hasRequestMapping = !MapperService.parseMapping(xContentRegistry, requestMappings).isEmpty();
+
+        for (int i = 0; i < allMappings.size(); i++) {
+            Map<String, Object> mapping = allMappings.get(i);
+            boolean isRequestMapping = hasRequestMapping && (i == allMappings.size() - 1);
+
+            if (result.isEmpty()) {
+                result = new HashMap<>(mapping);
+            } else {
+                if (isRequestMapping) {
+                    // For request mappings: request wins over templates
+                    Map<String, Object> newMapping = new HashMap<>(mapping);
+                    mergeTemplateFieldMappings(newMapping, result);
+                    result = newMapping;
+                } else {
+                    // For template mappings: accumulated result (higher priority) wins over current (lower priority)
+                    mergeTemplateFieldMappings(result, mapping);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Merges template mappings with complete field definition replacement.
+     * Higher priority mappings completely override field definitions from lower priority mappings.
+     *
+     * @param target the target mapping to merge into (higher priority)
+     * @param source the source mapping to merge from (lower priority)
+     */
+    private static void mergeTemplateFieldMappings(Map<String, Object> target, Map<String, Object> source) {
+        for (Map.Entry<String, Object> sourceEntry : source.entrySet()) {
+            String key = sourceEntry.getKey();
+            Object sourceValue = sourceEntry.getValue();
+
+            if (!target.containsKey(key)) {
+                // Key doesn't exist in target, add it
+                target.put(key, sourceValue);
+            } else if (key.equals("properties") && sourceValue instanceof Map && target.get(key) instanceof Map) {
+                // Special handling for "properties" section - merge field definitions with replacement
+                @SuppressWarnings("unchecked")
+                Map<String, Object> targetProperties = (Map<String, Object>) target.get(key);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sourceProperties = (Map<String, Object>) sourceValue;
+                mergeFieldProperties(targetProperties, sourceProperties);
+            } else if (sourceValue instanceof Map && target.get(key) instanceof Map) {
+                // Recursively merge other Map objects (but not field definitions)
+                @SuppressWarnings("unchecked")
+                Map<String, Object> targetMap = (Map<String, Object>) target.get(key);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sourceMap = (Map<String, Object>) sourceValue;
+                mergeTemplateFieldMappings(targetMap, sourceMap);
+            }
+            // For non-Map values or when target already has the key, target value takes precedence (no override)
+        }
+    }
+
+    /**
+     * Merges field properties with complete field definition replacement.
+     * If a field exists in both maps, the target field definition completely replaces the source.
+     *
+     * @param targetProperties the target properties map (higher priority)
+     * @param sourceProperties the source properties map (lower priority)
+     */
+    private static void mergeFieldProperties(Map<String, Object> targetProperties, Map<String, Object> sourceProperties) {
+        for (Map.Entry<String, Object> sourceField : sourceProperties.entrySet()) {
+            String fieldName = sourceField.getKey();
+            Object sourceFieldDef = sourceField.getValue();
+
+            if (!targetProperties.containsKey(fieldName)) {
+                // Field doesn't exist in target, add it
+                targetProperties.put(fieldName, sourceFieldDef);
+            } else {
+                // If field exists in target, target takes precedence (higher priority template wins)
+                // This ensures complete field definition replacement rather than property merging
+            }
+        }
+    }
+
+    /**
+     * Applies disable_objects override logic to a list of mappings.
+     * Later mappings in the list override earlier ones for the disable_objects setting,
+     * ensuring template priority ordering is respected.
+     *
+     * @param mappings List of mapping objects to process
+     */
+    static void applyDisableObjectsOverrides(List<Map<String, Object>> mappings) {
+        if (mappings == null || mappings.size() <= 1) {
+            return; // No overrides needed for null, empty, or single mapping
+        }
+
+        Object finalDisableObjectsValue = null;
+        boolean hasDisableObjects = false;
+
+        // Find the last (highest priority) disable_objects value
+        for (Map<String, Object> mapping : mappings) {
+            if (mapping == null) {
+                continue; // Skip null mappings
+            }
+
+            Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+            if (docObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) docObj;
+                if (doc.containsKey("disable_objects")) {
+                    finalDisableObjectsValue = doc.get("disable_objects");
+                    hasDisableObjects = true;
+                }
+            }
+        }
+
+        // If we found a disable_objects value, apply it to all mappings that have a _doc section
+        if (hasDisableObjects) {
+            for (Map<String, Object> mapping : mappings) {
+                if (mapping == null) {
+                    continue; // Skip null mappings
+                }
+
+                Object docObj = mapping.get(MapperService.SINGLE_MAPPING_NAME);
+                if (docObj instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> doc = (Map<String, Object>) docObj;
+                    // Override with the final disable_objects value
+                    doc.put("disable_objects", finalDisableObjectsValue);
+                }
+            }
+        }
     }
 
     /**

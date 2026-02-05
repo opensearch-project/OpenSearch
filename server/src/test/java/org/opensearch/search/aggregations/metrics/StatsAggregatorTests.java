@@ -36,6 +36,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -55,6 +56,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorTestCase;
+import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
@@ -483,5 +485,37 @@ public class StatsAggregatorTests extends AggregatorTestCase {
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+    }
+
+    public void testCollectRange() throws IOException {
+        final MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            final SimpleStatsAggregator expected = new SimpleStatsAggregator();
+            int numDocs = randomIntBetween(10, 50);
+            for (int i = 0; i < numDocs; i++) {
+                long value = randomLongBetween(-100, 100);
+                indexWriter.addDocument(singleton(new SortedNumericDocValuesField(ft.name(), value)));
+                expected.add(value);
+            }
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                StatsAggregationBuilder builder = stats("_name").field(ft.name());
+                StatsAggregator aggregator = createAggregator(builder, searcher, ft);
+                aggregator.preCollection();
+                // Directly call collectRange on each leaf to test with size:0 queries
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    LeafBucketCollector leafCollector = aggregator.getLeafCollector(leaf);
+                    leafCollector.collectRange(0, leaf.reader().maxDoc());
+                }
+                aggregator.postCollection();
+                InternalStats stats = (InternalStats) aggregator.buildTopLevel();
+                assertEquals(expected.count, stats.getCount(), 0);
+                assertEquals(expected.sum, stats.getSum(), TOLERANCE);
+                assertEquals(expected.min, stats.getMin(), 0);
+                assertEquals(expected.max, stats.getMax(), 0);
+                assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(AggregationInspectionHelper.hasValue(stats));
+            }
+        }
     }
 }

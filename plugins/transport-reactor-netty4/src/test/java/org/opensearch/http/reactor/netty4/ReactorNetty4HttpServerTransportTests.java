@@ -75,7 +75,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -89,6 +91,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+import reactor.netty.http.HttpProtocol;
 
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
@@ -198,7 +201,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 final HttpContent continuationRequest = new DefaultHttpContent(Unpooled.EMPTY_BUFFER);
                 final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), request, continuationRequest);
                 try {
-                    if (expectedStatus == HttpResponseStatus.EXPECTATION_FAILED && client.useHttp11only() == false) {
+                    if (expectedStatus == HttpResponseStatus.EXPECTATION_FAILED && client.protocol() != HttpProtocol.HTTP11) {
                         assertThat(continuationResponse.status(), is(HttpResponseStatus.EXPECTATION_FAILED));
                         assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is(""));
                     } else {
@@ -504,7 +507,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             new TimeValue(randomIntBetween(100, 300))
         ).build();
 
-        NioEventLoopGroup group = new NioEventLoopGroup();
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
                 settings,

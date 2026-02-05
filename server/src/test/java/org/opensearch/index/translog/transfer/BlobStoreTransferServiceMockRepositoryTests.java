@@ -88,7 +88,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             public void onFailure(Exception e) {
                 exceptionRef.set(e);
             }
-        }, latch), WritePriority.HIGH);
+        }, latch), WritePriority.HIGH, null);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
@@ -129,7 +129,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             public void onFailure(Exception e) {
                 exceptionRef.set(e);
             }
-        }, latch), WritePriority.HIGH);
+        }, latch), WritePriority.HIGH, null);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());
@@ -174,7 +174,7 @@ public class BlobStoreTransferServiceMockRepositoryTests extends OpenSearchTestC
             {
                 put(transferFileSnapshot.getPrimaryTerm(), new BlobPath().add("sample_path"));
             }
-        }, listener, WritePriority.HIGH);
+        }, listener, WritePriority.HIGH, null);
 
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         verify(blobContainer).asyncBlobUpload(any(WriteContext.class), any());

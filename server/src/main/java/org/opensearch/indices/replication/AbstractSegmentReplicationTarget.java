@@ -163,7 +163,12 @@ public abstract class AbstractSegmentReplicationTarget extends ReplicationTarget
 
         checkpointInfoListener.whenComplete(checkpointInfo -> {
             ReplicationCheckpoint getMetadataCheckpoint = checkpointInfo.getCheckpoint();
-            if (indexShard.indexSettings().isSegRepLocalEnabled() && checkpoint.isAheadOf(getMetadataCheckpoint)) {
+            // Only enforce strict checkpoint validation during normal replication, not during recovery.
+            // During recovery (shard is INITIALIZING or RELOCATING), the replica may have a stale checkpoint
+            // from before a restart, and should accept the primary's current state even if it appears older.
+            // See: https://github.com/opensearch-project/OpenSearch/issues/19234
+            boolean isRecovering = indexShard.routingEntry().initializing() || indexShard.routingEntry().relocating();
+            if (indexShard.indexSettings().isSegRepLocalEnabled() && checkpoint.isAheadOf(getMetadataCheckpoint) && !isRecovering) {
                 // Fixes https://github.com/opensearch-project/OpenSearch/issues/18490
                 listener.onFailure(
                     new ReplicationFailedException(

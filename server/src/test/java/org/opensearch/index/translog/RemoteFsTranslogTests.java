@@ -1906,6 +1906,7 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             this.slowDown = slowDown;
         }
 
+        @Override
         protected BlobStore createBlobStore() throws Exception {
             final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
             final Path locationFile = environment.resolveRepoFile(location);
@@ -1971,6 +1972,22 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
                 }
             }
             super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+        }
+
+        @Override
+        public void writeBlob(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
+            throws IOException {
+            if (fail.fail()) {
+                throw new IOException("blob container throwing error");
+            }
+            if (slowDown.getSleepSeconds() > 0) {
+                try {
+                    Thread.sleep(slowDown.getSleepSeconds() * 1000L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override

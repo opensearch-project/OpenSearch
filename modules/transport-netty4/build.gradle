@@ -56,6 +56,8 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec-base:${versions.netty}"

@@ -215,7 +215,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         }
 
         try {
-            flightChannel.completeStream();
+            flightChannel.completeStream(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()));
             messageListener.onResponseSent(task.requestId(), task.action(), TransportResponse.Empty.INSTANCE);
         } catch (Exception e) {
             messageListener.onResponseSent(task.requestId(), task.action(), e);

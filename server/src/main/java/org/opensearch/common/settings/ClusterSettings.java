@@ -346,6 +346,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
+                RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE,
+                RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_REPLICAS_RECOVERIES_SETTING,
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -462,6 +464,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
                 SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
                 SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+                SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME,
                 TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
                 ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
@@ -809,6 +812,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated
                 SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY,
+                SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE,
 
                 RemoteStoreSettings.CLUSTER_REMOTE_INDEX_SEGMENT_METADATA_RETENTION_MAX_COUNT_SETTING,
                 RemoteStoreSettings.CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,

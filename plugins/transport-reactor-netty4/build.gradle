@@ -30,6 +30,8 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api libs.bundles.netty
 

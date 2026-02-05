@@ -69,6 +69,7 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -234,6 +235,11 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 CoreValuesSourceType.BOOLEAN
             )
         );
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(HllFieldMapper.CONTENT_TYPE);
     }
 
     public void testUsesGlobalOrdinalsByDefault() throws Exception {

@@ -23,7 +23,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 
 public class ArrowStreamSerializationTests extends OpenSearchTestCase {
     private NamedWriteableRegistry registry;
@@ -51,7 +50,7 @@ public class ArrowStreamSerializationTests extends OpenSearchTestCase {
     public void testInternalAggregationSerializationDeserialization() throws IOException {
         StringTerms original = createTestStringTerms();
 
-        try (VectorStreamOutput output = new VectorStreamOutput(allocator, Optional.empty())) {
+        try (VectorStreamOutput output = new VectorStreamOutput(allocator, null)) {
             output.writeNamedWriteable(original);
             VectorSchemaRoot unifiedRoot = output.getRoot();
 

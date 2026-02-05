@@ -63,6 +63,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -90,6 +91,7 @@ import org.opensearch.repositories.s3.async.S3AsyncDeleteHelper;
 import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import org.opensearch.repositories.s3.utils.SseKmsUtil;
 import org.opensearch.secure_sm.AccessController;
 
 import java.io.BufferedInputStream;
@@ -192,6 +194,29 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     }
 
     /**
+     * Write blob with its object metadata and optional encryption settings.
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+        AccessController.doPrivilegedChecked(() -> {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata, cryptoMetadata);
+            } else {
+                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata, cryptoMetadata);
+            }
+        });
+    }
+
+    /**
      * Write blob with its object metadata.
      */
     @ExperimentalApi
@@ -203,18 +228,26 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata
     ) throws IOException {
-        assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        AccessController.doPrivilegedChecked(() -> {
-            if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata);
-            }
-        });
+        // Delegate to crypto-aware version with null CryptoMetadata
+        writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null);
     }
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
+        CryptoMetadata crypto = writeContext.getCryptoMetadata();
+
+        String indexKmsKey = null;
+        String indexEncContext = null;
+
+        if (crypto != null) {
+            indexKmsKey = crypto.getKeyArn().orElse(null);
+            indexEncContext = crypto.getEncryptionContext().orElse(null);
+        }
+        String mergeEncContext = SseKmsUtil.mergeAndEncodeEncryptionContexts(
+            indexEncContext,
+            blobStore.serverSideEncryptionEncryptionContext()
+        );
+
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
             buildKey(writeContext.getFileName()),
@@ -226,9 +259,9 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             blobStore.isUploadRetryEnabled(),
             writeContext.getMetadata(),
             blobStore.serverSideEncryptionType(),
-            blobStore.serverSideEncryptionKmsKey(),
+            indexKmsKey != null ? indexKmsKey : blobStore.serverSideEncryptionKmsKey(),
             blobStore.serverSideEncryptionBucketKey(),
-            blobStore.serverSideEncryptionEncryptionContext(),
+            mergeEncContext,
             blobStore.expectedBucketOwner()
         );
         try {
@@ -250,7 +283,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                         uploadRequest.getKey(),
                         inputStream.getInputStream(),
                         uploadRequest.getContentLength(),
-                        uploadRequest.getMetadata()
+                        uploadRequest.getMetadata(),
+                        crypto
                     );
                     completionListener.onResponse(null);
                 } catch (Exception ex) {
@@ -536,7 +570,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final String blobName,
         final InputStream input,
         final long blobSize,
-        final Map<String, String> metadata
+        final Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
 
         // Extra safety checks
@@ -559,7 +594,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         if (CollectionUtils.isNotEmpty(metadata)) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
-        configureEncryptionSettings(putObjectRequestBuilder, blobStore);
+
+        configureEncryptionSettings(putObjectRequestBuilder, blobStore, cryptoMetadata);
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -585,7 +621,8 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         final String blobName,
         final InputStream input,
         final long blobSize,
-        final Map<String, String> metadata
+        final Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
@@ -616,7 +653,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             createMultipartUploadRequestBuilder.metadata(metadata);
         }
 
-        configureEncryptionSettings(createMultipartUploadRequestBuilder, blobStore);
+        configureEncryptionSettings(createMultipartUploadRequestBuilder, blobStore, cryptoMetadata);
 
         final InputStream requestInputStream;
         if (blobStore.isUploadRetryEnabled()) {
