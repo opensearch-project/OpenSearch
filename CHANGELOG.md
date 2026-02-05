@@ -5,16 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Support expected cluster name with validation in CCS Sniff mode ([#20532](https://github.com/opensearch-project/OpenSearch/pull/20532))
 - Add security policy to allow deleting temporary socket files in `java.io.tmpdir` in `transport-grpc` module ([#20463](https://github.com/opensearch-project/OpenSearch/pull/20463))
 
 ### Changed
 
 ### Fixed
+- Fix flaky test failures in ShardsLimitAllocationDeciderIT ([#20375](https://github.com/opensearch-project/OpenSearch/pull/20375))
 - Prevent criteria update for context aware indices ([#20250](https://github.com/opensearch-project/OpenSearch/pull/20250))
+- Update EncryptedBlobContainer to adhere limits while listing blobs in specific sort order if wrapped blob container supports ([#20514](https://github.com/opensearch-project/OpenSearch/pull/20514))
 
 ### Dependencies
 - Bump `ch.qos.logback:logback-core` and `ch.qos.logback:logback-classic` from 1.5.24 to 1.5.27 ([#20525](https://github.com/opensearch-project/OpenSearch/pull/20525))
 
 ### Removed
 
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.5...main
+[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.6...main

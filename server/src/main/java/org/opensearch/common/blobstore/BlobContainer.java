@@ -32,6 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -356,6 +357,7 @@ public interface BlobContainer {
         if (limit < 0) {
             throw new IllegalArgumentException("limit should not be a negative value");
         }
+        LogManager.getLogger(this.getClass()).warn("loading all blobs with prefix into memory for sorting");
         List<BlobMetadata> blobNames = new ArrayList<>(listBlobsByPrefix(blobNamePrefix).values());
         blobNames.sort(blobNameSortOrder.comparator());
         return blobNames.subList(0, Math.min(blobNames.size(), limit));

@@ -42,7 +42,7 @@ import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.core.json.JsonWriteFeature;
 
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -61,7 +61,7 @@ import java.util.Set;
 /**
  * A JSON based content implementation using Jackson.
  */
-public class JsonXContent implements XContent, XContentContraints {
+public class JsonXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
