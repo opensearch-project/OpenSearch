@@ -1,5 +1,6 @@
 package org.opensearch.search.profile.query;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -8,17 +9,26 @@ public class SingleSliceInformation {
     static final String DOC_COUNT = "doc_count";
     static final String SEGMENTS = "segments";
 
-    private final int partitionCount;
-    private final int docCount;
+    private int partitionCount;
+    private int docCount;
     private final List<SegmentInformation> segments;
 
-    public SingleSliceInformation(int partitionCount, int docCount, List<SegmentInformation> segments) {
-        this.partitionCount = partitionCount;
-        this.docCount = docCount;
-        this.segments = List.of();
+    public SingleSliceInformation() {
+        this.docCount = 0;
+        this.segments = new ArrayList<>();
+    }
+
+    public void addSegment(SegmentInformation segmentInformation) {
+        this.segments.add(segmentInformation);
+        this.docCount += segmentInformation.getDocCount();
+        this.partitionCount++;
     }
 
     public Map<String, Object> toMap() {
-        return Map.of(PARTITION_COUNT, partitionCount, DOC_COUNT, docCount, SEGMENTS, segments);
+        List<Map<String, Object>> segmentsMap = new ArrayList<>();
+        for (SegmentInformation segmentInfo : segments) {
+            segmentsMap.add(segmentInfo.toMap());
+        }
+        return Map.of(PARTITION_COUNT, partitionCount, DOC_COUNT, docCount, SEGMENTS, segmentsMap);
     }
 }

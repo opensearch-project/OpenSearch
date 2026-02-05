@@ -487,6 +487,10 @@ public final class ConcurrentQueryProfileBreakdown extends ContextualProfileBrea
         return avgSliceNodeTime;
     }
 
+    public void addSlice(SingleSliceInformation sliceInfo) {
+        this.slicesInformation.addSlice(sliceInfo);
+    }
+
     @Override
     public Map<String, Object> toDebugMap() {
         return Map.of(SLICES_INFO, slicesInformation.toMap());
