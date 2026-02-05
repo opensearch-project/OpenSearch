@@ -57,9 +57,9 @@ testClusters {
       setting 'node.attr.remote_store.state.repository', 'my-s3-repo'
       setting 'cluster.remote_store.state.enabled', 'true'
       setting 'node.attr.remote_store.repository.my-s3-repo.type', 's3'
-      setting 'node.attr.remote_store.repository.my-s3-repo.settings.bucket', 'local-opensearch-bucket'
-      setting 'node.attr.remote_store.repository.my-s3-repo.settings.base_path', 'raghraaj-local-1230'
-      
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.bucket', 'kamal-mustang'
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.base_path', 'askkamal-local-1230'
+
       // SSE-KMS configuration
       if (findProperty("enableSseKms")) {
         setting 'node.attr.remote_store.repository.my-s3-repo.settings.server_side_encryption_type', 'aws:kms'

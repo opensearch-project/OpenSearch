@@ -263,13 +263,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
                 Collection<FileMetadata> localFilesPostRefresh = catalogSnapshot.getFileMetadataList();
 
-                // Log format-aware statistics
-                Map<String, Long> formatCounts = localFilesPostRefresh.stream()
-                    .collect(Collectors.groupingBy(
-                        FileMetadata::dataFormat,
-                        Collectors.counting()
-                    ));
-
                 Map<FileMetadata, Long> fileMetadataToSizeMap = updateLocalSizeMapAndTracker(localFilesPostRefresh);
 
                 CountDownLatch latch = new CountDownLatch(1);

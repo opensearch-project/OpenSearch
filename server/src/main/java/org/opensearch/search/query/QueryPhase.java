@@ -165,14 +165,14 @@ public class QueryPhase {
                 );
         }
 
-        if (searchContext.getDFResults() != null) {
-            SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
-        } else if(searchContext.request().source().queryPlanIR() == null) {
+        if(searchContext.request().source().queryPlanIR() == null) {
             boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
-             if (rescore) { // only if we do a regular search
-             rescoreProcessor.process(searchContext);
-             }
-             suggestProcessor.process(searchContext);
+            if (rescore) { // only if we do a regular search
+                rescoreProcessor.process(searchContext);
+            }
+            suggestProcessor.process(searchContext);
+        } else if (searchContext.getDFResults() != null && !searchContext.getDFResults().isEmpty()) {
+            SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
         }
 
         aggregationProcessor.postProcess(searchContext);
