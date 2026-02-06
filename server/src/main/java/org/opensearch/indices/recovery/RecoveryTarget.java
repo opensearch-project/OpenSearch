@@ -202,12 +202,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     @Override
     protected void onDone() {
-        logger.info("RecoveryTarget.onDone() called. tempFileNames size: {}, contents: {}", 
-            multiFileWriter.tempFileNames.size(), multiFileWriter.tempFileNames);
-        logger.info("RecoveryTarget.onDone() isRemoteStoreEnabled: {}, recoveryType: {}", 
-            indexShard.indexSettings().isRemoteStoreEnabled(),
-            indexShard.recoveryState().getRecoverySource().getType());
-        assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed: " + multiFileWriter.tempFileNames;
+        assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
         indexShard.postRecovery("peer recovery done");
     }
 
@@ -372,15 +367,11 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
-            logger.info("RecoveryTarget.cleanFiles() CALLED. tempFileNames before rename: {}", 
-                multiFileWriter.tempFileNames);
             state().getTranslog().totalOperations(totalTranslogOps);
             // first, we go and move files that were created with the recovery id suffix to
             // the actual names, its ok if we have a corrupted index here, since we have replicas
             // to recover from in case of a full cluster shutdown just when this code executes...
             multiFileWriter.renameAllTempFiles();
-            logger.info("RecoveryTarget.cleanFiles() after renameAllTempFiles. tempFileNames: {}", 
-                multiFileWriter.tempFileNames);
             final Store store = store();
             store.incRef();
             try {
@@ -460,14 +451,8 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener<Void> listener
     ) {
         try {
-            logger.info("RecoveryTarget.writeFileChunk() file: {}, position: {}, lastChunk: {}, dataFormat: {}",
-                fileMetadata.name(), position, lastChunk, fileMetadata.dataFormat());
             state().getTranslog().totalOperations(totalTranslogOps);
             multiFileWriter.writeFileChunk(fileMetadata, position, content, lastChunk);
-            if (lastChunk) {
-                logger.info("RecoveryTarget.writeFileChunk() LAST CHUNK for [{}], tempFileNames now: {}",
-                    fileMetadata.name(), multiFileWriter.tempFileNames);
-            }
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);

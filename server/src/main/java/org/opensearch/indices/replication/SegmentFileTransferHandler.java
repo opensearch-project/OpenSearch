@@ -24,9 +24,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkWriter;
@@ -112,21 +110,7 @@ public final class SegmentFileTransferHandler {
                 // Segments* files require IOContext.READONCE
                 // https://github.com/apache/lucene/blob/b2d3a2b37e00f19a74949097736be8fd64745f61/lucene/test-framework/src/java/org/apache/lucene/tests/store/MockDirectoryWrapper.java#L817
                 if (md.name().startsWith(IndexFileNames.SEGMENTS) == false) {
-                    final IndexInput indexInput;
-                    // For optimized indices, composite files (non-lucene format) need to be read from CompositeStoreDirectory
-                    // This mirrors the pattern used in syncSegmentsFromRemoteSegmentStore for remote recovery
-                    String dataFormat = md.dataFormat();
-                    if (isCompositeFile(dataFormat)) {
-                        CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
-                        if (compositeDir != null) {
-                            FileMetadata fileMetadata = new FileMetadata(md.name(), dataFormat);
-                            indexInput = compositeDir.openInput(fileMetadata, IOContext.DEFAULT);
-                        } else {
-                            throw new IOException("CompositeStoreDirectory required but not available for composite file: " + md.name());
-                        }
-                    } else {
-                        indexInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
-                    }
+                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.DEFAULT);
                     currentInput = new InputStreamIndexInput(indexInput, md.length()) {
                         @Override
                         public void close() throws IOException {
@@ -134,14 +118,6 @@ public final class SegmentFileTransferHandler {
                         }
                     };
                 }
-            }
-
-            /**
-             * Determines if a file is a composite (non-Lucene) format based on dataFormat.
-             * Mirrors the pattern used in remote recovery flow.
-             */
-            private boolean isCompositeFile(String dataFormat) {
-                return dataFormat != null && !dataFormat.isEmpty() && !"lucene".equalsIgnoreCase(dataFormat);
             }
 
             private byte[] acquireBuffer() {

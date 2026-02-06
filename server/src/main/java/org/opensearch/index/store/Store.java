@@ -376,89 +376,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
-            MetadataSnapshot luceneMetadata = new MetadataSnapshot(commit, directory, logger);
-            
-            // For optimized indices, merge composite files from catalog snapshot
-            if (compositeStoreDirectory != null && luceneMetadata.getCommitUserData().containsKey(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY)) {
-                return mergeCompositeFilesIntoMetadata(luceneMetadata, compositeStoreDirectory, logger);
-            }
-            
-            return luceneMetadata;
+            return new MetadataSnapshot(commit, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
             lock.unlock();
-        }
-    }
-    
-    /**
-     * Merges composite files from catalog snapshot into the Lucene metadata.
-     * This enables peer recovery to include both Lucene and composite (e.g., parquet) files.
-     *
-     * @param luceneMetadata the base Lucene metadata snapshot
-     * @param compositeDirectory the CompositeStoreDirectory for accessing composite files
-     * @param logger the logger for debugging
-     * @return a new MetadataSnapshot containing both Lucene and composite files
-     */
-    private MetadataSnapshot mergeCompositeFilesIntoMetadata(
-        MetadataSnapshot luceneMetadata,
-        CompositeStoreDirectory compositeDirectory,
-        Logger logger
-    ) throws IOException {
-        String catalogSnapshotJson = luceneMetadata.getCommitUserData().get(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY);
-        if (catalogSnapshotJson == null || catalogSnapshotJson.isEmpty()) {
-            return luceneMetadata;
-        }
-        
-        try {
-            // Deserialize catalog snapshot from commit userData
-            CompositeEngineCatalogSnapshot catalogSnapshot = CompositeEngineCatalogSnapshot.deserializeFromString(catalogSnapshotJson);
-            
-            // Create merged metadata map
-            Map<String, StoreFileMetadata> mergedMetadata = new HashMap<>(luceneMetadata.asMap());
-            
-            // Add composite files to the metadata
-            Collection<FileMetadata> compositeFiles = catalogSnapshot.getFileMetadataList();
-            Version defaultVersion = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
-            
-            for (FileMetadata fileMetadata : compositeFiles) {
-                try {
-                    String fileName = fileMetadata.file();
-                    String dataFormat = fileMetadata.dataFormat();
-                    
-                    // Get file length and checksum from CompositeStoreDirectory
-                    long length = compositeDirectory.fileLength(fileMetadata);
-                    long checksumLong = compositeDirectory.calculateChecksum(fileMetadata);
-                    String checksum = Store.digestToString(checksumLong);
-                    
-                    // Create StoreFileMetadata for composite file
-                    StoreFileMetadata storeFileMeta = new StoreFileMetadata(
-                        fileName,
-                        length,
-                        checksum,
-                        defaultVersion,
-                        dataFormat
-                    );
-                    
-                    mergedMetadata.put(fileName, storeFileMeta);
-                    logger.trace("Added composite file to recovery metadata: {} (format: {}, length: {}, checksum: {})",
-                        fileName, dataFormat, length, checksum);
-                    
-                } catch (IOException e) {
-                    logger.warn("Failed to get metadata for composite file: {}", fileMetadata.file(), e);
-                    // Continue with other files
-                }
-            }
-            
-            logger.debug("Merged {} composite files into recovery metadata (total files: {})",
-                compositeFiles.size(), mergedMetadata.size());
-            
-            return new MetadataSnapshot(mergedMetadata, luceneMetadata.getCommitUserData(), luceneMetadata.getNumDocs());
-            
-        } catch (Exception e) {
-            logger.warn("Failed to merge composite files into metadata, falling back to Lucene-only metadata", e);
-            return luceneMetadata;
         }
     }
 

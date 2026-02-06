@@ -8,8 +8,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.index.shard.IndexShard;
 
 /**
@@ -19,18 +17,12 @@ import org.opensearch.index.shard.IndexShard;
  */
 public class RecoverySourceHandlerFactory {
 
-    private static final Logger logger = LogManager.getLogger(RecoverySourceHandlerFactory.class);
-
-
     public static RecoverySourceHandler create(
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         StartRecoveryRequest request,
         RecoverySettings recoverySettings
     ) {
-        logger.info("RecoverySourceHandlerFactory.create called for shard [{}], isPrimaryRelocation [{}], targetNode [{}]",
-            shard.shardId(), request.isPrimaryRelocation(), request.targetNode());
-
         boolean isReplicaRecoveryWithRemoteTranslog = request.isPrimaryRelocation() == false && request.targetNode().isRemoteStoreNode();
         if (isReplicaRecoveryWithRemoteTranslog) {
             return new RemoteStorePeerRecoverySourceHandler(
