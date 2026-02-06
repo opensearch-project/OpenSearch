@@ -3287,7 +3287,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        Engine engine = getEngineOrNull();
+        Indexer engine = getIndexerOrNull();
         if (engine == null) {
             return 0;
         }
@@ -3316,7 +3316,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * indexing operation, so we can flush the index.
      */
     public void flushOnIdle(long inactiveTimeNS) {
-        Engine engineOrNull = getEngineOrNull();
+        Indexer engineOrNull = getIndexerOrNull();
         if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
@@ -3445,7 +3445,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@code true} if the engine should be flushed
      */
     public boolean shouldPeriodicallyFlush() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         if (engine != null) {
             try {
                 return engine.shouldPeriodicallyFlush();
@@ -3463,7 +3463,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return {@code true} if the current generation should be rolled to a new generation
      */
     boolean shouldRollTranslogGeneration() {
-        final Engine engine = getEngineOrNull();
+        final Indexer engine = getIndexerOrNull();
         if (engine != null) {
             try {
                 return engine.translogManager().shouldRollTranslogGeneration();
@@ -3475,7 +3475,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onSettingsChanged() {
-        Engine engineOrNull = getEngineOrNull();
+        Indexer engineOrNull = getIndexerOrNull();
         if (engineOrNull != null) {
             final boolean disableTranslogRetention = indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery;
             engineOrNull.onSettingsChanged(
@@ -4249,7 +4249,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public CheckpointState getCheckpointStateOrNull() {
-        return getEngineOrNull();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     public StatsHolder getStatsHolderOrNull() {
@@ -4257,7 +4257,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingThrottler getIndexingThrottlerOrNull() {
-        return getEngineOrNull();
+        return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
     }
 
     /**
