@@ -143,7 +143,7 @@ public class PolicyFile extends java.security.Policy {
      * Expands additional system property placeholders with arbitrary position and value semantics (like
      * cgroup fe)
      */
-    private static String expandSystemProperty(final String property, String separator, final String value) {
+    private static String expandKnownSystemProperty(final String property, String separator, final String value) {
         final int index = value.indexOf(separator + "${" + property + "}" + separator);
         String path = System.getProperty(property);
 
@@ -175,7 +175,7 @@ public class PolicyFile extends java.security.Policy {
         } else if (pe.name().contains("${opensearch.cgroups.hierarchy.override}")) {
             return new PermissionEntry(
                 pe.permission(),
-                expandSystemProperty("opensearch.cgroups.hierarchy.override", "/", pe.name()),
+                expandKnownSystemProperty("opensearch.cgroups.hierarchy.override", "/", pe.name()),
                 pe.action()
             );
         }
