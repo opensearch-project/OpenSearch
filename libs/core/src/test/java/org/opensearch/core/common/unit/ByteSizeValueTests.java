@@ -211,17 +211,15 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
             exception.getMessage()
         );
 
-        // Make sure for units other than BYTES a size of -1 throws an exception
+        // Negative values (except -1 for BYTES) are now clamped to 0
         ByteSizeUnit unit2 = randomValueOtherThan(ByteSizeUnit.BYTES, () -> randomFrom(ByteSizeUnit.values()));
-        long size2 = -1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size2, unit2));
-        assertEquals("Values less than -1 bytes are not supported: " + size2 + unit2.getSuffix(), exception.getMessage());
+        ByteSizeValue value = new ByteSizeValue(-1L, unit2);
+        assertEquals(0, value.getBytes());
 
-        // Make sure for any unit a size < -1 throws an exception
         ByteSizeUnit unit3 = randomFrom(ByteSizeUnit.values());
         long size3 = -1L * randomNonNegativeLong() - 1L;
-        exception = expectThrows(IllegalArgumentException.class, () -> new ByteSizeValue(size3, unit3));
-        assertEquals("Values less than -1 bytes are not supported: " + size3 + unit3.getSuffix(), exception.getMessage());
+        value = new ByteSizeValue(size3, unit3);
+        assertEquals(0, value.getBytes());
     }
 
     public void testConversionHashCode() {
@@ -295,13 +293,9 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testParseInvalidValue() {
-        OpenSearchParseException exception = expectThrows(
-            OpenSearchParseException.class,
-            () -> ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting")
-        );
-        assertEquals("failed to parse setting [test_setting] with value [-6mb] as a size in bytes", exception.getMessage());
-        assertNotNull(exception.getCause());
-        assertEquals(IllegalArgumentException.class, exception.getCause().getClass());
+        // Parsing negative values now clamps them to 0 instead of throwing
+        ByteSizeValue value = ByteSizeValue.parseBytesSizeValue("-6mb", "test_setting");
+        assertEquals(0, value.getBytes());
     }
 
     public void testParseDefaultValue() {
@@ -354,5 +348,28 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 assertEquals((int) bytesValue, instance.bytesAsInt());
             }
         }
+    }
+
+    public void testNegativeValuesClamped() {
+        // Test constructor clamping for negative values (except -1)
+        ByteSizeValue value = new ByteSizeValue(-100, ByteSizeUnit.BYTES);
+        assertEquals(0, value.getBytes());
+
+        value = new ByteSizeValue(-50, ByteSizeUnit.KB);
+        assertEquals(0, value.getBytes());
+
+        value = new ByteSizeValue(-10, ByteSizeUnit.MB);
+        assertEquals(0, value.getBytes());
+
+        // Test -1 is allowed for BYTES (special "no limit" value)
+        value = new ByteSizeValue(-1, ByteSizeUnit.BYTES);
+        assertEquals(-1, value.getBytes());
+    }
+
+    public void testNegativeValuesClampedOnDeserialization() throws IOException {
+        // Simulate a negative value being read from stream
+        ByteSizeValue original = new ByteSizeValue(-500, ByteSizeUnit.BYTES);
+        ByteSizeValue deserialized = copyInstance(original);
+        assertEquals(0, deserialized.getBytes());
     }
 }

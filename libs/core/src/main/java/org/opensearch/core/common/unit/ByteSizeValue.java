@@ -59,7 +59,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
     private final ByteSizeUnit unit;
 
     public ByteSizeValue(StreamInput in) throws IOException {
-        size = in.readZLong();
+        size = Math.max(-1, in.readZLong());
         unit = ByteSizeUnit.readFrom(in);
     }
 
@@ -75,7 +75,7 @@ public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXC
 
     public ByteSizeValue(long size, ByteSizeUnit unit) {
         if (size < -1 || (size == -1 && unit != ByteSizeUnit.BYTES)) {
-            throw new IllegalArgumentException("Values less than -1 bytes are not supported: " + size + unit.getSuffix());
+            size = 0;
         }
         if (size > Long.MAX_VALUE / unit.toBytes(1)) {
             throw new IllegalArgumentException(
