@@ -69,7 +69,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         if (mutableWorkloadGroupFragment.getResourceLimits().isEmpty()) {
             throw new IllegalArgumentException("WorkloadGroup.resourceLimits should at least have 1 resource limit");
         }
-        if (!isValid(updatedAt)) {
+        if (updatedAt <= 0L) {
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
         }
 
@@ -77,13 +77,6 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         this._id = _id;
         this.mutableWorkloadGroupFragment = mutableWorkloadGroupFragment;
         this.updatedAtInMillis = updatedAt;
-    }
-
-    public static boolean isValid(long updatedAt) {
-        long minValidTimestamp = Instant.ofEpochMilli(0L).getMillis();
-
-        // Check if the timestamp is within a reasonable range
-        return minValidTimestamp <= updatedAt;
     }
 
     public WorkloadGroup(StreamInput in) throws IOException {
