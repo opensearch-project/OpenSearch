@@ -65,6 +65,26 @@ final class ProfileScorer extends Scorer {
         setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
     }
 
+    /**
+     * Returns the wrapped scorer.
+     * <p>
+     * This is useful for plugin queries that extend the Scorer API with custom methods not part of the standard
+     * Lucene Scorer interface. For example, neural-search's HybridQuery needs to access its HybridBulkScorer
+     * to call custom methods when profiling is enabled.
+     * </p>
+     * <p>
+     * <b>Note:</b> Calling mutation methods (like {@link #setMinCompetitiveScore(float)}) directly on the
+     * wrapped scorer will bypass profiling instrumentation for those calls. For read-only access or accessing
+     * custom methods not part of the standard Scorer API, this is safe and expected.
+     * </p>
+     *
+     * @return the underlying wrapped scorer
+     * @see ProfileCollector#getDelegate()
+     */
+    public Scorer getWrappedScorer() {
+        return scorer;
+    }
+
     @Override
     public int docID() {
         return scorer.docID();

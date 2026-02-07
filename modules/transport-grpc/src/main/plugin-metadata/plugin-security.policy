@@ -15,4 +15,7 @@ grant codeBase "${codebase.grpc-netty-shaded}" {
 
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "*", "setContextClassLoader";
+
+   // Netty on Windows uses WEPollSelectorImpl which needs to delete temporary socket files
+   permission java.net.NetPermission "accessUnixDomainSocket";
 };

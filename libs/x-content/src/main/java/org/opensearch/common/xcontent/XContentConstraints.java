@@ -18,7 +18,7 @@ import org.opensearch.common.annotation.InternalApi;
  * @opensearch.internal
  */
 @InternalApi
-public interface XContentContraints {
+public interface XContentConstraints {
     final String DEFAULT_CODEPOINT_LIMIT_PROPERTY = "opensearch.xcontent.codepoint.max";
     final String DEFAULT_MAX_STRING_LEN_PROPERTY = "opensearch.xcontent.string.length.max";
     final String DEFAULT_MAX_NAME_LEN_PROPERTY = "opensearch.xcontent.name.length.max";
