@@ -283,15 +283,12 @@ tasks.register('buildRust', Exec) {
 
   workingDir = file("${projectDir}/src/main/rust")
 
-  // Determine the target directory and library name based on OS
   def osName = System.getProperty('os.name').toLowerCase()
   def libPrefix = osName.contains('windows') ? '' : 'lib'
   def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
+  def libName = 'parquet_dataformat_jni'
 
-  // Use debug build for development, release for production
-  def targetDir = file("${workingDir}/target/")
-
-  // Find cargo executable - try common locations
+  // Find cargo executable
   def cargoExecutable = 'cargo'
   def possibleCargoPaths = [
           System.getenv('HOME') + '/.cargo/bin/cargo',
@@ -311,18 +308,13 @@ tasks.register('buildRust', Exec) {
     cargoArgs.add('--release')
   }
 
-  if (osName.contains('windows')) {
-    commandLine cargoArgs
-  } else {
-    commandLine cargoArgs
-  }
-
-  // Set environment variables for cross-compilation if needed
-  environment 'CARGO_TARGET_DIR', targetDir.absolutePath
+  commandLine cargoArgs
 
   inputs.files fileTree("${workingDir}/src")
   inputs.file "${workingDir}/Cargo.toml"
-  outputs.files file("jni/${targetDir}/${libPrefix}opensearch_datafusion_jni${libExtension}")
+
+  def outputDir = file("${workingDir}/target/${buildType}")
+  outputs.file file("${outputDir}/${libPrefix}${libName}${libExtension}")
   System.out.println("Building Parquet plugin rust library in ${buildType} mode");
 
 }
@@ -363,14 +355,14 @@ tasks.register('copyNativeLib', Copy) {
 
 // Enhanced clean task to remove native build artifacts
 clean {
-    doFirst {
-        delete fileTree('src/main/resources/native') {
-            exclude '.gitkeep' // Keep any gitkeep files if they exist
-        }
-        delete 'src/main/rust/target'
-        delete "src/main/resources/native"
-        println "Cleaned native build artifacts: src/main/resources/native and src/main/rust/target"
+  doFirst {
+    delete fileTree('src/main/resources/native') {
+      exclude '.gitkeep' // Keep any gitkeep files if they exist
     }
+    delete 'src/main/rust/target'
+    delete "src/main/resources/native"
+    println "Cleaned native build artifacts: src/main/resources/native and src/main/rust/target"
+  }
 }
 
 // Wire Rust build tasks into the Gradle build lifecycle
