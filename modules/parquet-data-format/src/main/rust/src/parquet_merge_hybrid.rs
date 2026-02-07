@@ -53,7 +53,7 @@ struct RowRange {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_mergeParquetFilesInRust(
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_mergeParquetFilesInRust1(
     mut env: JNIEnv,
     _class: JClass,
     input_files: JObject,

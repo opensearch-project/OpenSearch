@@ -19,11 +19,10 @@ pub fn profile_sorted_merge() -> Result<(), Box<dyn std::error::Error>> {
 
     let start = Instant::now();
 
-    crate::parquet_merge_hybrid::merge_with_priority_queue(
+    crate::parquet_merge_stream::merge_streaming(
         &input_files,
         &output_file,
-        "timestamp",
-        false, // ascending order
+        "timestamp"
     )?;
 
     let duration = start.elapsed();
