@@ -65,7 +65,7 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super(in);
         shardId = new ShardId(in);
         responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
-        if (in.getVersion().onOrAfter(Version.V_3_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
             serviceTimeEWMAInNanos = in.readLong();
             nodeQueueSize = in.readInt();
         } else {
@@ -121,7 +121,7 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super.writeTo(out);
         shardId.writeTo(out);
         out.writeArray((o, item) -> item.writeThin(out), responses);
-        if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
             out.writeLong(serviceTimeEWMAInNanos);
             out.writeInt(nodeQueueSize);
         }
