@@ -594,9 +594,11 @@ public class InternalEngine extends Engine {
         OpenSearchReaderManager internalReaderManager = null;
         try {
             try {
+                // For segment replication and remote store, write all deletes to disk (.liv files) so they can be replicated
+                final boolean writeAllDeletes = engineConfig.getIndexSettings().isSegRepEnabledOrRemoteNode();
                 // We always open reader on parent IndexWriter.
                 final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    DirectoryReader.open(documentIndexWriter.getAccumulatingIndexWriter()),
+                    DirectoryReader.open(documentIndexWriter.getAccumulatingIndexWriter(), true, writeAllDeletes),
                     shardId
                 );
                 internalReaderManager = new OpenSearchReaderManager(directoryReader);
