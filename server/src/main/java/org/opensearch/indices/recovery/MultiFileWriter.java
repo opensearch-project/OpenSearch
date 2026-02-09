@@ -42,17 +42,23 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentMap;
@@ -85,6 +91,8 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     private final ConcurrentMap<String, FileChunkWriter> fileChunkWriters = ConcurrentCollections.newConcurrentMap();
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
+    // Track metadata for format-aware rename - maps temp file name to its metadata for composite file handling
+    private final ConcurrentMap<String, StoreFileMetadata> tempFileMetadata = ConcurrentCollections.newConcurrentMap();
 
     public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
         throws IOException {
@@ -132,9 +140,34 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
         // add first, before it's created
         tempFileNames.put(tempFileName, fileName);
-        IndexOutput indexOutput = store.createVerifyingOutput(tempFileName, metadata, IOContext.DEFAULT);
+        tempFileMetadata.put(tempFileName, metadata);  // Track for format-aware rename
+
+        IndexOutput indexOutput;
+
+        // For optimized indices, all files are written via CompositeStoreDirectory which routes
+        // to the appropriate format-specific directory based on dataFormat metadata.
+        if (isOptimizedIndex()) {
+            CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+            if (compositeDir != null) {
+                FileMetadata fileMetadata = new FileMetadata(metadata.dataFormat(), tempFileName);
+                indexOutput = compositeDir.createOutput(fileMetadata, IOContext.DEFAULT);
+            } else {
+                throw new IOException("CompositeStoreDirectory required but not available for optimized index file: " + fileName);
+            }
+        } else {
+            // Standard Lucene files for non-optimized indices
+            indexOutput = store.createVerifyingOutput(tempFileName, metadata, IOContext.DEFAULT);
+        }
+
         openIndexOutputs.put(fileName, indexOutput);
         return indexOutput;
+    }
+
+    /**
+     * Checks if this recovery is for an optimized index that uses CompositeStoreDirectory.
+     */
+    private boolean isOptimizedIndex() {
+        return store.indexSettings().isOptimizedIndex();
     }
 
     private void innerWriteFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
@@ -161,13 +194,22 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 indexOutput.close();
             }
             final String temporaryFileName = getTempNameForFile(name);
-            assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) : "expected: ["
-                + temporaryFileName
-                + "] in "
-                + Arrays.toString(store.directory().listAll());
-            // With Segment Replication, we will fsync after a full commit has been received.
-            if (store.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
-                store.directory().sync(Collections.singleton(temporaryFileName));
+
+            // For optimized indices, files are written to CompositeStoreDirectory not the Lucene directory
+            // so we skip the Lucene-specific assertions and sync operations
+            if (!isOptimizedIndex()) {
+                assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName) : "expected: ["
+                    + temporaryFileName
+                    + "] in "
+                    + Arrays.toString(store.directory().listAll());
+                // With Segment Replication, we will fsync after a full commit has been received.
+                if (store.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
+                    store.directory().sync(Collections.singleton(temporaryFileName));
+                }
+            } else {
+                // For optimized indices, the file is in CompositeStoreDirectory
+                // No sync needed here as CompositeStoreDirectory handles its own persistence
+                logger.trace("Optimized index file [{}] written, skipping Lucene directory assertions", temporaryFileName);
             }
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
@@ -197,10 +239,29 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             iterator.remove();
         }
         if (Strings.hasText(tempFilePrefix)) {
-            // trash temporary files
-            for (String file : tempFileNames.keySet()) {
-                logger.trace("cleaning temporary file [{}]", file);
-                store.deleteQuiet(file);
+            // trash temporary files - handle both Lucene and composite files for optimized indices
+            for (Map.Entry<String, String> entry : tempFileNames.entrySet()) {
+                String tempFile = entry.getKey();
+                StoreFileMetadata md = tempFileMetadata.get(tempFile);
+                logger.trace("cleaning temporary file [{}]", tempFile);
+
+                if (isOptimizedIndex() && md != null) {
+                    // Optimized index temp files must be deleted via CompositeStoreDirectory
+                    CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+                    if (compositeDir != null) {
+                        try {
+                            FileMetadata fileMetadata = new FileMetadata(md.dataFormat(), tempFile);
+                            compositeDir.deleteFile(fileMetadata);
+                        } catch (Exception e) {
+                            logger.debug(
+                                () -> new ParameterizedMessage("failed to delete composite temp file [{}]", tempFile), e
+                            );
+                        }
+                    }
+                } else {
+                    // Standard Lucene temp files
+                    store.deleteQuiet(tempFile);
+                }
             }
         }
     }
@@ -208,7 +269,77 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
         ensureOpen.run();
-        store.renameTempFilesSafe(tempFileNames);
+
+
+
+        // For optimized indices, separate Lucene metadata files from format-specific files
+        Map<String, String> luceneFiles = new HashMap<>();
+        Map<String, String> compositeFiles = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : tempFileNames.entrySet()) {
+            String tempFile = entry.getKey();
+            String origFile = entry.getValue();
+
+            if (isOptimizedIndex()) {
+                StoreFileMetadata md = tempFileMetadata.get(tempFile);
+                compositeFiles.put(tempFile, origFile);
+
+            } else {
+                luceneFiles.put(tempFile, origFile);
+
+            }
+        }
+
+        // Rename Lucene files via store (existing behavior)
+        if (!luceneFiles.isEmpty()) {
+            // IMPORTANT: Save keys BEFORE calling renameTempFilesSafe because it clears the passed map
+            List<String> luceneFileKeys = new ArrayList<>(luceneFiles.keySet());
+
+            store.renameTempFilesSafe(luceneFiles);
+
+            // Remove renamed Lucene files from tempFileNames using saved keys (map is now empty)
+            for (String tempFile : luceneFileKeys) {
+                tempFileNames.remove(tempFile);
+            }
+        }
+
+        // Rename composite files via CompositeStoreDirectory
+        if (!compositeFiles.isEmpty()) {
+            CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+
+            if (compositeDir != null) {
+                for (Map.Entry<String, String> entry : compositeFiles.entrySet()) {
+                    String tempFile = entry.getKey();
+                    String origFile = entry.getValue();
+                    StoreFileMetadata md = tempFileMetadata.get(tempFile);
+
+                    logger.debug("Renaming composite file [{}] -> [{}] with format [{}]",
+                        tempFile, origFile, md.dataFormat());
+
+                    FileMetadata tempMeta = new FileMetadata(md.dataFormat(), tempFile);
+                    FileMetadata origMeta = new FileMetadata(md.dataFormat(), origFile);
+
+                    // Delete original if exists (same pattern as localDirectoryContains checksum mismatch handling)
+                    try {
+                        compositeDir.deleteFile(origMeta);
+                    } catch (NoSuchFileException e) {
+                        // Expected - original file doesn't exist yet
+                    }
+
+                    // Rename temp to original
+                    compositeDir.rename(tempMeta, origMeta);
+
+
+                    // Remove from tempFileNames after successful rename
+                    tempFileNames.remove(tempFile);
+                }
+            } else {
+                throw new IOException("CompositeStoreDirectory required but not available for composite file rename");
+            }
+        }
+
+        logger.trace("After rename, remaining tempFileNames: {}", tempFileNames);
+        tempFileMetadata.clear();
     }
 
     /**

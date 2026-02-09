@@ -894,6 +894,68 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * Format-aware cleanup and verification for optimized (parquet) indices.
+     * <p>
+     * This method performs the same cleanup as {@link #cleanupAndVerify(String, MetadataSnapshot)} for Lucene files
+     * in the store directory, and additionally cleans up stale files in the {@link CompositeStoreDirectory} that are
+     * not present in the source metadata. After cleanup, it verifies that the target metadata matches the source
+     * using format-aware metadata that includes both Lucene and parquet files.
+     * <p>
+     * This method should be used instead of {@link #cleanupAndVerify(String, MetadataSnapshot)} when recovering
+     * an optimized index, to ensure parquet files that were just transferred are not incorrectly deleted.
+     *
+     * @param reason              the reason for this cleanup operation logged for each deleted file
+     * @param sourceMetadata      the metadata used for cleanup, including both Lucene and parquet file entries
+     * @param compositeDirectory  the CompositeStoreDirectory for format-aware file operations
+     * @throws IOException           if an IOException occurs
+     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     */
+    public void cleanupAndVerifyComposite(String reason, MetadataSnapshot sourceMetadata, CompositeStoreDirectory compositeDirectory)
+        throws IOException {
+        metadataLock.writeLock().lock();
+        try {
+            // For optimized indices, all files (including segments_N) live in CompositeStoreDirectory,
+            // not in the main Lucene store directory. Clean up stale files from CompositeStoreDirectory only.
+            FileMetadata[] compositeFiles = compositeDirectory.listFileMetadata();
+            for (FileMetadata fileMetadata : compositeFiles) {
+                String fileName = fileMetadata.file();
+                if (!sourceMetadata.contains(fileName)) {
+                    try {
+                        compositeDirectory.deleteFile(fileMetadata);
+                        logger.debug("Deleted stale composite file [{}] with format [{}] during {}", fileName,
+                            fileMetadata.dataFormat(), reason);
+                    } catch (IOException ex) {
+                        logger.debug(
+                            () -> new ParameterizedMessage("failed to delete composite file [{}] with format [{}]",
+                                fileName, fileMetadata.dataFormat()), ex);
+                    }
+                }
+            }
+
+            // Build target metadata from CompositeStoreDirectory to verify all source files are present
+            final Map<String, StoreFileMetadata> combinedMetadata = new HashMap<>();
+            FileMetadata[] remainingCompositeFiles = compositeDirectory.listFileMetadata();
+            for (FileMetadata fileMetadata : remainingCompositeFiles) {
+                String fileName = fileMetadata.file();
+                StoreFileMetadata sourceFileMeta = sourceMetadata.get(fileName);
+                if (sourceFileMeta != null) {
+                    combinedMetadata.put(fileName, sourceFileMeta);
+                }
+            }
+
+            final Store.MetadataSnapshot combinedSnapshot = new MetadataSnapshot(
+                combinedMetadata,
+                sourceMetadata.getCommitUserData(),
+                sourceMetadata.getNumDocs()
+            );
+            verifyAfterCleanup(sourceMetadata, combinedSnapshot);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+
+    /**
      * Segment replication method
      * <p>
      * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
@@ -1240,7 +1302,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             this.metadata = unmodifiableMap(metadata);
             this.commitUserData = unmodifiableMap(commitUserData);
             this.numDocs = in.readLong();
-            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+            // For composite/DataFusion indices with non-Lucene data formats (e.g., parquet),
+            // there may be no traditional segments_N files. Relax assertion to allow this case.
+            assert metadata.isEmpty() || numSegmentFiles() == 1 || hasNonLuceneDataFormat(metadata)
+                : "numSegmentFiles: " + numSegmentFiles() + ", metadata: " + metadata.keySet();
+        }
+
+        /**
+         * Checks if the metadata contains files with non-Lucene data formats (e.g., parquet).
+         * Composite/DataFusion indices may not have traditional Lucene segment files.
+         */
+        private static boolean hasNonLuceneDataFormat(Map<String, StoreFileMetadata> metadata) {
+            return metadata.values().stream()
+                .anyMatch(m -> m.dataFormat() != null && !"lucene".equalsIgnoreCase(m.dataFormat()));
         }
 
         @Override
@@ -1420,7 +1494,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // Create hash for small files only
                     BytesRef hash = createHashForSmallFiles(compositeDirectory, fileMetadata, length, logger);
 
-                    StoreFileMetadata storeFileMetadata = new StoreFileMetadata(fileName, length, checksum, version, hash);
+                    StoreFileMetadata storeFileMetadata = new StoreFileMetadata(fileName, length, checksum, version, hash, fileMetadata.dataFormat());
                     builder.put(fileName, storeFileMetadata);
 
                     // Track max version

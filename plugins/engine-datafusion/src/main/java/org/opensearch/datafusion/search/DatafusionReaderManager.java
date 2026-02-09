@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
@@ -84,6 +85,21 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 return;
             }
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
+
+            // During peer recovery, the CatalogSnapshot may reference parquet files that haven't
+            // been fully transferred to the target node yet. Verify all files exist before creating
+            // the native reader to avoid "No such file or directory" errors from the JNI layer.
+            if (!allFilesExist(newFiles)) {
+                log.info("Some parquet files referenced by CatalogSnapshot do not exist on disk yet " +
+                    "(expected during peer recovery). Skipping reader creation for path [{}].", this.path);
+                try {
+                    catalogSnapshot.close();
+                } catch (Exception e) {
+                    log.warn("Failed to close catalog snapshot after skipping reader creation", e);
+                }
+                return;
+            }
+
             this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
             if (old != null) {
                 release(old);
@@ -92,6 +108,27 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 processFileChanges(List.of(), newFiles);
             }
         }
+    }
+
+    /**
+     * Checks whether all parquet files referenced by the given WriterFileSets actually exist on disk.
+     * Returns false if any file is missing, which can happen during peer recovery when the engine
+     * refreshes before all files have been transferred from the source node.
+     */
+    private boolean allFilesExist(Collection<WriterFileSet> fileSets) {
+        if (fileSets == null || fileSets.isEmpty()) {
+            return true;
+        }
+        for (WriterFileSet fileSet : fileSets) {
+            for (String fileName : fileSet.getFiles()) {
+                Path filePath = Path.of(this.path, fileName);
+                if (!Files.exists(filePath)) {
+                    log.debug("Parquet file does not exist: [{}]", filePath);
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private void processFileChanges(Collection<WriterFileSet> oldFiles, Collection<WriterFileSet> newFiles) {

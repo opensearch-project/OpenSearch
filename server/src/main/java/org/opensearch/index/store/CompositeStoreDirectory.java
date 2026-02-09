@@ -304,6 +304,25 @@ public class CompositeStoreDirectory extends Store.StoreDirectory {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Renames a file within the appropriate format directory.
+     * This method is format-aware and routes the rename operation to the correct directory
+     * based on the dataFormat in the FileMetadata.
+     *
+     * @param source The source file metadata (must contain dataFormat)
+     * @param dest The destination file metadata (must have same dataFormat as source)
+     * @throws IOException if rename fails or formats don't match
+     */
+    public void rename(FileMetadata source, FileMetadata dest) throws IOException {
+        if (!source.dataFormat().equals(dest.dataFormat())) {
+            throw new IllegalArgumentException("Cannot rename across formats: "
+                + source.dataFormat() + " -> " + dest.dataFormat());
+        }
+
+        FormatStoreDirectory<?> formatDir = getDirectoryForFormat(source.dataFormat());
+        formatDir.rename(source.file(), dest.file());
+    }
+
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
         return openInput(new FileMetadata(name), context);

@@ -95,7 +95,6 @@ import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
@@ -150,6 +149,7 @@ import org.opensearch.index.engine.exec.bridge.StatsHolder;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.opensearch.index.engine.exec.coord.CompositeEngineCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -2291,11 +2291,50 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return store.getMetadata(null, true);
                 }
             }
+            // For optimized indices, build format-aware metadata that includes parquet files
+            // from the CatalogSnapshot stored in the commit's user data. The standard
+            // store.getMetadata() only reads Lucene segment files and would miss parquet files,
+            // resulting in an inaccurate diff during peer recovery.
+            if (isOptimizedIndex()) {
+                return buildFormatAwareMetadata(wrappedIndexCommit.get());
+            }
             return store.getMetadata(wrappedIndexCommit.get());
         } finally {
             store.decRef();
             IOUtils.close(wrappedIndexCommit);
         }
+    }
+
+    /**
+     * Builds a format-aware {@link Store.MetadataSnapshot} for optimized indices that includes
+     * both Lucene files and parquet files from the CatalogSnapshot.
+     * <p>
+     * The CatalogSnapshot is deserialized from the IndexCommit's user data and used together
+     * with the {@link CompositeStoreDirectory} to build metadata entries with correct checksums,
+     * sizes, and dataFormat fields for all files (Lucene + parquet).
+     *
+     * @param indexCommit the IndexCommit from CompositeEngine containing CatalogSnapshot in user data
+     * @return a MetadataSnapshot including both Lucene and parquet file metadata
+     * @throws IOException if metadata cannot be read
+     */
+    private Store.MetadataSnapshot buildFormatAwareMetadata(IndexCommit indexCommit) throws IOException {
+        final String serialized = indexCommit.getUserData().get(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+        if (serialized == null) {
+            logger.warn("No CatalogSnapshot found in commit user data for optimized index shard [{}], falling back to Lucene-only metadata", shardId);
+            return store.getMetadata(indexCommit);
+        }
+        final CatalogSnapshot catalogSnapshot = CompositeEngineCatalogSnapshot.deserializeFromString(serialized);
+        final CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+        if (compositeDir == null) {
+            logger.warn("CompositeStoreDirectory not available for optimized index shard [{}], falling back to Lucene-only metadata", shardId);
+            return store.getMetadata(indexCommit);
+        }
+        final Store.MetadataSnapshot.LoadedMetadata loadedMetadata = Store.MetadataSnapshot.loadMetadata(
+            catalogSnapshot,
+            compositeDir,
+            logger
+        );
+        return new Store.MetadataSnapshot(loadedMetadata.fileMetadata, loadedMetadata.userData, loadedMetadata.numDocs);
     }
 
     /**
@@ -3045,43 +3084,70 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
                     // indices as replica would only need to read translog in failover scenario and we always fetch data
                     // from remote translog at the time of failover.
-                    final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
-                    final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
-                    final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                    Translog.createEmptyTranslog(
-                        shardPath().resolveTranslog(),
-                        shardId(),
-                        checkpoint,
-                        getPendingPrimaryTerm(),
-                        translogUUID,
-                        FileChannel::open
-                    );
+                    try {
+                        final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
+                        final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
+                        final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                        Translog.createEmptyTranslog(
+                            shardPath().resolveTranslog(),
+                            shardId(),
+                            checkpoint,
+                            getPendingPrimaryTerm(),
+                            translogUUID,
+                            FileChannel::open
+                        );
+                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                        // For optimized indices recovering from an empty primary, there may be no segments_N file yet.
+                        // Create an empty translog with a fresh UUID - the CompositeEngine will manage the actual
+                        // translog UUID via CatalogSnapshot.
+                        if (isOptimizedIndex()) {
+                            logger.debug(
+                                "No segments file found for optimized index replica during peer recovery, creating fresh translog"
+                            );
+                            Translog.createEmptyTranslog(
+                                shardPath().resolveTranslog(),
+                                SequenceNumbers.NO_OPS_PERFORMED,
+                                shardId(),
+                                getPendingPrimaryTerm()
+                            );
+                        } else {
+                            throw e;
+                        }
+                    }
                 }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+            // For optimized indices, CompositeEngine is self-contained and manages its own
+            // internal components. We don't need to create a base engine (which would fail
+            // for replicas recovering from an empty primary since there are no segments).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             if (indexSettings.isOptimizedIndex()) {
-                CompositeEngine compositeEngine = config.isReadOnlyReplica()
-                    ? new NRTReplicationCompositeEngine(
-                    config,
-                    mapperService,
-                    pluginsService,
-                    indexSettings,
-                    path,
-                    LocalCheckpointTracker::new,
-                    TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
-                )
-                    : new CompositeEngine(
-                    config,
-                    mapperService,
-                    pluginsService,
-                    indexSettings,
-                    path,
-                    LocalCheckpointTracker::new,
-                    TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
-                );
-                // Don't set currentCompositeEngineReference for replicas
-                currentCompositeEngineReference.set(compositeEngine);
+                // For optimized indices, only create CompositeEngine - it is self-contained
+                translogConfig.setDownloadRemoteTranslogOnInit(false);
+                try {
+                    CompositeEngine compositeEngine = config.isReadOnlyReplica()
+                        ? new NRTReplicationCompositeEngine(
+                        config,
+                        mapperService,
+                        pluginsService,
+                        indexSettings,
+                        path,
+                        LocalCheckpointTracker::new,
+                        TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                    )
+                        : new CompositeEngine(
+                        config,
+                        mapperService,
+                        pluginsService,
+                        indexSettings,
+                        path,
+                        LocalCheckpointTracker::new,
+                        TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                    );
+                    currentCompositeEngineReference.set(compositeEngine);
+                } finally {
+                    translogConfig.setDownloadRemoteTranslogOnInit(true);
+                }
             }
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);

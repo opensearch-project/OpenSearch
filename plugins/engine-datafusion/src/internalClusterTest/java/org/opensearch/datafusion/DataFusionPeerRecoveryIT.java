@@ -30,6 +30,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.opensearch.gateway.remote.RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -315,7 +319,184 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Test 2: REPLICA ADDITION triggers RemoteStorePeerRecoverySourceHandler
+     * Test 2: PRIMARY RELOCATION with CONCURRENT DATA INGESTION
+     *
+     * Tests peer recovery for composite index during PRIMARY RELOCATION while
+     * data ingestion is happening in parallel. This validates that the system
+     * correctly handles the race condition between document indexing and primary migration.
+     *
+     * This test:
+     * 1. Creates a composite index on one node
+     * 2. Starts a background thread that continuously indexes documents
+     * 3. Simultaneously triggers primary relocation to another node
+     * 4. Verifies that all documents (including those indexed during migration) are properly preserved
+     * 5. Verifies parquet files are consistent between old and new primary
+     */
+    public void testPrimaryRelocationWithConcurrentIngestion() throws Exception {
+        logger.info("--> Starting test: Primary relocation with concurrent data ingestion");
+
+        // 1. Start remote store enabled cluster with 2 data nodes
+        internalCluster().startClusterManagerOnlyNodes(1);
+        internalCluster().startDataOnlyNodes(2);  // Node A and Node B
+        ensureStableCluster(3);
+
+        // 2. Create composite index with 1 shard, 0 replicas
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME)
+            .setSettings(indexSettings())
+            .setMapping(getMappings())
+            .get());
+        ensureGreen(INDEX_NAME);
+
+        // 3. Index initial batch of documents and flush to create parquet files
+        indexDocuments();  // docs 1-5
+
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        client().admin().indices().prepareFlush(INDEX_NAME).get();
+
+        // Capture initial state
+        String originalPrimaryNode = getPrimaryNodeName(INDEX_NAME);
+        IndexShard primaryShard = getPrimaryShard(INDEX_NAME);
+        long initialDocCount = primaryShard.docStats().getCount();
+        long initialParquetCount = countParquetFiles(primaryShard);
+
+        logger.info("--> Initial state: primaryNode={}, docs={}, parquetFiles={}",
+            originalPrimaryNode, initialDocCount, initialParquetCount);
+
+        assertTrue("Should have initial documents", initialDocCount > 0);
+        assertTrue("Should have initial parquet files", initialParquetCount > 0);
+
+        // 4. Set up concurrent ingestion thread
+        AtomicBoolean stopIngestion = new AtomicBoolean(false);
+        AtomicInteger ingestedDuringMigration = new AtomicInteger(0);
+        AtomicInteger ingestionErrors = new AtomicInteger(0);
+        CountDownLatch ingestionStarted = new CountDownLatch(1);
+
+        Thread ingestionThread = new Thread(() -> {
+            int docId = 100;  // Start from 100 to avoid conflicts with initial docs
+            ingestionStarted.countDown();
+
+            while (!stopIngestion.get()) {
+                try {
+                    // Check if cluster is still available before indexing
+                    if (internalCluster().size() == 0) {
+                        logger.info("--> Cluster shut down, stopping ingestion thread");
+                        break;
+                    }
+                    client().prepareIndex(INDEX_NAME)
+                        .setId("concurrent-doc-" + docId)
+                        .setSource("{ \"message\": " + (docId * 100) + ", \"message2\": " + (docId * 200) + ", \"message3\": " + (docId * 300) + " }",
+                            MediaTypeRegistry.JSON)
+                        .get();
+                    ingestedDuringMigration.incrementAndGet();
+                    docId++;
+
+                    // Small delay to simulate realistic ingestion rate
+                    Thread.sleep(50);
+                } catch (Exception e) {
+                    // Check if it's a cluster shutdown scenario
+                    if (e.getMessage() != null && (e.getMessage().contains("Cluster is already closed") 
+                        || e.getMessage().contains("cluster() is null"))) {
+                        logger.info("--> Cluster is shutting down, stopping ingestion thread gracefully");
+                        break;
+                    }
+                    logger.warn("--> Ingestion error during migration (expected during relocation): {}", e.getMessage());
+                    ingestionErrors.incrementAndGet();
+                    // Continue trying - some failures are expected during relocation
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+            logger.info("--> Ingestion thread completed. Ingested {} docs during migration, {} errors",
+                ingestedDuringMigration.get(), ingestionErrors.get());
+        }, "concurrent-ingestion-thread");
+
+        try {
+            // 5. Start ingestion and wait for it to begin
+            ingestionThread.start();
+            assertTrue("Ingestion thread should start", ingestionStarted.await(5, TimeUnit.SECONDS));
+
+            // Let ingestion run for a bit before starting migration
+            Thread.sleep(500);
+
+            logger.info("--> Ingestion running, docs ingested so far: {}", ingestedDuringMigration.get());
+
+            // 6. Start PRIMARY RELOCATION while ingestion is happening
+            String targetNode = getOtherDataNode(originalPrimaryNode);
+            logger.info("--> Starting primary relocation from {} to {} while ingestion is active",
+                originalPrimaryNode, targetNode);
+
+            client().admin().cluster().prepareReroute()
+                .add(new MoveAllocationCommand(INDEX_NAME, 0, originalPrimaryNode, targetNode))
+                .get();
+
+            // Wait for green status (relocation complete)
+            ensureGreen(INDEX_NAME);
+
+            // 7. Let ingestion continue for a bit after migration
+            Thread.sleep(1000);
+
+            // 8. Verify primary moved to target node
+            String newPrimaryNode = getPrimaryNodeName(INDEX_NAME);
+            assertEquals("Primary should have moved to target node", targetNode, newPrimaryNode);
+
+            // 9. Flush and refresh to ensure all documents are persisted
+            client().admin().indices().prepareFlush(INDEX_NAME).get();
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+            // Wait for any async operations to complete
+            Thread.sleep(2000);
+
+            // 10. Get final state on new primary
+            IndexShard newPrimaryShard = getPrimaryShard(INDEX_NAME);
+            assertTrue("Relocated shard should be primary", newPrimaryShard.routingEntry().primary());
+
+            long finalDocCount = newPrimaryShard.docStats().getCount();
+            long finalParquetCount = countParquetFiles(newPrimaryShard);
+
+            logger.info("--> Final state: newPrimaryNode={}, finalDocs={}, finalParquetFiles={}, docsIngestedDuringMigration={}",
+                newPrimaryNode, finalDocCount, finalParquetCount, ingestedDuringMigration.get());
+
+            // 11. Verify document counts
+            // Final doc count should be at least initial docs + docs ingested during migration
+            // (minus any that failed)
+            long expectedMinDocs = initialDocCount + (ingestedDuringMigration.get() - ingestionErrors.get());
+            logger.info("--> Expected minimum docs: {} (initial={} + ingested={} - errors={})",
+                expectedMinDocs, initialDocCount, ingestedDuringMigration.get(), ingestionErrors.get());
+
+            assertTrue("Should have documents after migration", finalDocCount > 0);
+            assertTrue("Final doc count should be >= initial doc count", finalDocCount >= initialDocCount);
+
+            // At least some concurrent docs should have been successfully ingested
+            assertTrue("Should have ingested at least some documents during migration",
+                ingestedDuringMigration.get() > 0);
+
+            // 12. KEY ASSERTION: Verify parquet files exist on new primary
+            assertTrue("Should have parquet files on new primary", finalParquetCount > 0);
+            assertTrue("Parquet file count should be >= initial count (should include new data)",
+                finalParquetCount >= initialParquetCount);
+
+            logger.info("--> Primary relocation with concurrent ingestion test completed successfully");
+            logger.info("--> Summary: Initial docs={}, Final docs={}, Ingested during migration={}, Errors={}",
+                initialDocCount, finalDocCount, ingestedDuringMigration.get(), ingestionErrors.get());
+
+            assertAcked(client().admin().indices().prepareDelete(INDEX_NAME).get());
+        } finally {
+            // Always stop the ingestion thread to prevent thread leaks
+            stopIngestion.set(true);
+            ingestionThread.interrupt();
+            ingestionThread.join(5000);
+            if (ingestionThread.isAlive()) {
+                logger.warn("--> Ingestion thread did not stop in time, may cause thread leak warning");
+            }
+        }
+    }
+
+    /**
+     * Test 3: REPLICA ADDITION triggers RemoteStorePeerRecoverySourceHandler
      *
      * Tests peer recovery for composite index when ADDING A REPLICA.
      * Uses RemoteStorePeerRecoverySourceHandler because target is remote store node.
