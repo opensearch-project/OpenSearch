@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bump `ch.qos.logback:logback-core` and `ch.qos.logback:logback-classic` from 1.5.24 to 1.5.27 ([#20525](https://github.com/opensearch-project/OpenSearch/pull/20525))
+- Bump `aws-actions/configure-aws-credentials` from 5 to 6 ([#20577](https://github.com/opensearch-project/OpenSearch/pull/20577))
 
 ### Removed
 
