@@ -3316,8 +3316,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * indexing operation, so we can flush the index.
      */
     public void flushOnIdle(long inactiveTimeNS) {
-        Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+        Indexer indexerOrNull = getIndexerOrNull();
+        if (indexerOrNull != null && System.nanoTime() - indexerOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 logger.debug("flushing shard on inactive");
@@ -4248,16 +4248,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getIndexer();
     }
 
-    public CheckpointState getCheckpointStateOrNull() {
-        return getEngineOrNull();
-    }
-
     public StatsHolder getStatsHolderOrNull() {
         return indexSettings.isOptimizedIndex() ? getIndexingExecutionCoordinator() : currentEngineReference.get();
-    }
-
-    public IndexingThrottler getIndexingThrottlerOrNull() {
-        return getEngineOrNull();
     }
 
     /**
