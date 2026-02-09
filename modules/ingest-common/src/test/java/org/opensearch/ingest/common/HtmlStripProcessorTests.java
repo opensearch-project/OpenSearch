@@ -48,4 +48,13 @@ public class HtmlStripProcessorTests extends AbstractStringProcessorTestCase<Str
     protected String expectedResult(String input) {
         return "\ntest" + input + "\ntest";
     }
+
+    public void testHtmlStripWithEqualsAtEndOfAttribute() {
+        AbstractStringProcessor<String> processor = newProcessor("field", false, "target");
+        String input = "<a href=\"https://www.example.com/?test=\">example</a> this gets discarded<a href=\"https://www.example.com/\">example2</a> continues here";
+        String output = processor.process(input);
+        assertTrue("Output should contain 'this gets discarded'. Output was: " + output, output.contains("this gets discarded"));
+        assertTrue("Output should contain 'example'. Output was: " + output, output.contains("example"));
+        assertTrue("Output should contain 'example2'. Output was: " + output, output.contains("example2"));
+    }
 }

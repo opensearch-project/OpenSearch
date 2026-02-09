@@ -33,6 +33,7 @@
 package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
+import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -41,12 +42,14 @@ import org.opensearch.index.analysis.AbstractCharFilterFactory;
 import java.io.Reader;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.opensearch.common.util.set.Sets.newHashSet;
 
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
     private final Set<String> escapedTags;
+    private static final Pattern EQUALS_QUOTE_PATTERN = Pattern.compile("=(?=[\\\"\\s])");
 
     HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
@@ -60,6 +63,6 @@ public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
 
     @Override
     public Reader create(Reader tokenStream) {
-        return new HTMLStripCharFilter(tokenStream, escapedTags);
+        return new HTMLStripCharFilter(new PatternReplaceCharFilter(EQUALS_QUOTE_PATTERN, "&#61;", tokenStream), escapedTags);
     }
 }

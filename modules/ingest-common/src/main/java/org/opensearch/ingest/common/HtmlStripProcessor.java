@@ -33,15 +33,18 @@
 package org.opensearch.ingest.common;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
+import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.opensearch.OpenSearchException;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "html_strip";
+    private static final Pattern EQUALS_QUOTE_PATTERN = Pattern.compile("=(?=[\\\"\\s])");
 
     HtmlStripProcessor(String tag, String description, String field, boolean ignoreMissing, String targetField) {
         super(tag, description, ignoreMissing, targetField, field);
@@ -55,7 +58,11 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
         }
 
         StringBuilder builder = new StringBuilder();
-        try (HTMLStripCharFilter filter = new HTMLStripCharFilter(new StringReader(value))) {
+        try (
+            HTMLStripCharFilter filter = new HTMLStripCharFilter(
+                new PatternReplaceCharFilter(EQUALS_QUOTE_PATTERN, "&#61;", new StringReader(value))
+            )
+        ) {
             int ch;
             while ((ch = filter.read()) != -1) {
                 builder.append((char) ch);
