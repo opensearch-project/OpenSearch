@@ -33,6 +33,7 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -144,9 +145,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
         IndexOutput indexOutput;
 
-        // For optimized indices, all files are written via CompositeStoreDirectory which routes
-        // to the appropriate format-specific directory based on dataFormat metadata.
-        if (isOptimizedIndex()) {
+        // For optimized indices, format-specific files (e.g., parquet) are written via
+        // CompositeStoreDirectory. However, segments_N must go to the Lucene directory
+        // so that Store.getMetadata(), associateIndexWithNewTranslog(), and Lucene's
+        // SegmentInfos.readLatestCommit() can find it.
+        if (isOptimizedIndex() && !fileName.startsWith(IndexFileNames.SEGMENTS)) {
             CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
             if (compositeDir != null) {
                 FileMetadata fileMetadata = new FileMetadata(metadata.dataFormat(), tempFileName);
@@ -155,7 +158,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 throw new IOException("CompositeStoreDirectory required but not available for optimized index file: " + fileName);
             }
         } else {
-            // Standard Lucene files for non-optimized indices
+            // Standard Lucene files (including segments_N for optimized indices)
             indexOutput = store.createVerifyingOutput(tempFileName, metadata, IOContext.DEFAULT);
         }
 
@@ -242,11 +245,12 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             // trash temporary files - handle both Lucene and composite files for optimized indices
             for (Map.Entry<String, String> entry : tempFileNames.entrySet()) {
                 String tempFile = entry.getKey();
+                String origFile = entry.getValue();
                 StoreFileMetadata md = tempFileMetadata.get(tempFile);
                 logger.trace("cleaning temporary file [{}]", tempFile);
 
-                if (isOptimizedIndex() && md != null) {
-                    // Optimized index temp files must be deleted via CompositeStoreDirectory
+                if (isOptimizedIndex() && md != null && !origFile.startsWith(IndexFileNames.SEGMENTS)) {
+                    // Format-specific temp files (e.g., parquet) must be deleted via CompositeStoreDirectory
                     CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
                     if (compositeDir != null) {
                         try {
@@ -259,7 +263,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                         }
                     }
                 } else {
-                    // Standard Lucene temp files
+                    // Standard Lucene temp files (including segments_N for optimized indices)
                     store.deleteQuiet(tempFile);
                 }
             }
@@ -272,7 +276,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
 
 
-        // For optimized indices, separate Lucene metadata files from format-specific files
+        // For optimized indices, separate Lucene files (including segments_N) from format-specific files
         Map<String, String> luceneFiles = new HashMap<>();
         Map<String, String> compositeFiles = new HashMap<>();
 
@@ -280,13 +284,12 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
             String tempFile = entry.getKey();
             String origFile = entry.getValue();
 
-            if (isOptimizedIndex()) {
-                StoreFileMetadata md = tempFileMetadata.get(tempFile);
+            if (isOptimizedIndex() && !origFile.startsWith(IndexFileNames.SEGMENTS)) {
+                // Format-specific files (e.g., parquet) go through CompositeStoreDirectory
                 compositeFiles.put(tempFile, origFile);
-
             } else {
+                // Standard Lucene files AND segments_N for optimized indices go through store
                 luceneFiles.put(tempFile, origFile);
-
             }
         }
 

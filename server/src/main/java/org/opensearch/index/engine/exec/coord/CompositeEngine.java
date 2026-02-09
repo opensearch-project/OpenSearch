@@ -332,6 +332,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             softDeletesPolicy = newSoftDeletesPolicy();
 
+            // Wire up softDeletesPolicy to the CombinedDeletionPolicy so that onCommit
+            // correctly updates the safe commit checkpoint for peer recovery and translog trimming.
+            if (committerRef instanceof LuceneCommitEngine) {
+                ((LuceneCommitEngine) committerRef).setSoftDeletesPolicy(softDeletesPolicy);
+            }
+
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig,
                 engineConfig.getShardId(),
@@ -1057,12 +1063,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                             catalogSnapshotToFlush
                         );
                         logger.trace("finished commit for flush");
-
-                        // Update the local checkpoint of safe commit for proper peer recovery and translog trimming.
-                        // This allows SoftDeletesPolicy to correctly calculate minRetainedSeqNo which is used to
-                        // determine which operations must be retained for peer recovery.
-                        softDeletesPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                        translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(localCheckpoint);
 
                         if (lastCommitedCatalogSnapshotRef != null && lastCommitedCatalogSnapshotRef.getRef() != null)
                             lastCommitedCatalogSnapshotRef.close();

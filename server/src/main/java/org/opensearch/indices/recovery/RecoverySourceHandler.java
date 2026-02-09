@@ -35,6 +35,7 @@ package org.opensearch.indices.recovery;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.RateLimiter;
@@ -84,12 +85,7 @@ import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -421,7 +417,23 @@ public abstract class RecoverySourceHandler {
                 compositeDir,
                 logger
             );
-            return new Store.MetadataSnapshot(loadedMetadata.fileMetadata, loadedMetadata.userData, loadedMetadata.numDocs);
+
+            // The CatalogSnapshot only contains format-specific files (e.g., parquet).
+            // segments_N lives in the Lucene directory and must be included so it gets
+            // transferred to the replica during peer recovery.
+            final Map<String, StoreFileMetadata> combined = new HashMap<>(loadedMetadata.fileMetadata);
+            final Store.MetadataSnapshot luceneMetadata = shard.store().getMetadata(snapshot);
+            for (Map.Entry<String, StoreFileMetadata> entry : luceneMetadata.asMap().entrySet()) {
+                if (entry.getKey().startsWith(IndexFileNames.SEGMENTS)) {
+                    combined.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // Use commit user data from the Lucene commit which has the full set of
+            // checkpoint keys (translog UUID, local checkpoint, max seq no, etc.)
+            final Map<String, String> commitUserData = new HashMap<>(luceneMetadata.getCommitUserData());
+
+            return new Store.MetadataSnapshot(combined, commitUserData, loadedMetadata.numDocs);
         }
         return shard.store().getMetadata(snapshot);
     }

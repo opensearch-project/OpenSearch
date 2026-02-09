@@ -62,7 +62,7 @@ import java.util.function.LongSupplier;
 public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final SoftDeletesPolicy softDeletesPolicy;
+    private volatile SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
     private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
@@ -81,6 +81,15 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.snapshottedCommits = new HashMap<>();
+    }
+
+    /**
+     * Sets the soft deletes policy for deferred initialization.
+     * This is needed when the SoftDeletesPolicy cannot be created before the CombinedDeletionPolicy
+     * (e.g., in CompositeEngine where SoftDeletesPolicy depends on commit data from the committer).
+     */
+    public void setSoftDeletesPolicy(SoftDeletesPolicy softDeletesPolicy) {
+        this.softDeletesPolicy = softDeletesPolicy;
     }
 
     @Override

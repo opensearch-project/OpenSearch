@@ -22,6 +22,7 @@ import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SoftDeletesPolicy;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -114,6 +115,15 @@ public class LuceneCommitEngine implements Committer {
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         return this.combinedDeletionPolicy.getSafeCommitInfo();
+    }
+
+    /**
+     * Sets the soft deletes policy on the underlying CombinedDeletionPolicy.
+     * This enables proper checkpoint tracking for peer recovery and translog trimming.
+     * Must be called after the SoftDeletesPolicy is created.
+     */
+    public void setSoftDeletesPolicy(SoftDeletesPolicy softDeletesPolicy) {
+        this.combinedDeletionPolicy.setSoftDeletesPolicy(softDeletesPolicy);
     }
 
     /**
