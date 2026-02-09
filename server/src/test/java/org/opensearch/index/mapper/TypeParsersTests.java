@@ -117,23 +117,17 @@ public class TypeParsersTests extends OpenSearchTestCase {
         }
 
         {
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", Collections.singletonMap("veryloooooooooooongkey", 3L))
-            );
-            assertEquals("[meta] keys can't be longer than 20 chars, but got [veryloooooooooooongkey] for field [foo]", e.getMessage());
-        }
-
-        {
+            String longString = IntStream.range(0, 51).mapToObj(Integer::toString).collect(Collectors.joining());
             Map<String, String> meta = new HashMap<>();
-            meta.put("foo1", "3");
-            meta.put("foo2", "3");
-            meta.put("foo3", "3");
-            meta.put("foo4", "3");
-            meta.put("foo5", "3");
-            meta.put("foo6", "3");
-            MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", meta));
-            assertEquals("[meta] can't have more than 5 entries, but got 6 on field [foo]", e.getMessage());
+            meta.put("shortKey", "someValue");
+            meta.put("keyWithNameLongerThan20Chars", "someValue");
+            meta.put("a", "someValue");
+            meta.put("longValueKey", longString);
+            meta.put("foo5", "someValue");
+            meta.put("foo6", "someValue");
+            meta.put("foo7", "someValue");
+            Map<String,String> result = TypeParsers.parseMeta("foo", meta);
+            assertEquals(meta.size(), result.size());
         }
 
         {
@@ -155,15 +149,6 @@ public class TypeParsersTests extends OpenSearchTestCase {
             meta.put("foo", null);
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> TypeParsers.parseMeta("foo", meta));
             assertEquals("[meta] values can't be null (field [foo])", e.getMessage());
-        }
-
-        {
-            String longString = IntStream.range(0, 51).mapToObj(Integer::toString).collect(Collectors.joining());
-            MapperParsingException e = expectThrows(
-                MapperParsingException.class,
-                () -> TypeParsers.parseMeta("foo", Collections.singletonMap("foo", longString))
-            );
-            assertThat(e.getMessage(), Matchers.startsWith("[meta] values can't be longer than 50 chars"));
         }
     }
 }
