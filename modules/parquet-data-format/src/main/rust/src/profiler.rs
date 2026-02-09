@@ -19,7 +19,7 @@ pub fn profile_sorted_merge() -> Result<(), Box<dyn std::error::Error>> {
 
     let start = Instant::now();
 
-    crate::parquet_merge_stream::merge_streaming(
+    crate::parquet_merge_stream1::merge_streaming(
         &input_files,
         &output_file,
         "timestamp"
