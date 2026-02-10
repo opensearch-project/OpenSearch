@@ -3123,7 +3123,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             if (indexSettings.isOptimizedIndex()) {
                 // For optimized indices, only create CompositeEngine - it is self-contained
-                translogConfig.setDownloadRemoteTranslogOnInit(false);
+                // translogConfig.setDownloadRemoteTranslogOnInit(false);
                 try {
                     CompositeEngine compositeEngine = config.isReadOnlyReplica()
                         ? new NRTReplicationCompositeEngine(
@@ -3146,7 +3146,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     );
                     currentCompositeEngineReference.set(compositeEngine);
                 } finally {
-                    translogConfig.setDownloadRemoteTranslogOnInit(true);
+                //    translogConfig.setDownloadRemoteTranslogOnInit(true);
                 }
             }
             onNewEngine(newEngine);
