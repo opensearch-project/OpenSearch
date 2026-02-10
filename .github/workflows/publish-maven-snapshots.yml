@@ -36,7 +36,7 @@ jobs:
           MAVEN_SNAPSHOTS_S3_ROLE: op://opensearch-infra-secrets/maven-snapshots-s3/role
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.MAVEN_SNAPSHOTS_S3_ROLE }}
           aws-region: us-east-1

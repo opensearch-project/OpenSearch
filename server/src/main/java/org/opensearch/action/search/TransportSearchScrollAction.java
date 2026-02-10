@@ -79,7 +79,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
             }
 
-            ParsedScrollId scrollId = TransportSearchHelper.parseScrollId(request.scrollId());
+            ParsedScrollId scrollId = request.parseScrollId();
             Runnable action;
             switch (scrollId.getType()) {
                 case ParsedScrollId.QUERY_THEN_FETCH_TYPE:

@@ -32,9 +32,6 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-
 import java.lang.reflect.Method;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
@@ -81,22 +78,6 @@ public final class Randomness {
     }
 
     private Randomness() {}
-
-    /**
-     * Provides a reproducible source of randomness seeded by a long
-     * seed in the settings with the key setting.
-     *
-     * @param settings the settings containing the seed
-     * @param setting  the setting to access the seed
-     * @return a reproducible source of randomness
-     */
-    public static Random get(Settings settings, Setting<Long> setting) {
-        if (setting.exists(settings)) {
-            return new Random(setting.get(settings));
-        } else {
-            return get();
-        }
-    }
 
     /**
      * Provides a source of randomness that is reproducible when
