@@ -448,6 +448,7 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
             // Wait for any async operations to complete
             Thread.sleep(2000);
 
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
             // 10. Get final state on new primary
             IndexShard newPrimaryShard = getPrimaryShard(INDEX_NAME);
             assertTrue("Relocated shard should be primary", newPrimaryShard.routingEntry().primary());
@@ -462,7 +463,7 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
             logger.info("--> Expected minimum docs: {} (initial={} + ingested={} - errors={})",
                 expectedMinDocs, initialDocCount, ingestedDuringMigration.get(), ingestionErrors.get());
 
-            assertTrue("Should have documents after migration", finalDocCount > 0);
+            assertTrue("Should have documents after migration", finalDocCount >= expectedMinDocs);
             assertTrue("Final doc count should be >= initial doc count", finalDocCount >= initialDocCount);
 
             // At least some concurrent docs should have been successfully ingested
