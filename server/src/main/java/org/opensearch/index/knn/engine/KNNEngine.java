@@ -11,12 +11,18 @@ package org.opensearch.index.knn.engine;
 import java.util.Collections;
 import java.util.List;
 
-import org.opensearch.common.ValidationException;
+import org.apache.lucene.util.Version;
 
 /**
  * KNNLibrary is an interface that helps the plugin communicate with k-NN libraries
  */
-public interface KNNLibrary extends MethodResolver {
+public interface KNNEngine {
+    /**
+     * Gets the name of the KNNEngine.
+     *
+     * @return the name of the KNNEngine
+     */
+    String getName();
 
     /**
      * Gets the version of the library that is being used. In general, this can be used for ensuring compatibility of
@@ -25,7 +31,9 @@ public interface KNNLibrary extends MethodResolver {
      *
      * @return the string representing the library's version
      */
-    String getVersion();
+    default String getVersion() {
+        return Version.LATEST.toString();
+    }
 
     /**
      * Gets the extension that files written with this library should have
@@ -71,53 +79,6 @@ public interface KNNLibrary extends MethodResolver {
      * @return transformed score for the library
      */
     Float scoreToRadialThreshold(Float score, SpaceType spaceType);
-
-    /**
-     * Validate the knnMethodContext for the given library. A ValidationException should be thrown if the method is
-     * deemed invalid.
-     *
-     * @param knnMethodContext to be validated
-     * @param knnMethodConfigContext configuration context for the method
-     * @return ValidationException produced by validation errors; null if no validations errors.
-     */
-    ValidationException validateMethod(KNNMethodContext knnMethodContext, KNNMethodConfigContext knnMethodConfigContext);
-
-    /**
-     * Returns whether training is required or not from knnMethodContext for the given library.
-     *
-     * @param knnMethodContext methodContext
-     * @return true if training is required; false otherwise
-     */
-    boolean isTrainingRequired(KNNMethodContext knnMethodContext);
-
-    /**
-     * Estimate overhead of KNNMethodContext in Kilobytes.
-     *
-     * @param knnMethodContext to estimate size for
-     * @param knnMethodConfigContext configuration context for the method
-     * @return size overhead estimate in KB
-     */
-    int estimateOverheadInKB(KNNMethodContext knnMethodContext, KNNMethodConfigContext knnMethodConfigContext);
-
-    /**
-     * Get the context from the library needed to build the index.
-     *
-     * @param knnMethodContext to get build context for
-     * @param knnMethodConfigContext configuration context for the method
-     * @return parameter map
-     */
-    KNNLibraryIndexingContext getKNNLibraryIndexingContext(
-        KNNMethodContext knnMethodContext,
-        KNNMethodConfigContext knnMethodConfigContext
-    );
-
-    /**
-     * Gets metadata related to methods supported by the library
-     *
-     * @param methodName name of method
-     * @return KNNLibrarySearchContext
-     */
-    KNNLibrarySearchContext getKNNLibrarySearchContext(String methodName);
 
     /**
      * Getter for initialized
