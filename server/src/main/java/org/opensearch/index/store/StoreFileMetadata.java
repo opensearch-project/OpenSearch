@@ -174,6 +174,13 @@ public class StoreFileMetadata implements Writeable {
         return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash) && dataFormat.equals(other.dataFormat);
     }
 
+    public boolean isSameMultFormatFile(StoreFileMetadata other) {
+        if (checksum == null || other.checksum == null) {
+            return false;
+        }
+        return length == other.length && checksum.equals(other.checksum) && dataFormat.equals(other.dataFormat);
+    }
+
     @Override
     public String toString() {
         return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "], dataFormat [" + dataFormat + "]";

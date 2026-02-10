@@ -2288,6 +2288,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 if (wrappedIndexCommit == null) {
                     // Only use direct store access when no engine is running
+                    // For optimized indices, we need to scan CompositeStoreDirectory for existing files
+                    // (e.g., parquet files downloaded via remote store sync during peer recovery)
+                    if (isOptimizedIndex() && store.compositeStoreDirectory() != null) {
+                        return buildMetadataFromCompositeDirectoryWithoutCommit();
+                    }
                     return store.getMetadata(null, true);
                 }
             }
@@ -2303,6 +2308,92 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             store.decRef();
             IOUtils.close(wrappedIndexCommit);
         }
+    }
+
+    /**
+     * Builds a MetadataSnapshot by scanning the CompositeStoreDirectory for existing files
+     * when no engine is running. This is used during peer recovery when the replica has
+     * already downloaded parquet files via remote store sync but doesn't have an engine yet.
+     *
+     * @return a MetadataSnapshot including both Lucene and parquet file metadata
+     * @throws IOException if metadata cannot be read
+     */
+    private Store.MetadataSnapshot buildMetadataFromCompositeDirectoryWithoutCommit() throws IOException {
+        final CompositeStoreDirectory compositeDir = store.compositeStoreDirectory();
+        if (compositeDir == null) {
+            logger.warn("CompositeStoreDirectory not available for optimized index shard [{}], falling back to Lucene-only metadata", shardId);
+            return store.getMetadata(null, true);
+        }
+
+        Map<String, StoreFileMetadata> combinedMetadata = new HashMap<>();
+        Map<String, String> commitUserData = new HashMap<>();
+        long numDocs = 0;
+
+        // Try to read commit user data from segments_N file if it exists
+        // This is critical for peer recovery as it contains the history UUID
+        try {
+            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            commitUserData.putAll(segmentInfos.getUserData());
+            numDocs = Lucene.getNumDocs(segmentInfos);
+            logger.debug("Read commit user data from segments file for shard [{}]: historyUUID={}", 
+                shardId, commitUserData.get(Engine.HISTORY_UUID_KEY));
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            // No segments file yet - this is okay for empty shards during initial recovery
+            logger.debug("No segments file found for optimized index shard [{}], using empty commit user data", shardId);
+        }
+
+        // Scan CompositeStoreDirectory for all files (parquet + lucene)
+        FileMetadata[] compositeFiles = compositeDir.listFileMetadata();
+        for (FileMetadata fileMetadata : compositeFiles) {
+            try {
+                long length = compositeDir.fileLength(fileMetadata);
+                long checksumLong = compositeDir.calculateChecksum(fileMetadata);
+                String checksum = Store.digestToString(checksumLong);
+
+                Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+
+                StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
+                    fileMetadata.file(),
+                    length,
+                    checksum,
+                    version,
+                    fileMetadata.dataFormat()
+                );
+                combinedMetadata.put(fileMetadata.file(), storeFileMetadata);
+            } catch (Exception e) {
+                logger.warn("Failed to read metadata for file {} with format {}", fileMetadata.file(), fileMetadata.dataFormat(), e);
+            }
+        }
+
+        // Also include segments_N files from Lucene directory if present
+        try {
+            for (String file : store.directory().listAll()) {
+                if (file.startsWith(IndexFileNames.SEGMENTS) && !combinedMetadata.containsKey(file)) {
+                    try (IndexInput input = store.directory().openInput(file, IOContext.READONCE)) {
+                        long length = input.length();
+                        long checksumLong = CodecUtil.retrieveChecksum(input);
+                        String checksum = Store.digestToString(checksumLong);
+                        Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+
+                        StoreFileMetadata storeFileMetadata = new StoreFileMetadata(
+                            file,
+                            length,
+                            checksum,
+                            version,
+                            "lucene"
+                        );
+                        combinedMetadata.put(file, storeFileMetadata);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Error scanning Lucene directory for segments files", e);
+        }
+
+        logger.debug("Built metadata from CompositeStoreDirectory without commit: {} files for shard [{}]",
+            combinedMetadata.size(), shardId);
+
+        return new Store.MetadataSnapshot(combinedMetadata, commitUserData, numDocs);
     }
 
     /**
@@ -3123,31 +3214,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             if (indexSettings.isOptimizedIndex()) {
                 // For optimized indices, only create CompositeEngine - it is self-contained
-                // translogConfig.setDownloadRemoteTranslogOnInit(false);
-                try {
-                    CompositeEngine compositeEngine = config.isReadOnlyReplica()
-                        ? new NRTReplicationCompositeEngine(
-                        config,
-                        mapperService,
-                        pluginsService,
-                        indexSettings,
-                        path,
-                        LocalCheckpointTracker::new,
-                        TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
-                    )
-                        : new CompositeEngine(
-                        config,
-                        mapperService,
-                        pluginsService,
-                        indexSettings,
-                        path,
-                        LocalCheckpointTracker::new,
-                        TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
-                    );
-                    currentCompositeEngineReference.set(compositeEngine);
-                } finally {
-                //    translogConfig.setDownloadRemoteTranslogOnInit(true);
-                }
+                CompositeEngine compositeEngine = config.isReadOnlyReplica()
+                    ? new NRTReplicationCompositeEngine(
+                    config,
+                    mapperService,
+                    pluginsService,
+                    indexSettings,
+                    path,
+                    LocalCheckpointTracker::new,
+                    TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                )
+                    : new CompositeEngine(
+                    config,
+                    mapperService,
+                    pluginsService,
+                    indexSettings,
+                    path,
+                    LocalCheckpointTracker::new,
+                    TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                );
+                currentCompositeEngineReference.set(compositeEngine);
             }
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
@@ -5626,8 +5712,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings,
                 path,
                 LocalCheckpointTracker::new,
-                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
-                true
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
             );
             oldCompositeEngine = currentCompositeEngineReference.getAndSet(newCompositeEngine);
 
@@ -6073,9 +6158,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("File {} with format {} does not exist in local FS, downloading from remote store",
                 fileMetadata.file(), fileMetadata.dataFormat());
         } catch (IOException e) {
-            // Check if root cause is "file not found" - MultiFormatStoreException wraps the original exception
-            Throwable cause = e.getCause();
-            if (cause instanceof NoSuchFileException || cause instanceof FileNotFoundException) {
+            // Check if root cause is "file not found" - MultiFormatStoreException can wrap exceptions
+            // multiple levels deep (e.g., calculateChecksum wraps openIndexInput which wraps the original).
+            // Walk the full cause chain to find any file-not-found signal.
+            if (isFileNotFoundException(e)) {
                 logger.debug("File {} with format {} does not exist in local FS (wrapped exception), downloading from remote store",
                     fileMetadata.file(), fileMetadata.dataFormat());
             } else {
@@ -6090,6 +6176,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Walks the full exception cause chain to determine if the root cause indicates a missing file.
+     * This is needed because MultiFormatStoreException can wrap exceptions multiple levels deep:
+     * e.g., calculateChecksum wraps openIndexInput which wraps the original IOException/NoSuchFileException.
+     * Also checks exception messages for "does not exist" patterns since GenericStoreDirectory throws
+     * a plain IOException with that message rather than NoSuchFileException.
+     */
+    private static boolean isFileNotFoundException(Throwable e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof NoSuchFileException || current instanceof FileNotFoundException) {
+                return true;
+            }
+            // GenericStoreDirectory.openIndexInput throws IOException("File does not exist or is not a regular file: ...")
+            // rather than NoSuchFileException, so check the message as well
+            if (current instanceof IOException && current.getMessage() != null
+                && current.getMessage().contains("does not exist")) {
+                return true;
+            }
+            current = current.getCause();
+        }
         return false;
     }
 

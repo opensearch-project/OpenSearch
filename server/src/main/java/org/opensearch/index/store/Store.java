@@ -1078,7 +1078,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     // pkg private for testing
     final void verifyAfterCleanup(MetadataSnapshot sourceMetadata, MetadataSnapshot targetMetadata) {
-        final RecoveryDiff recoveryDiff = targetMetadata.recoveryDiff(sourceMetadata);
+        final RecoveryDiff recoveryDiff = targetMetadata.recoveryDiff(sourceMetadata, indexSettings().isOptimizedIndex());
         if (recoveryDiff.identical.size() != recoveryDiff.size()) {
             if (recoveryDiff.missing.isEmpty()) {
                 for (StoreFileMetadata meta : recoveryDiff.different) {
@@ -1661,7 +1661,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Helper method used to group store files according to segment and commit.
          *
-         * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
+         * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot, Boolean)
          */
         private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
@@ -1714,7 +1714,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <p>
          * NOTE: this diff will not contain the {@code segments.gen} file. This file is omitted on recovery.
          */
-        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot, Boolean isOptimizedIndex) {
             final List<StoreFileMetadata> identical = new ArrayList<>();
             final List<StoreFileMetadata> different = new ArrayList<>();
             final List<StoreFileMetadata> missing = new ArrayList<>();
@@ -1727,7 +1727,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     if (storeFileMetadata == null) {
                         consistent = false;
                         missing.add(meta);
-                    } else if (storeFileMetadata.isSame(meta) == false) {
+                    } else if(isOptimizedIndex) {
+                            if(storeFileMetadata.isSameMultFormatFile(meta)) {
+                                identicalFiles.add(meta);
+                            } else {
+                                different.add(meta);
+                            }
+                    }
+                    else if (storeFileMetadata.isSame(meta) == false) {
                         consistent = false;
                         different.add(meta);
                     } else {
@@ -1815,7 +1822,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A class representing the diff between a recovery source and recovery target
      *
-     * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot)
+     * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot, Boolean)
      *
      * @opensearch.api
      */

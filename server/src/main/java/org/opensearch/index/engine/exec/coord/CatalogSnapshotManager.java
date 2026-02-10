@@ -42,10 +42,6 @@ public class CatalogSnapshotManager {
     private final AtomicReference<IndexFileDeleter> indexFileDeleter;
 
     public CatalogSnapshotManager(CompositeEngine compositeEngine, Committer compositeEngineCommitter, ShardPath shardPath) throws IOException {
-        this(compositeEngine, compositeEngineCommitter, shardPath, false);
-    }
-
-    public CatalogSnapshotManager(CompositeEngine compositeEngine, Committer compositeEngineCommitter, ShardPath shardPath, boolean skipInitialCleanup) throws IOException {
         catalogSnapshotMap = new HashMap<>();
         this.compositeEngineCommitter = compositeEngineCommitter;
         indexFileDeleter = new AtomicReference<>();
@@ -58,7 +54,7 @@ public class CatalogSnapshotManager {
             latestCatalogSnapshot.remapPaths(shardPath.getDataPath());
         });
 
-        indexFileDeleter.set(new IndexFileDeleter(compositeEngine, latestCatalogSnapshot, shardPath, skipInitialCleanup));
+        indexFileDeleter.set(new IndexFileDeleter(compositeEngine, latestCatalogSnapshot, shardPath));
         if(latestCatalogSnapshot != null) {
             latestCatalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);

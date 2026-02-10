@@ -223,19 +223,6 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         TranslogEventListener translogEventListener
     ) {
-        this(engineConfig, mapperService, pluginsService, indexSettings, shardPath, localCheckpointTrackerSupplier, translogEventListener, false);
-    }
-
-    public CompositeEngine(
-        EngineConfig engineConfig,
-        MapperService mapperService,
-        PluginsService pluginsService,
-        IndexSettings indexSettings,
-        ShardPath shardPath,
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        TranslogEventListener translogEventListener,
-        boolean skipInitialFileCleanup
-    ) {
         this.logger = Loggers.getLogger(CompositeEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.eventListener = engineConfig.getEventListener();
@@ -318,7 +305,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
 
             System.out.println("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
-
+            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
                 mapperService,
@@ -327,7 +314,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.incrementAndGet()
             );
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
-            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, skipInitialFileCleanup);
+
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
                 CatalogSnapshot loadedSnapshot = catalogSnapshotReleasableRef.getRef();
                 this.engine.loadWriterFiles(loadedSnapshot);
