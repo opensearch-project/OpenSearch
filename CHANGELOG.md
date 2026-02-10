@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-text` from 1.14.0 to 1.15.0 ([#20576](https://github.com/opensearch-project/OpenSearch/pull/20576))
 - Bump `aws-actions/configure-aws-credentials` from 5 to 6 ([#20577](https://github.com/opensearch-project/OpenSearch/pull/20577))
 - Bump `netty` from 4.2.9.Final to 4.2.10.Final ([#20586](https://github.com/opensearch-project/OpenSearch/pull/20586))
+- Bump `reactor-netty` from 1.3.2 to 1.3.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
+- Bump `reactor` from 3.8.2 to 3.8.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
 
 ### Removed
 
