@@ -7,6 +7,13 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Introduce AdditionalCodecs and EnginePlugin::getAdditionalCodecs hook to allow additional Codec registration ([#20411](https://github.com/opensearch-project/OpenSearch/pull/20411))
 * Support for HTTP/3 (server side) ([#20017](https://github.com/opensearch-project/OpenSearch/pull/20017))
 * HLL field Mapper for Cardinality Rollups ([#20129](https://github.com/opensearch-project/OpenSearch/pull/20129))
+* Add Add X-Request-Id header to uniquely identify a search request ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
+* Add Circuit breaker support for gRPC ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
+* Add index-level-encryption support for snapshots and remote-store ([#20095](https://github.com/opensearch-project/OpenSearch/pull/20095))
+* Support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
+* TopN selection for streaming terms aggregations ([#20481](https://github.com/opensearch-project/OpenSearch/pull/20481))
+* Introduce concurrent translog recovery to accelerate segment replication primary promotion ([#20251](https://github.com/opensearch-project/OpenSearch/pull/20251))
+* [GRPC] Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
 
 ### Enhancements
 
@@ -29,6 +36,12 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Transport-netty4 module set TLS SNI when server_name is provided ([#20321](https://github.com/opensearch-project/OpenSearch/pull/20321))
 * [BugFix] Restrict rename replacement field size for snapshot restore ([#20465](https://github.com/opensearch-project/OpenSearch/pull/20465))
 * Bug fix for Restore with Index Sort ([#20284](https://github.com/opensearch-project/OpenSearch/pull/20284))
+* Add integ test for simulating node join left event when data node clu… ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907))
+* Adding BWC test for remote publication enabled cluster ([#20221](https://github.com/opensearch-project/OpenSearch/pull/20221))
+* Fix indexing regression and bug fixes for grouping criteria ([#20145](https://github.com/opensearch-project/OpenSearch/pull/20145))
+* LeafReader should not remove SubReaderWrappers incase IndexWriter encounters a non aborting Exception ([#20193](https://github.com/opensearch-project/OpenSearch/pull/20193))
+* Make crypto store settings immutable ([#20123](https://github.com/opensearch-project/OpenSearch/pull/20123))
+* Remove child level directory on refresh for CompositeIndexWriter ([#20326](https://github.com/opensearch-project/OpenSearch/pull/20326))
 
 ### Infrastructure
 
@@ -39,10 +52,6 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Cleanup HttpServerTransport.Dispatcher in Netty tests ([#20160](https://github.com/opensearch-project/OpenSearch/pull/20160))
 * Install demo security information when running ./gradlew run -PinstalledPlugins="['opensearch-security']" ([#20372](https://github.com/opensearch-project/OpenSearch/pull/20372))
 * Update to `almalinux:10` ([#20482](https://github.com/opensearch-project/OpenSearch/pull/20482))
-
-### Documentation
-
-* Fix CHANGELOG.md entry ([#20500](https://github.com/opensearch-project/OpenSearch/pull/20500))
 
 ### Maintenance
 
@@ -67,6 +76,7 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Bump reactor-netty to 1.3.2 and reactor to 3.8.2 ([#20419](https://github.com/opensearch-project/OpenSearch/pull/20419))
 * Update Jackson to 2.20.1 ([#20343](https://github.com/opensearch-project/OpenSearch/pull/20343))
 * Update OpenTelemetry to 1.58.0 ([#20441](https://github.com/opensearch-project/OpenSearch/pull/20441))
+* [GRPC] Upgrade to protobufs 1.0.0 ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335)), ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
 
 ### Refactoring
 
@@ -76,21 +86,3 @@ Compatible with OpenSearch and OpenSearch Dashboards version 3.5.0
 * Stream transport refactor ([#20359](https://github.com/opensearch-project/OpenSearch/pull/20359))
 * Remove identity-shiro from plugins folder ([#20305](https://github.com/opensearch-project/OpenSearch/pull/20305))
 * [repository-s3] remove endpointOverride and let AWS SDK V2 S3 determine the s3 url based on bucket name or arn provided ([#20345](https://github.com/opensearch-project/OpenSearch/pull/20345))
-
-### Unknown
-
-* Add Add X-Request-Id header to uniquely identify a search request ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
-* Add Circuit breaker support for gRPC ([#20203](https://github.com/opensearch-project/OpenSearch/pull/20203))
-* Add index-level-encryption support for snapshots and remote-store ([#20095](https://github.com/opensearch-project/OpenSearch/pull/20095))
-* Add integ test for simulating node join left event when data node clu… ([#19907](https://github.com/opensearch-project/OpenSearch/pull/19907))
-* Adding BWC test for remote publication enabled cluster ([#20221](https://github.com/opensearch-project/OpenSearch/pull/20221))
-* Fixing indexing regression and bug fixes for grouping criteria ([#20145](https://github.com/opensearch-project/OpenSearch/pull/20145))
-* LeafReader should not remove SubReaderWrappers incase IndexWriter encounters a non aborting Exception ([#20193](https://github.com/opensearch-project/OpenSearch/pull/20193))
-* Make crypto store settings immutable ([#20123](https://github.com/opensearch-project/OpenSearch/pull/20123))
-* Remove child level directory on refresh for CompositeIndexWriter ([#20326](https://github.com/opensearch-project/OpenSearch/pull/20326))
-* Support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
-* TopN selection for streaming terms aggregations ([#20481](https://github.com/opensearch-project/OpenSearch/pull/20481))
-* Introduce concurrent translog recovery to accelerate segment replication primary promotion ([#20251](https://github.com/opensearch-project/OpenSearch/pull/20251))
-* [GRPC] Add BigInteger support for unsigned_long fields in gRPC transport ([#20346](https://github.com/opensearch-project/OpenSearch/pull/20346))
-* [GRPC] Upgrade protobufs to 1.1.0 ([#20396](https://github.com/opensearch-project/OpenSearch/pull/20396))
-* [GRPC] Upgrade to protobufs 1.0.0 ([#20335](https://github.com/opensearch-project/OpenSearch/pull/20335))
