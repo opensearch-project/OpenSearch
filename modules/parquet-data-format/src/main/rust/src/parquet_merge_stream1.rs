@@ -1,5 +1,3 @@
-// src/parquet_merge_stream.rs
-
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::jint;
@@ -16,8 +14,8 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
-const ROW_ID_COLUMN_NAME: &str = "__row_id";
-const BATCH_SIZE: usize = 50_000;
+const ROW_ID_COLUMN_NAME: &str = "___row_id";
+const BATCH_SIZE: usize = 10_000;
 const OUTPUT_FLUSH_ROWS: usize = 100_000;
 
 // =============================================================================
@@ -40,7 +38,7 @@ impl FileCursor {
         sort_column: String,
         batch_size: usize,
     ) -> PolarsResult<Option<Self>> {
-        let (sender, receiver) = sync_channel::<DataFrame>(1);
+        let (sender, receiver) = sync_channel::<DataFrame>(0);
         let thread_path = path.clone();
 
         let producer_handle = thread::spawn(move || {
@@ -96,7 +94,9 @@ impl FileCursor {
 
     fn load_next_batch(&mut self) -> bool {
         match self.receiver.recv() {
-            Ok(df) if df.height() > 0 => {
+            Ok(mut df) if df.height() > 0 => {
+                // Strip old ___row_id — will be regenerated with 0..n-1 during flush
+                let _ = df.drop_in_place(ROW_ID_COLUMN_NAME);
                 self.current_batch = Some(df);
                 self.row_idx = 0;
                 true
@@ -113,6 +113,16 @@ impl FileCursor {
             Some(batch) => get_sort_value(batch, self.row_idx, &self.sort_column),
             None => Err(PolarsError::NoData("Cursor exhausted".into())),
         }
+    }
+
+    fn take_slice(&self, start: usize, len: usize) -> DataFrame {
+        let mut slice = self
+            .current_batch
+            .as_ref()
+            .unwrap()
+            .slice(start as i64, len);
+        slice.rechunk_mut();
+        slice
     }
 
     fn advance(&mut self) -> PolarsResult<bool> {
@@ -270,8 +280,31 @@ pub fn merge_streaming_with_config(
         return Ok(());
     }
 
-    // Grab schema from first cursor — clone out of Arc into owned Schema
-    let mut output_schema = cursors[0]
+    // Validate sort column exists in every cursor
+    for (i, cursor) in cursors.iter().enumerate() {
+        let batch = cursor.current_batch.as_ref().unwrap();
+        let schema = batch.schema();
+
+        if !schema.contains(sort_column) {
+            let available_cols: Vec<String> = schema
+                .iter()
+                .map(|(name, _)| name.to_string())
+                .collect();
+            return Err(PolarsError::ColumnNotFound(
+                format!(
+                    "Sort column '{}' not found in file {} (cursor {}). Available columns: {:?}",
+                    sort_column,
+                    input_files.get(cursor.file_id).unwrap_or(&"unknown".to_string()),
+                    i,
+                    available_cols
+                )
+                .into(),
+            ));
+        }
+    }
+
+    // Schema WITHOUT ___row_id (already stripped in load_next_batch)
+    let base_schema = cursors[0]
         .current_batch
         .as_ref()
         .unwrap()
@@ -279,13 +312,14 @@ pub fn merge_streaming_with_config(
         .as_ref()
         .clone();
 
-    // Add __row_id column to schema
+    // Schema WITH ___row_id for output
+    let mut output_schema = base_schema.clone();
     output_schema.insert(ROW_ID_COLUMN_NAME.into(), DataType::Int64);
 
     println!("Initialized {} cursors, starting merge", cursors.len());
 
     // =========================================================================
-    // Open a SINGLE batched ParquetWriter (writes row groups, footer at end)
+    // Open a SINGLE batched ParquetWriter
     // =========================================================================
     let output_file = File::create(output_path).map_err(|e| PolarsError::IO {
         error: e.into(),
@@ -293,7 +327,8 @@ pub fn merge_streaming_with_config(
     })?;
 
     let mut writer = ParquetWriter::new(output_file)
-        .with_compression(ParquetCompression::Snappy)
+        .with_compression(ParquetCompression::Zstd(None))
+        .with_row_group_size(Some(output_flush_rows))
         .batched(&output_schema)?;
 
     // Initialize min-heap
@@ -317,18 +352,39 @@ pub fn merge_streaming_with_config(
     let sort_col_owned = sort_column.to_string();
 
     // =========================================================================
+    // Flush helper — writes buffered chunks as one Parquet row group
+    // =========================================================================
+    macro_rules! flush {
+        () => {
+            if !output_chunks.is_empty() {
+                let mut df = concat_df(output_chunks.as_slice())?;
+                output_chunks.clear(); // free early before rechunk
+                df.rechunk_mut();
+                let n = df.height();
+
+                // Add ___row_id: sequential 0..n-1 across entire merged file
+                let row_ids: Vec<i64> = (next_row_id..next_row_id + n as i64).collect();
+                let row_id_series = Series::new(ROW_ID_COLUMN_NAME.into(), row_ids);
+                df.with_column(row_id_series)?;
+
+                writer.write_batch(&df)?;
+                next_row_id += n as i64;
+                total_rows_written += output_row_count;
+                output_row_count = 0;
+            }
+        };
+    }
+
+    // =========================================================================
     // K-way merge loop — drains SLICES, not single rows
     // =========================================================================
     while let Some(item) = heap.pop() {
         let cursor = &mut cursors[item.file_id];
 
-        // Drain consecutive competitive runs from this file
         loop {
-            // --- Collect a run within the CURRENT batch ---
             let run_start = cursor.row_idx;
             let batch_height = cursor.current_batch.as_ref().unwrap().height();
 
-            // Scan forward within batch while this file stays competitive
             while cursor.row_idx + 1 < batch_height {
                 let next_val = get_sort_value(
                     cursor.current_batch.as_ref().unwrap(),
@@ -338,51 +394,33 @@ pub fn merge_streaming_with_config(
 
                 match heap.peek() {
                     Some(top) if next_val <= top.sort_value => {
-                        cursor.row_idx += 1; // consume — still competitive
+                        cursor.row_idx += 1;
                     }
-                    _ => break, // next row loses to heap, stop run
+                    _ => break,
                 }
             }
 
-            // ONE slice for the entire run
             let run_len = cursor.row_idx - run_start + 1;
-            let slice = cursor
-                .current_batch
-                .as_ref()
-                .unwrap()
-                .slice(run_start as i64, run_len);
+
+            let slice = cursor.take_slice(run_start, run_len);
             output_chunks.push(slice);
             output_row_count += run_len;
 
             // Flush if buffer full
             if output_row_count >= output_flush_rows {
-                let mut df = concat_df(&output_chunks)?;
-                df.rechunk_mut();
-                let n = df.height();
-                let row_ids: Vec<i64> = (next_row_id..next_row_id + n as i64).collect();
-                let row_id_series = Series::new(ROW_ID_COLUMN_NAME.into(), row_ids);
-                df.with_column(row_id_series)?;
-                writer.write_batch(&df)?;
-                next_row_id += n as i64;
-
-                total_rows_written += output_row_count;
-                output_chunks.clear();
-                output_row_count = 0;
+                flush!();
             }
 
-            // Advance past the last consumed row (may load next batch)
             if !cursor.advance()? {
-                break; // File exhausted
+                break;
             }
 
-            // Decide: keep draining this file or yield to heap?
             let next_val = cursor.current_sort_value()?;
             match heap.peek() {
                 Some(top) if next_val <= top.sort_value => {
-                    continue; // Still competitive — collect next run (possibly new batch)
+                    continue;
                 }
                 _ => {
-                    // Yield back to heap
                     heap.push(HeapItem {
                         sort_value: next_val,
                         file_id: cursor.file_id,
@@ -394,18 +432,9 @@ pub fn merge_streaming_with_config(
     }
 
     // Flush remaining rows
-    if !output_chunks.is_empty() {
-        let mut df = concat_df(&output_chunks)?;
-        df.rechunk_mut();
-        let n = df.height();
-        let row_ids: Vec<i64> = (next_row_id..next_row_id + n as i64).collect();
-        let row_id_series = Series::new(ROW_ID_COLUMN_NAME.into(), row_ids);
-        df.with_column(row_id_series)?;
-        writer.write_batch(&df)?;
-        total_rows_written += output_row_count;
-    }
+    flush!();
 
-    // Write Parquet footer & close — THIS is what makes the file valid
+    // Write Parquet footer & close
     writer.finish()?;
 
     println!("Merge complete: {} total rows written", total_rows_written);
