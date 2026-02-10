@@ -30,10 +30,17 @@ public class IndexFileDeleter {
     private final CompositeEngine compositeEngine;
 
     public IndexFileDeleter(CompositeEngine compositeEngine, CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath) throws IOException {
+        this(compositeEngine, initialCatalogSnapshot, shardPath, false);
+    }
+
+
+    public IndexFileDeleter(CompositeEngine compositeEngine, CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath, boolean skipInitialCleanup) throws IOException {
         this.compositeEngine = compositeEngine;
         if (initialCatalogSnapshot != null) {
             addFileReferences(initialCatalogSnapshot);
-            deleteUnreferencedFiles(shardPath);
+            if (!skipInitialCleanup) {
+                deleteUnreferencedFiles(shardPath);
+            }
         }
     }
 

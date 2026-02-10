@@ -5626,7 +5626,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings,
                 path,
                 LocalCheckpointTracker::new,
-                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                true
             );
             oldCompositeEngine = currentCompositeEngineReference.getAndSet(newCompositeEngine);
 

@@ -394,7 +394,7 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
                     Thread.sleep(50);
                 } catch (Exception e) {
                     // Check if it's a cluster shutdown scenario
-                    if (e.getMessage() != null && (e.getMessage().contains("Cluster is already closed") 
+                    if (e.getMessage() != null && (e.getMessage().contains("Cluster is already closed")
                         || e.getMessage().contains("cluster() is null"))) {
                         logger.info("--> Cluster is shutting down, stopping ingestion thread gracefully");
                         break;
@@ -437,12 +437,10 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
             ensureGreen(INDEX_NAME);
 
             // 7. Let ingestion continue for a bit after migration
-            Thread.sleep(1000);
-
-            // 8. Verify primary moved to target node
-            String newPrimaryNode = getPrimaryNodeName(INDEX_NAME);
-            assertEquals("Primary should have moved to target node", targetNode, newPrimaryNode);
-
+            assertBusy(() -> {
+                String newPrimaryNode = getPrimaryNodeName(INDEX_NAME);
+                assertEquals("Primary should have moved to target node", targetNode, newPrimaryNode);
+            }, 30, TimeUnit.SECONDS);
             // 9. Flush and refresh to ensure all documents are persisted
             client().admin().indices().prepareFlush(INDEX_NAME).get();
             client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -456,9 +454,6 @@ public class DataFusionPeerRecoveryIT extends OpenSearchIntegTestCase {
 
             long finalDocCount = newPrimaryShard.docStats().getCount();
             long finalParquetCount = countParquetFiles(newPrimaryShard);
-
-            logger.info("--> Final state: newPrimaryNode={}, finalDocs={}, finalParquetFiles={}, docsIngestedDuringMigration={}",
-                newPrimaryNode, finalDocCount, finalParquetCount, ingestedDuringMigration.get());
 
             // 11. Verify document counts
             // Final doc count should be at least initial docs + docs ingested during migration

@@ -674,7 +674,6 @@ final class StoreRecovery {
                 final Path translogFile = location.resolve(Translog.getFilename(checkpoint.getGeneration()));
                 try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
                     TranslogHeader translogHeader = TranslogHeader.read(translogFile, channel);
-                    logger.info("Creating segmentN recovering from remote store [{}]", translogHeader);
                     store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion, translogHeader.getTranslogUUID());
                 }
             }
