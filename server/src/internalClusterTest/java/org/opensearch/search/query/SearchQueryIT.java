@@ -84,6 +84,8 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.ByteBuffer;
@@ -102,6 +104,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -1195,6 +1198,74 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             .get();
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmapLongField() throws Exception {
+        assertAcked(
+            prepareCreate("products_long").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("product")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("products_long").setId("1").setSource("product", 1L),
+            client().prepareIndex("products_long").setId("2").setSource("product", 2L),
+            client().prepareIndex("products_long").setId("3").setSource("product", new long[] { 1L, 3L }),
+            client().prepareIndex("products_long").setId("4").setSource("product", 4L)
+        );
+
+        Roaring64NavigableMap r = new Roaring64NavigableMap(true);
+        r.addLong(1L);
+        r.addLong(4L);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        r.serializePortable(new DataOutputStream(baos));
+        BytesArray bitmap = new BytesArray(baos.toByteArray());
+        SearchResponse searchResponse = client().prepareSearch("products_long")
+            .setQuery(constantScoreQuery(termsQuery("product", bitmap).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmapLongFieldLargeValues() throws Exception {
+        assertAcked(
+            prepareCreate("products_long_large").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("product")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        long largeVal1 = Integer.MAX_VALUE + 100L;
+        long largeVal2 = Integer.MAX_VALUE + 200L;
+        long largeVal3 = Integer.MAX_VALUE + 300L;
+        indexRandom(
+            true,
+            client().prepareIndex("products_long_large").setId("1").setSource("product", largeVal1),
+            client().prepareIndex("products_long_large").setId("2").setSource("product", largeVal2),
+            client().prepareIndex("products_long_large").setId("3").setSource("product", largeVal3)
+        );
+
+        Roaring64NavigableMap r = new Roaring64NavigableMap(true);
+        r.addLong(largeVal1);
+        r.addLong(largeVal3);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        r.serializePortable(new DataOutputStream(baos));
+        BytesArray bitmap = new BytesArray(baos.toByteArray());
+        SearchResponse searchResponse = client().prepareSearch("products_long_large")
+            .setQuery(constantScoreQuery(termsQuery("product", bitmap).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "3");
     }
 
     public void testTermsLookupFilter() throws Exception {

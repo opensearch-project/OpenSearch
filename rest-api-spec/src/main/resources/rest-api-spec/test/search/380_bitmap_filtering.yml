@@ -182,3 +182,114 @@ setup:
   - match: { hits.hits.1._source.student_id: 111 }
   - match: { hits.hits.2._source.name: John Doe }
   - match: { hits.hits.2._source.student_id: 333 }
+
+---
+"Terms query accepting bitmap for long field":
+  - skip:
+      version: " - 3.5.99"
+      reason: The bitmap filtering for long fields is available in 3.6 and later.
+  - do:
+      indices.create:
+        index: students_long
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              student_id:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "students_long", "_id": "1" } }
+          - { "name": "Jane Doe", "student_id": 111 }
+          - { "index": { "_index": "students_long", "_id": "2" } }
+          - { "name": "Mary Major", "student_id": 222 }
+          - { "index": { "_index": "students_long", "_id": "3" } }
+          - { "name": "John Doe", "student_id": 333 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students_long
+        body: {
+          "query": {
+            "terms": {
+              "student_id": ["AQAAAAAAAAAAAAAAOjAAAAEAAAAAAAEAEAAAAG8A3gA="],
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+  - match: { hits.hits.1._source.name: Mary Major }
+  - match: { hits.hits.1._source.student_id: 222 }
+
+---
+"Terms lookup on a binary field with bitmap for long field":
+  - skip:
+      version: " - 3.5.99"
+      reason: The bitmap filtering for long fields is available in 3.6 and later.
+  - do:
+      indices.create:
+        index: students_long_lookup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              student_id:
+                type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "students_long_lookup", "_id": "1" } }
+          - { "name": "Jane Doe", "student_id": 111 }
+          - { "index": { "_index": "students_long_lookup", "_id": "2" } }
+          - { "name": "Mary Major", "student_id": 222 }
+          - { "index": { "_index": "students_long_lookup", "_id": "3" } }
+          - { "name": "John Doe", "student_id": 333 }
+  - do:
+      indices.create:
+        index: classes_long
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              enrolled:
+                type: binary
+                store: true
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "classes_long", "_id": "101" } }
+          - { "enrolled": "AQAAAAAAAAAAAAAAOjAAAAEAAAAAAAEAEAAAAG8A3gA=" }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: students_long_lookup
+        body: {
+          "query": {
+            "terms": {
+              "student_id": {
+                "index": "classes_long",
+                "id": "101",
+                "path": "enrolled",
+                "store": true
+              },
+              "value_type": "bitmap"
+            }
+          }
+        }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.name: Jane Doe }
+  - match: { hits.hits.0._source.student_id: 111 }
+  - match: { hits.hits.1._source.name: Mary Major }
+  - match: { hits.hits.1._source.student_id: 222 }

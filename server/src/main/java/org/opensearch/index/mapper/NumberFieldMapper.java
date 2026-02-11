@@ -74,9 +74,13 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.Bitmap64DocValuesQuery;
+import org.opensearch.search.query.Bitmap64IndexQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -93,6 +97,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.LongIterator;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 /**
  * A {@link FieldMapper} for numeric types: byte, short, int, long, float, double and unsigned long.
@@ -1162,7 +1168,27 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 try {
                     bitmap.deserialize(ByteBuffer.wrap(bitmapArray.array()));
                 } catch (Exception e) {
-                    throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
+                    // Fallback: try 64-bit Roaring64NavigableMap and down-convert.
+                    // The two formats have distinct cookies so deserialization failure is reliable.
+                    // All values must fit in [Integer.MIN_VALUE, Integer.MAX_VALUE] or an error is thrown.
+                    try {
+                        Roaring64NavigableMap bitmap64 = new Roaring64NavigableMap(true);
+                        bitmap64.deserializePortable(new DataInputStream(new ByteArrayInputStream(bitmapArray.array())));
+                        LongIterator iter = bitmap64.getLongIterator();
+                        while (iter.hasNext()) {
+                            long value = iter.next();
+                            if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+                                throw new IllegalArgumentException(
+                                    "Bitmap contains value " + value + " which is out of range for integer field"
+                                );
+                            }
+                            bitmap.add((int) value);
+                        }
+                    } catch (IllegalArgumentException iae) {
+                        throw iae;
+                    } catch (Exception e2) {
+                        throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
+                    }
                 }
 
                 if (isSearchable && hasDocValues) {
@@ -1437,11 +1463,59 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return fields;
             }
 
+            /**
+             * Bitmap query support for long fields using Roaring64NavigableMap with portable serialization.
+             * <p>
+             * Signed mode (signedLongs=true) is required so the bitmap iterator produces values in the
+             * same order as Lucene's LongPoint BKD tree encoding. The default Roaring64NavigableMap
+             * constructor uses unsigned mode, which would break the merge-join for negative values.
+             * <p>
+             * Clients should serialize bitmaps using {@code Roaring64NavigableMap.serializePortable()}.
+             * If a 32-bit RoaringBitmap blob is received (detected via cookie-based format validation),
+             * values are up-converted from int to long, which is always safe.
+             * <p>
+             * Cross-language compatibility: other implementations (C/CRoaring, Go, Python) typically
+             * use unsigned 64-bit semantics. For values in the range 0 to 2^63-1, the bit patterns
+             * are identical and fully interoperable. Negative Java longs correspond to unsigned values
+             * greater than or equal to 2^63 in other implementations.
+             * <p>
+             * Not applicable to unsigned_long fields, which use BigIntegerPoint (16-byte encoding)
+             * and are incompatible with the 8-byte Roaring64NavigableMap representation.
+             */
+            @Override
+            public Query bitmapQuery(String field, BytesArray bitmapArray, boolean isSearchable, boolean hasDocValues) {
+                // signedLongs=true is critical: ensures iterator order matches LongPoint BKD tree sort order
+                Roaring64NavigableMap bitmap = new Roaring64NavigableMap(true);
+                try {
+                    bitmap.deserializePortable(new DataInputStream(new ByteArrayInputStream(bitmapArray.array())));
+                } catch (Exception e) {
+                    // Fallback: try 32-bit RoaringBitmap and up-convert (int -> long is always safe).
+                    // The two formats have distinct cookies so deserialization failure is reliable.
+                    try {
+                        RoaringBitmap bitmap32 = new RoaringBitmap();
+                        bitmap32.deserialize(ByteBuffer.wrap(bitmapArray.array()));
+                        bitmap32.forEach((int value) -> bitmap.addLong(value));
+                    } catch (Exception e2) {
+                        throw new IllegalArgumentException("Failed to deserialize the bitmap.", e);
+                    }
+                }
+
+                if (isSearchable && hasDocValues) {
+                    return new IndexOrDocValuesQuery(new Bitmap64IndexQuery(field, bitmap), new Bitmap64DocValuesQuery(field, bitmap));
+                }
+                if (isSearchable) {
+                    return new Bitmap64IndexQuery(field, bitmap);
+                }
+                return new Bitmap64DocValuesQuery(field, bitmap);
+            }
+
             @Override
             Number valueForSearch(String value) {
                 return Long.parseLong(value);
             }
         },
+        // Note: UNSIGNED_LONG does not support bitmap queries. It uses BigIntegerPoint (16-byte
+        // encoding) which is incompatible with Roaring64NavigableMap's 8-byte long representation.
         UNSIGNED_LONG("unsigned_long", NumericType.UNSIGNED_LONG) {
             @Override
             public BigInteger parse(Object value, boolean coerce) {
