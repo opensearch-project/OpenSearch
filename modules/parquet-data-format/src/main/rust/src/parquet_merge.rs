@@ -1,6 +1,5 @@
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString};
-use jni::sys::jint;
+use jni::objects::{JClass, JObject, JString, JValue};
 use std::fs::File;
 use std::error::Error;
 use std::any::Any;
@@ -53,14 +52,21 @@ struct ProcessingStats {
     total_batches: usize,
 }
 
-// JNI Entry Point
+// Row ID mapping for cross-format merge
+struct RowIdMappingData {
+    old_file_id: String,
+    old_row_id: i64,
+    new_row_id: i64,
+}
+
+// JNI Entry Point - returns RowIdMapping to Java
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_mergeParquetFilesInRust(
-    mut env: JNIEnv,
-    _class: JClass,
-    input_files: JObject,
-    output_file: JString,
-) -> jint {
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_mergeParquetFilesInRust<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    input_files: JObject<'local>,
+    output_file: JString<'local>,
+) -> JObject<'local> {
     let result = catch_unwind(|| {
         let input_files_vec = convert_java_list_to_vec(&mut env, input_files)
             .map_err(|e| format!("Failed to convert Java list: {}", e))?;
@@ -72,31 +78,41 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 
         log_info!("Starting merge of {} files to {}", input_files_vec.len(), output_path);
 
-        process_parquet_files(&input_files_vec, &output_path)?;
+        let (mappings, output_file_id) = process_parquet_files(&input_files_vec, &output_path)?;
 
         log_info!("Merge completed successfully");
-        Ok(())
+        Ok((mappings, output_file_id))
     });
 
     match result {
-        Ok(Ok(_)) => 0,
+        Ok(Ok((mappings, output_file_id))) => {
+            match create_row_id_mapping_object(&mut env, mappings, &output_file_id) {
+                Ok(obj) => obj,
+                Err(e) => {
+                    let error_msg = format!("Failed to create RowIdMapping: {}", e);
+                    log_error!("{}", error_msg);
+                    let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
+                    JObject::null()
+                }
+            }
+        }
         Ok(Err(e)) => {
             let error_msg = format!("Error processing Parquet files: {}", e);
             log_error!("{}", error_msg);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
-            -1
+            JObject::null()
         }
         Err(e) => {
             let error_msg = format!("Rust panic occurred: {:?}", e);
             log_error!("{}", error_msg);
             let _ = env.throw_new("java/lang/RuntimeException", &error_msg);
-            -1
+            JObject::null()
         }
     }
 }
 
-// Main processing function
-pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Result<(), Box<dyn Error>> {
+// Main processing function - returns row ID mappings
+pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Result<(Vec<RowIdMappingData>, String), Box<dyn Error>> {
     // Validate input
     validate_input(input_files)?;
 
@@ -107,19 +123,25 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     // Create writer
     let mut writer = create_writer(output_path, schema.clone())?;
 
-    // Process files
-    let stats = process_files(input_files, &schema, &mut writer)?;
+    // Process files and collect mappings
+    let (stats, mappings) = process_files(input_files, &schema, &mut writer)?;
 
     // Close writer
     writer.close()
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to close writer: {}", e)))?;
 
     log_info!(
-        "Processing complete: {} files, {} rows, {} batches",
-        stats.files_processed, stats.total_rows, stats.total_batches
+        "Processing complete: {} files, {} rows, {} batches, {} mappings",
+        stats.files_processed, stats.total_rows, stats.total_batches, mappings.len()
     );
 
-    Ok(())
+    let output_file_id = std::path::Path::new(output_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(output_path)
+        .to_string();
+
+    Ok((mappings, output_file_id))
 }
 
 // Validation functions
@@ -165,21 +187,28 @@ fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<Rat
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create writer: {}", e)).into())
 }
 
-// File processing
+// File processing - collects row ID mappings
 fn process_files(
     input_files: &[String],
     schema: &SchemaRef,
     writer: &mut ArrowWriter<RateLimitedWriter<File>>,
-) -> Result<ProcessingStats, Box<dyn Error>> {
+) -> Result<(ProcessingStats, Vec<RowIdMappingData>), Box<dyn Error>> {
     let mut current_row_id: i64 = 0;
     let mut stats = ProcessingStats {
         files_processed: 0,
         total_rows: 0,
         total_batches: 0,
     };
+    let mut mappings = Vec::new();
 
     for path in input_files {
         log_info!("Processing file: {}", path);
+
+        let old_file_id = std::path::Path::new(path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(path)
+            .to_string();
 
         let file = File::open(path)
             .map_err(|e| ParquetMergeError::InvalidFile(format!("{}: {}", path, e)))?;
@@ -192,6 +221,7 @@ fn process_files(
 
         let mut file_rows = 0;
         let mut file_batches = 0;
+        let file_start_row_id = current_row_id;
 
         for batch_result in reader {
             let original_batch = batch_result
@@ -209,6 +239,15 @@ fn process_files(
             file_batches += 1;
         }
 
+        // Create mappings for this file
+        for old_row_id in 0..file_rows as i64 {
+            mappings.push(RowIdMappingData {
+                old_file_id: old_file_id.clone(),
+                old_row_id,
+                new_row_id: file_start_row_id + old_row_id,
+            });
+        }
+
         stats.files_processed += 1;
         stats.total_rows += file_rows;
         stats.total_batches += file_batches;
@@ -216,7 +255,7 @@ fn process_files(
         log_info!("File processed: {} rows, {} batches", file_rows, file_batches);
     }
 
-    Ok(stats)
+    Ok((stats, mappings))
 }
 
 // Row ID update logic
@@ -267,10 +306,59 @@ fn convert_java_list_to_vec(env: &mut JNIEnv, list: JObject) -> Result<Vec<Strin
     Ok(result)
 }
 
-fn catch_unwind<F: FnOnce() -> Result<(), Box<dyn Error>>>(
+fn catch_unwind<F: FnOnce() -> Result<(Vec<RowIdMappingData>, String), Box<dyn Error>>>(
     f: F
-) -> Result<Result<(), Box<dyn Error>>, Box<dyn Any + Send>> {
+) -> Result<Result<(Vec<RowIdMappingData>, String), Box<dyn Error>>, Box<dyn Any + Send>> {
     std::panic::catch_unwind(AssertUnwindSafe(f))
+}
+
+// Create Java RowIdMapping object
+fn create_row_id_mapping_object<'local>(
+    env: &mut JNIEnv<'local>,
+    mappings: Vec<RowIdMappingData>,
+    output_file_id: &str,
+) -> Result<JObject<'local>, Box<dyn Error>> {
+    // Create HashMap<RowId, Long>
+    let hash_map = env.new_object("java/util/HashMap", "()V", &[])?;
+
+    for mapping in mappings {
+        // Create RowId object
+        let row_id_obj = env.new_object(
+            "org/opensearch/index/engine/exec/merge/RowId",
+            "(JLjava/lang/String;)V",
+            &[
+                JValue::Long(mapping.old_row_id),
+                JValue::Object(&env.new_string(&mapping.old_file_id)?.into()),
+            ],
+        )?;
+
+        // Create Long object for new row ID
+        let new_row_id_obj = env.new_object(
+            "java/lang/Long",
+            "(J)V",
+            &[JValue::Long(mapping.new_row_id)],
+        )?;
+
+        // Put into HashMap
+        env.call_method(
+            &hash_map,
+            "put",
+            "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+            &[JValue::Object(&row_id_obj), JValue::Object(&new_row_id_obj)],
+        )?;
+    }
+
+    // Create RowIdMapping object
+    let row_id_mapping = env.new_object(
+        "org/opensearch/index/engine/exec/merge/RowIdMapping",
+        "(Ljava/util/Map;Ljava/lang/String;)V",
+        &[
+            JValue::Object(&hash_map),
+            JValue::Object(&env.new_string(output_file_id)?.into()),
+        ],
+    )?;
+
+    Ok(row_id_mapping)
 }
 
 
