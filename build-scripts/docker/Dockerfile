@@ -4,7 +4,7 @@ FROM amazonlinux:2023 AS builder
 ARG VERSION
 ARG INDEXER_TAR_NAME
 
-RUN yum update -y && yum install openssl tar findutils shadow-utils jq -y
+RUN yum update -y && yum install openssl tar findutils shadow-utils tar gzip jq -y
 
 COPY ${INDEXER_TAR_NAME} /
 
@@ -30,7 +30,7 @@ ENV USER="wazuh-indexer" \
     NAME="wazuh-indexer" \
     INSTALL_DIR="/usr/share/wazuh-indexer"
 
-RUN yum update -y && yum install curl-minimal shadow-utils findutils hostname jq -y
+RUN yum update -y && yum install curl-minimal shadow-utils findutils hostname tar gzip jq -y
 
 RUN getent group $GROUP || groupadd -r -g 1000 $GROUP
 
@@ -64,6 +64,7 @@ RUN mkdir -p /var/lib/wazuh-indexer && chown 1000:1000 /var/lib/wazuh-indexer &&
     mkdir -p /usr/share/wazuh-indexer/logs && chown 1000:1000 /usr/share/wazuh-indexer/logs && \
     mkdir -p /run/wazuh-indexer && chown 1000:1000 /run/wazuh-indexer && \
     mkdir -p /var/log/wazuh-indexer && chown 1000:1000 /var/log/wazuh-indexer && \
+    mkdir -p /usr/share/wazuh-indexer/engine/sockets && chmod 777 /usr/share/wazuh-indexer/engine/sockets && chown 1000:1000 /usr/share/wazuh-indexer/engine/sockets && \
     chmod 700 /usr/share/wazuh-indexer && \
     chmod 600 /usr/share/wazuh-indexer/config/jvm.options && \
     chmod 600 /usr/share/wazuh-indexer/config/opensearch.yml

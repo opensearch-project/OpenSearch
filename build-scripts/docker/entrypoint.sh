@@ -86,6 +86,12 @@ if [[ "$(id -u)" == "0" ]]; then
   fi
 fi
 
+# Start Wazuh Engine
+if [ -x "$INDEXER_HOME/engine/run_engine.sh" ]; then
+  nohup "$INDEXER_HOME/engine/run_engine.sh" > /dev/null 2>&1 &
+  echo $! > /run/wazuh-indexer/wazuh-engine.pid
+fi
+
 # Initialize security
 nohup /securityadmin.sh &
 

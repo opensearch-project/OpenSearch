@@ -59,3 +59,17 @@ find ${TARGET_DIR} -type f -perm 644 -exec chmod 640 {} \;
 find ${TARGET_DIR} -type f -perm 664 -exec chmod 660 {} \;
 find ${TARGET_DIR} -type f -perm 755 -exec chmod 750 {} \;
 find ${TARGET_DIR} -type f -perm 744 -exec chmod 740 {} \;
+
+# Set permissions for Wazuh Engine
+ENGINE_DIR=${TARGET_DIR}${INDEXER_HOME}/engine
+if [ -d "$ENGINE_DIR" ]; then
+    find "$ENGINE_DIR" -type d -exec chmod 750 {} +
+    find "$ENGINE_DIR" -type f -exec chmod 640 {} +
+
+    # Set executable permissions
+    [ -f "$ENGINE_DIR/run_engine.sh" ] && chmod 750 "$ENGINE_DIR/run_engine.sh"
+    [ -f "$ENGINE_DIR/bin/wazuh-engine" ] && chmod 750 "$ENGINE_DIR/bin/wazuh-engine"
+
+    # Set sockets directory permissions
+    [ -d "$ENGINE_DIR/sockets" ] && chmod 777 "$ENGINE_DIR/sockets"
+fi
