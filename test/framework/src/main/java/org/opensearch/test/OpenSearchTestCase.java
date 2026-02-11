@@ -63,6 +63,7 @@ import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
+import org.opensearch.bootstrap.BootstrapForTesting;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
@@ -136,6 +137,7 @@ import org.opensearch.search.MockSearchService;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
@@ -327,8 +329,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             Configurator.shutdown(context);
         }));
 
-        // BootstrapForTesting.ensureInitialized();
-        // TransportService.ensureClassloaded(); // ensure server streamables are registered
+        BootstrapForTesting.ensureInitialized();
+        TransportService.ensureClassloaded(); // ensure server streamables are registered
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
