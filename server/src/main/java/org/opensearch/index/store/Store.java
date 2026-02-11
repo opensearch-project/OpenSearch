@@ -962,9 +962,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             FileMetadata[] remainingCompositeFiles = compositeDirectory.listFileMetadata();
             for (FileMetadata fileMetadata : remainingCompositeFiles) {
                 String fileName = fileMetadata.file();
-                StoreFileMetadata sourceFileMeta = sourceMetadata.get(fileName);
-                if (sourceFileMeta != null) {
-                    combinedMetadata.put(fileName, sourceFileMeta);
+                if (sourceMetadata.contains(fileName)) {
+                    // Read ACTUAL metadata from disk, not from sourceMetadata
+                    long length = compositeDirectory.fileLength(fileMetadata);
+                    long checksumLong = compositeDirectory.calculateChecksum(fileMetadata);
+                    String checksum = Store.digestToString(checksumLong);
+                    Version version = org.opensearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
+
+                    StoreFileMetadata diskMeta = new StoreFileMetadata(
+                        fileName, length, checksum, version, fileMetadata.dataFormat()
+                    );
+                    combinedMetadata.put(fileName, diskMeta);
                 }
             }
 
@@ -979,26 +987,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
-    /**
-     * Segment replication method
-     * <p>
-     * This method takes the segment info bytes to build SegmentInfos. It inc'refs files pointed by passed in SegmentInfos
-     * bytes to ensure they are not deleted.
-     *
-     * @param infosBytes bytes[] of SegmentInfos supposed to be sent over by primary excluding segment_N file
-     * @param segmentsGen segment generation number
-     * @throws IOException Exception while reading store and building segment infos
-     */
-    public SegmentInfos buildSegmentInfosFromSerializedCatalogSnapshot(byte[] infosBytes, long segmentsGen) throws IOException {
-        try (final ChecksumIndexInput input = toIndexInput(infosBytes)) {
-            return convertCatalogSnapshotToSegmentInfos(infosBytes, segmentsGen);
-        } catch (Exception e) {
-            // Handle CatalogSnapshot format - convert to SegmentInfos
-            logger.debug("Failed to parse as SegmentInfos format, attempting CatalogSnapshot conversion", e);
-            return null;
-        }
-    }
 
     /**
      * Segment replication method
@@ -1327,19 +1315,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             this.metadata = unmodifiableMap(metadata);
             this.commitUserData = unmodifiableMap(commitUserData);
             this.numDocs = in.readLong();
-            // For composite/DataFusion indices with non-Lucene data formats (e.g., parquet),
-            // there may be no traditional segments_N files. Relax assertion to allow this case.
-            assert metadata.isEmpty() || numSegmentFiles() == 1 || hasNonLuceneDataFormat(metadata)
+            assert metadata.isEmpty() || numSegmentFiles() == 1
                 : "numSegmentFiles: " + numSegmentFiles() + ", metadata: " + metadata.keySet();
-        }
-
-        /**
-         * Checks if the metadata contains files with non-Lucene data formats (e.g., parquet).
-         * Composite/DataFusion indices may not have traditional Lucene segment files.
-         */
-        private static boolean hasNonLuceneDataFormat(Map<String, StoreFileMetadata> metadata) {
-            return metadata.values().stream()
-                .anyMatch(m -> m.dataFormat() != null && !"lucene".equalsIgnoreCase(m.dataFormat()));
         }
 
         @Override
@@ -1661,7 +1638,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Helper method used to group store files according to segment and commit.
          *
-         * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot, Boolean)
+         * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot, boolean)
          */
         private Iterable<List<StoreFileMetadata>> getGroupedFilesIterable() {
             final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
@@ -1679,6 +1656,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             return Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles));
+        }
+
+        // Keeping this method for backward-compatibility for old tests.
+        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
+            return recoveryDiff(recoveryTargetSnapshot, false);
         }
 
         /**
@@ -1714,7 +1696,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * <p>
          * NOTE: this diff will not contain the {@code segments.gen} file. This file is omitted on recovery.
          */
-        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot, Boolean isOptimizedIndex) {
+        public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot, boolean isOptimizedIndex) {
             final List<StoreFileMetadata> identical = new ArrayList<>();
             final List<StoreFileMetadata> different = new ArrayList<>();
             final List<StoreFileMetadata> missing = new ArrayList<>();
@@ -1727,14 +1709,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     if (storeFileMetadata == null) {
                         consistent = false;
                         missing.add(meta);
-                    } else if(isOptimizedIndex) {
-                            if(storeFileMetadata.isSameMultFormatFile(meta)) {
-                                identicalFiles.add(meta);
-                            } else {
-                                different.add(meta);
-                            }
-                    }
-                    else if (storeFileMetadata.isSame(meta) == false) {
+                    } else if (isOptimizedIndex) {
+                        if (storeFileMetadata.isSameIgnoringHash(meta)) {
+                            identicalFiles.add(meta);
+                        } else {
+                            different.add(meta);
+                            consistent = false;
+                        }
+                    } else if (storeFileMetadata.isSame(meta) == false) {
                         consistent = false;
                         different.add(meta);
                     } else {
@@ -1822,7 +1804,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A class representing the diff between a recovery source and recovery target
      *
-     * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot, Boolean)
+     * @see MetadataSnapshot#recoveryDiff(org.opensearch.index.store.Store.MetadataSnapshot, boolean)
      *
      * @opensearch.api
      */

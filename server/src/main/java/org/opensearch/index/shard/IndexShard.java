@@ -2335,7 +2335,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
             commitUserData.putAll(segmentInfos.getUserData());
             numDocs = Lucene.getNumDocs(segmentInfos);
-            logger.debug("Read commit user data from segments file for shard [{}]: historyUUID={}", 
+            logger.debug("Read commit user data from segments file for shard [{}]: historyUUID={}",
                 shardId, commitUserData.get(Engine.HISTORY_UUID_KEY));
         } catch (org.apache.lucene.index.IndexNotFoundException e) {
             // No segments file yet - this is okay for empty shards during initial recovery
@@ -3175,36 +3175,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // fails with TranslogCorruptedException. It is safe to create empty translog for remote store enabled
                     // indices as replica would only need to read translog in failover scenario and we always fetch data
                     // from remote translog at the time of failover.
-                    try {
-                        final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
-                        final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
-                        final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                        Translog.createEmptyTranslog(
-                            shardPath().resolveTranslog(),
-                            shardId(),
-                            checkpoint,
-                            getPendingPrimaryTerm(),
-                            translogUUID,
-                            FileChannel::open
-                        );
-                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                        // For optimized indices recovering from an empty primary, there may be no segments_N file yet.
-                        // Create an empty translog with a fresh UUID - the CompositeEngine will manage the actual
-                        // translog UUID via CatalogSnapshot.
-                        if (isOptimizedIndex()) {
-                            logger.debug(
-                                "No segments file found for optimized index replica during peer recovery, creating fresh translog"
-                            );
-                            Translog.createEmptyTranslog(
-                                shardPath().resolveTranslog(),
-                                SequenceNumbers.NO_OPS_PERFORMED,
-                                shardId(),
-                                getPendingPrimaryTerm()
-                            );
-                        } else {
-                            throw e;
-                        }
-                    }
+                    final SegmentInfos lastCommittedSegmentInfos = store().readLastCommittedSegmentsInfo();
+                    final String translogUUID = lastCommittedSegmentInfos.userData.get(TRANSLOG_UUID_KEY);
+                    final long checkpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                    Translog.createEmptyTranslog(
+                        shardPath().resolveTranslog(),
+                        shardId(),
+                        checkpoint,
+                        getPendingPrimaryTerm(),
+                        translogUUID,
+                        FileChannel::open
+                    );
                 }
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
@@ -6158,9 +6139,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.debug("File {} with format {} does not exist in local FS, downloading from remote store",
                 fileMetadata.file(), fileMetadata.dataFormat());
         } catch (IOException e) {
-            // Check if root cause is "file not found" - MultiFormatStoreException can wrap exceptions
-            // multiple levels deep (e.g., calculateChecksum wraps openIndexInput which wraps the original).
-            // Walk the full cause chain to find any file-not-found signal.
             if (isFileNotFoundException(e)) {
                 logger.debug("File {} with format {} does not exist in local FS (wrapped exception), downloading from remote store",
                     fileMetadata.file(), fileMetadata.dataFormat());

@@ -85,7 +85,6 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
                 return;
             }
             Collection<WriterFileSet> newFiles = catalogSnapshot.getRef().getSearchableFiles(dataFormat);
-
             this.current = new DatafusionReader(this.path, catalogSnapshot, catalogSnapshot.getRef().getSearchableFiles(dataFormat));
             if (old != null) {
                 release(old);
