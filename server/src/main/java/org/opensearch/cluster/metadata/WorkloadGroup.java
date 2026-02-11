@@ -79,6 +79,16 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         this.updatedAtInMillis = updatedAt;
     }
 
+    public static boolean isValid(long updatedAt) {
+        long minValidTimestamp = Instant.ofEpochMilli(0L).getMillis();
+
+        // Use Instant.now() to get the current time in seconds since epoch
+        long currentSeconds = Instant.now().getMillis();
+
+        // Check if the timestamp is within a reasonable range
+        return minValidTimestamp <= updatedAt && updatedAt <= currentSeconds;
+    }
+
     public WorkloadGroup(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), new MutableWorkloadGroupFragment(in), in.readLong());
     }

@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.opensearch.cluster.metadata.WorkloadGroup.isValid;
+
 /**
  * This is the validator for rule. It ensures that the rule has a valid description, feature value,
  * update time, attribute map, and the rule adheres to the feature type's constraints.
@@ -121,7 +123,7 @@ public class RuleValidator {
     }
 
     private List<String> validateUpdatedAtEpoch() {
-        if (updatedAt != null && Instant.parse(updatedAt).getMillis() <= 0L) {
+        if (updatedAt != null && !isValid(Instant.parse(updatedAt).getMillis())) {
             return List.of("Rule update time is not a valid epoch");
         }
         return new ArrayList<>();
