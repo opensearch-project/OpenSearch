@@ -264,6 +264,7 @@ jobs:
     with:
       wazuh-branch: ${{ needs.branches.outputs.wazuh_ref }}
       build-type: 'release'
+      arch: ${{ inputs.architecture }}
 
   build-wazuh-plugins:
     needs: [compatibility-check, branches]
