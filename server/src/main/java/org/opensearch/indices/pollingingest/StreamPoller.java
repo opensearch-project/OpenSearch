@@ -84,10 +84,24 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     void requestConsumerReinitialization(IngestionSource updatedIngestionSource);
 
     /**
+     * @return true if the warmup phase is complete and the shard is ready to serve
+     */
+    boolean isWarmupComplete();
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * @param timeoutMs maximum time to wait in milliseconds
+     * @return true if warmup completed, false if timeout
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException;
+
+    /**
      * A state to indicate the current state of the poller
      */
     enum State {
         NONE,
+        WARMING_UP,
         CLOSED,
         PAUSED,
         POLLING,

@@ -95,7 +95,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled - disabled for existing tests
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -169,7 +173,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -203,7 +211,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
 
         // Set up latch to wait for 2 messages to be processed
@@ -245,7 +257,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -331,7 +347,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -394,7 +414,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -431,7 +455,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -504,7 +532,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -574,7 +606,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
 
         poller.start();
@@ -617,7 +653,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
 
         // Start and wait for 2 messages to be processed
@@ -673,7 +713,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
 
         // Start poller
@@ -717,10 +761,327 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             1000,
             10000,
             indexSettings,
-            new DefaultIngestionMessageMapper()
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
         );
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
         assertNull(poller.getBatchStartPointer());
+    }
+
+    // ==================== Warmup Tests ====================
+
+    public void testWarmupDisabledBehavior() {
+        // When warmup is disabled, isWarmupComplete should return true immediately
+        // The default poller in setUp has warmupEnabled=false
+        assertTrue(poller.isWarmupComplete()); // Warmup disabled means it's considered complete
+
+        // Create another poller with warmup explicitly disabled
+        DefaultStreamPoller warmupDisabledPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled = false
+            300000,
+            0,
+            false
+        );
+
+        // Warmup should be considered complete when disabled
+        assertTrue(warmupDisabledPoller.isWarmupComplete());
+        warmupDisabledPoller.close();
+    }
+
+    public void testWarmupCompletesImmediatelyWhenLagIsZero() throws InterruptedException {
+        // Create a poller with warmup enabled and lag threshold of 0
+        // FakeIngestionSource returns 0 for lag by default
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled = true
+            300000, // warmupTimeoutMs = 5 minutes
+            0, // warmupLagThreshold = 0 (fully caught up)
+            false // warmupFailOnTimeout
+        );
+
+        // Initially warmup is not complete
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        // Start the poller - it should complete warmup quickly since lag is 0
+        warmupPoller.start();
+
+        // Wait for warmup with timeout
+        boolean completed = warmupPoller.awaitWarmupComplete(5000);
+        assertTrue("Warmup should complete when lag is at threshold", completed);
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testWarmupTimesOutAndProceeds() throws InterruptedException, TimeoutException {
+        // Create a mock consumer factory that always reports high lag
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+        when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L); // High lag
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled = true
+            500, // warmupTimeoutMs = 500ms (short timeout for test)
+            0, // warmupLagThreshold = 0
+            false // warmupFailOnTimeout = false (proceed on timeout)
+        );
+
+        warmupPoller.start();
+
+        // Wait for timeout - should eventually complete due to timeout
+        boolean completed = warmupPoller.awaitWarmupComplete(2000);
+        // Even if lag never reaches threshold, warmup completes on timeout
+        assertTrue("Warmup should complete after timeout", warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testWarmupStateTransitions() throws InterruptedException {
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled = true
+            300000, // warmupTimeoutMs
+            0, // warmupLagThreshold
+            false // warmupFailOnTimeout
+        );
+
+        // Initial state should be NONE
+        assertEquals(StreamPoller.State.NONE, warmupPoller.getState());
+
+        warmupPoller.start();
+
+        // Give it time to start
+        Thread.sleep(200);
+
+        // State should eventually transition from WARMING_UP to POLLING/PROCESSING
+        // (since lag should be 0 from fake source)
+        warmupPoller.awaitWarmupComplete(5000);
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testIsWarmupFailOnTimeout() {
+        // Test with fail on timeout = true
+        DefaultStreamPoller failOnTimeoutPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled
+            300000,
+            0,
+            true // warmupFailOnTimeout = true
+        );
+
+        assertTrue(failOnTimeoutPoller.isWarmupFailOnTimeout());
+        failOnTimeoutPoller.close();
+
+        // Test with fail on timeout = false
+        DefaultStreamPoller proceedOnTimeoutPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled
+            300000,
+            0,
+            false // warmupFailOnTimeout = false
+        );
+
+        assertFalse(proceedOnTimeoutPoller.isWarmupFailOnTimeout());
+        proceedOnTimeoutPoller.close();
+    }
+
+    public void testWarmupCompletesViaTimeoutWhenPointerLagNegative() throws InterruptedException, TimeoutException {
+        // Create a mock consumer factory that returns negative pointer-based lag (unsupported)
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+        when(mockConsumer.getPointerBasedLag(any())).thenReturn(-1L); // Negative means unsupported
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled = true
+            500, // warmupTimeoutMs = 500ms (short for test)
+            0, // warmupLagThreshold = 0
+            false // warmupFailOnTimeout
+        );
+
+        warmupPoller.start();
+
+        // Should eventually complete via timeout since negative lag won't satisfy threshold
+        boolean completed = warmupPoller.awaitWarmupComplete(2000);
+        assertTrue("Warmup should complete after timeout when pointer lag is unsupported", warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testWarmupWithNonZeroLagThreshold() throws InterruptedException, TimeoutException {
+        // Create a mock consumer factory that reports lag slightly above threshold then drops to threshold
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+        // Return lag of 50 which is below threshold of 100
+        when(mockConsumer.getPointerBasedLag(any())).thenReturn(50L);
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            true, // warmupEnabled = true
+            30000, // warmupTimeoutMs = 30s
+            100, // warmupLagThreshold = 100 (lag of 50 should be below this)
+            false // warmupFailOnTimeout
+        );
+
+        warmupPoller.start();
+
+        // Should complete quickly since lag (50) is below threshold (100)
+        boolean completed = warmupPoller.awaitWarmupComplete(5000);
+        assertTrue("Warmup should complete when lag is below threshold", completed);
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testWarmupAwaitReturnsImmediatelyWhenAlreadyComplete() throws InterruptedException {
+        // Create a poller with warmup disabled (which means warmup is considered complete)
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            false, // warmupEnabled = false
+            300000,
+            0,
+            false
+        );
+
+        // Should return immediately without blocking since warmup is disabled
+        long startTime = System.currentTimeMillis();
+        boolean completed = warmupPoller.awaitWarmupComplete(60000);
+        long elapsed = System.currentTimeMillis() - startTime;
+
+        assertTrue("Should return true when warmup is disabled", completed);
+        assertTrue("Should return immediately (< 1000ms)", elapsed < 1000);
+
+        warmupPoller.close();
     }
 }
