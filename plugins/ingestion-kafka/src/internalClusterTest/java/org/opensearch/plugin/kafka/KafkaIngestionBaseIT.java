@@ -205,6 +205,7 @@ public class KafkaIngestionBaseIT extends OpenSearchIntegTestCase {
                 // set custom kafka consumer properties
                 .put("ingestion_source.param.fetch.min.bytes", 30000)
                 .put("ingestion_source.param.enable.auto.commit", false)
+                .put("ingestion_source.warmup.enabled", false)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
         );

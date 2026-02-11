@@ -157,6 +157,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -398,6 +399,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .put("index.gc_deletes", "0")
                 .build(),
@@ -510,6 +512,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -555,6 +558,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.internal_queue_size", "1000")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -673,6 +677,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.routing.allocation.require._name", nodeA)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -724,6 +729,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "earliest")
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.routing.allocation.require._name", nodeA)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -787,6 +793,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -850,6 +857,7 @@ public class RemoteStoreKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .put("index.periodic_flush_interval", "5s")
                 .build(),

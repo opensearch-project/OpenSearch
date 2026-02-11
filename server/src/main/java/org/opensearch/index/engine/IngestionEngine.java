@@ -155,6 +155,10 @@ public class IngestionEngine extends InternalEngine {
             .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .mapperType(ingestionSource.getMapperType())
             .mapperSettings(ingestionSource.getMapperSettings())
+            .warmupEnabled(ingestionSource.isWarmupEnabled())
+            .warmupTimeoutMs(ingestionSource.getWarmupTimeout().millis())
+            .warmupLagThreshold(ingestionSource.getWarmupLagThreshold())
+            .warmupFailOnTimeout(ingestionSource.isWarmupFailOnTimeout())
             .build();
         registerStreamPollerListener();
 
@@ -661,5 +665,54 @@ public class IngestionEngine extends InternalEngine {
             streamPoller.isWriteBlockEnabled(),
             shardPointer != null ? shardPointer.toString() : ""
         );
+    }
+
+    /**
+     * Returns true if the warmup phase is complete and the shard is ready to serve.
+     */
+    public boolean isWarmupComplete() {
+        return streamPoller.isWarmupComplete();
+    }
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * This method handles all warmup logic internally including timeout handling and error throwing.
+     *
+     * @throws OpenSearchException if warmup times out and failOnTimeout is configured
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    public void awaitWarmupComplete() throws InterruptedException {
+        IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
+        if (ingestionSource == null || !ingestionSource.isWarmupEnabled()) {
+            return;
+        }
+
+        long timeoutMs = ingestionSource.getWarmupTimeout().millis();
+        boolean completed = streamPoller.awaitWarmupComplete(timeoutMs);
+
+        if (!completed) {
+            if (isWarmupFailOnTimeout()) {
+                throw new OpenSearchException(
+                    "Ingestion warmup timed out for shard after "
+                        + timeoutMs
+                        + "ms. "
+                        + "Configure warmup.fail_on_timeout=false to proceed with stale data."
+                );
+            }
+            // Log warning when proceeding despite timeout
+            logger.warn(
+                "Ingestion warmup timed out for shard after {}ms, proceeding with potentially stale data. "
+                    + "Set warmup.fail_on_timeout=true to fail shard initialization on timeout.",
+                timeoutMs
+            );
+        }
+    }
+
+    /**
+     * Returns true if shard initialization should fail when warmup times out.
+     */
+    public boolean isWarmupFailOnTimeout() {
+        IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
+        return ingestionSource != null && ingestionSource.isWarmupFailOnTimeout();
     }
 }

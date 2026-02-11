@@ -108,7 +108,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}, warmupConfig=WarmupConfig{enabled=true, timeout=5m, lagThreshold=0, failOnTimeout=false}}";
         assertEquals(expected, source.toString());
     }
 
@@ -176,5 +176,111 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         assertTrue(sourceNoMapperSettings.getMapperSettings().isEmpty());
+    }
+
+    public void testWarmupConfigurationConstructorAndGetters() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("key", "value");
+
+        // Test with warmup configuration
+        IngestionSource source = new IngestionSource.Builder("type").setParams(params)
+            .setPointerInitReset(pointerInitReset)
+            .setErrorStrategy(DROP)
+            .setWarmupEnabled(true)
+            .setWarmupTimeout(TimeValue.timeValueMinutes(10))
+            .setWarmupLagThreshold(100)
+            .setWarmupFailOnTimeout(true)
+            .build();
+
+        assertTrue("Warmup should be enabled", source.isWarmupEnabled());
+        assertEquals(TimeValue.timeValueMinutes(10), source.getWarmupTimeout());
+        assertEquals(100, source.getWarmupLagThreshold());
+        assertTrue("Should fail on timeout", source.isWarmupFailOnTimeout());
+    }
+
+    public void testWarmupConfigurationDefaults() {
+        // Test default warmup values
+        IngestionSource source = new IngestionSource.Builder("type").build();
+
+        assertTrue("Warmup should be enabled by default", source.isWarmupEnabled());
+        assertEquals(TimeValue.timeValueMinutes(5), source.getWarmupTimeout());
+        assertEquals(0, source.getWarmupLagThreshold());
+        assertFalse("Should not fail on timeout by default", source.isWarmupFailOnTimeout());
+    }
+
+    public void testWarmupConfigurationEquality() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("key", "value");
+
+        IngestionSource source1 = new IngestionSource.Builder("type").setParams(params)
+            .setWarmupEnabled(true)
+            .setWarmupLagThreshold(100)
+            .build();
+
+        IngestionSource source2 = new IngestionSource.Builder("type").setParams(params)
+            .setWarmupEnabled(true)
+            .setWarmupLagThreshold(100)
+            .build();
+
+        assertEquals(source1, source2);
+        assertEquals(source1.hashCode(), source2.hashCode());
+
+        // Test inequality with different warmup settings
+        IngestionSource source3 = new IngestionSource.Builder("type").setParams(params)
+            .setWarmupEnabled(false)
+            .setWarmupLagThreshold(100)
+            .build();
+
+        assertNotEquals(source1, source3);
+    }
+
+    public void testWarmupConfigurationCopiedByBuilder() {
+        IngestionSource original = new IngestionSource.Builder("type").setWarmupEnabled(true)
+            .setWarmupTimeout(TimeValue.timeValueMinutes(10))
+            .setWarmupLagThreshold(500)
+            .setWarmupFailOnTimeout(true)
+            .build();
+
+        // Create a copy using the copy constructor
+        IngestionSource copy = new IngestionSource.Builder(original).build();
+
+        assertEquals(original.isWarmupEnabled(), copy.isWarmupEnabled());
+        assertEquals(original.getWarmupTimeout(), copy.getWarmupTimeout());
+        assertEquals(original.getWarmupLagThreshold(), copy.getWarmupLagThreshold());
+        assertEquals(original.isWarmupFailOnTimeout(), copy.isWarmupFailOnTimeout());
+    }
+
+    public void testWarmupConfigClass() {
+        IngestionSource.WarmupConfig config1 = new IngestionSource.WarmupConfig(true, TimeValue.timeValueMinutes(10), 100, true);
+
+        assertEquals(true, config1.isEnabled());
+        assertEquals(TimeValue.timeValueMinutes(10), config1.getTimeout());
+        assertEquals(100, config1.getLagThreshold());
+        assertEquals(true, config1.isFailOnTimeout());
+
+        // Test equals and hashCode
+        IngestionSource.WarmupConfig config2 = new IngestionSource.WarmupConfig(true, TimeValue.timeValueMinutes(10), 100, true);
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+
+        // Test inequality
+        IngestionSource.WarmupConfig config3 = new IngestionSource.WarmupConfig(false, TimeValue.timeValueMinutes(10), 100, true);
+        assertNotEquals(config1, config3);
+
+        // Test toString
+        String expectedToString = "WarmupConfig{enabled=true, timeout=10m, lagThreshold=100, failOnTimeout=true}";
+        assertEquals(expectedToString, config1.toString());
+    }
+
+    public void testSetWarmupConfig() {
+        IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(true, TimeValue.timeValueMinutes(15), 200, true);
+
+        IngestionSource source = new IngestionSource.Builder("type").setWarmupConfig(warmupConfig).build();
+
+        assertEquals(warmupConfig, source.getWarmupConfig());
+        assertTrue(source.isWarmupEnabled());
+        assertEquals(TimeValue.timeValueMinutes(15), source.getWarmupTimeout());
+        assertEquals(200, source.getWarmupLagThreshold());
+        assertTrue(source.isWarmupFailOnTimeout());
     }
 }
