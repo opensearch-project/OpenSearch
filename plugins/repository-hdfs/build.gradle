@@ -76,7 +76,7 @@ dependencies {
   implementation 'com.google.re2j:re2j:1.8'
   api 'javax.servlet:servlet-api:2.5'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   api "net.minidev:json-smart:${versions.json_smart}"
   api "io.netty:netty-all:${versions.netty}"
   implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
