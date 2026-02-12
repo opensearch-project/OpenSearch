@@ -2490,15 +2490,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             // Wait for ingestion warmup if enabled (pull-based ingestion only)
             Engine engine = getEngine();
-            if (engine instanceof IngestionEngine) {
-                IngestionEngine ingestionEngine = (IngestionEngine) engine;
-                try {
-                    ingestionEngine.awaitWarmupComplete();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new OpenSearchException("Interrupted waiting for ingestion warmup", e);
-                }
-            }
+            handlePullBasedIngestionWarmup(engine);
 
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
@@ -2509,6 +2501,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
+            }
+        }
+    }
+
+    /**
+     * Handles warmup for pull-based ingestion (PBI) engines.
+     * When warmup is enabled, this method blocks until the shard has caught up with the streaming source
+     * or until the configured timeout is reached.
+     *
+     * @param engine the engine to check for warmup
+     */
+    private void handlePullBasedIngestionWarmup(Engine engine) {
+        if (engine instanceof IngestionEngine) {
+            IngestionEngine ingestionEngine = (IngestionEngine) engine;
+            try {
+                ingestionEngine.awaitWarmupComplete();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for ingestion warmup", e);
             }
         }
     }
