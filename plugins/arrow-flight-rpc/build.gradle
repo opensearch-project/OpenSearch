@@ -227,7 +227,6 @@ tasks.named('thirdPartyAudit').configure {
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
     'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent',
 
     // Guava internal classes
     'com.google.common.cache.Striped64',

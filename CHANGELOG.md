@@ -9,7 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support expected cluster name with validation in CCS Sniff mode ([#20532](https://github.com/opensearch-project/OpenSearch/pull/20532))
 - Choose the best performing node when writing with append-only index ([#20065](https://github.com/opensearch-project/OpenSearch/pull/20065))
 - Add security policy to allow `accessUnixDomainSocket` in `transport-grpc` module ([#20463](https://github.com/opensearch-project/OpenSearch/pull/20463))
+- Add range validations in query builder and field mapper ([#20497](https://github.com/opensearch-project/OpenSearch/issues/20497))
 - [Workload Management] Enhance Scroll API support for autotagging ([#20151](https://github.com/opensearch-project/OpenSearch/pull/20151))
+- Add indices to search request slowlog ([#20588](https://github.com/opensearch-project/OpenSearch/pull/20588))
 
 ### Changed
 - Move Randomness from server to libs/common ([#20570](https://github.com/opensearch-project/OpenSearch/pull/20570))
@@ -21,10 +23,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [segment replication] Fix segment replication infinite retry due to stale metadata checkpoint ([#20551](https://github.com/opensearch-project/OpenSearch/pull/20551))
 - Changing opensearch.cgroups.hierarchy.override causes java.lang.SecurityException exception ([#20565](https://github.com/opensearch-project/OpenSearch/pull/20565))
 - Fix CriteriaBasedCodec to work with delegate codec. ([20442](https://github.com/opensearch-project/OpenSearch/pull/20442))
+- Fix WLM workload group creation failing due to updated_at clock skew ([#20486](https://github.com/opensearch-project/OpenSearch/pull/20486))
 
 ### Dependencies
 - Bump `ch.qos.logback:logback-core` and `ch.qos.logback:logback-classic` from 1.5.24 to 1.5.27 ([#20525](https://github.com/opensearch-project/OpenSearch/pull/20525))
+- Bump `org.apache.commons:commons-text` from 1.14.0 to 1.15.0 ([#20576](https://github.com/opensearch-project/OpenSearch/pull/20576))
 - Bump `aws-actions/configure-aws-credentials` from 5 to 6 ([#20577](https://github.com/opensearch-project/OpenSearch/pull/20577))
+- Bump `netty` from 4.2.9.Final to 4.2.10.Final ([#20586](https://github.com/opensearch-project/OpenSearch/pull/20586))
+- Bump `reactor-netty` from 1.3.2 to 1.3.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
+- Bump `reactor` from 3.8.2 to 3.8.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
 
 ### Removed
 
