@@ -611,14 +611,14 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             compressor,
             Version.CURRENT
         );
-        when(blobContainer.readBlob(indexName)).thenReturn(
-            remoteRoutingTableDiff.remoteRoutingTableDiffFormat.serialize(diff, uploadedFileName, compressor).streamInput()
+        when(blobContainer.readBlob(indexName)).thenAnswer(
+            invocation -> remoteRoutingTableDiff.remoteRoutingTableDiffFormat.serialize(diff, uploadedFileName, compressor).streamInput()
         );
 
-        TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
-        CountDownLatch latch = new CountDownLatch(1);
-
         for (Version version : List.of(Version.CURRENT, Version.V_3_1_0, Version.V_3_2_0)) {
+            TestCapturingListener<Diff<RoutingTable>> listener = new TestCapturingListener<>();
+            CountDownLatch latch = new CountDownLatch(1);
+
             remoteRoutingTableService.getAsyncIndexRoutingTableDiffReadAction(
                 "cluster-uuid",
                 uploadedFileName,
