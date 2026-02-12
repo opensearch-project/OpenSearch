@@ -45,6 +45,10 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
     private final List<String> requestedIndices;
 
     public IndexPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
+        this(pageParams, clusterState, metadata -> true);
+    }
+
+    public IndexPaginationStrategy(PageParams pageParams, ClusterState clusterState, Predicate<IndexMetadata> authorizationFilter) {
 
         IndexStrategyToken requestedToken = Objects.isNull(pageParams.getRequestedToken()) || pageParams.getRequestedToken().isEmpty()
             ? null
@@ -54,7 +58,8 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
             clusterState,
             pageParams.getSort(),
             Objects.isNull(requestedToken) ? null : requestedToken.lastIndexName,
-            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime
+            Objects.isNull(requestedToken) ? null : requestedToken.lastIndexCreationTime,
+            authorizationFilter
         );
 
         // Trim sortedIndicesList to get the list of indices metadata to be sent as response
@@ -72,20 +77,12 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
         ClusterState clusterState,
         String sortOrder,
         String lastIndexName,
-        Long lastIndexCreationTime
+        Long lastIndexCreationTime,
+        Predicate<IndexMetadata> authorizationFilter
     ) {
-        if (Objects.isNull(lastIndexName) || Objects.isNull(lastIndexCreationTime)) {
-            return PaginationStrategy.getSortedIndexMetadata(
-                clusterState,
-                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
-            );
-        } else {
-            return PaginationStrategy.getSortedIndexMetadata(
-                clusterState,
-                getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime),
-                PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR
-            );
-        }
+        Comparator<IndexMetadata> comparator = PageParams.PARAM_ASC_SORT_VALUE.equals(sortOrder) ? ASC_COMPARATOR : DESC_COMPARATOR;
+        Predicate<IndexMetadata> paginationFilter = getMetadataFilter(sortOrder, lastIndexName, lastIndexCreationTime);
+        return PaginationStrategy.getSortedIndexMetadata(clusterState, paginationFilter.and(authorizationFilter), comparator);
     }
 
     private static Predicate<IndexMetadata> getMetadataFilter(String sortOrder, String lastIndexName, Long lastIndexCreationTime) {

@@ -25,6 +25,8 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.opensearch.action.pagination.PageParams.PARAM_ASC_SORT_VALUE;
@@ -352,6 +354,61 @@ public class IndexPaginationStrategyTests extends OpenSearchTestCase {
         }
     }
 
+    public void testFilteredPaginationExcludesUnauthorizedIndices() {
+        // Create a cluster state with regular indices and system-like indices
+        ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3, 4, 5));
+        clusterState = addIndexToClusterState(clusterState, ".system-index", 6);
+        clusterState = addIndexToClusterState(clusterState, ".opendistro_security", 7);
+
+        // Simulate an authorization filter that only allows test-index-* indices
+        Set<String> authorizedIndices = Set.of("test-index-1", "test-index-2", "test-index-3", "test-index-4", "test-index-5");
+        Predicate<IndexMetadata> authFilter = metadata -> authorizedIndices.contains(metadata.getIndex().getName());
+
+        // First page: size=3, ascending
+        PageParams pageParams = new PageParams(null, PARAM_ASC_SORT_VALUE, 3);
+        IndexPaginationStrategy strategy = new IndexPaginationStrategy(pageParams, clusterState, authFilter);
+        assertEquals(3, strategy.getRequestedEntities().size());
+        assertEquals("test-index-1", strategy.getRequestedEntities().get(0));
+        assertEquals("test-index-2", strategy.getRequestedEntities().get(1));
+        assertEquals("test-index-3", strategy.getRequestedEntities().get(2));
+        assertNotNull(strategy.getResponseToken().getNextToken());
+        // System indices should not appear
+        assertFalse(strategy.getRequestedEntities().contains(".system-index"));
+        assertFalse(strategy.getRequestedEntities().contains(".opendistro_security"));
+
+        // Second page: should contain remaining authorized indices
+        pageParams = new PageParams(strategy.getResponseToken().getNextToken(), PARAM_ASC_SORT_VALUE, 3);
+        strategy = new IndexPaginationStrategy(pageParams, clusterState, authFilter);
+        assertEquals(2, strategy.getRequestedEntities().size());
+        assertEquals("test-index-4", strategy.getRequestedEntities().get(0));
+        assertEquals("test-index-5", strategy.getRequestedEntities().get(1));
+        assertNull(strategy.getResponseToken().getNextToken());
+        assertFalse(strategy.getRequestedEntities().contains(".system-index"));
+        assertFalse(strategy.getRequestedEntities().contains(".opendistro_security"));
+    }
+
+    public void testFilteredPaginationWithDescOrder() {
+        ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3));
+        clusterState = addIndexToClusterState(clusterState, ".security-index", 4);
+
+        Set<String> authorizedIndices = Set.of("test-index-1", "test-index-2", "test-index-3");
+        Predicate<IndexMetadata> authFilter = metadata -> authorizedIndices.contains(metadata.getIndex().getName());
+
+        PageParams pageParams = new PageParams(null, PARAM_DESC_SORT_VALUE, 2);
+        IndexPaginationStrategy strategy = new IndexPaginationStrategy(pageParams, clusterState, authFilter);
+        assertEquals(2, strategy.getRequestedEntities().size());
+        assertEquals("test-index-3", strategy.getRequestedEntities().get(0));
+        assertEquals("test-index-2", strategy.getRequestedEntities().get(1));
+        assertNotNull(strategy.getResponseToken().getNextToken());
+        assertFalse(strategy.getRequestedEntities().contains(".security-index"));
+
+        pageParams = new PageParams(strategy.getResponseToken().getNextToken(), PARAM_DESC_SORT_VALUE, 2);
+        strategy = new IndexPaginationStrategy(pageParams, clusterState, authFilter);
+        assertEquals(1, strategy.getRequestedEntities().size());
+        assertEquals("test-index-1", strategy.getRequestedEntities().get(0));
+        assertNull(strategy.getResponseToken().getNextToken());
+    }
+
     /**
      * @param indexNumbers would be used to create indices having names with integer appended after foo, like foo1, foo2.
      * @return random clusterState consisting of indices having their creation times set to the integer used to name them.
@@ -368,9 +425,13 @@ public class IndexPaginationStrategyTests extends OpenSearchTestCase {
     }
 
     private ClusterState addIndexToClusterState(ClusterState clusterState, int indexNumber) {
-        IndexMetadata indexMetadata = IndexMetadata.builder("test-index-" + indexNumber)
+        return addIndexToClusterState(clusterState, "test-index-" + indexNumber, indexNumber);
+    }
+
+    private ClusterState addIndexToClusterState(ClusterState clusterState, String indexName, int creationOrder) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(
-                settings(Version.CURRENT).put(SETTING_CREATION_DATE, Instant.now().plus(indexNumber, ChronoUnit.SECONDS).toEpochMilli())
+                settings(Version.CURRENT).put(SETTING_CREATION_DATE, Instant.now().plus(creationOrder, ChronoUnit.SECONDS).toEpochMilli())
             )
             .numberOfShards(between(1, 10))
             .numberOfReplicas(randomInt(20))
