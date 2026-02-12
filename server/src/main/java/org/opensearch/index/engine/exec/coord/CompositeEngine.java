@@ -223,6 +223,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         TranslogEventListener translogEventListener
     ) {
+        this(engineConfig, mapperService, pluginsService, indexSettings, shardPath, localCheckpointTrackerSupplier, translogEventListener, true);
+    }
+
+    public CompositeEngine(
+        EngineConfig engineConfig,
+        MapperService mapperService,
+        PluginsService pluginsService,
+        IndexSettings indexSettings,
+        ShardPath shardPath,
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+        TranslogEventListener translogEventListener,
+        boolean deleteUnreferencedFiles
+    ) {
         this.logger = Loggers.getLogger(CompositeEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.eventListener = engineConfig.getEventListener();
@@ -305,14 +318,15 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             }
 
             logger.debug("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
-            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);
-            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
             this.engine = new CompositeIndexingExecutionEngine(
                 mapperService,
                 pluginsService,
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet()
             );
+            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
+            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
+
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
 
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {

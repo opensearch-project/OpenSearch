@@ -5693,7 +5693,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 indexSettings,
                 path,
                 LocalCheckpointTracker::new,
-                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
+                TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
+                false
             );
             oldCompositeEngine = currentCompositeEngineReference.getAndSet(newCompositeEngine);
 
@@ -6234,7 +6235,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
-        getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
+        getIndexer().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
     }
 
     /**
