@@ -44,6 +44,7 @@ import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class ProfileScorerTests extends OpenSearchTestCase {
 
@@ -111,5 +112,24 @@ public class ProfileScorerTests extends OpenSearchTestCase {
 
         // Verify getWrappedScorer returns the original scorer
         assertSame(fakeScorer, profileScorer.getWrappedScorer());
+    }
+
+    public void testGetChildren_exposesWrappedScorerAsChild() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // getChildren() should expose the wrapped scorer as a child,
+        // making the scorer tree traversable through profiling wrappers.
+        // This enables plugins to discover custom scorers (e.g. HybridQueryScorer)
+        // through ProfileScorer via standard Lucene getChildren() traversal.
+        Collection<Scorer.ChildScorable> children = profileScorer.getChildren();
+        assertEquals("ProfileScorer should have exactly 1 child (the wrapped scorer)", 1, children.size());
+
+        Scorer.ChildScorable child = children.iterator().next();
+        assertSame("Child should be the wrapped scorer", fakeScorer, child.child());
+        assertEquals("Child relationship should be PROFILED", "PROFILED", child.relationship());
     }
 }
