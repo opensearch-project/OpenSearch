@@ -1,5 +1,9 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
 package org.opensearch.search.query;
@@ -102,7 +106,7 @@ public class Bitmap64DocValuesQuery extends Query implements Accountable {
                 }
 
                 final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, iterator);
-                return new DefaultScorerSupplier(scorer);
+                return new Weight.DefaultScorerSupplier(scorer);
             }
 
             @Override
@@ -141,9 +145,8 @@ public class Bitmap64DocValuesQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(Bitmap64DocValuesQuery.class)
-            + RamUsageEstimator.sizeOf(field)
-            + bitmap.getLongSizeInBytes();
+        return RamUsageEstimator.shallowSizeOfInstance(Bitmap64DocValuesQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
+            .getLongSizeInBytes();
     }
 
     @Override

@@ -74,14 +74,14 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.search.query.Bitmap64DocValuesQuery;
+import org.opensearch.search.query.Bitmap64IndexQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
-import org.opensearch.search.query.Bitmap64IndexQuery;
-import org.opensearch.search.query.Bitmap64DocValuesQuery;
 
-import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.ZoneId;
@@ -1382,15 +1382,13 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 Roaring64NavigableMap bitmap64 = new Roaring64NavigableMap();
                 try {
                     bitmap64.deserializePortable(new DataInputStream(new ByteArrayInputStream(bytes)));
-                } catch (Exception e) {
+                } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to deserialize the 64-bit bitmap.", e);
                 }
 
+                // Note: bitmap64 instance is safely shared between queries as both perform read-only operations
                 if (isSearchable && hasDocValues) {
-                    return new IndexOrDocValuesQuery(
-                        new Bitmap64IndexQuery(field, bitmap64),
-                        new Bitmap64DocValuesQuery(field, bitmap64)
-                    );
+                    return new IndexOrDocValuesQuery(new Bitmap64IndexQuery(field, bitmap64), new Bitmap64DocValuesQuery(field, bitmap64));
                 }
                 if (isSearchable) {
                     return new Bitmap64IndexQuery(field, bitmap64);

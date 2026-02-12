@@ -1,5 +1,9 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
  */
 
 package org.opensearch.search.query;
@@ -26,12 +30,11 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 
-import org.roaringbitmap.longlong.PeekableLongIterator;
-import org.roaringbitmap.longlong.Roaring64NavigableMap;
-
 import java.io.IOException;
-import java.util.Objects;
 import java.util.Arrays;
+import java.util.Objects;
+
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 /**
  * A query that matches all documents that contain a set of long values represented by a 64-bit bitmap
@@ -56,6 +59,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
 
     interface BitmapIterator extends BytesRefIterator {
         BytesRef next();
+
         void advance(byte[] target);
     }
 
@@ -63,15 +67,15 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
         return new BitmapIterator() {
             private final org.roaringbitmap.longlong.LongIterator it = bitmap.getLongIterator();
             private final BytesRef encoded = new BytesRef(new byte[Long.BYTES]);
-	    private final byte[] currentBytes = new byte[Long.BYTES];
+            private final byte[] currentBytes = new byte[Long.BYTES];
             private boolean hasBuffered = false;
 
             @Override
             public BytesRef next() {
-               if (hasBuffered) {
-                   hasBuffered = false;
-                   System.arraycopy(currentBytes, 0, encoded.bytes, 0, Long.BYTES);
-                   return encoded;
+                if (hasBuffered) {
+                    hasBuffered = false;
+                    System.arraycopy(currentBytes, 0, encoded.bytes, 0, Long.BYTES);
+                    return encoded;
                 }
 
                 if (!it.hasNext()) return null;
@@ -81,18 +85,18 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
                 return encoded;
             }
 
-             @Override
-             public void advance(byte[] target) {
+            @Override
+            public void advance(byte[] target) {
                 while (it.hasNext()) {
-                   long v = it.next();
-                   LongPoint.encodeDimension(v, currentBytes, 0);
+                    long v = it.next();
+                    LongPoint.encodeDimension(v, currentBytes, 0);
 
-                   if (Arrays.compareUnsigned(currentBytes, target) >= 0) {
-                       hasBuffered = true;
-                       return;
-                   }
-              }
-          }
+                    if (Arrays.compareUnsigned(currentBytes, target) >= 0) {
+                        hasBuffered = true;
+                        return;
+                    }
+                }
+            }
         };
     }
 
@@ -143,8 +147,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
         private final DocIdSetBuilder result;
         private final BitmapIterator iterator;
         private BytesRef nextQueryPoint;
-        private final ArrayUtil.ByteArrayComparator comparator =
-            ArrayUtil.getUnsignedComparator(Long.BYTES);
+        private final ArrayUtil.ByteArrayComparator comparator = ArrayUtil.getUnsignedComparator(Long.BYTES);
         private DocIdSetBuilder.BulkAdder adder;
 
         MergePointVisitor(DocIdSetBuilder result) {
@@ -237,8 +240,7 @@ public class Bitmap64IndexQuery extends Query implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.shallowSizeOfInstance(Bitmap64IndexQuery.class)
-            + RamUsageEstimator.sizeOf(field)
-            + bitmap.getLongSizeInBytes();
+        return RamUsageEstimator.shallowSizeOfInstance(Bitmap64IndexQuery.class) + RamUsageEstimator.sizeOf(field) + bitmap
+            .getLongSizeInBytes();
     }
 }

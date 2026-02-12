@@ -20,11 +20,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.test.OpenSearchTestCase;
-import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 /**
  * Tests for {@link Bitmap64DocValuesQuery}
@@ -35,12 +36,12 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
     public void testSingleValuePerDoc() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-       
+
         addDoc(writer, 1L);
         addDoc(writer, 2L);
         addDoc(writer, 3L);
         addDoc(writer, 4L);
-        
+
         writer.close();
 
         IndexReader reader = DirectoryReader.open(dir);
@@ -54,7 +55,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
         TopDocs topDocs = searcher.search(query, 10);
 
         assertEquals(2, topDocs.totalHits.value());
-       
+
         Set<Integer> matchedDocs = new HashSet<>();
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             matchedDocs.add(topDocs.scoreDocs[i].doc);
@@ -70,7 +71,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
     public void testMultiValuePerDoc() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-       
+
         addDoc(writer, 1L);
 
         Document doc = new Document();
@@ -81,9 +82,9 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
         writer.addDocument(doc);
 
         addDoc(writer, 3L);
-        
+
         addDoc(writer, 4L);
-        
+
         writer.close();
 
         IndexReader reader = DirectoryReader.open(dir);
@@ -96,7 +97,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
         TopDocs topDocs = searcher.search(query, 10);
 
         assertEquals(2, topDocs.totalHits.value());
-       
+
         Set<Integer> matchedDocs = new HashSet<>();
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             matchedDocs.add(topDocs.scoreDocs[i].doc);
@@ -110,7 +111,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
     public void testEmptyBitmap() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-        
+
         addDoc(writer, 42L);
         writer.close();
 
@@ -119,7 +120,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
 
         Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
         Query query = new Bitmap64DocValuesQuery("product_id", bitmap);
-        
+
         TopDocs topDocs = searcher.search(query, 10);
         assertEquals(0, topDocs.totalHits.value());
 
@@ -138,7 +139,7 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
     public void testRangeOptimization() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-       
+
         for (long i = 0; i < 100; i++) {
             addDoc(writer, i);
         }
@@ -150,10 +151,10 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
         for (long i = 10; i <= 20; i++) {
             bitmap.add(i);
         }
-        
+
         Query query = new Bitmap64DocValuesQuery("product_id", bitmap);
         TopDocs topDocs = searcher.search(query, 20);
-        
+
         assertEquals(11, topDocs.totalHits.value());
 
         reader.close();
@@ -163,14 +164,9 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
     public void testLargeValues() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
-       
-        long[] values = {
-            Long.MAX_VALUE - 100,
-            Long.MAX_VALUE - 50,
-            Long.MAX_VALUE - 10,
-            Long.MAX_VALUE - 1
-        };
-        
+
+        long[] values = { Long.MAX_VALUE - 100, Long.MAX_VALUE - 50, Long.MAX_VALUE - 10, Long.MAX_VALUE - 1 };
+
         for (long value : values) {
             addDoc(writer, value);
         }
@@ -182,30 +178,25 @@ public class Bitmap64DocValuesQueryTests extends OpenSearchTestCase {
         Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
         bitmap.add(Long.MAX_VALUE - 50);
         bitmap.add(Long.MAX_VALUE - 10);
-        
+
         Query query = new Bitmap64DocValuesQuery("product_id", bitmap);
         TopDocs topDocs = searcher.search(query, 10);
-        
+
         assertEquals(2, topDocs.totalHits.value());
 
         reader.close();
         dir.close();
     }
 
-
     public void testNullFieldThrowsException() {
         Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
         bitmap.add(1L);
-        
-        expectThrows(IllegalArgumentException.class, () -> {
-            new Bitmap64DocValuesQuery(null, bitmap);
-        });
+
+        expectThrows(IllegalArgumentException.class, () -> { new Bitmap64DocValuesQuery(null, bitmap); });
     }
 
     public void testNullBitmapThrowsException() {
-        expectThrows(IllegalArgumentException.class, () -> {
-            new Bitmap64DocValuesQuery("field", null);
-        });
+        expectThrows(IllegalArgumentException.class, () -> { new Bitmap64DocValuesQuery("field", null); });
     }
 
     /**
