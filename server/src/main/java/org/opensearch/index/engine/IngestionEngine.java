@@ -680,7 +680,7 @@ public class IngestionEngine extends InternalEngine {
      */
     public void awaitWarmupComplete() throws InterruptedException {
         IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
-        if (ingestionSource == null || !ingestionSource.isWarmupEnabled()) {
+        if (ingestionSource == null || !ingestionSource.isWarmupEnabled() || streamPoller.isPaused()) {
             return;
         }
 

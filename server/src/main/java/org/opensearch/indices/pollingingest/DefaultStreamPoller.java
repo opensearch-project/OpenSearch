@@ -424,6 +424,14 @@ public class DefaultStreamPoller implements StreamPoller {
      * is called.
      */
     private void checkWarmupStatus() {
+        // Skip warmup if poller is paused
+        if (paused) {
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.info("Warmup skipped for index {} shard {} - poller is paused", indexName, shardId);
+            return;
+        }
+
         long currentLag = cachedPointerBasedLag;
         long threshold = warmupConfig.getLagThreshold();
 
