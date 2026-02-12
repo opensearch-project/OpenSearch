@@ -1045,7 +1045,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD = "index.ingestion_source.warmup.lag_threshold";
     public static final Setting<Long> INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING = Setting.longSetting(
         SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD,
-        0L,
+        100L,
         0L,
         Property.IndexScope,
         Property.Final
