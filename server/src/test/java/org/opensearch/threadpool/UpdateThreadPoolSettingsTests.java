@@ -39,6 +39,7 @@ import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -249,6 +250,57 @@ public class UpdateThreadPoolSettingsTests extends OpenSearchThreadPoolTestCase 
     private String randomThreadPoolName() {
         Set<String> threadPoolNames = ThreadPool.THREAD_POOL_TYPES.keySet();
         return randomFrom(threadPoolNames.toArray(new String[0]));
+    }
+
+    public void testSearchThreadPoolsAreDynamicallyAdjustable() throws InterruptedException {
+        for (Settings settings : List.of(
+            Settings.builder().put("node.name", "testSearchThreadPoolsAreDynamicallyAdjustable").build(),
+            Settings.builder()
+                .put("node.name", "testSearchThreadPoolsAreDynamicallyAdjustable")
+                .put("opensearch.experimental.feature.search_virtual_threads.enabled", true)
+                .build()
+        )) {
+            ThreadPool threadPool = null;
+            try {
+                threadPool = new ThreadPool(Settings.builder().put("node.name", "testSearchThreadPoolsAreDynamicallyAdjustable").build());
+
+                int newSearchSize = 50;
+                threadPool.setThreadPool(Settings.builder().put("search.size", newSearchSize).build());
+                assertEquals(newSearchSize, info(threadPool, Names.SEARCH).getMax());
+                assertEquals(newSearchSize, info(threadPool, Names.SEARCH).getMin());
+
+                int newSearchQueue = 2000;
+                threadPool.setThreadPool(Settings.builder().put("search.queue_size", newSearchQueue).build());
+                assertEquals(newSearchQueue, info(threadPool, Names.SEARCH).getQueueSize().singles());
+
+                int newIndexSearcherSize = 30;
+                threadPool.setThreadPool(Settings.builder().put("index_searcher.size", newIndexSearcherSize).build());
+                assertEquals(newIndexSearcherSize, info(threadPool, Names.INDEX_SEARCHER).getMax());
+                assertEquals(newIndexSearcherSize, info(threadPool, Names.INDEX_SEARCHER).getMin());
+
+                int newIndexSearcherQueue = 1500;
+                threadPool.setThreadPool(Settings.builder().put("index_searcher.queue_size", newIndexSearcherQueue).build());
+                assertEquals(newIndexSearcherQueue, info(threadPool, Names.INDEX_SEARCHER).getQueueSize().singles());
+            } finally {
+                terminateThreadPoolIfNeeded(threadPool);
+            }
+        }
+    }
+
+    public void testOtherResizableThreadPoolsNotDynamicallyAdjustable() throws InterruptedException {
+        ThreadPool threadPool = null;
+        try {
+            threadPool = new ThreadPool(
+                Settings.builder().put("node.name", "testOtherResizableThreadPoolsNotDynamicallyAdjustable").build()
+            );
+
+            Settings settings = Settings.builder().put("search_throttled.queue_size", 500).build();
+            ThreadPool finalThreadPool = threadPool;
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> finalThreadPool.validateSetting(settings));
+            assertThat(e.getMessage(), containsString("does not support dynamic queue_size updates"));
+        } finally {
+            terminateThreadPoolIfNeeded(threadPool);
+        }
     }
 
 }

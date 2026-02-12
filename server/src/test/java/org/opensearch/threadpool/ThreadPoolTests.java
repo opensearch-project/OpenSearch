@@ -585,4 +585,46 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         ThreadPoolStats.Stats statsIn = new ThreadPoolStats.Stats(in);
         assertEquals(-1, statsIn.getParallelism());
     }
+
+    public void testThreadPoolSizeSettingsRespectedRegardlessOfFeatureFlag() {
+        int searchSize = 10;
+        int searcherSize = 5;
+
+        // Test with feature flag disabled
+        Settings settingsDisabled = Settings.builder()
+            .put("node.name", "testnode")
+            .put("thread_pool.search.size", searchSize)
+            .put("thread_pool.index_searcher.size", searcherSize)
+            .build();
+        ThreadPool threadPoolDisabled = new ThreadPool(settingsDisabled);
+
+        ThreadPool.Info searchInfo = threadPoolDisabled.info(ThreadPool.Names.SEARCH);
+        ThreadPool.Info indexSearcherInfo = threadPoolDisabled.info(ThreadPool.Names.INDEX_SEARCHER);
+
+        assertEquals(searchSize, searchInfo.getMax());
+        assertEquals(searcherSize, indexSearcherInfo.getMax());
+        assertEquals(ThreadPool.ThreadPoolType.RESIZABLE, searchInfo.getThreadPoolType());
+        assertEquals(ThreadPool.ThreadPoolType.RESIZABLE, indexSearcherInfo.getThreadPoolType());
+
+        terminate(threadPoolDisabled);
+
+        // Test with feature flag enabled
+        Settings settingsEnabled = Settings.builder()
+            .put("node.name", "testnode")
+            .put("opensearch.experimental.feature.search_virtual_threads.enabled", true)
+            .put("thread_pool.search.size", searchSize)
+            .put("thread_pool.index_searcher.size", searcherSize)
+            .build();
+        ThreadPool threadPoolEnabled = new ThreadPool(settingsEnabled);
+
+        searchInfo = threadPoolEnabled.info(ThreadPool.Names.SEARCH);
+        indexSearcherInfo = threadPoolEnabled.info(ThreadPool.Names.INDEX_SEARCHER);
+
+        assertEquals(searchSize, searchInfo.getMax());
+        assertEquals(searcherSize, indexSearcherInfo.getMax());
+        assertEquals(ThreadPool.ThreadPoolType.VIRTUAL, searchInfo.getThreadPoolType());
+        assertEquals(ThreadPool.ThreadPoolType.VIRTUAL, indexSearcherInfo.getThreadPoolType());
+
+        terminate(threadPoolEnabled);
+    }
 }
