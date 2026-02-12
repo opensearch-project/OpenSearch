@@ -13,7 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 /**
  * Wrapper interface of VectorSimilarityFunction to support more function than what Lucene provides
  */
-public interface KNNVectorSimilarityFunction {
+public interface BaseVectorSimilarityFunction {
     public VectorSimilarityFunction getVectorSimilarityFunction();
 
     public float compare(float[] var1, float[] var2);

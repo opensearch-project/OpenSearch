@@ -14,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 /**
  * General interface for vector data types
  */
-public interface VectorDataType {
+public interface BaseVectorDataType {
     /**
      * Creates a KnnVectorFieldType based on the VectorDataType using the provided dimension and
      * VectorSimilarityFunction.
@@ -23,7 +23,7 @@ public interface VectorDataType {
      * @param knnVectorSimilarityFunction KNNVectorSimilarityFunction for a given spaceType
      * @return FieldType
      */
-    public FieldType createKnnVectorFieldType(int dimension, KNNVectorSimilarityFunction knnVectorSimilarityFunction);
+    public FieldType createKnnVectorFieldType(int dimension, BaseVectorSimilarityFunction knnVectorSimilarityFunction);
 
     /**
      * Deserializes float vector from BytesRef.

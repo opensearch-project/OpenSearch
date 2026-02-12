@@ -14,7 +14,7 @@ package org.opensearch.index.knn.engine;
  * propagated up to the Java layer. Additionally, naming translations should be done in jni layer as well. For example,
  * nmslib calls the inner_product space "negdotprod". This translation should take place in the nmslib's jni layer.
  */
-public interface SpaceType {
+public interface BaseSpaceType {
     public abstract float scoreTranslation(float rawScore);
 
     /**
@@ -22,7 +22,7 @@ public interface SpaceType {
      *
      * @return KNNVectorSimilarityFunction
      */
-    public KNNVectorSimilarityFunction getKnnVectorSimilarityFunction();
+    public BaseVectorSimilarityFunction getKnnVectorSimilarityFunction();
 
     /**
      * Validate if the given byte vector is supported by this space type
@@ -43,7 +43,7 @@ public interface SpaceType {
      *
      * @param vectorDataType the given vector data type
      */
-    public void validateVectorDataType(VectorDataType vectorDataType);
+    public void validateVectorDataType(BaseVectorDataType vectorDataType);
 
     /**
      * Get space type name in engine
