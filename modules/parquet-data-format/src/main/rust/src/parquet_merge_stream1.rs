@@ -8,27 +8,21 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
-use std::num::NonZeroUsize;
 use std::path::Path;
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
 
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
-const BATCH_SIZE: usize = 10_000;
+const BATCH_SIZE: usize = 50_000;
 const OUTPUT_FLUSH_ROWS: usize = 100_000;
 
-// =============================================================================
-// FileCursor - Uses sink_batches
-// =============================================================================
 
 struct FileCursor {
-    receiver: Receiver<DataFrame>,
-    _producer_handle: JoinHandle<()>,
+    path: String,
+    rows_read: usize,
     current_batch: Option<DataFrame>,
     row_idx: usize,
     file_id: usize,
     sort_column: String,
+    batch_size: usize,
 }
 
 impl FileCursor {
@@ -38,74 +32,45 @@ impl FileCursor {
         sort_column: String,
         batch_size: usize,
     ) -> PolarsResult<Option<Self>> {
-        let (sender, receiver) = sync_channel::<DataFrame>(0);
-        let thread_path = path.clone();
-
-        let producer_handle = thread::spawn(move || {
-            let result = Self::produce_batches(thread_path, sender, batch_size);
-            if let Err(e) = result {
-                eprintln!("Batch producer error: {:?}", e);
-            }
-        });
-
         let mut cursor = Self {
-            receiver,
-            _producer_handle: producer_handle,
+            path,
+            rows_read: 0,
             current_batch: None,
             row_idx: 0,
             file_id,
             sort_column,
+            batch_size,
         };
 
-        if !cursor.load_next_batch() {
+        if !cursor.load_next_batch()? {
             return Ok(None);
         }
 
         Ok(Some(cursor))
     }
 
-    fn produce_batches(
-        path: String,
-        sender: SyncSender<DataFrame>,
-        batch_size: usize,
-    ) -> PolarsResult<()> {
-        let pl_path = PlPath::Local(Arc::from(Path::new(&path)));
-        let lf = LazyFrame::scan_parquet(pl_path, ScanArgsParquet::default())?;
+    fn load_next_batch(&mut self) -> PolarsResult<bool> {
+        let file = File::open(&self.path).map_err(|e| PolarsError::IO {
+            error: e.into(),
+            msg: None,
+        })?;
 
-        let callback = move |df: DataFrame| -> PolarsResult<bool> {
-            if df.height() == 0 {
-                return Ok(false);
-            }
-            match sender.send(df) {
-                Ok(_) => Ok(false),
-                Err(_) => Ok(true),
-            }
-        };
+        let mut df = ParquetReader::new(file)
+            .with_slice(Some((self.rows_read, self.batch_size)))
+            .finish()?;
 
-        lf.sink_batches(
-            PlanCallback::new(callback),
-            true,
-            NonZeroUsize::new(batch_size),
-        )?
-        .collect()?;
+        // Strip old ___row_id — will be regenerated during flush
+        let _ = df.drop_in_place(ROW_ID_COLUMN_NAME);
 
-        Ok(())
-    }
-
-    fn load_next_batch(&mut self) -> bool {
-        match self.receiver.recv() {
-            Ok(mut df) if df.height() > 0 => {
-                // Strip old ___row_id — will be regenerated with 0..n-1 during flush
-                let _ = df.drop_in_place(ROW_ID_COLUMN_NAME);
-                self.current_batch = Some(df);
-                self.row_idx = 0;
-                true
-            }
-            _ => {
-                self.current_batch = None;
-                false
-            }
+        if df.height() == 0 {
+            self.current_batch = None;
+            return Ok(false);
         }
+
+        self.rows_read += df.height();
+        self.current_batch = Some(df);
+        self.row_idx = 0;
+        Ok(true)
     }
 
     fn current_sort_value(&self) -> PolarsResult<i64> {
@@ -121,6 +86,7 @@ impl FileCursor {
             .as_ref()
             .unwrap()
             .slice(start as i64, len);
+        // Physically copy so we don't pin the entire parent batch via Arc
         slice.rechunk_mut();
         slice
     }
@@ -134,7 +100,9 @@ impl FileCursor {
 
         let batch_height = self.current_batch.as_ref().unwrap().height();
         if self.row_idx >= batch_height {
-            return Ok(self.load_next_batch());
+            // Drop current batch BEFORE loading next to free memory
+            self.current_batch = None;
+            return self.load_next_batch();
         }
 
         Ok(true)
@@ -176,7 +144,7 @@ impl PartialOrd for HeapItem {
 }
 
 // =============================================================================
-// JNI Entry Points
+// JNI Entry Point
 // =============================================================================
 
 #[unsafe(no_mangle)]
@@ -214,9 +182,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 
     let _reverse = is_reverse != 0;
 
-    let result = merge_streaming(&input_files_vec, &output_path, &sort_col);
-
-    match result {
+    match merge_streaming(&input_files_vec, &output_path, &sort_col) {
         Ok(_) => 0,
         Err(e) => {
             let _ = env.throw_new("java/lang/RuntimeException", format!("{:?}", e));
@@ -226,7 +192,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 }
 
 // =============================================================================
-// STREAMING K-WAY MERGE (Ascending)
+// STREAMING K-WAY MERGE
 // =============================================================================
 
 pub fn merge_streaming(
@@ -244,10 +210,6 @@ pub fn merge_streaming_with_config(
     batch_size: usize,
     output_flush_rows: usize,
 ) -> PolarsResult<()> {
-    unsafe {
-        std::env::set_var("POLARS_AUTO_NEW_STREAMING", "1");
-    }
-
     if input_files.is_empty() {
         return Ok(());
     }
@@ -255,7 +217,7 @@ pub fn merge_streaming_with_config(
     println!("Starting streaming merge of {} files", input_files.len());
 
     // Create output directory if needed
-    if let Some(parent) = std::path::Path::new(output_path).parent() {
+    if let Some(parent) = Path::new(output_path).parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent).map_err(|e| PolarsError::IO {
                 error: e.into(),
@@ -264,7 +226,7 @@ pub fn merge_streaming_with_config(
         }
     }
 
-    // Initialize cursors
+    // Initialize cursors — NO threads spawned
     let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
@@ -280,7 +242,7 @@ pub fn merge_streaming_with_config(
         return Ok(());
     }
 
-    // Validate sort column exists in every cursor
+    // Validate sort column
     for (i, cursor) in cursors.iter().enumerate() {
         let batch = cursor.current_batch.as_ref().unwrap();
         let schema = batch.schema();
@@ -292,7 +254,7 @@ pub fn merge_streaming_with_config(
                 .collect();
             return Err(PolarsError::ColumnNotFound(
                 format!(
-                    "Sort column '{}' not found in file {} (cursor {}). Available columns: {:?}",
+                    "Sort column '{}' not found in file {} (cursor {}). Available: {:?}",
                     sort_column,
                     input_files.get(cursor.file_id).unwrap_or(&"unknown".to_string()),
                     i,
@@ -303,7 +265,7 @@ pub fn merge_streaming_with_config(
         }
     }
 
-    // Schema WITHOUT ___row_id (already stripped in load_next_batch)
+    // Build output schema WITH ___row_id
     let base_schema = cursors[0]
         .current_batch
         .as_ref()
@@ -312,15 +274,12 @@ pub fn merge_streaming_with_config(
         .as_ref()
         .clone();
 
-    // Schema WITH ___row_id for output
     let mut output_schema = base_schema.clone();
     output_schema.insert(ROW_ID_COLUMN_NAME.into(), DataType::Int64);
 
     println!("Initialized {} cursors, starting merge", cursors.len());
 
-    // =========================================================================
-    // Open a SINGLE batched ParquetWriter
-    // =========================================================================
+    // Open batched ParquetWriter
     let output_file = File::create(output_path).map_err(|e| PolarsError::IO {
         error: e.into(),
         msg: None,
@@ -344,7 +303,7 @@ pub fn merge_streaming_with_config(
     }
 
     // Output buffer
-    let mut output_chunks: Vec<DataFrame> = Vec::with_capacity(128);
+    let mut output_chunks: Vec<DataFrame> = Vec::with_capacity(64);
     let mut output_row_count = 0usize;
     let mut next_row_id = 0i64;
     let mut total_rows_written = 0usize;
@@ -352,17 +311,18 @@ pub fn merge_streaming_with_config(
     let sort_col_owned = sort_column.to_string();
 
     // =========================================================================
-    // Flush helper — writes buffered chunks as one Parquet row group
+    // Flush — concat + add row_id + write
     // =========================================================================
     macro_rules! flush {
         () => {
             if !output_chunks.is_empty() {
                 let mut df = concat_df(output_chunks.as_slice())?;
-                output_chunks.clear(); // free early before rechunk
+                // Drop source chunks BEFORE rechunk to free their memory
+                output_chunks.clear();
+                output_chunks.shrink_to(64);
                 df.rechunk_mut();
-                let n = df.height();
 
-                // Add ___row_id: sequential 0..n-1 across entire merged file
+                let n = df.height();
                 let row_ids: Vec<i64> = (next_row_id..next_row_id + n as i64).collect();
                 let row_id_series = Series::new(ROW_ID_COLUMN_NAME.into(), row_ids);
                 df.with_column(row_id_series)?;
@@ -376,7 +336,7 @@ pub fn merge_streaming_with_config(
     }
 
     // =========================================================================
-    // K-way merge loop — drains SLICES, not single rows
+    // K-way merge loop
     // =========================================================================
     while let Some(item) = heap.pop() {
         let cursor = &mut cursors[item.file_id];
@@ -401,12 +361,10 @@ pub fn merge_streaming_with_config(
             }
 
             let run_len = cursor.row_idx - run_start + 1;
-
             let slice = cursor.take_slice(run_start, run_len);
             output_chunks.push(slice);
             output_row_count += run_len;
 
-            // Flush if buffer full
             if output_row_count >= output_flush_rows {
                 flush!();
             }
@@ -431,10 +389,7 @@ pub fn merge_streaming_with_config(
         }
     }
 
-    // Flush remaining rows
     flush!();
-
-    // Write Parquet footer & close
     writer.finish()?;
 
     println!("Merge complete: {} total rows written", total_rows_written);
@@ -443,68 +398,29 @@ pub fn merge_streaming_with_config(
 }
 
 // =============================================================================
-// Helper Functions
+// Helpers
 // =============================================================================
 
 fn get_sort_value(df: &DataFrame, row: usize, col: &str) -> PolarsResult<i64> {
     let series = df.column(col)?;
 
     match series.dtype() {
-        DataType::Int64 => {
-            series
-                .i64()?
-                .get(row)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::Int32 => {
-            series
-                .i32()?
-                .get(row)
-                .map(|v| v as i64)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::UInt64 => {
-            series
-                .u64()?
-                .get(row)
-                .map(|v| v as i64)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::UInt32 => {
-            series
-                .u32()?
-                .get(row)
-                .map(|v| v as i64)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::Datetime(_, _) => {
-            series
-                .datetime()?
-                .phys
-                .get(row)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::Date => {
-            series
-                .date()?
-                .phys
-                .get(row)
-                .map(|v| v as i64)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
-        DataType::Duration(_) => {
-            series
-                .duration()?
-                .phys
-                .get(row)
-                .ok_or_else(|| PolarsError::NoData("Null value in sort column".into()))
-        }
+        DataType::Int64 => series.i64()?.get(row)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::Int32 => series.i32()?.get(row).map(|v| v as i64)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::UInt64 => series.u64()?.get(row).map(|v| v as i64)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::UInt32 => series.u32()?.get(row).map(|v| v as i64)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::Datetime(_, _) => series.datetime()?.phys.get(row)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::Date => series.date()?.phys.get(row).map(|v| v as i64)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
+        DataType::Duration(_) => series.duration()?.phys.get(row)
+            .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
         other => Err(PolarsError::InvalidOperation(
-            format!(
-                "Unsupported sort column type: {:?}. Supported: Int32, Int64, UInt32, UInt64, Datetime, Date, Duration",
-                other
-            )
-            .into(),
+            format!("Unsupported sort type: {:?}", other).into(),
         )),
     }
 }
@@ -517,6 +433,8 @@ fn convert_java_list_to_vec(
     let mut result = Vec::with_capacity(size);
 
     for i in 0..size {
+        env.push_local_frame(4)?;
+
         let obj = env
             .call_method(&list, "get", "(I)Ljava/lang/Object;", &[(i as i32).into()])?
             .l()?;
@@ -527,6 +445,12 @@ fn convert_java_list_to_vec(
 
         let rust_string: String = env.get_string(&jstring.into())?.into();
         result.push(rust_string);
+
+        // SAFETY: All JNI local refs created since push_local_frame are freed.
+        // The string data is already copied into rust_string (Rust-owned heap).
+        unsafe {
+            env.pop_local_frame(&JObject::null())?;
+        }
     }
 
     Ok(result)
