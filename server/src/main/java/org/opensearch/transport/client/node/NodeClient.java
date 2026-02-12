@@ -36,8 +36,10 @@ import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.support.StreamTransportAction;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -47,6 +49,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
+import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.support.AbstractClient;
 
@@ -73,6 +76,9 @@ public class NodeClient extends AbstractClient {
         super(settings, threadPool);
     }
 
+    /**
+     * Initialize the client with action registry and services
+     */
     public void initialize(
         DynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
@@ -162,5 +168,32 @@ public class NodeClient extends AbstractClient {
     @Override
     public SearchRequestBuilder prepareStreamSearch(String... indices) {
         return super.prepareStreamSearch(indices);
+    }
+
+    /**
+     * Execute a streaming action locally.
+     *
+     * @param action the action type to execute
+     * @param request the request to send
+     * @param handler the handler to process streaming responses
+     * @param <Request> the request type
+     * @param <Response> the response type
+     */
+    @ExperimentalApi
+    public <Request extends ActionRequest, Response extends ActionResponse> void executeStream(
+        ActionType<Response> action,
+        Request request,
+        StreamTransportResponseHandler<Response> handler
+    ) {
+        TransportAction<Request, Response> transportAction = transportAction(action);
+
+        if (!(transportAction instanceof StreamTransportAction)) {
+            throw new IllegalArgumentException("Action " + action.name() + " does not support streaming");
+        }
+
+        @SuppressWarnings("unchecked")
+        StreamTransportAction<Request, Response> streamAction = (StreamTransportAction<Request, Response>) transportAction;
+
+        streamAction.executeStreamRequest(request, handler);
     }
 }

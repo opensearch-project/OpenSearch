@@ -10,10 +10,13 @@ package org.opensearch.example.stream;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.example.stream.basic.StreamDataAction;
+import org.opensearch.example.stream.basic.StreamTransportDataAction;
+import org.opensearch.example.stream.nodes.StreamNodesDataAction;
+import org.opensearch.example.stream.nodes.StreamTransportNodesDataAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -28,6 +31,9 @@ public class StreamTransportExamplePlugin extends Plugin implements ActionPlugin
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(StreamDataAction.INSTANCE, TransportStreamDataAction.class));
+        return List.of(
+            new ActionHandler<>(StreamDataAction.INSTANCE, StreamTransportDataAction.class),
+            new ActionHandler<>(StreamNodesDataAction.INSTANCE, StreamTransportNodesDataAction.class)
+        );
     }
 }

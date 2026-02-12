@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.example.stream;
+package org.opensearch.example.stream.basic;
 
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -14,7 +14,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class StreamDataResponse extends ActionResponse {
+public class StreamDataResponse extends ActionResponse {
     private final String message;
     private final int sequence;
     private final boolean isLast;

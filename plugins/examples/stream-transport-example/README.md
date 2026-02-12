@@ -1,80 +1,109 @@
 # Stream Transport Example
 
-Step-by-step guide to implement streaming transport actions in OpenSearch.
+Example plugin demonstrating streaming transport actions in OpenSearch.
 
-## Step 1: Create Action Definition
+## Overview
+
+This plugin demonstrates how to implement streaming transport actions that can send multiple responses for a single request. It shows two patterns:
+
+1. **Basic Streaming Action** - Simple streaming action for single-target operations
+2. **Nodes Streaming Action** - Streaming action that coordinates responses from multiple nodes
+
+## Architecture
+
+The streaming implementation uses a simplified architecture:
+
+- **StreamTransportAction** - Base class that extends `TransportAction` and implements `doExecute()` to extract the channel from the listener
+- **HandledStreamTransportAction** - Convenience class that registers streaming handlers automatically (similar to `HandledTransportAction`)
+- **StreamTransportNodesAction** - Base class for multi-node streaming operations
+- **NodeClient.executeStream()** - Client method to invoke streaming actions
+
+## Client Usage
+
+Use `NodeClient.executeStream()` to invoke streaming actions:
 
 ```java
-public class MyStreamAction extends ActionType<MyResponse> {
-    public static final MyStreamAction INSTANCE = new MyStreamAction();
-    public static final String NAME = "cluster:admin/my_stream";
+nodeClient.executeStream(
+    StreamDataAction.INSTANCE,
+    new StreamDataRequest(5, 100),
+    new StreamTransportResponseHandler<StreamDataResponse>() {
+        @Override
+        public void handleStreamResponse(StreamTransportResponse<StreamDataResponse> streamResponse) {
+            try {
+                StreamDataResponse response;
+                while ((response = streamResponse.nextResponse()) != null) {
+                    // Process each response
+                    System.out.println("Received: " + response.getMessage());
+                }
+                streamResponse.close();
+            } catch (Exception e) {
+                streamResponse.cancel("Client error", e);
+            }
+        }
 
-    private MyStreamAction() {
-        super(NAME, MyResponse::new);
+        @Override
+        public void handleException(TransportException exp) {
+            // Handle transport error
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+
+        @Override
+        public StreamDataResponse read(StreamInput in) throws IOException {
+            return new StreamDataResponse(in);
+        }
+    }
+);
+```
+
+## Basic Streaming Action
+
+### 1. Define Action
+```java
+public class StreamDataAction extends ActionType<StreamDataResponse> {
+    public static final StreamDataAction INSTANCE = new StreamDataAction();
+    public static final String NAME = "cluster:admin/stream_data";
+
+    private StreamDataAction() {
+        super(NAME, StreamDataResponse::new);
     }
 }
 ```
 
-## Step 2: Create Request/Response Classes
+### 2. Implement Transport Action
+
+Extend `HandledStreamTransportAction` and implement `executeStream()`:
 
 ```java
-public class MyRequest extends ActionRequest {
-    private int count;
-
-    public MyRequest(int count) { this.count = count; }
-    public MyRequest(StreamInput in) throws IOException { count = in.readInt(); }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException { out.writeInt(count); }
-}
-
-public class MyResponse extends ActionResponse {
-    private String message;
-
-    public MyResponse(String message) { this.message = message; }
-    public MyResponse(StreamInput in) throws IOException { message = in.readString(); }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException { out.writeString(message); }
-}
-```
-
-## Step 3: Create Transport Action
-
-```java
-public class TransportMyStreamAction extends TransportAction<MyRequest, MyResponse> {
+public class StreamTransportDataAction extends HandledStreamTransportAction<StreamDataRequest, StreamDataResponse> {
 
     @Inject
-    public TransportMyStreamAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
-        super(MyStreamAction.NAME, actionFilters, streamTransportService.getTaskManager());
-
-        // Register streaming handler
-        streamTransportService.registerRequestHandler(
-            MyStreamAction.NAME,
-            ThreadPool.Names.GENERIC,
-            MyRequest::new,
-            this::handleStreamRequest
-        );
+    public StreamTransportDataAction(
+        StreamTransportService streamTransportService,
+        TransportService transportService,
+        ActionFilters actionFilters
+    ) {
+        super(StreamDataAction.NAME, transportService, streamTransportService, actionFilters, StreamDataRequest::new);
     }
 
     @Override
-    protected void doExecute(Task task, MyRequest request, ActionListener<MyResponse> listener) {
-        listener.onFailure(new UnsupportedOperationException("Use StreamTransportService"));
-    }
-
-    private void handleStreamRequest(MyRequest request, TransportChannel channel, Task task) {
+    protected void executeStream(Task task, StreamDataRequest request, TransportChannel channel) throws IOException {
         try {
+            // Send multiple batched responses
             for (int i = 1; i <= request.getCount(); i++) {
-                MyResponse response = new MyResponse("Item " + i);
+                StreamDataResponse response = new StreamDataResponse("Item " + i, i, i == request.getCount());
                 channel.sendResponseBatch(response);
+
+                if (i < request.getCount() && request.getDelayMs() > 0) {
+                    Thread.sleep(request.getDelayMs());
+                }
             }
+
+            // Complete the stream
             channel.completeStream();
-        } catch (StreamException e) {
-            if (e.getErrorCode() == StreamErrorCode.CANCELLED) {
-                // Client cancelled - exit gracefully
-            } else {
-                channel.sendResponse(e);
-            }
         } catch (Exception e) {
             channel.sendResponse(e);
         }
@@ -82,57 +111,155 @@ public class TransportMyStreamAction extends TransportAction<MyRequest, MyRespon
 }
 ```
 
-## Step 4: Register in Plugin
-
+### 3. Register Action
 ```java
 public class MyPlugin extends Plugin implements ActionPlugin {
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(
-            new ActionHandler<>(MyStreamAction.INSTANCE, TransportMyStreamAction.class)
+    public List<ActionHandler<?, ?>> getActions() {
+        return List.of(
+            new ActionHandler<>(StreamDataAction.INSTANCE, StreamTransportDataAction.class)
         );
     }
 }
 ```
 
-## Step 5: Client Usage
+## Nodes Streaming Action
+
+For multi-node operations, extend `StreamTransportNodesAction`:
 
 ```java
-StreamTransportResponseHandler<MyResponse> handler = new StreamTransportResponseHandler<MyResponse>() {
+public class StreamTransportNodesDataAction extends StreamTransportNodesAction<
+    StreamNodesDataRequest,
+    StreamNodesDataResponse,
+    NodeStreamDataRequest,
+    NodeStreamDataResponse> {
+
+    @Inject
+    public StreamTransportNodesDataAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        StreamTransportService streamTransportService,
+        TransportService transportService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            StreamNodesDataAction.NAME,
+            threadPool,
+            clusterService,
+            streamTransportService,
+            transportService,
+            actionFilters,
+            StreamNodesDataRequest::new,
+            NodeStreamDataRequest::new,
+            ThreadPool.Names.GENERIC
+        );
+    }
+
     @Override
-    public void handleStreamResponse(StreamTransportResponse<MyResponse> streamResponse) {
+    protected void nodeStreamOperation(NodeStreamDataRequest request, TransportChannel channel, Task task) throws IOException {
         try {
-            MyResponse response;
-            while ((response = streamResponse.nextResponse()) != null) {
-                // Process each response
-                System.out.println(response.getMessage());
+            DiscoveryNode localNode = transportService.getLocalNode();
+
+            for (int i = 1; i <= request.getCount(); i++) {
+                NodeStreamDataResponse response = new NodeStreamDataResponse(
+                    localNode,
+                    "Node " + localNode.getName() + " - item " + i,
+                    i
+                );
+                channel.sendResponseBatch(response);
             }
-            streamResponse.close();
+
+            channel.completeStream();
         } catch (Exception e) {
-            streamResponse.cancel("Error", e);
+            channel.sendResponse(e);
         }
     }
 
     @Override
-    public void handleException(TransportException exp) {
-        // Handle errors
+    protected NodeStreamDataRequest newNodeRequest(StreamNodesDataRequest request) {
+        return new NodeStreamDataRequest(request);
     }
 
     @Override
-    public String executor() { return ThreadPool.Names.GENERIC; }
+    protected NodeStreamDataResponse newNodeResponse(StreamInput in) throws IOException {
+        return new NodeStreamDataResponse(in);
+    }
 
     @Override
-    public MyResponse read(StreamInput in) throws IOException {
-        return new MyResponse(in);
+    protected StreamNodesDataResponse newResponse(
+        StreamNodesDataRequest request,
+        List<NodeStreamDataResponse> responses,
+        List<FailedNodeException> failures
+    ) {
+        return new StreamNodesDataResponse(clusterService.getClusterName(), responses, failures);
     }
-};
-
-streamTransportService.sendRequest(node, MyStreamAction.NAME, request, handler);
+}
 ```
 
-## Key Rules
+## Key Points
 
-1. **Server**: Always call `completeStream()` or `sendResponse(exception)`
-2. **Client**: Always call `close()` or `cancel()` on stream
-3. **Cancellation**: Handle `StreamException` with `CANCELLED` code gracefully
-4. **Node-to-Node Only**: Streaming works only between cluster nodes
+### Server Side (Action Implementation)
+- Extend `HandledStreamTransportAction` for basic streaming or `StreamTransportNodesAction` for multi-node streaming
+- Implement `executeStream()` (basic) or `nodeStreamOperation()` (nodes) method
+- Use `channel.sendResponseBatch()` to send each response
+- Always call `channel.completeStream()` when done
+- Use `channel.sendResponse(exception)` for errors
+
+### Client Side (Using the Action)
+- Use `NodeClient.executeStream()` with `StreamTransportResponseHandler`
+- Iterate responses with `while ((response = streamResponse.nextResponse()) != null)`
+- Always call `streamResponse.close()` on success
+- Use `streamResponse.cancel()` on error
+
+### How It Works
+1. Client calls `NodeClient.executeStream()` which gets the action from the registry
+2. Action is cast to `StreamTransportAction` and `executeStreamRequest()` is called
+3. Request is sent to local node via `StreamTransportService` using the streaming port
+4. `StreamTransportService` routes to the registered handler
+5. Handler creates a `StreamingActionListener` that provides access to the channel
+6. Action's `executeStream()` is called through the standard action filter chain
+7. Action sends multiple responses via `channel.sendResponseBatch()`
+8. Client receives responses as they arrive
+
+### Benefits
+- **Efficient**: Stream large result sets without loading everything in memory
+- **Responsive**: Client can process results as they arrive
+- **Flexible**: Handler controls how to process the stream
+- **Standard**: Uses familiar OpenSearch patterns (extends `TransportAction`, uses action filters)
+
+## Running the Example
+
+1. Build OpenSearch with the plugin:
+```bash
+./gradlew :plugins:examples:stream-transport-example:assemble
+```
+
+2. Start OpenSearch with streaming enabled:
+```bash
+./gradlew run -Dopensearch.experimental.feature.transport.stream.enabled=true
+```
+
+3. Run the integration tests:
+```bash
+./gradlew :plugins:examples:stream-transport-example:internalClusterTest
+```
+
+## Example Actions
+
+### Basic Streaming (`StreamDataAction`)
+- Sends multiple data items in sequence
+- Demonstrates basic streaming pattern
+- Located in `org.opensearch.example.stream.basic`
+
+### Nodes Streaming (`StreamNodesDataAction`)
+- Coordinates streaming from multiple nodes
+- Each node sends multiple responses
+- Coordinator aggregates and streams back to client
+- Located in `org.opensearch.example.stream.nodes`
+
+## Notes
+
+- Streaming transport requires the `STREAM_TRANSPORT` feature flag to be enabled
+- The example uses Apache Arrow Flight for the underlying streaming protocol
+- Both actions are registered in `StreamTransportExamplePlugin`
+- The implementation follows the same pattern as `StreamSearchTransportService`

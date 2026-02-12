@@ -6,30 +6,39 @@
  * compatible open source license.
  */
 
-package org.opensearch.example.stream;
+package org.opensearch.example.stream.nodes;
 
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-class StreamDataRequest extends ActionRequest {
-    private int count = 10;
-    private long delayMs = 1000;
+/**
+ * Request for streaming data from nodes
+ */
+public class StreamNodesDataRequest extends BaseNodesRequest<StreamNodesDataRequest> {
+    private int count = 5;
+    private long delayMs = 500;
 
-    public StreamDataRequest() {}
-
-    public StreamDataRequest(StreamInput in) throws IOException {
+    public StreamNodesDataRequest(StreamInput in) throws IOException {
         super(in);
         count = in.readInt();
         delayMs = in.readLong();
     }
 
-    public StreamDataRequest(int count, long delayMs) {
+    public StreamNodesDataRequest(String... nodesIds) {
+        super(nodesIds);
+    }
+
+    public StreamNodesDataRequest count(int count) {
         this.count = count;
+        return this;
+    }
+
+    public StreamNodesDataRequest delayMs(long delayMs) {
         this.delayMs = delayMs;
+        return this;
     }
 
     @Override
@@ -37,11 +46,6 @@ class StreamDataRequest extends ActionRequest {
         super.writeTo(out);
         out.writeInt(count);
         out.writeLong(delayMs);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public int getCount() {
