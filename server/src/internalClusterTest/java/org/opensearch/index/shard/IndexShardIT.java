@@ -92,6 +92,7 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
@@ -732,7 +733,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.getRefreshMutex(),
             clusterService.getClusterApplierService(),
             MergedSegmentPublisher.EMPTY,
-            ReferencedSegmentsPublisher.EMPTY
+            ReferencedSegmentsPublisher.EMPTY,
+            mock(MetricsRegistry.class)
         );
     }
 

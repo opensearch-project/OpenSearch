@@ -629,7 +629,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             seedNodes = Arrays.asList(input.readStringArray());
             maxConnectionsPerCluster = input.readVInt();
             numNodesConnected = input.readVInt();
-            if (input.getVersion().onOrAfter(Version.V_3_5_0)) {
+            if (input.getVersion().onOrAfter(Version.V_3_4_0)) {
                 expectedClusterName = input.readOptionalString();
             } else {
                 expectedClusterName = null;
@@ -656,7 +656,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             out.writeStringArray(seedNodes.toArray(new String[0]));
             out.writeVInt(maxConnectionsPerCluster);
             out.writeVInt(numNodesConnected);
-            if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
                 out.writeOptionalString(expectedClusterName);
             }
         }
