@@ -354,6 +354,12 @@ public class IndexPaginationStrategyTests extends OpenSearchTestCase {
         }
     }
 
+    public void testNullAuthorizationFilterThrowsException() {
+        ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3));
+        PageParams pageParams = new PageParams(null, PARAM_ASC_SORT_VALUE, 10);
+        expectThrows(NullPointerException.class, () -> new IndexPaginationStrategy(pageParams, clusterState, null));
+    }
+
     public void testFilteredPaginationExcludesUnauthorizedIndices() {
         // Create a cluster state with regular indices and system-like indices
         ClusterState clusterState = getRandomClusterState(List.of(1, 2, 3, 4, 5));

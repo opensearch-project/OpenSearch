@@ -49,6 +49,7 @@ public class IndexPaginationStrategy implements PaginationStrategy<String> {
     }
 
     public IndexPaginationStrategy(PageParams pageParams, ClusterState clusterState, Predicate<IndexMetadata> authorizationFilter) {
+        Objects.requireNonNull(authorizationFilter, "authorizationFilter must not be null");
 
         IndexStrategyToken requestedToken = Objects.isNull(pageParams.getRequestedToken()) || pageParams.getRequestedToken().isEmpty()
             ? null
