@@ -336,7 +336,6 @@ public class Strings {
         if (fileName.startsWith("/") || fileName.startsWith("\\")) {
             return false;
         }
-        // Reject invalid characters (excluding slashes)
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
             if (c != '/' && c != '\\' && INVALID_FILENAME_CHARS.contains(c)) {
