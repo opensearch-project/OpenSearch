@@ -560,6 +560,7 @@ public abstract class SearchContext implements Releasable {
         return 0;
     }
 
+    @ExperimentalApi
     public long termsAggregationMaxPrecomputeCardinality() {
         return 30_000L;
     }

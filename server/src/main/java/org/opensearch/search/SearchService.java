@@ -442,7 +442,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    @ExperimentalApi
     public static final Setting<Long> TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY = Setting.longSetting(
         "search.aggregations.terms.max_precompute_cardinality",
         30_000L,
