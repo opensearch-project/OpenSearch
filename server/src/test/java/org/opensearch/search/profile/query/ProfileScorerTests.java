@@ -114,22 +114,29 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         assertSame(fakeScorer, profileScorer.getWrappedScorer());
     }
 
-    public void testGetChildren_exposesWrappedScorerAsChild() throws IOException {
+    public void testImplementsScorerWrapper() throws IOException {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
 
-        // getChildren() should expose the wrapped scorer as a child,
-        // making the scorer tree traversable through profiling wrappers.
-        // This enables plugins to discover custom scorers (e.g. HybridQueryScorer)
-        // through ProfileScorer via standard Lucene getChildren() traversal.
-        Collection<Scorer.ChildScorable> children = profileScorer.getChildren();
-        assertEquals("ProfileScorer should have exactly 1 child (the wrapped scorer)", 1, children.size());
+        // ProfileScorer implements ScorerWrapper, allowing plugins to detect and unwrap
+        // profiling wrappers using instanceof without reflection
+        assertTrue("ProfileScorer should implement ScorerWrapper", profileScorer instanceof ScorerWrapper);
+        ScorerWrapper wrapper = (ScorerWrapper) profileScorer;
+        assertSame("ScorerWrapper.getWrappedScorer() should return the original scorer", fakeScorer, wrapper.getWrappedScorer());
+    }
 
-        Scorer.ChildScorable child = children.iterator().next();
-        assertSame("Child should be the wrapped scorer", fakeScorer, child.child());
-        assertEquals("Child relationship should be PROFILED", "PROFILED", child.relationship());
+    public void testGetChildren_delegatesToWrappedScorer() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // getChildren() should delegate to the wrapped scorer's getChildren()
+        Collection<Scorer.ChildScorable> children = profileScorer.getChildren();
+        assertEquals("FakeScorer has no children, so ProfileScorer should return empty collection", 0, children.size());
     }
 }

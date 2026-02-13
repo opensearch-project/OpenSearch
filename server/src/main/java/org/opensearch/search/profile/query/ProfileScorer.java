@@ -40,7 +40,6 @@ import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * {@link Scorer} wrapper that will compute how much time is spent on moving
@@ -48,7 +47,7 @@ import java.util.Collections;
  *
  * @opensearch.internal
  */
-final class ProfileScorer extends Scorer {
+final class ProfileScorer extends Scorer implements ScorerWrapper {
 
     private final Scorer scorer;
 
@@ -103,11 +102,7 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public Collection<ChildScorable> getChildren() throws IOException {
-        // Expose the wrapped scorer as a child so that plugins and collectors can traverse
-        // through profiling wrappers using the standard Lucene Scorable.getChildren() API.
-        // Without this, ProfileScorer is invisible in the scorer tree, preventing custom
-        // collectors from finding wrapped scorers.
-        return Collections.singletonList(new ChildScorable(scorer, "PROFILED"));
+        return scorer.getChildren();
     }
 
     @Override
