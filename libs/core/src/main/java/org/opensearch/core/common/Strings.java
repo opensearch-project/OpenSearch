@@ -331,6 +331,16 @@ public class Strings {
         return true;
     }
 
+    public static boolean validFileNameExcludingSlash(String fileName) {
+        for (int i = 0; i < fileName.length(); i++) {
+            char c = fileName.charAt(i);
+            if (c != '/' && c != '\\' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Copy the given Collection into a String array.
      * The Collection must contain String elements only.
