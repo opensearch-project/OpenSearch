@@ -10,13 +10,13 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.metadata.index.model.ContextModel;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,16 +28,11 @@ import java.util.Objects;
 @ExperimentalApi
 public class Context extends AbstractDiffable<Context> implements ToXContentObject {
 
-    private static final ParseField NAME = new ParseField("name");
-    private static final ParseField VERSION = new ParseField("version");
-    private static final ParseField PARAMS = new ParseField("params");
+    public static final String LATEST_VERSION = ContextModel.LATEST_VERSION;
 
-    public static final String LATEST_VERSION = "_latest";
+    private final ContextModel model;
 
-    private String name;
-    private String version = LATEST_VERSION;
-    private Map<String, Object> params;
-
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Context, Void> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
@@ -45,74 +40,55 @@ public class Context extends AbstractDiffable<Context> implements ToXContentObje
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), VERSION);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ContextModel.NAME_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ContextModel.VERSION_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), ContextModel.PARAMS_FIELD);
     }
 
     public Context(String name) {
-        this(name, LATEST_VERSION, Map.of());
+        this.model = new ContextModel(name, null, Map.of());
     }
 
     public Context(String name, String version, Map<String, Object> params) {
-        this.name = name;
-        if (version != null) {
-            this.version = version;
-        }
-        this.params = params;
+        this.model = new ContextModel(name, version, params);
     }
 
     public Context(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.version = in.readOptionalString();
-        this.params = in.readMap();
+        this.model = new ContextModel(in);
+    }
+
+    public Context(ContextModel model) {
+        this.model = model;
     }
 
     public String name() {
-        return name;
-    }
-
-    public void name(String name) {
-        this.name = name;
+        return model.name();
     }
 
     public String version() {
-        return version;
-    }
-
-    public void version(String version) {
-        this.version = version;
+        return model.version();
     }
 
     public Map<String, Object> params() {
-        return params;
+        return model.params();
     }
 
-    public void params(Map<String, Object> params) {
-        this.params = params;
+    public ContextModel model() {
+        return model;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeOptionalString(version);
-        out.writeMap(params);
+        model.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(NAME.getPreferredName(), this.name);
-        builder.field(VERSION.getPreferredName(), this.version);
-        if (this.params != null) {
-            builder.field(PARAMS.getPreferredName(), this.params);
-        }
-        builder.endObject();
-        return builder;
+        return model.toXContent(builder, params);
     }
 
     public static Context fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return new Context(ContextModel.fromXContent(parser));
     }
 
     @Override
@@ -120,16 +96,16 @@ public class Context extends AbstractDiffable<Context> implements ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Context context = (Context) o;
-        return Objects.equals(name, context.name) && Objects.equals(version, context.version) && Objects.equals(params, context.params);
+        return Objects.equals(model, context.model);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, version, params);
+        return Objects.hash(model);
     }
 
     @Override
     public String toString() {
-        return "Context{" + "name='" + name + '\'' + ", version='" + version + '\'' + ", params=" + params + '}';
+        return "Context{" + "name='" + model.name() + '\'' + ", version='" + model.version() + '\'' + ", params=" + model.params() + '}';
     }
 }
