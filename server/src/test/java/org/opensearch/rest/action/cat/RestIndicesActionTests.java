@@ -309,4 +309,12 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
             fail("Timestamp string is not a valid ISO-8601 date: " + timestampString);
         }
     }
+
+    public void testGetPaginationStrategyReturnsNullByDefault() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings = Settings.builder().build();
+        final ResponseLimitSettings responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
+        final RestIndicesAction action = new RestIndicesAction(responseLimitSettings);
+        assertNull(action.getPaginationStrategy(null, null));
+    }
 }
