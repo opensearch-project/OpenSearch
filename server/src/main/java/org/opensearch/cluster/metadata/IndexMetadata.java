@@ -264,9 +264,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    public static final String SETTING_NUMBER_OF_VIRTUAL_SHARDS = "index.number_of_virtual_shards";
     static final String DEFAULT_NUMBER_OF_SHARDS = "opensearch.index.default_number_of_shards";
     static final String MAX_NUMBER_OF_SHARDS = "opensearch.index.max_number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = buildNumberOfShardsSetting();
+    public static final Setting<Integer> INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING = Setting.intSetting(
+        SETTING_NUMBER_OF_VIRTUAL_SHARDS,
+        -1,
+        -1,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
         SETTING_NUMBER_OF_REPLICAS,
@@ -1324,6 +1333,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return numberOfShards;
     }
 
+    /**
+     * Returns the number of virtual shards for this index.
+     * Returns -1 if virtual shards are disabled.
+     *
+     * @return the number of virtual shards or -1
+     */
+    public int getNumberOfVirtualShards() {
+        return settings.getAsInt(SETTING_NUMBER_OF_VIRTUAL_SHARDS, -1);
+    }
+
     public int getNumberOfReplicas() {
         return numberOfReplicas;
     }
@@ -2184,6 +2203,19 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + "] should be a positive number"
                         + " less than the number of shards ["
                         + getRoutingNumShards()
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+
+            final int numberOfVirtualShards = INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING.get(settings);
+            if (numberOfVirtualShards != -1 && numberOfVirtualShards < numberOfShards) {
+                throw new IllegalArgumentException(
+                    "number of virtual shards ["
+                        + numberOfVirtualShards
+                        + "] must be >= number of shards ["
+                        + numberOfShards
                         + "] for ["
                         + index
                         + "]"
