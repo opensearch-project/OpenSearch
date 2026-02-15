@@ -12,8 +12,11 @@ use std::path::Path;
 
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
 const BATCH_SIZE: usize = 50_000;
-const OUTPUT_FLUSH_ROWS: usize = 100_000;
+const OUTPUT_FLUSH_ROWS: usize = 500_000;
 
+// =============================================================================
+// FileCursor — reads BATCH_SIZE rows at a time via with_slice
+// =============================================================================
 
 struct FileCursor {
     path: String,
@@ -45,11 +48,13 @@ impl FileCursor {
         if !cursor.load_next_batch()? {
             return Ok(None);
         }
-
         Ok(Some(cursor))
     }
 
     fn load_next_batch(&mut self) -> PolarsResult<bool> {
+        // Drop old batch FIRST to free memory before allocating new one
+        self.current_batch = None;
+
         let file = File::open(&self.path).map_err(|e| PolarsError::IO {
             error: e.into(),
             msg: None,
@@ -59,11 +64,9 @@ impl FileCursor {
             .with_slice(Some((self.rows_read, self.batch_size)))
             .finish()?;
 
-        // Strip old ___row_id — will be regenerated during flush
         let _ = df.drop_in_place(ROW_ID_COLUMN_NAME);
 
         if df.height() == 0 {
-            self.current_batch = None;
             return Ok(false);
         }
 
@@ -80,13 +83,24 @@ impl FileCursor {
         }
     }
 
+    /// Sort value of the LAST row in current batch — used for batch-level fast path
+    fn last_sort_value(&self) -> PolarsResult<i64> {
+        match &self.current_batch {
+            Some(batch) => get_sort_value(batch, batch.height() - 1, &self.sort_column),
+            None => Err(PolarsError::NoData("Cursor exhausted".into())),
+        }
+    }
+
+    fn batch_height(&self) -> usize {
+        self.current_batch.as_ref().map_or(0, |b| b.height())
+    }
+
     fn take_slice(&self, start: usize, len: usize) -> DataFrame {
         let mut slice = self
             .current_batch
             .as_ref()
             .unwrap()
             .slice(start as i64, len);
-        // Physically copy so we don't pin the entire parent batch via Arc
         slice.rechunk_mut();
         slice
     }
@@ -100,12 +114,17 @@ impl FileCursor {
 
         let batch_height = self.current_batch.as_ref().unwrap().height();
         if self.row_idx >= batch_height {
-            // Drop current batch BEFORE loading next to free memory
             self.current_batch = None;
             return self.load_next_batch();
         }
-
         Ok(true)
+    }
+
+    /// Skip remainder of current batch and load the next one.
+    /// Drops old batch before loading to minimize peak memory.
+    fn advance_past_batch(&mut self) -> PolarsResult<bool> {
+        self.current_batch = None;
+        self.load_next_batch()
     }
 
     fn is_exhausted(&self) -> bool {
@@ -124,19 +143,16 @@ struct HeapItem {
 }
 
 impl Eq for HeapItem {}
-
 impl PartialEq for HeapItem {
     fn eq(&self, other: &Self) -> bool {
         self.sort_value == other.sort_value
     }
 }
-
 impl Ord for HeapItem {
     fn cmp(&self, other: &Self) -> Ordering {
         other.sort_value.cmp(&self.sort_value)
     }
 }
-
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -163,7 +179,6 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             return -1;
         }
     };
-
     let output_path: String = match env.get_string(&output_file) {
         Ok(s) => s.into(),
         Err(e) => {
@@ -171,7 +186,6 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             return -1;
         }
     };
-
     let sort_col: String = match env.get_string(&sort_column) {
         Ok(s) => s.into(),
         Err(e) => {
@@ -179,7 +193,6 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             return -1;
         }
     };
-
     let _reverse = is_reverse != 0;
 
     match merge_streaming(&input_files_vec, &output_path, &sort_col) {
@@ -216,7 +229,6 @@ pub fn merge_streaming_with_config(
 
     println!("Starting streaming merge of {} files", input_files.len());
 
-    // Create output directory if needed
     if let Some(parent) = Path::new(output_path).parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent).map_err(|e| PolarsError::IO {
@@ -226,75 +238,73 @@ pub fn merge_streaming_with_config(
         }
     }
 
-    // Initialize cursors — NO threads spawned
-    let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
+    // ── Initialise cursors (indexed by file_id) ─────────────────────────
+    let mut cursors: Vec<Option<FileCursor>> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
         println!("Initializing cursor for file {}: {}", file_id, path);
         match FileCursor::new(path.clone(), file_id, sort_column.to_string(), batch_size)? {
-            Some(cursor) => cursors.push(cursor),
-            None => eprintln!("Skipping empty file: {}", path),
+            Some(cursor) => cursors.push(Some(cursor)),
+            None => {
+                cursors.push(None);
+                eprintln!("Skipping empty file: {}", path);
+            }
         }
     }
 
-    if cursors.is_empty() {
+    let active_count = cursors.iter().filter(|c| c.is_some()).count();
+    if active_count == 0 {
         println!("All files were empty");
         return Ok(());
     }
 
     // Validate sort column
-    for (i, cursor) in cursors.iter().enumerate() {
-        let batch = cursor.current_batch.as_ref().unwrap();
-        let schema = batch.schema();
-
-        if !schema.contains(sort_column) {
-            let available_cols: Vec<String> = schema
-                .iter()
-                .map(|(name, _)| name.to_string())
-                .collect();
-            return Err(PolarsError::ColumnNotFound(
-                format!(
-                    "Sort column '{}' not found in file {} (cursor {}). Available: {:?}",
-                    sort_column,
-                    input_files.get(cursor.file_id).unwrap_or(&"unknown".to_string()),
-                    i,
-                    available_cols
-                )
-                .into(),
-            ));
+    for (i, cursor_opt) in cursors.iter().enumerate() {
+        if let Some(cursor) = cursor_opt {
+            let batch = cursor.current_batch.as_ref().unwrap();
+            if !batch.schema().contains(sort_column) {
+                let cols: Vec<_> = batch.schema().iter().map(|(n, _)| n.to_string()).collect();
+                return Err(PolarsError::ColumnNotFound(
+                    format!(
+                        "Sort column '{}' not found in file {} (cursor {}). Available: {:?}",
+                        sort_column,
+                        input_files.get(i).unwrap_or(&"unknown".to_string()),
+                        i,
+                        cols
+                    )
+                    .into(),
+                ));
+            }
         }
     }
 
     // Build output schema WITH ___row_id
-    let base_schema = cursors[0]
+    let first_cursor = cursors.iter().find_map(|c| c.as_ref()).unwrap();
+    let mut output_schema = first_cursor
         .current_batch
         .as_ref()
         .unwrap()
         .schema()
         .as_ref()
         .clone();
-
-    let mut output_schema = base_schema.clone();
     output_schema.insert(ROW_ID_COLUMN_NAME.into(), DataType::Int64);
 
-    println!("Initialized {} cursors, starting merge", cursors.len());
+    println!("Initialized {} active cursors, starting merge", active_count);
 
-    // Open batched ParquetWriter
+    // ── Open batched ParquetWriter ──────────────────────────────────────
     let output_file = File::create(output_path).map_err(|e| PolarsError::IO {
         error: e.into(),
         msg: None,
     })?;
-
     let mut writer = ParquetWriter::new(output_file)
         .with_compression(ParquetCompression::Zstd(None))
         .with_row_group_size(Some(output_flush_rows))
         .batched(&output_schema)?;
 
-    // Initialize min-heap
-    let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(cursors.len());
-
-    for cursor in &cursors {
-        if !cursor.is_exhausted() {
+    // ── Seed min-heap ───────────────────────────────────────────────────
+    let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(active_count);
+    for cursor_opt in &cursors {
+        if let Some(cursor) = cursor_opt {
             heap.push(HeapItem {
                 sort_value: cursor.current_sort_value()?,
                 file_id: cursor.file_id,
@@ -302,24 +312,20 @@ pub fn merge_streaming_with_config(
         }
     }
 
-    // Output buffer
-    let mut output_chunks: Vec<DataFrame> = Vec::with_capacity(64);
+    // ── Output buffer ───────────────────────────────────────────────────
+    let mut output_chunks: Vec<DataFrame> = Vec::new();
     let mut output_row_count = 0usize;
     let mut next_row_id = 0i64;
     let mut total_rows_written = 0usize;
-
     let sort_col_owned = sort_column.to_string();
 
-    // =========================================================================
-    // Flush — concat + add row_id + write
-    // =========================================================================
+    // ── Flush macro ─────────────────────────────────────────────────────
     macro_rules! flush {
         () => {
             if !output_chunks.is_empty() {
                 let mut df = concat_df(output_chunks.as_slice())?;
-                // Drop source chunks BEFORE rechunk to free their memory
                 output_chunks.clear();
-                output_chunks.shrink_to(64);
+
                 df.rechunk_mut();
 
                 let n = df.height();
@@ -328,6 +334,8 @@ pub fn merge_streaming_with_config(
                 df.with_column(row_id_series)?;
 
                 writer.write_batch(&df)?;
+                drop(df);
+
                 next_row_id += n as i64;
                 total_rows_written += output_row_count;
                 output_row_count = 0;
@@ -335,32 +343,89 @@ pub fn merge_streaming_with_config(
         };
     }
 
-    // =========================================================================
-    // K-way merge loop
-    // =========================================================================
+    // =====================================================================
+    // K-way merge loop — three-tier cascade:
+    //   1. heap empty    → dump everything              O(1)
+    //   2. last <= top   → emit whole remaining batch   O(1)
+    //   3. binary search → emit partial batch           O(log n)
+    // =====================================================================
     while let Some(item) = heap.pop() {
-        let cursor = &mut cursors[item.file_id];
+        let file_id = item.file_id;
 
-        loop {
-            let run_start = cursor.row_idx;
-            let batch_height = cursor.current_batch.as_ref().unwrap().height();
+        // ─────────────────────────────────────────────────────────────
+        // TIER 1: only one cursor left → dump everything, no comparisons
+        // ─────────────────────────────────────────────────────────────
+        if heap.is_empty() {
+            let cursor = cursors[file_id].as_mut().unwrap();
+            loop {
+                let remaining = cursor.batch_height() - cursor.row_idx;
+                if remaining > 0 {
+                    let slice = cursor.take_slice(cursor.row_idx, remaining);
+                    output_row_count += remaining;
+                    output_chunks.push(slice);
 
-            while cursor.row_idx + 1 < batch_height {
-                let next_val = get_sort_value(
-                    cursor.current_batch.as_ref().unwrap(),
-                    cursor.row_idx + 1,
-                    &sort_col_owned,
-                )?;
-
-                match heap.peek() {
-                    Some(top) if next_val <= top.sort_value => {
-                        cursor.row_idx += 1;
+                    if output_row_count >= output_flush_rows {
+                        flush!();
                     }
-                    _ => break,
+                }
+                if !cursor.advance_past_batch()? {
+                    break;
                 }
             }
+            break;
+        }
 
-            let run_len = cursor.row_idx - run_start + 1;
+        // ─────────────────────────────────────────────────────────────
+        // TIER 2 & 3: multiple cursors active
+        // ─────────────────────────────────────────────────────────────
+        let cursor = cursors[file_id].as_mut().unwrap();
+
+        loop {
+            let heap_top = heap.peek().unwrap().sort_value;
+
+            // ── TIER 2: entire remaining batch fits ─────────────────
+            let last_val = cursor.last_sort_value()?;
+            if last_val <= heap_top {
+                let remaining = cursor.batch_height() - cursor.row_idx;
+                let slice = cursor.take_slice(cursor.row_idx, remaining);
+                output_chunks.push(slice);
+                output_row_count += remaining;
+
+                if output_row_count >= output_flush_rows {
+                    flush!();
+                }
+
+                if !cursor.advance_past_batch()? {
+                    break; // cursor exhausted
+                }
+                // New batch loaded — loop to compare again
+                continue;
+            }
+
+            // ── TIER 3: binary search for cut point ─────────────────
+            // We know:
+            //   value[row_idx]    <= heap_top  (this cursor won the heap)
+            //   value[batch_h-1]  >  heap_top  (tier 2 failed)
+            // Find rightmost index where value <= heap_top
+            let run_start = cursor.row_idx;
+            let batch_h = cursor.batch_height();
+            let batch = cursor.current_batch.as_ref().unwrap();
+
+            let mut lo = run_start;
+            let mut hi = batch_h - 1;
+
+            while lo + 1 < hi {
+                let mid = lo + (hi - lo) / 2;
+                let mid_val = get_sort_value(batch, mid, &sort_col_owned)?;
+                if mid_val <= heap_top {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            let run_end = lo;
+
+            let run_len = run_end - run_start + 1;
             let slice = cursor.take_slice(run_start, run_len);
             output_chunks.push(slice);
             output_row_count += run_len;
@@ -369,31 +434,30 @@ pub fn merge_streaming_with_config(
                 flush!();
             }
 
+            // Advance past the emitted run
+            cursor.row_idx = run_end;
             if !cursor.advance()? {
-                break;
+                break; // exhausted
             }
 
+            // Re-check: does next value still beat heap?
             let next_val = cursor.current_sort_value()?;
-            match heap.peek() {
-                Some(top) if next_val <= top.sort_value => {
-                    continue;
-                }
-                _ => {
-                    heap.push(HeapItem {
-                        sort_value: next_val,
-                        file_id: cursor.file_id,
-                    });
-                    break;
-                }
+            if next_val > heap_top {
+                heap.push(HeapItem {
+                    sort_value: next_val,
+                    file_id,
+                });
+                break;
             }
+            // else: this cursor still wins, continue inner loop
         }
     }
 
+    // Final flush
     flush!();
     writer.finish()?;
 
     println!("Merge complete: {} total rows written", total_rows_written);
-
     Ok(())
 }
 
@@ -403,7 +467,6 @@ pub fn merge_streaming_with_config(
 
 fn get_sort_value(df: &DataFrame, row: usize, col: &str) -> PolarsResult<i64> {
     let series = df.column(col)?;
-
     match series.dtype() {
         DataType::Int64 => series.i64()?.get(row)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
@@ -431,27 +494,17 @@ fn convert_java_list_to_vec(
 ) -> Result<Vec<String>, Box<dyn Error>> {
     let size = env.call_method(&list, "size", "()I", &[])?.i()? as usize;
     let mut result = Vec::with_capacity(size);
-
     for i in 0..size {
         env.push_local_frame(4)?;
-
         let obj = env
             .call_method(&list, "get", "(I)Ljava/lang/Object;", &[(i as i32).into()])?
             .l()?;
-
         let jstring = env
             .call_method(&obj, "toString", "()Ljava/lang/String;", &[])?
             .l()?;
-
         let rust_string: String = env.get_string(&jstring.into())?.into();
         result.push(rust_string);
-
-        // SAFETY: All JNI local refs created since push_local_frame are freed.
-        // The string data is already copied into rust_string (Rust-owned heap).
-        unsafe {
-            env.pop_local_frame(&JObject::null())?;
-        }
+        unsafe { env.pop_local_frame(&JObject::null())?; }
     }
-
     Ok(result)
 }
