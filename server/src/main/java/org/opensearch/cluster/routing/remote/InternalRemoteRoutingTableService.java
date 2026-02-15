@@ -308,7 +308,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         }
     }
 
-    private void deleteAsyncInternal(AsyncMultiStreamBlobContainer blobContainerForDeletion, List<String> fileNames, TimeValue timeout)
+    protected void deleteAsyncInternal(AsyncMultiStreamBlobContainer blobContainerForDeletion, List<String> fileNames, TimeValue timeout)
         throws IOException {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
@@ -324,10 +324,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             throw new RuntimeException(e.getCause());
         } catch (TimeoutException e) {
             FutureUtils.cancel(future);
-            throw new IOException(
-                String.format(Locale.ROOT, "Delete operation timed out after %s seconds", DEFAULT_DELETION_TIMEOUT.seconds()),
-                e
-            );
+            throw new IOException(String.format(Locale.ROOT, "Delete operation timed out after %s seconds", timeout.seconds()), e);
         }
     }
 }
