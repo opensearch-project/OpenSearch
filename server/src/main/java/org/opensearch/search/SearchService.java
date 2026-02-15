@@ -835,10 +835,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return;
                     }
                 }
-                boolean isNativeQuery = orig.source() != null && orig.source().queryPlanIR() != null;
+                boolean isNativeQuery = orig.source() != null
+                    && (orig.source().queryPlanIR() != null || "datafusion".equalsIgnoreCase(orig.source().engine()));
 
                 // Execute
-                if (isNativeQuery) {
+                if (isNativeQuery && !"lucene".equalsIgnoreCase(orig.source() != null ? orig.source().engine() : null)) {
                     getExecutor(executorName, shard).execute(new ActionRunnable<SearchPhaseResult>(listener) {
                         @Override
                         protected void doRun() throws Exception {
@@ -899,7 +900,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.queryResult().from(context.from());
             context.queryResult().size(context.size());
             byte[] substraitQuery = request.source().queryPlanIR();
-            if (substraitQuery != null) {
+            boolean useNativeEngine = substraitQuery != null || "datafusion".equalsIgnoreCase(request.source().engine());
+            if (useNativeEngine && !"lucene".equalsIgnoreCase(request.source().engine())) {
                 // setDFResults in context
                 // TODO : remove instanceof checks
                 SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
@@ -1306,7 +1308,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
         // TODO acquire search supplier
-        EngineSearcherSupplier<?> reader = shard.acquireSearcherSupplier();
+        boolean forceLucene = request.source() != null && "lucene".equalsIgnoreCase(request.source().engine());
+        EngineSearcherSupplier<?> reader = shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, forceLucene);
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
@@ -1495,7 +1498,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             OriginalIndices.NONE
         );
         @SuppressWarnings("unchecked")
-        SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
+        String engineParam = request.source() != null ? request.source().engine() : null;
+        SearchExecEngine searchExecEngine = "lucene".equalsIgnoreCase(engineParam) ? null
+            : (indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null);
         SearchContext context = searchExecEngine == null ? originalContext : searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext, clusterService);
         try {
             if (request.scroll() != null) {

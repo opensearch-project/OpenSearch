@@ -235,6 +235,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -2477,10 +2478,49 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public EngineSearcherSupplier<?> acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, false);
+    }
+
+    public EngineSearcherSupplier<?> acquireSearcherSupplier(Engine.SearcherScope scope, boolean forceLucene) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        if(currentCompositeEngineReference.get() != null ) {
+        if (forceLucene) {
+            // Open a DirectoryReader directly on the shard's index directory to bypass
+            // InternalEngine's empty temp directory when isOptimizedIndex
+            return new EngineSearcherSupplier<Engine.Searcher>() {
+                @Override
+                protected Engine.Searcher acquireSearcherInternal(String source) {
+                    try {
+                        DirectoryReader reader = DirectoryReader.open(store.directory());
+                        OpenSearchDirectoryReader wrappedReader = OpenSearchDirectoryReader.wrap(reader, shardId());
+                        return new Engine.Searcher(
+                            source,
+                            wrappedReader,
+                            engine.config().getSimilarity(),
+                            engine.config().getQueryCache(),
+                            engine.config().getQueryCachingPolicy(),
+                            () -> {
+                                try {
+                                    wrappedReader.close();
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                        );
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                @Override
+                protected void doClose() {}
+
+                @Override
+                public void close() {}
+            };
+        }
+        if (currentCompositeEngineReference.get() != null) {
             return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         }
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
