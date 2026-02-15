@@ -62,6 +62,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.Requests;
 
@@ -112,6 +113,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String routing;
 
     private BytesReference source;
+    private ExtraFieldValues extraFieldValues = ExtraFieldValues.EMPTY;
 
     private OpType opType = OpType.INDEX;
 
@@ -153,6 +155,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
+        extraFieldValues = in.getVersion().onOrAfter(Version.V_3_6_0)
+            ? Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY)
+            : ExtraFieldValues.EMPTY;
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -497,6 +502,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
+     * Sets extra field values to be ingested outside of {@code _source}.
+     * <p>
+     * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.
+     */
+    public IndexRequest extraFieldValues(ExtraFieldValues values) {
+        this.extraFieldValues = values == null ? ExtraFieldValues.EMPTY : values;
+        return this;
+    }
+
+    /**
+     * Returns the extra field values associated with this request, or {@link ExtraFieldValues#EMPTY} if none.
+     */
+    public ExtraFieldValues extraFieldValues() {
+        return extraFieldValues;
+    }
+
+    /**
      * Sets the type of operation to perform.
      */
     public IndexRequest opType(OpType opType) {
@@ -677,6 +699,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeBytesReference(source);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeOptionalWriteable(extraFieldValues.isEmpty() ? null : extraFieldValues);
+        }
         out.writeByte(opType.getId());
         out.writeLong(version);
         out.writeByte(versionType.getValue());

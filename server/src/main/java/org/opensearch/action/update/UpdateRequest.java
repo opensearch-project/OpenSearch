@@ -60,6 +60,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -234,6 +235,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc == null && docAsUpsert) {
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
+        }
+        // ExtraFieldValues not supported for scripted updates for now
+        if (script != null) {
+            if ((doc != null && !doc.extraFieldValues().isEmpty())
+                || (upsertRequest != null && !upsertRequest.extraFieldValues().isEmpty())) {
+                validationException = addValidationError("ExtraFieldValues are not supported with scripted updates", validationException);
+            }
         }
 
         validationException = DocWriteRequest.validateDocIdLength(id, validationException);
@@ -713,6 +721,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
+    /**
+     * Sets extral field values for the partial document update ({@code doc}).
+     * <p>
+     * These values are applied only when the update is executed using {@code doc} (i.e., no script).
+     * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.
+     */
+    public UpdateRequest docExtraFieldValues(ExtraFieldValues values) {
+        safeDoc().extraFieldValues(values);
+        return this;
+    }
+
     public IndexRequest doc() {
         return this.doc;
     }
@@ -796,6 +815,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest upsert(MediaType mediaType, Object... source) {
         safeUpsertRequest().source(mediaType, source);
+        return this;
+    }
+
+    /**
+     * Sets extra field values for the upsert document ({@code upsert}).
+     * <p>
+     * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.
+     */
+    public UpdateRequest upsertExtraFieldValues(ExtraFieldValues values) {
+        safeUpsertRequest().extraFieldValues(values);
         return this;
     }
 
