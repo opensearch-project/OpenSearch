@@ -117,6 +117,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
+                IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,

@@ -594,6 +594,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
+                SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,

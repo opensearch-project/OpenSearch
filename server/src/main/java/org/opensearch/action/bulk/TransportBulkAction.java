@@ -67,12 +67,21 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RotationShardShuffler;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardShuffler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.ValidationException;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -86,6 +95,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
@@ -116,6 +126,7 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
+import static org.opensearch.cluster.routing.IndexShardRoutingTable.rankShardsAndUpdateStats;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -130,6 +141,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportIndicesResolvingAction<BulkRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    private static final ShardShuffler SHUFFLER = new RotationShardShuffler(Randomness.get().nextInt());
 
     private final ThreadPool threadPool;
     private final AutoCreateIndex autoCreateIndex;
@@ -145,6 +157,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndicesService indicesService;
     private final SystemIndices systemIndices;
     private final Tracer tracer;
+    private final ResponseCollectorService nodeMetricsCollector;
+    private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     @Inject
     public TransportBulkAction(
@@ -212,6 +226,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
         this.tracer = tracer;
+        this.nodeMetricsCollector = new ResponseCollectorService(clusterService);
     }
 
     /**
@@ -600,6 +615,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Metadata metadata = clusterState.metadata();
             // go over all the requests and create a ShardId -> Operations mapping
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
+            // for bulk shard routing
+            Map<String, ShardId> index2ShardId = new HashMap<>();
+            final RoutingTable routingTable = clusterState.routingTable();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 // the request can only be null because we set it to null in the previous step, so it gets ignored
@@ -661,9 +679,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
 
-                    ShardId shardId = clusterService.operationRouting()
-                        .indexShards(clusterState, concreteIndex.getName(), docWriteRequest.id(), docWriteRequest.routing())
-                        .shardId();
+                    IndexMetadata indexMetaData = clusterState.metadata().index(concreteIndex.getName());
+                    ShardId shardId = null;
+                    if (indexMetaData.isAppendOnlyIndex() && indexMetaData.bulkAdaptiveShardSelectionEnabled()) {
+                        shardId = index2ShardId.computeIfAbsent(
+                            concreteIndex.getName(),
+                            index -> bulkAdaptiveSelectShard(routingTable.index(concreteIndex), nodeMetricsCollector, clientConnections)
+                        );
+                    }
+                    if (shardId == null) {
+                        shardId = clusterService.operationRouting()
+                            .indexShards(clusterState, concreteIndex.getName(), docWriteRequest.id(), docWriteRequest.routing())
+                            .shardId();
+                    }
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (OpenSearchParseException | IllegalArgumentException | RoutingMissingException e) {
@@ -709,6 +737,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+                final long startTimeNanos = relativeTime();
+                final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
+                String targetNodeId = primary != null ? primary.currentNodeId() : null;
+                IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
+                boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
+                    && indexMetaData.bulkAdaptiveShardSelectionEnabled();
+
                 // Add the shard level accounting for coordinating and supply the listener
                 final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
                 final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(
@@ -718,60 +753,93 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 );
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
+                boolean incrementedConnections = false;
                 try (SpanScope spanScope = tracer.withSpanInScope(span)) {
+                    if (targetNodeId != null) {
+                        clientConnections.compute(targetNodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+                        incrementedConnections = true;
+                    }
                     shardBulkAction.execute(
                         bulkShardRequest,
-                        TraceableActionListener.create(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
-                            @Override
-                            public void onResponse(BulkShardResponse bulkShardResponse) {
-                                for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
-                                    // we may have no response if item failed
-                                    if (bulkItemResponse.getResponse() != null) {
-                                        bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                        TraceableActionListener.create(
+                            ActionListener.runAfter(ActionListener.runBefore(new ActionListener<BulkShardResponse>() {
+                                @Override
+                                public void onResponse(BulkShardResponse bulkShardResponse) {
+                                    if (targetNodeId != null && bulkAdaptiveShardSelectionEnabled) {
+                                        if (bulkShardResponse.getNodeQueueSize() < 0 || bulkShardResponse.getServiceTimeEWMAInNanos() < 0) {
+                                            throw new IllegalStateException(
+                                                "node queue size and service time ewma must be non-negative, got "
+                                                    + bulkShardResponse.getNodeQueueSize()
+                                                    + " and "
+                                                    + bulkShardResponse.getServiceTimeEWMAInNanos()
+                                            );
+                                        }
+                                        nodeMetricsCollector.addNodeStatistics(
+                                            targetNodeId,
+                                            bulkShardResponse.getNodeQueueSize(),
+                                            relativeTime() - startTimeNanos,
+                                            bulkShardResponse.getServiceTimeEWMAInNanos()
+                                        );
+                                    }
+                                    for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                                        // we may have no response if item failed
+                                        if (bulkItemResponse.getResponse() != null) {
+                                            bulkItemResponse.getResponse().setShardInfo(bulkShardResponse.getShardInfo());
+                                        }
+
+                                        docStatusStats.inc(bulkItemResponse.status());
+                                        responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
                                     }
 
-                                    docStatusStats.inc(bulkItemResponse.status());
-                                    responses.set(bulkItemResponse.getItemId(), bulkItemResponse);
+                                    if (counter.decrementAndGet() == 0) {
+                                        finishHim();
+                                    }
                                 }
 
-                                if (counter.decrementAndGet() == 0) {
-                                    finishHim();
-                                }
-                            }
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // create failures for all relevant requests
+                                    for (BulkItemRequest request : requests) {
+                                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                                        final DocWriteRequest<?> docWriteRequest = request.request();
+                                        final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                                            request.id(),
+                                            docWriteRequest.opType(),
+                                            new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                                        );
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                // create failures for all relevant requests
-                                for (BulkItemRequest request : requests) {
-                                    final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                                    final DocWriteRequest<?> docWriteRequest = request.request();
-                                    final BulkItemResponse bulkItemResponse = new BulkItemResponse(
-                                        request.id(),
-                                        docWriteRequest.opType(),
-                                        new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                                        docStatusStats.inc(bulkItemResponse.status());
+                                        responses.set(request.id(), bulkItemResponse);
+                                    }
+
+                                    if (counter.decrementAndGet() == 0) {
+                                        finishHim();
+                                    }
+                                }
+
+                                private void finishHim() {
+                                    indicesService.addDocStatusStats(docStatusStats);
+                                    listener.onResponse(
+                                        new BulkResponse(
+                                            responses.toArray(new BulkItemResponse[responses.length()]),
+                                            buildTookInMillis(startTimeNanos)
+                                        )
                                     );
-
-                                    docStatusStats.inc(bulkItemResponse.status());
-                                    responses.set(request.id(), bulkItemResponse);
                                 }
-
-                                if (counter.decrementAndGet() == 0) {
-                                    finishHim();
+                            }, releasable::close), () -> {
+                                if (targetNodeId != null) {
+                                    clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
                                 }
-                            }
-
-                            private void finishHim() {
-                                indicesService.addDocStatusStats(docStatusStats);
-                                listener.onResponse(
-                                    new BulkResponse(
-                                        responses.toArray(new BulkItemResponse[responses.length()]),
-                                        buildTookInMillis(startTimeNanos)
-                                    )
-                                );
-                            }
-                        }, releasable::close), span, tracer)
+                            }),
+                            span,
+                            tracer
+                        )
                     );
                 } catch (Exception e) {
+                    releasable.close();
+                    if (incrementedConnections && targetNodeId != null) {
+                        clientConnections.computeIfPresent(targetNodeId, (id, conns) -> conns == 1 ? null : conns - 1);
+                    }
                     span.setError(e);
                     span.endSpan();
                     throw e;
@@ -923,6 +991,58 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
          * be saving us an iteration over the responses array
          */
         new BulkOperation(task, bulkRequest, listener, responses, startTimeNanos, indicesThatCannotBeCreated).run();
+    }
+
+    static ShardId bulkAdaptiveSelectShard(
+        IndexRoutingTable indexRoutingTable,
+        ResponseCollectorService nodeMetricsCollector,
+        Map<String, Long> clientConnections
+    ) {
+        if (indexRoutingTable == null) {
+            return null;
+        }
+        if (indexRoutingTable.shards().size() == 1) {
+            return indexRoutingTable.shards().get(0).shardId();
+        }
+
+        // Two-stage selection: first rank nodes by metrics, then randomly pick a shard on the best node
+        Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> shardInfos = getIndexPrimaryShards(indexRoutingTable);
+        List<ShardRouting> shardRoutings = rankShardsAndUpdateStats(
+            SHUFFLER.shuffle(shardInfos.v1(), SHUFFLER.nextSeed()),
+            nodeMetricsCollector,
+            new HashMap<>(clientConnections)
+        );
+        if (shardRoutings.isEmpty()) {
+            return null;
+        }
+        ShardRouting selectedShard = shardRoutings.get(0);
+        if (shardRoutings.size() == 1) {
+            return selectedShard.shardId();
+        }
+        List<ShardRouting> candidates = shardInfos.v2().get(selectedShard.currentNodeId());
+        if (candidates == null || candidates.isEmpty()) {
+            return selectedShard.shardId();
+        }
+        return candidates.get(Randomness.get().nextInt(candidates.size())).shardId();
+    }
+
+    static Tuple<List<ShardRouting>, Map<String, List<ShardRouting>>> getIndexPrimaryShards(IndexRoutingTable indexRoutingTable) {
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        Map<String, List<ShardRouting>> node2Shards = new HashMap<>();
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable.shards().values()) {
+            ShardRouting primary = shardRoutingTable.primaryShard();
+            if (primary.active()) {
+                node2Shards.compute(primary.currentNodeId(), (nodeId, shardList) -> {
+                    if (shardList == null) {
+                        shardList = new ArrayList<>();
+                        shardRoutings.add(primary);
+                    }
+                    shardList.add(primary);
+                    return shardList;
+                });
+            }
+        }
+        return new Tuple<>(shardRoutings, node2Shards);
     }
 
     /**

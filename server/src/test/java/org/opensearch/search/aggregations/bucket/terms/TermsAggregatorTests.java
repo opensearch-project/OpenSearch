@@ -330,6 +330,96 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     /**
+     * When termsAggregationMaxPrecomputeCardinality is set to 0, tryCollectFromTermFrequencies should bail out
+     * even when all other conditions are met (indexed fields, no deletions, no _doc_count).
+     * This verifies the cardinality guard: with threshold=0, all documents must be visited via normal collection.
+     */
+    public void testTermFrequencyCardinalityGuard() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (
+                RandomIndexWriter indexWriter = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                List<Document> documents = new ArrayList<>();
+                Document document = new Document();
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "a");
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "b");
+                documents.add(document);
+
+                document = new Document();
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "");
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "c");
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "a");
+                documents.add(document);
+
+                document = new Document();
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "b");
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "d");
+                documents.add(document);
+
+                document = new Document();
+                ADD_SORTED_SET_FIELD_INDEXED.apply(document, "string", "");
+                documents.add(document);
+
+                indexWriter.addDocuments(documents);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                        .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
+                        .field("string")
+                        .order(BucketOrder.key(true));
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string");
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+
+                    // Set threshold to 0 so the cardinality guard bails out of tryCollectFromTermFrequencies
+                    CountingAggregator aggregator = new CountingAggregator(
+                        new AtomicInteger(),
+                        createAggregatorWithCustomizableSearchContext(
+                            new MatchAllDocsQuery(),
+                            aggregationBuilder,
+                            indexSearcher,
+                            createIndexSettings(),
+                            new MultiBucketConsumerService.MultiBucketConsumer(
+                                DEFAULT_MAX_BUCKETS,
+                                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                            ),
+                            searchContext -> when(searchContext.termsAggregationMaxPrecomputeCardinality()).thenReturn(0L),
+                            fieldType
+                        )
+                    );
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = reduce(aggregator);
+                    assertEquals(5, result.getBuckets().size());
+                    assertEquals("", result.getBuckets().get(0).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                    assertEquals("a", result.getBuckets().get(1).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(1).getDocCount());
+                    assertEquals("b", result.getBuckets().get(2).getKeyAsString());
+                    assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                    assertEquals("c", result.getBuckets().get(3).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(3).getDocCount());
+                    assertEquals("d", result.getBuckets().get(4).getKeyAsString());
+                    assertEquals(1L, result.getBuckets().get(4).getDocCount());
+
+                    // With threshold=0, tryCollectFromTermFrequencies should bail out,
+                    // so all 4 documents must be visited via normal collection
+                    assertEquals(4, aggregator.getCollectCount().get());
+                }
+            }
+        }
+    }
+
+    /**
      * This test case utilizes the MapStringTermsAggregator.
      */
     public void testSimpleMapStringAggregation() throws Exception {
