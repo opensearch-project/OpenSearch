@@ -22,8 +22,8 @@ import org.opensearch.common.annotation.PublicApi;
  * <p>
  * Example usage in a plugin:
  * <pre>{@code
- * if (scorer instanceof ScorerWrapper) {
- *     Scorer wrappedScorer = ((ScorerWrapper) scorer).getWrappedScorer();
+ * if (scorer instanceof WrappedScorerAccessor) {
+ *     Scorer wrappedScorer = ((WrappedScorerAccessor) scorer).getWrappedScorer();
  *     // access custom scorer methods
  * }
  * }</pre>
@@ -31,7 +31,7 @@ import org.opensearch.common.annotation.PublicApi;
  * @opensearch.api
  */
 @PublicApi(since = "3.6.0")
-public interface ScorerWrapper {
+public interface WrappedScorerAccessor {
 
     /**
      * Returns the underlying wrapped scorer.

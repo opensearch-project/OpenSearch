@@ -47,7 +47,7 @@ import java.util.Collection;
  *
  * @opensearch.internal
  */
-final class ProfileScorer extends Scorer implements ScorerWrapper {
+final class ProfileScorer extends Scorer implements WrappedScorerAccessor {
 
     private final Scorer scorer;
 

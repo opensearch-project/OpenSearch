@@ -37,6 +37,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -114,18 +115,36 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         assertSame(fakeScorer, profileScorer.getWrappedScorer());
     }
 
-    public void testImplementsScorerWrapper() throws IOException {
+    public void testImplementsWrappedScorerAccessor() throws IOException {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
 
-        // ProfileScorer implements ScorerWrapper, allowing plugins to detect and unwrap
+        // ProfileScorer implements WrappedScorerAccessor, allowing plugins to detect and unwrap
         // profiling wrappers using instanceof without reflection
-        assertTrue("ProfileScorer should implement ScorerWrapper", profileScorer instanceof ScorerWrapper);
-        ScorerWrapper wrapper = (ScorerWrapper) profileScorer;
-        assertSame("ScorerWrapper.getWrappedScorer() should return the original scorer", fakeScorer, wrapper.getWrappedScorer());
+        assertTrue("ProfileScorer should implement WrappedScorerAccessor", profileScorer instanceof WrappedScorerAccessor);
+        WrappedScorerAccessor accessor = (WrappedScorerAccessor) profileScorer;
+        assertSame("WrappedScorerAccessor.getWrappedScorer() should return the original scorer", fakeScorer, accessor.getWrappedScorer());
+    }
+
+    public void testUnwrapFromScorableReference() throws IOException {
+        // Simulate how a plugin collector receives a generic Scorable reference
+        // (e.g., via LeafCollector.setScorer()) and uses WrappedScorerAccessor
+        // to unwrap the profiling wrapper and access the original scorer
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+
+        // Plugin only sees a Scorable reference, not ProfileScorer
+        Scorable scorable = new ProfileScorer(fakeScorer, profile);
+
+        // Plugin uses instanceof to detect the wrapper and unwrap
+        assertTrue("Scorable should be detected as WrappedScorerAccessor", scorable instanceof WrappedScorerAccessor);
+        Scorer unwrapped = ((WrappedScorerAccessor) scorable).getWrappedScorer();
+        assertSame("Unwrapped scorer should be the original FakeScorer", fakeScorer, unwrapped);
     }
 
     public void testGetChildren_delegatesToWrappedScorer() throws IOException {
