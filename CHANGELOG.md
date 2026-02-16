@@ -63,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Change transport.port to http.port in indexer-security-init [(#1233)](https://github.com/wazuh/wazuh-indexer/pull/1233)
 - Update builder script to detect SAP branch [(#1271)](https://github.com/wazuh/wazuh-indexer/pull/1271)
 - Build SAP in CM workflow [(#1272)](https://github.com/wazuh/wazuh-indexer/pull/1272)
+- Use docker commands directly instead of addnab/docker-run-action [(#1326)](https://github.com/wazuh/wazuh-indexer/pull/1326)
 
 ### Deprecated
 -

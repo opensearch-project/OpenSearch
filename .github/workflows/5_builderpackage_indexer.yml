@@ -520,66 +520,42 @@ jobs:
 
       - name: Test RPM package installation
         if: ${{ matrix.distribution == 'rpm' }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: redhat/ubi9:latest
-          options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
-          run: |
-            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
-
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/artifacts/dist:/artifacts/dist" \
+            redhat/ubi9:latest \
+            bash -c "yum localinstall '/artifacts/dist/${{ steps.package.outputs.name }}' -y"
 
       - name: Test RPM package uninstallation
         if: ${{ matrix.distribution == 'rpm' }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: redhat/ubi9:latest
-          options: -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
-          run: |
-            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
-            yum remove wazuh-indexer -y
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/artifacts/dist:/artifacts/dist" \
+            redhat/ubi9:latest \
+            bash -c "yum localinstall '/artifacts/dist/${{ steps.package.outputs.name }}' -y && yum remove wazuh-indexer -y"
 
       - name: Test RPM package update stopping the indexer
         if: ${{ matrix.distribution == 'rpm' && needs.setup.outputs.previous_version >= '5.0' }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: redhat/ubi9:latest
-          options:
-            -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
-            -v ${{ github.workspace }}/build-scripts/:/build-scripts/
-          run: |
-            bash /build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
-            systemctl stop wazuh-indexer
-            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
-
-            # Check if the indexer is running
-            indexer_running=$($systemctl is-active --quiet wazuh-indexer && echo 1 || echo 0)
-            if [[ "$indexer_running" == "1" ]]; then
-              echo "The indexer is running after the update, but it should not be."
-              exit 1
-            else
-              echo "The indexer is not running after the update, as expected."
-            fi
+        run: |
+          docker run --rm --privileged \
+            -v "${{ github.workspace }}/artifacts/dist:/artifacts/dist" \
+            -v "${{ github.workspace }}/build-scripts/:/build-scripts/" \
+            redhat/ubi9:latest \
+            bash -c "bash /build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }} && \
+                     systemctl stop wazuh-indexer && \
+                     yum localinstall '/artifacts/dist/${{ steps.package.outputs.name }}' -y && \
+                     if systemctl is-active --quiet wazuh-indexer; then echo 'Indexer running (unexpected)'; exit 1; else echo 'Indexer stopped (expected)'; fi"
 
       - name: Test RPM package update without stopping the indexer
         if: ${{ matrix.distribution == 'rpm' && needs.setup.outputs.previous_version >= '5.0' }}
-        uses: addnab/docker-run-action@v3
-        with:
-          image: redhat/ubi9:latest
-          options:
-            -v ${{ github.workspace }}/artifacts/dist:/artifacts/dist
-            -v ${{ github.workspace }}/build-scripts/:/build-scripts/
-          run: |
-            bash /build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
-            yum localinstall "/artifacts/dist/${{ steps.package.outputs.name }}" -y
-
-            # Check if the indexer is running
-            indexer_running=$($systemctl is-active --quiet wazuh-indexer && echo 1 || echo 0)
-            if [[ "$indexer_running" == "1" ]]; then
-              echo "The indexer is running after the update, as expected."
-            else
-              echo "The indexer is not running after the update, but it should be."
-              exit 1
-            fi
+        run: |
+          docker run --rm --privileged \
+            -v "${{ github.workspace }}/artifacts/dist:/artifacts/dist" \
+            -v "${{ github.workspace }}/build-scripts/:/build-scripts/" \
+            redhat/ubi9:latest \
+            bash -c "bash /build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }} && \
+                     yum localinstall '/artifacts/dist/${{ steps.package.outputs.name }}' -y && \
+                     if systemctl is-active --quiet wazuh-indexer; then echo 'Indexer running (expected)'; else echo 'Indexer not running (unexpected)'; exit 1; fi"
 
       - name: Test DEB package installation
         if: ${{ matrix.distribution == 'deb' }}
