@@ -129,22 +129,36 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         assertSame("WrappedScorerAccessor.getWrappedScorer() should return the original scorer", fakeScorer, accessor.getWrappedScorer());
     }
 
-    public void testUnwrapFromScorableReference() throws IOException {
-        // Simulate how a plugin collector receives a generic Scorable reference
-        // (e.g., via LeafCollector.setScorer()) and uses WrappedScorerAccessor
-        // to unwrap the profiling wrapper and access the original scorer
+    public void testUnwrapNestedProfilingScorerFromScorableReference() throws IOException {
+        // Simulate nested profiling: a scorer wrapped in two ProfileScorer layers.
+        // This tests that a plugin can iteratively unwrap through multiple profiling
+        // layers via a generic Scorable reference (as received in LeafCollector.setScorer())
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
-        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        QueryProfileBreakdown innerProfile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        QueryProfileBreakdown outerProfile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
 
-        // Plugin only sees a Scorable reference, not ProfileScorer
-        Scorable scorable = new ProfileScorer(fakeScorer, profile);
+        // Create nested profiling: FakeScorer -> innerProfileScorer -> outerProfileScorer
+        ProfileScorer innerProfileScorer = new ProfileScorer(fakeScorer, innerProfile);
+        ProfileScorer outerProfileScorer = new ProfileScorer(innerProfileScorer, outerProfile);
 
-        // Plugin uses instanceof to detect the wrapper and unwrap
-        assertTrue("Scorable should be detected as WrappedScorerAccessor", scorable instanceof WrappedScorerAccessor);
-        Scorer unwrapped = ((WrappedScorerAccessor) scorable).getWrappedScorer();
-        assertSame("Unwrapped scorer should be the original FakeScorer", fakeScorer, unwrapped);
+        // Plugin only sees a Scorable reference
+        Scorable scorable = outerProfileScorer;
+
+        // Unwrap first layer
+        assertTrue("Outer Scorable should be detected as WrappedScorerAccessor", scorable instanceof WrappedScorerAccessor);
+        Scorer firstUnwrap = ((WrappedScorerAccessor) scorable).getWrappedScorer();
+        assertNotSame("First unwrap should not be the original scorer", fakeScorer, firstUnwrap);
+        assertTrue(
+            "First unwrap should still be a WrappedScorerAccessor (inner ProfileScorer)",
+            firstUnwrap instanceof WrappedScorerAccessor
+        );
+
+        // Unwrap second layer to reach the original scorer
+        Scorer secondUnwrap = ((WrappedScorerAccessor) firstUnwrap).getWrappedScorer();
+        assertSame("Second unwrap should be the original FakeScorer", fakeScorer, secondUnwrap);
+        assertFalse("Original scorer should not implement WrappedScorerAccessor", secondUnwrap instanceof WrappedScorerAccessor);
     }
 
     public void testGetChildren_delegatesToWrappedScorer() throws IOException {
