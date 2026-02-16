@@ -49,7 +49,7 @@ public class PrimitiveFloatArrayTests extends OpenSearchTestCase {
         pfa.writePayloadTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        PrimitiveFloatArray read = PrimitiveFloatArray.readBodyFrom(in, vals.length);
+        PrimitiveFloatArray read = PrimitiveFloatArray.readBodyFrom(in);
 
         assertThat(read.dimension(), is(vals.length));
         assertThat(read.isPackedLE(), is(false));
@@ -68,7 +68,7 @@ public class PrimitiveFloatArrayTests extends OpenSearchTestCase {
         pfa.writePayloadTo(out);
 
         StreamInput in = out.bytes().streamInput();
-        PrimitiveFloatArray read = PrimitiveFloatArray.readBodyFrom(in, 0);
+        PrimitiveFloatArray read = PrimitiveFloatArray.readBodyFrom(in);
 
         assertThat(read.dimension(), is(0));
         assertThat(read.asFloatArray().length, is(0));

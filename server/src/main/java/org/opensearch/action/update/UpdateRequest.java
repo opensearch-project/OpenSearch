@@ -722,7 +722,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Sets extral field values for the partial document update ({@code doc}).
+     * Sets extra field values for the partial document update ({@code doc}).
      * <p>
      * These values are applied only when the update is executed using {@code doc} (i.e., no script).
      * {@code null} clears the values and resets to {@link ExtraFieldValues#EMPTY}.

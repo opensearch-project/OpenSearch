@@ -83,6 +83,7 @@ public final class PackedFloatArray implements FloatArrayValue {
 
     @Override
     public void writePayloadTo(StreamOutput out) throws IOException {
+        out.writeVInt(dimension());
         out.writeBytesReference(packed);
     }
 

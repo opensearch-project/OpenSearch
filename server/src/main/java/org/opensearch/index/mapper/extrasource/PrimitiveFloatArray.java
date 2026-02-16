@@ -52,15 +52,10 @@ public final class PrimitiveFloatArray implements FloatArrayValue {
 
     @Override
     public void writePayloadTo(StreamOutput out) throws IOException {
-        for (int i = 0; i < dimension(); i++) {
-            out.writeFloat(get(i));
-        }
+        out.writeFloatArray(v);
     }
 
-    static PrimitiveFloatArray readBodyFrom(StreamInput in, int dim) throws IOException {
-        final float[] v = new float[dim];
-        for (int j = 0; j < dim; j++)
-            v[j] = in.readFloat();
-        return new PrimitiveFloatArray(v);
+    static PrimitiveFloatArray readBodyFrom(StreamInput in) throws IOException {
+        return new PrimitiveFloatArray(in.readFloatArray());
     }
 }

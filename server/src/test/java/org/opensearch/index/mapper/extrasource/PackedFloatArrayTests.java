@@ -8,6 +8,7 @@
 
 package org.opensearch.index.mapper.extrasource;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -121,6 +122,8 @@ public class PackedFloatArrayTests extends OpenSearchTestCase {
 
         // read payload back
         StreamInput in = out.bytes().streamInput();
+        int dim = in.readVInt();
+        assertThat(dim, equalTo(vals.length));
         PackedFloatArray read = PackedFloatArray.readBodyFrom(in, vals.length);
 
         assertThat(read.asFloatArray(), equalTo(vals));
@@ -150,15 +153,11 @@ public class PackedFloatArrayTests extends OpenSearchTestCase {
         return bb.array();
     }
 
+    // TODO remove this
+    @SuppressForbidden(reason = "todo, remove this")
     private static Object getPrivateField(Object target, String fieldName) throws Exception {
         Field f = target.getClass().getDeclaredField(fieldName);
         f.setAccessible(true);
         return f.get(target);
-    }
-
-    private static void setPrivateField(Object target, String fieldName, Object value) throws Exception {
-        Field f = target.getClass().getDeclaredField(fieldName);
-        f.setAccessible(true);
-        f.set(target, value);
     }
 }

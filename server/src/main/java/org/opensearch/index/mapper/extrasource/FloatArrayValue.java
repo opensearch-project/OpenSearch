@@ -50,7 +50,6 @@ public non-sealed interface FloatArrayValue extends ExtraFieldValue {
     @Override
     default void writeBodyTo(StreamOutput out) throws IOException {
         out.writeBoolean(isPackedLE());
-        out.writeVInt(dimension());
         writePayloadTo(out);
     }
 
@@ -58,12 +57,11 @@ public non-sealed interface FloatArrayValue extends ExtraFieldValue {
 
     static FloatArrayValue readBodyFrom(StreamInput in) throws IOException {
         final boolean packedLE = in.readBoolean();
-        final int dim = in.readVInt();
-
         if (packedLE) {
+            final int dim = in.readVInt();
             return PackedFloatArray.readBodyFrom(in, dim);
         } else {
-            return PrimitiveFloatArray.readBodyFrom(in, dim);
+            return PrimitiveFloatArray.readBodyFrom(in);
         }
     }
 }
