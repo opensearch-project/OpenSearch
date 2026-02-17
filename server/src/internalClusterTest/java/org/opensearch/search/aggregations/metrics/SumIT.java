@@ -431,4 +431,21 @@ public class SumIT extends AbstractNumericTestCase {
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(50.5));
     }
+
+    public void testSumWithIntraSegmentPartitioning() throws Exception {
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        long expectedSum = 0;
+        for (int i = 0; i < 5000; i++) {
+            expectedSum += (i + 1);
+            client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
+            if (i % 2500 == 2499) refresh();
+        }
+        refresh();
+        indexRandomForConcurrentSearch("intra_test");
+        SearchResponse response = client().prepareSearch("intra_test").addAggregation(sum("sum").field("value")).get();
+        Sum sumAgg = response.getAggregations().get("sum");
+        assertThat(sumAgg, notNullValue());
+        assertThat(sumAgg.getValue(), equalTo((double) expectedSum));
+        client().admin().indices().prepareDelete("intra_test").get();
+    }
 }

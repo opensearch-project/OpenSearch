@@ -410,4 +410,25 @@ public class StatsIT extends AbstractNumericTestCase {
         );
         internalCluster().wipeIndices("cache_test_idx");
     }
+
+    public void testStatsWithIntraSegmentPartitioning() throws Exception {
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        long expectedSum = 0;
+        for (int i = 0; i < 5000; i++) {
+            expectedSum += (i + 1);
+            client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
+            if (i % 2500 == 2499) refresh();
+        }
+        refresh();
+        indexRandomForConcurrentSearch("intra_test");
+        SearchResponse response = client().prepareSearch("intra_test").addAggregation(stats("stats").field("value")).get();
+        Stats statsAgg = response.getAggregations().get("stats");
+        assertThat(statsAgg, notNullValue());
+        assertThat(statsAgg.getCount(), equalTo(5000L));
+        assertThat(statsAgg.getMin(), equalTo(1.0));
+        assertThat(statsAgg.getMax(), equalTo(5000.0));
+        assertThat(statsAgg.getSum(), equalTo((double) expectedSum));
+        assertThat(statsAgg.getAvg(), equalTo((double) expectedSum / 5000));
+        client().admin().indices().prepareDelete("intra_test").get();
+    }
 }

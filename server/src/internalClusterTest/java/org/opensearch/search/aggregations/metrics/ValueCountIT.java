@@ -424,4 +424,19 @@ public class ValueCountIT extends ParameterizedStaticSettingsOpenSearchIntegTest
 
         }
     }
+
+    public void testValueCountWithIntraSegmentPartitioning() throws Exception {
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        for (int i = 0; i < 5000; i++) {
+            client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
+            if (i % 2500 == 2499) refresh();
+        }
+        refresh();
+        indexRandomForConcurrentSearch("intra_test");
+        SearchResponse response = client().prepareSearch("intra_test").addAggregation(count("count").field("value")).get();
+        ValueCount countAgg = response.getAggregations().get("count");
+        assertThat(countAgg, notNullValue());
+        assertThat(countAgg.getValue(), equalTo(5000L));
+        client().admin().indices().prepareDelete("intra_test").get();
+    }
 }
