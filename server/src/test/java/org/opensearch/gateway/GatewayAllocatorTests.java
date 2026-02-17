@@ -909,7 +909,7 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
                     .settings(settings(Version.CURRENT))
                     .numberOfShards(1)
                     .numberOfReplicas(1)
-                    .state(IndexMetadata.State.OPEN)  // Index is OPEN
+                    .state(IndexMetadata.State.OPEN)
                     .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
             )
             .build();
@@ -943,5 +943,131 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
             .iterator()
             .next();
         assertTrue("Batch should contain the replica shard", batch.getBatchedShards().contains(shardId));
+    }
+
+    public void testAlreadyBatchedShardIndexClosedLater() {
+        final ShardId shardId = new ShardId("test-index", "_na_", 0);
+        final DiscoveryNode node = newNode("node1");
+
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node.getId(), true, ShardRoutingState.STARTED);
+
+        ShardRouting replicaShard = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.REPLICA_ADDED,
+                "replica added",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .state(IndexMetadata.State.OPEN)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard).addShard(replicaShard).build());
+
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        testAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(clusterState, false),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        Set<String> replicaBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, false);
+        assertEquals("Replica shard should be batched", 1, replicaBatches.size());
+        assertEquals(1, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
+
+        ShardsBatchGatewayAllocator.ShardsBatch batch = testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
+            .values()
+            .iterator()
+            .next();
+        assertTrue("Batch should contain the replica shard", batch.getBatchedShards().contains(shardId));
+
+        ShardRouting closedReplicaShard = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                "index closed",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        Metadata closedMetadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .state(IndexMetadata.State.CLOSE)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
+
+        IndexRoutingTable.Builder closedIndexRoutingTable = IndexRoutingTable.builder(shardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard).addShard(closedReplicaShard).build());
+
+        RoutingTable closedRoutingTable = RoutingTable.builder().add(closedIndexRoutingTable).build();
+
+        ClusterState closedClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(closedMetadata)
+            .routingTable(closedRoutingTable)
+            .build();
+
+        RoutingAllocation closedAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(closedClusterState, false),
+            closedClusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        Set<String> batchesAfterClose = testShardsBatchGatewayAllocator.createAndUpdateBatches(closedAllocation, false);
+
+        if (batchesAfterClose.isEmpty()) {
+            assertEquals("Batch should be cleaned up when empty", 0, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
+        } else {
+            ShardsBatchGatewayAllocator.ShardsBatch batchAfterClose = testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
+                .values()
+                .iterator()
+                .next();
+            assertFalse(
+                "Batch should not contain the closed index shard after reroute",
+                batchAfterClose.getBatchedShards().contains(shardId)
+            );
+        }
     }
 }
