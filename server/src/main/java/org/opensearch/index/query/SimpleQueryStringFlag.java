@@ -87,7 +87,7 @@ public enum SimpleQueryStringFlag {
                         magic |= flag.value();
                 }
             } catch (IllegalArgumentException iae) {
-                throw new IllegalArgumentException("Unknown " + SimpleQueryStringBuilder.NAME + " flag [" + s + "]");
+                throw new IllegalArgumentException(SimpleQueryStringBuilder.UNKNOWN_FLAG_PREFIX + s + "]");
             }
         }
         return magic;

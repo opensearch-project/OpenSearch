@@ -63,6 +63,12 @@ import java.util.Objects;
 public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
     public static final String NAME = "boosting";
 
+    // Error message constants for validation
+    public static final String POSITIVE_QUERY_REQUIRED = "[boosting] query requires 'positive' query to be set'";
+    public static final String NEGATIVE_QUERY_REQUIRED = "[boosting] query requires 'negative' query to be set'";
+    public static final String NEGATIVE_BOOST_POSITIVE_VALUE_REQUIRED =
+        "[boosting] query requires 'negative_boost' to be set to be a positive value'";
+
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     private static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
@@ -189,16 +195,13 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         }
 
         if (!positiveQueryFound) {
-            throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'positive' query to be set'");
+            throw new ParsingException(parser.getTokenLocation(), POSITIVE_QUERY_REQUIRED);
         }
         if (!negativeQueryFound) {
-            throw new ParsingException(parser.getTokenLocation(), "[boosting] query requires 'negative' query to be set'");
+            throw new ParsingException(parser.getTokenLocation(), NEGATIVE_QUERY_REQUIRED);
         }
         if (negativeBoost < 0) {
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                "[boosting] query requires 'negative_boost' to be set to be a positive value'"
-            );
+            throw new ParsingException(parser.getTokenLocation(), NEGATIVE_BOOST_POSITIVE_VALUE_REQUIRED);
         }
 
         BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
