@@ -23,12 +23,14 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.cluster.routing.RoutingChangesObserver;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.service.ClusterService;
@@ -664,5 +666,282 @@ public class GatewayAllocatorTests extends OpenSearchAllocationTestCase {
         assertEquals(testShardsBatchGatewayAllocator.getBatchIdToStartedShardBatch().keySet(), primaryBatches);
         assertEquals(testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().keySet(), replicaBatches);
         return new Tuple<>(primaryBatches, replicaBatches);
+    }
+
+    public void testIndexClosedShardsNotBatchedInBatchMode() {
+        final ShardId shardId = new ShardId("test-closed-index", "_na_", 0);
+        final DiscoveryNode node = newNode("node1");
+
+        ShardRouting primaryShard = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                "index closed",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        ShardRouting replicaShard = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                "index closed",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .state(IndexMetadata.State.CLOSE)
+            )
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard).addShard(replicaShard).build());
+
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        testAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(clusterState, false),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        Set<String> primaryBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, true);
+        Set<String> replicaBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, false);
+
+        assertEquals("Primary shards with INDEX_CLOSED should not be batched", 0, primaryBatches.size());
+        assertEquals("Replica shards with INDEX_CLOSED should not be batched", 0, replicaBatches.size());
+        assertEquals(0, testShardsBatchGatewayAllocator.getBatchIdToStartedShardBatch().size());
+        assertEquals(0, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
+    }
+
+    public void testIndexClosedShardsSkippedInNonBatchMode() {
+        final ShardId shardId = new ShardId("test-closed-index", "_na_", 0);
+
+        ShardRouting primaryShard = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                "index closed",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        ShardRouting replicaShard = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.INDEX_CLOSED,
+                "index closed",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .state(IndexMetadata.State.CLOSE)
+            )
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard).addShard(replicaShard).build());
+
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        RoutingAllocation allocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(state, false),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        AtomicBoolean allocationAttempted = new AtomicBoolean(false);
+
+        ExistingShardsAllocator.UnassignedAllocationHandler handler = new ExistingShardsAllocator.UnassignedAllocationHandler() {
+            @Override
+            public ShardRouting initialize(
+                String nodeId,
+                String allocationId,
+                long expectedShardSize,
+                RoutingChangesObserver routingChanges
+            ) {
+                allocationAttempted.set(true);
+                return null;
+            }
+
+            @Override
+            public void removeAndIgnore(UnassignedInfo.AllocationStatus attemptedStatus, RoutingChangesObserver changes) {
+                allocationAttempted.set(true);
+            }
+
+            @Override
+            public ShardRouting updateUnassigned(
+                UnassignedInfo unassignedInfo,
+                RecoverySource recoverySource,
+                RoutingChangesObserver changes
+            ) {
+                return null;
+            }
+        };
+
+        GatewayAllocator.innerAllocatedUnassigned(allocation, new PrimaryShardAllocator() {
+            @Override
+            protected AsyncShardFetch.FetchResult fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return null;
+            }
+        }, new ReplicaShardAllocator() {
+            @Override
+            protected AsyncShardFetch.FetchResult fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return null;
+            }
+
+            @Override
+            protected boolean hasInitiatedFetching(ShardRouting shard) {
+                return false;
+            }
+        }, primaryShard, handler);
+
+        assertFalse("Primary shard with INDEX_CLOSED should not trigger allocation", allocationAttempted.get());
+
+        allocationAttempted.set(false);
+
+        GatewayAllocator.innerAllocatedUnassigned(allocation, new PrimaryShardAllocator() {
+            @Override
+            protected AsyncShardFetch.FetchResult fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return null;
+            }
+        }, new ReplicaShardAllocator() {
+            @Override
+            protected AsyncShardFetch.FetchResult fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return null;
+            }
+
+            @Override
+            protected boolean hasInitiatedFetching(ShardRouting shard) {
+                return false;
+            }
+        }, replicaShard, handler);
+
+        assertFalse("Replica shard with INDEX_CLOSED should not trigger allocation", allocationAttempted.get());
+    }
+
+    public void testNonClosedShardsStillBatchedNormally() {
+        final ShardId shardId = new ShardId("test-normal-index", "_na_", 0);
+        final DiscoveryNode node = newNode("node1");
+
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node.getId(), true, ShardRoutingState.STARTED);
+
+        ShardRouting replicaShard = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.REPLICA_ADDED,
+                "replica added",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet()
+            )
+        );
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .state(IndexMetadata.State.OPEN)  // Index is OPEN
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(shardId.getIndex())
+            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard).addShard(replicaShard).build());
+
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
+
+        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .build();
+
+        testAllocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.emptyList()),
+            new RoutingNodes(clusterState, false),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
+
+        Set<String> replicaBatches = testShardsBatchGatewayAllocator.createAndUpdateBatches(testAllocation, false);
+
+        assertEquals("Replica shard with REPLICA_ADDED should be batched", 1, replicaBatches.size());
+        assertEquals(1, testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch().size());
+
+        ShardsBatchGatewayAllocator.ShardsBatch batch = testShardsBatchGatewayAllocator.getBatchIdToStoreShardBatch()
+            .values()
+            .iterator()
+            .next();
+        assertTrue("Batch should contain the replica shard", batch.getBatchedShards().contains(shardId));
     }
 }
