@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-grant codeBase "${codebase.grpc-netty-shaded}" {
+grant codeBase "${codebase.grpc-netty}" {
    // for reading the system-wide configuration for the backlog of established sockets
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
 
@@ -18,4 +18,28 @@ grant codeBase "${codebase.grpc-netty-shaded}" {
 
    // Netty on Windows uses WEPollSelectorImpl which needs to delete temporary socket files
    permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.netty-common}" {
+   // netty makes and accepts socket connections
+   permission java.net.SocketPermission "*", "accept,connect";
+
+   // Netty sets custom classloader for some of its internal threads
+   permission java.lang.RuntimePermission "*", "setContextClassLoader";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+
+   // netty makes and accepts socket connections
+   permission java.net.SocketPermission "*", "accept,connect";
+
+   // Netty on Windows uses WEPollSelectorImpl which needs to delete temporary socket files
+   permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.netty-handler}" {
+   // netty makes and accepts socket connections
+   permission java.net.SocketPermission "*", "accept,connect";
 };
