@@ -47,7 +47,7 @@ import java.util.Collection;
  *
  * @opensearch.internal
  */
-final class ProfileScorer extends Scorer implements WrappedScorerAccessor {
+final class ProfileScorer extends Scorer implements ProfilingWrapper<Scorer> {
 
     private final Scorer scorer;
 
@@ -81,7 +81,8 @@ final class ProfileScorer extends Scorer implements WrappedScorerAccessor {
      * @return the underlying wrapped scorer
      * @see ProfileCollector#getDelegate()
      */
-    public Scorer getWrappedScorer() {
+    @Override
+    public Scorer getDelegate() {
         return scorer;
     }
 
