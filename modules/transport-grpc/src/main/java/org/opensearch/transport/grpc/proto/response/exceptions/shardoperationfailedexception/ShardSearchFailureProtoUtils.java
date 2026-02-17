@@ -34,7 +34,9 @@ public class ShardSearchFailureProtoUtils {
     public static org.opensearch.protobufs.ShardSearchFailure toProto(ShardSearchFailure exception) throws IOException {
         org.opensearch.protobufs.ShardSearchFailure.Builder shardSearchFailure = org.opensearch.protobufs.ShardSearchFailure.newBuilder();
         shardSearchFailure.setShard(exception.shardId());
-        shardSearchFailure.setIndex(exception.index());
+        if (exception.index() != null) {
+            shardSearchFailure.setIndex(exception.index());
+        }
         if (exception.shard() != null && exception.shard().getNodeId() != null) {
             shardSearchFailure.setNode(exception.shard().getNodeId());
         }
@@ -54,7 +56,9 @@ public class ShardSearchFailureProtoUtils {
     public static ShardFailure toLegacyProto(ShardSearchFailure exception) throws IOException {
         ShardFailure.Builder shardFailure = ShardFailure.newBuilder();
         shardFailure.setShard(exception.shardId());
-        shardFailure.setIndex(exception.index());
+        if (exception.index() != null) {
+            shardFailure.setIndex(exception.index());
+        }
         if (exception.shard() != null && exception.shard().getNodeId() != null) {
             shardFailure.setNode(exception.shard().getNodeId());
         }
