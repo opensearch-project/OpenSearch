@@ -43,27 +43,25 @@ class SimpleQueryStringBuilderProtoUtils {
      * @throws IllegalArgumentException if required fields are missing
      */
     static SimpleQueryStringBuilder fromProto(SimpleQueryStringQuery simpleQueryStringProto) {
-        // Extract fields in the order they appear in fromXContent
-        String queryBody = simpleQueryStringProto.getQuery();
-        Map<String, Float> fieldsAndWeights = null;
+        // Variables mirror fromXContent (with correct spelling for fuzzyPrefixLength)
+        String queryBody = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-        String analyzerName = null;
+        String queryName = null;
+        String minimumShouldMatch = null;
+        Map<String, Float> fieldsAndWeights = null;
         Operator defaultOperator = null;
+        String analyzerName = null;
         int flags = SimpleQueryStringFlag.ALL.value();
         Boolean lenient = null;
         boolean analyzeWildcard = SimpleQueryStringBuilder.DEFAULT_ANALYZE_WILDCARD;
-        String queryName = null;
-        String minimumShouldMatch = null;
         String quoteFieldSuffix = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
         int fuzzyPrefixLength = SimpleQueryStringBuilder.DEFAULT_FUZZY_PREFIX_LENGTH;
         int fuzzyMaxExpansions = SimpleQueryStringBuilder.DEFAULT_FUZZY_MAX_EXPANSIONS;
         boolean fuzzyTranspositions = SimpleQueryStringBuilder.DEFAULT_FUZZY_TRANSPOSITIONS;
 
-        // Query text is required
-        if (queryBody == null || queryBody.isEmpty()) {
-            throw new IllegalArgumentException(SimpleQueryStringBuilder.QUERY_TEXT_MISSING);
-        }
+        // Process query text (required)
+        queryBody = simpleQueryStringProto.getQuery();
 
         // Process fields (optional)
         if (simpleQueryStringProto.getFieldsCount() > 0) {
@@ -76,7 +74,7 @@ class SimpleQueryStringBuilderProtoUtils {
                         float fieldBoost = Float.parseFloat(fieldAndBoost[1]);
                         fieldsAndWeights.put(fieldAndBoost[0], fieldBoost);
                     } catch (NumberFormatException e) {
-                        fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
+                        throw new IllegalArgumentException("invalid boost value in field [" + field + "]", e);
                     }
                 } else {
                     fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
@@ -160,6 +158,14 @@ class SimpleQueryStringBuilderProtoUtils {
             fuzzyTranspositions = simpleQueryStringProto.getFuzzyTranspositions();
         }
 
+        // Query text is required - validate AFTER all field processing (matches fromXContent)
+        // Note: XContent only checks for null (allows empty strings)
+        // Proto strings are never null (default to empty), so this check will never trigger
+        // but we keep it for consistency with XContent pattern
+        if (queryBody == null) {
+            throw new IllegalArgumentException(SimpleQueryStringBuilder.QUERY_TEXT_MISSING);
+        }
+
         // Build the query in the same order as fromXContent
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder(queryBody);
         if (fieldsAndWeights != null) {
@@ -170,7 +176,7 @@ class SimpleQueryStringBuilderProtoUtils {
         if (lenient != null) {
             qb.lenient(lenient);
         }
-        qb.analyzeWildcard(analyzeWildcard).quoteFieldSuffix(quoteFieldSuffix);
+        qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         qb.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         qb.fuzzyPrefixLength(fuzzyPrefixLength);
         qb.fuzzyMaxExpansions(fuzzyMaxExpansions);

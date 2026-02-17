@@ -64,10 +64,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     public static final String NAME = "boosting";
 
     // Error message constants for validation
-    public static final String POSITIVE_QUERY_REQUIRED = "[boosting] query requires 'positive' query to be set'";
-    public static final String NEGATIVE_QUERY_REQUIRED = "[boosting] query requires 'negative' query to be set'";
+    public static final String POSITIVE_QUERY_REQUIRED = "[boosting] query requires 'positive' query to be set";
+    public static final String NEGATIVE_QUERY_REQUIRED = "[boosting] query requires 'negative' query to be set";
     public static final String NEGATIVE_BOOST_POSITIVE_VALUE_REQUIRED =
-        "[boosting] query requires 'negative_boost' to be set to be a positive value'";
+        "[boosting] query requires 'negative_boost' to be set to be a positive value";
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");

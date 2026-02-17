@@ -120,14 +120,14 @@ public class BoostingQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithZeroNegativeBoost() {
-        // Create a protobuf BoostingQuery with negative_boost = 0 (invalid)
+        // Create a protobuf BoostingQuery with negative_boost = 0 (valid, matches XContent behavior)
         BoostingQuery boostingQuery = BoostingQuery.newBuilder()
             .setPositive(createMatchAllQueryContainer())
             .setNegative(createTermQueryContainer("field1", "value1"))
             .setNegativeBoost(0.0f)
             .build();
 
-        // Call the method under test - should work as 0 is not < 0
+        // Call the method under test - should succeed (0 is not < 0)
         BoostingQueryBuilder result = BoostingQueryBuilderProtoUtils.fromProto(boostingQuery, registry);
         assertNotNull("BoostingQueryBuilder should not be null", result);
         assertEquals("Negative boost should be 0", 0.0f, result.negativeBoost(), 0.0f);

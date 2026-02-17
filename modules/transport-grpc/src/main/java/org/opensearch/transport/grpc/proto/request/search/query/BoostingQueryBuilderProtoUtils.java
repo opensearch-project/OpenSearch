@@ -37,32 +37,31 @@ class BoostingQueryBuilderProtoUtils {
      * @throws IllegalArgumentException if required fields are missing
      */
     static BoostingQueryBuilder fromProto(BoostingQuery boostingQueryProto, QueryBuilderProtoConverterRegistry registry) {
-        // Extract fields in the order they appear in fromXContent
+        // Variables mirror fromXContent exactly
         QueryBuilder positiveQuery = null;
+        boolean positiveQueryFound = false;
         QueryBuilder negativeQuery = null;
-        float negativeBoost = -1;
+        boolean negativeQueryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        float negativeBoost = -1;
         String queryName = null;
 
-        // Process positive query (required in proto)
-        QueryContainer positiveContainer = boostingQueryProto.getPositive();
-        positiveQuery = registry.fromProto(positiveContainer);
-        if (positiveQuery == null) {
-            throw new IllegalArgumentException(BoostingQueryBuilder.POSITIVE_QUERY_REQUIRED);
+        // Process positive query
+        if (boostingQueryProto.hasPositive()) {
+            QueryContainer positiveContainer = boostingQueryProto.getPositive();
+            positiveQuery = registry.fromProto(positiveContainer);
+            positiveQueryFound = true;
         }
 
-        // Process negative query (required in proto)
-        QueryContainer negativeContainer = boostingQueryProto.getNegative();
-        negativeQuery = registry.fromProto(negativeContainer);
-        if (negativeQuery == null) {
-            throw new IllegalArgumentException(BoostingQueryBuilder.NEGATIVE_QUERY_REQUIRED);
+        // Process negative query
+        if (boostingQueryProto.hasNegative()) {
+            QueryContainer negativeContainer = boostingQueryProto.getNegative();
+            negativeQuery = registry.fromProto(negativeContainer);
+            negativeQueryFound = true;
         }
 
-        // Process negative_boost (required in proto, but validate it's positive)
+        // Process negative_boost
         negativeBoost = boostingQueryProto.getNegativeBoost();
-        if (negativeBoost < 0) {
-            throw new IllegalArgumentException(BoostingQueryBuilder.NEGATIVE_BOOST_POSITIVE_VALUE_REQUIRED);
-        }
 
         // Process boost (optional)
         if (boostingQueryProto.hasBoost()) {
@@ -72,6 +71,17 @@ class BoostingQueryBuilderProtoUtils {
         // Process queryName (optional)
         if (boostingQueryProto.hasXName()) {
             queryName = boostingQueryProto.getXName();
+        }
+
+        // Validation matches fromXContent exactly
+        if (!positiveQueryFound) {
+            throw new IllegalArgumentException(BoostingQueryBuilder.POSITIVE_QUERY_REQUIRED);
+        }
+        if (!negativeQueryFound) {
+            throw new IllegalArgumentException(BoostingQueryBuilder.NEGATIVE_QUERY_REQUIRED);
+        }
+        if (negativeBoost < 0) {
+            throw new IllegalArgumentException(BoostingQueryBuilder.NEGATIVE_BOOST_POSITIVE_VALUE_REQUIRED);
         }
 
         // Build the query in the same order as fromXContent

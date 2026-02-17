@@ -111,29 +111,27 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
     }
 
     public void testFromProtoWithMissingQuery() {
-        // Create a protobuf SimpleQueryStringQuery without query text
+        // Create a protobuf SimpleQueryStringQuery without setting query text
+        // Proto strings default to empty string, which XContent allows (only null is rejected)
         SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder().build();
 
-        // Call the method under test and expect exception
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SimpleQueryStringBuilderProtoUtils.fromProto(query)
-        );
+        // Call the method under test - should succeed with empty string (matching XContent behavior)
+        SimpleQueryStringBuilder result = SimpleQueryStringBuilderProtoUtils.fromProto(query);
 
-        assertEquals("Exception message should match constant", SimpleQueryStringBuilder.QUERY_TEXT_MISSING, exception.getMessage());
+        assertNotNull("SimpleQueryStringBuilder should not be null", result);
+        assertEquals("Query text should be empty string (proto default)", "", result.value());
     }
 
     public void testFromProtoWithEmptyQuery() {
-        // Create a protobuf SimpleQueryStringQuery with empty query text
+        // Create a protobuf SimpleQueryStringQuery with explicitly empty query text
+        // XContent allows empty strings (only null is rejected), so proto should too
         SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder().setQuery("").build();
 
-        // Call the method under test and expect exception
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> SimpleQueryStringBuilderProtoUtils.fromProto(query)
-        );
+        // Call the method under test - should succeed with empty string
+        SimpleQueryStringBuilder result = SimpleQueryStringBuilderProtoUtils.fromProto(query);
 
-        assertEquals("Exception message should match constant", SimpleQueryStringBuilder.QUERY_TEXT_MISSING, exception.getMessage());
+        assertNotNull("SimpleQueryStringBuilder should not be null", result);
+        assertEquals("Query text should be empty string", "", result.value());
     }
 
     public void testFromProtoWithFieldsNoBoost() {
@@ -156,14 +154,17 @@ public class SimpleQueryStringBuilderProtoUtilsTests extends OpenSearchTestCase 
         // Create a protobuf SimpleQueryStringQuery with invalid boost notation
         SimpleQueryStringQuery query = SimpleQueryStringQuery.newBuilder().setQuery("test").addFields("title^invalid").build();
 
-        // Call the method under test - should default to 1.0
-        SimpleQueryStringBuilder result = SimpleQueryStringBuilderProtoUtils.fromProto(query);
+        // Call the method under test - should throw exception on invalid boost
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> SimpleQueryStringBuilderProtoUtils.fromProto(query)
+        );
 
-        // Verify field is treated as whole string with default boost
-        Map<String, Float> fields = result.fields();
-        assertEquals("Should have 1 field", 1, fields.size());
-        assertTrue("Should contain the whole field string", fields.containsKey("title^invalid"));
-        assertEquals("Boost should be default", 1.0f, fields.get("title^invalid"), 0.0f);
+        // Verify the exception message mentions the invalid field
+        assertTrue(
+            "Exception message should mention invalid boost value",
+            exception.getMessage().contains("invalid boost value") && exception.getMessage().contains("title^invalid")
+        );
     }
 
     public void testFromProtoWithFlagsSingle() {
