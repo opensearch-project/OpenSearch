@@ -36,6 +36,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;

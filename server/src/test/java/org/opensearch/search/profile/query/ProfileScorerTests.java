@@ -42,6 +42,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.profile.ProfileMetricUtil;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

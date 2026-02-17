@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.search.profile.query;
+package org.opensearch.search.profile;
 
 import org.opensearch.common.annotation.PublicApi;
 
@@ -14,8 +14,8 @@ import org.opensearch.common.annotation.PublicApi;
  * Generic interface for profiling wrappers that decorate search components with timing instrumentation
  * while preserving access to the original (delegate) component.
  * <p>
- * When search profiling is enabled, OpenSearch wraps scorers, collectors, and other components in
- * profiling decorators that are package-private. This interface provides a public contract for plugins
+ * When search profiling is enabled, OpenSearch wraps scorers, collectors, aggregators, and other components
+ * in profiling decorators that are package-private. This interface provides a public contract for plugins
  * to detect and unwrap such wrappers, accessing the underlying component without requiring reflection
  * or knowledge of package-private implementation classes.
  * <p>
@@ -28,7 +28,8 @@ import org.opensearch.common.annotation.PublicApi;
  * }</pre>
  *
  * @param <T> the type of the wrapped component (e.g., {@link org.apache.lucene.search.Scorer},
- *            {@link org.apache.lucene.search.Collector})
+ *            {@link org.apache.lucene.search.Collector},
+ *            {@link org.opensearch.search.aggregations.Aggregator})
  * @opensearch.api
  */
 @PublicApi(since = "3.6.0")
