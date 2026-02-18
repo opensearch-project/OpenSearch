@@ -307,7 +307,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                         for (Field field : root.getSchema().getFields()) {
                             String fieldName = field.getName();
                             FieldVector fieldVector = root.getVector(fieldName);
-                            List<Object> fieldValues = new ArrayList<>();
+                            List<Object> fieldValues = new ArrayList<>(fieldVector.getValueCount());
                             if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
                                 FieldVector rowIdVector = root.getVector(fieldName);
                                 for(int i=0; i<fieldVector.getValueCount(); i++) {
