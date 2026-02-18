@@ -745,7 +745,7 @@ public final class IndexSettings {
 
 
     public static final Setting<String> OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
-        "optimized.index.search.concurrent_segment_search.mode",
+        "index.optimized.search.concurrent_segment_search.mode",
         NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
         value -> {
             switch (value) {
@@ -762,7 +762,7 @@ public final class IndexSettings {
     );
 
     public static final Setting<Integer> OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT = Setting.intSetting(
-        "optimized.index.search.concurrent.max_slice_count",
+        "index.optimized.search.concurrent.max_slice_count",
         NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
         NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
         Property.Dynamic,

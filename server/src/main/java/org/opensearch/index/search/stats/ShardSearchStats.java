@@ -136,6 +136,10 @@ public final class ShardSearchStats implements SearchOperationListener {
                 statsHolder.queryCurrent.dec();
                 assert statsHolder.queryCurrent.count() >= 0;
                 if (searchContext.shouldUseConcurrentSearch()) {
+                    if(searchContext.request().source() !=null && searchContext.request().source().queryPlanIR() != null){
+                        // This is DF query, we don't have searcher or slices here
+                        return;
+                    }
                     statsHolder.concurrentQueryMetric.inc(tookInNanos);
                     statsHolder.concurrentQueryCurrent.dec();
                     assert statsHolder.concurrentQueryCurrent.count() >= 0;
