@@ -307,23 +307,22 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                         for (Field field : root.getSchema().getFields()) {
                             String fieldName = field.getName();
                             FieldVector fieldVector = root.getVector(fieldName);
-                            Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                            List<Object> fieldValues = new ArrayList<>();
                             if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
                                 FieldVector rowIdVector = root.getVector(fieldName);
                                 for(int i=0; i<fieldVector.getValueCount(); i++) {
                                     rowIdResult.add((long) rowIdVector.getObject(i));
-                                    fieldValues[i] = fieldVector.getObject(i);
+                                    fieldValues.add(fieldVector.getObject(i));
                                 }
-                            }
-                            else {
+                            } else {
                                 for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                                    fieldValues[i] = fieldVector.getObject(i);
+                                    fieldValues.add(fieldVector.getObject(i));
                                 }
                             }
                             if(finalRes.containsKey(fieldName)) {
-                                finalRes.get(fieldName).addAll(Arrays.asList(fieldValues));
+                                finalRes.get(fieldName).addAll(fieldValues);
                             } else {
-                                finalRes.put(fieldName, new ArrayList<>(Arrays.asList(fieldValues)));
+                                finalRes.put(fieldName, fieldValues);
                             }
                         }
                     }
