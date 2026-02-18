@@ -734,7 +734,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
         if(shardResult.isEmpty()) {
             return Collections.singletonList(buildEmptyAggregation());
         }
@@ -742,7 +742,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
         List<Comparable<?>> currentCompositeKey = new ArrayList<>(sourceConfigs.length);
         List<CompositeKey> compositeKeys = new ArrayList<>(shardResult.size());
         if (shardResult.isEmpty() == false) {
-            for (int i = 0; i < shardResult.get(shardResult.keySet().stream().findFirst().get()).length; i++) {
+            for (int i = 0; i < shardResult.get(shardResult.keySet().stream().findFirst().get()).size(); i++) {
                 for (CompositeValuesSourceConfig sourceConfig : sourceConfigs) {
 //                if (sourceConfig.fieldType() == null) {
 //                    throw new UnsupportedOperationException("Composite aggregation does not support script field types");
@@ -750,9 +750,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
                     // source=hits | eval m = extract(minute from EventTime) | stats count() by UserID, m, SearchPhrase | sort - \`count()\` | head 10
                     // for above query without this change it will fail above
                     // We can get the name directly from sourceConfig
-                    Object[] values = shardResult.get(sourceConfig.name());
+                    List<Object> values = shardResult.get(sourceConfig.name());
                     // TODO : Would require conversion for certain types,
-                    currentCompositeKey.add(searchContext.convertToComparable(values[i]));
+                    currentCompositeKey.add(searchContext.convertToComparable(values.get(i)));
                 }
                 compositeKeys.add(new CompositeKey(currentCompositeKey.toArray(new Comparable[0])));
                 currentCompositeKey.clear();

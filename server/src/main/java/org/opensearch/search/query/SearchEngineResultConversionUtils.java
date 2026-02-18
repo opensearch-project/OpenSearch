@@ -35,7 +35,7 @@ public class SearchEngineResultConversionUtils {
 
     public static void convertDFResultGeneric(SearchContext searchContext) {
         if (searchContext.aggregations() != null) {
-            Map<String, Object[]> dfResult = searchContext.getDFResults();
+            Map<String, List<Object>> dfResult = searchContext.getDFResults();
 
 //            LOGGER.info("DF Results at convertDFResultGeneric:");
 //            for (Map.Entry<String, Object[]> entry : dfResult.entrySet()) {
@@ -75,7 +75,7 @@ public class SearchEngineResultConversionUtils {
         }
     }
 
-    public static Tuple<List<InternalAggregation>, Long> extractSubAggsAndDocCount(Aggregator[] subAggregators, SearchContext searchContext, Map<String, Object[]> shardResult, int row) {
+    public static Tuple<List<InternalAggregation>, Long> extractSubAggsAndDocCount(Aggregator[] subAggregators, SearchContext searchContext, Map<String, List<Object>> shardResult, int row) {
         List<InternalAggregation> subAggs = new ArrayList<>();
         long docCount = -1;
         for (Aggregator aggregator : subAggregators) {
@@ -91,9 +91,9 @@ public class SearchEngineResultConversionUtils {
             }
         }
         if (docCount == -1) {
-            Object[] values = shardResult.get(INJECTED_COUNT_AGG_NAME);
+            List<Object> values = shardResult.get(INJECTED_COUNT_AGG_NAME);
             if (values != null) {
-                docCount = ((Number) values[row]).longValue();
+                docCount = ((Number) values.get(row)).longValue();
             } else {
                 throw new IllegalStateException(String.format("Unable to populate doc count from shard result [%s]", shardResult.keySet()));
             }

@@ -16,8 +16,8 @@ import java.util.Map;
 
 public interface ShardResultConvertor {
 
-    default List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
-        int rows = shardResult.entrySet().stream().findFirst().get().getValue().length;
+    default List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+        int rows = shardResult.entrySet().stream().findFirst().get().getValue().size();
         List<InternalAggregation> internalAggregations = new ArrayList<>();
         for (int i = 0; i < rows; i++) {
             internalAggregations.add(convertRow(shardResult, i, searchContext));
@@ -25,7 +25,7 @@ public interface ShardResultConvertor {
         return internalAggregations;
     }
 
-    default InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
+    default InternalAggregation convertRow(Map<String, List<Object>> shardResult, int row, SearchContext searchContext) {
         throw new UnsupportedOperationException("Row conversion not supported");
     }
 

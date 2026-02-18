@@ -120,14 +120,14 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
         if(shardResult.isEmpty()) {
             return Collections.singletonList(buildEmptyTermsAggregation());
         }
-        int rowCount = shardResult.get(shardResult.keySet().stream().findFirst().get()).length;
+        int rowCount = shardResult.get(shardResult.keySet().stream().findFirst().get()).size();
         List<StringTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int row = 0; row < rowCount; row++) {
-            String termKey = (String) searchContext.convertToComparable(shardResult.get(name)[row]);
+            String termKey = (String) searchContext.convertToComparable(shardResult.get(name).get(row));
             Tuple<List<InternalAggregation>, Long> subAggsAndDocCount = SearchEngineResultConversionUtils.extractSubAggsAndDocCount(subAggregators, searchContext, shardResult, row);
             buckets.add(new StringTerms.Bucket(
                 new BytesRef(termKey),

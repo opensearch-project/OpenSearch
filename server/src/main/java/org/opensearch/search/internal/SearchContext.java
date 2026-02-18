@@ -607,11 +607,11 @@ public abstract class SearchContext implements Releasable {
     }
 
 
-    public void setDFResults(Map<String, Object[]> dfResults) {
+    public void setDFResults(Map<String, List<Object>> dfResults) {
 
     }
 
-    public Map<String, Object[]> getDFResults() {
+    public Map<String, List<Object>> getDFResults() {
         return Collections.emptyMap();
     }
 

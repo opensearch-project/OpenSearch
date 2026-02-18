@@ -60,6 +60,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
@@ -278,12 +279,12 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        Object[] counts = shardResult.get(name + "_count");
-        Object[] sums = shardResult.get(name + "_sum");
-        if (counts == null || sums == null || counts[row] == null || sums[row] == null) {
+    public InternalAggregation convertRow(Map<String, List<Object>> shardResult, int row, SearchContext searchContext) {
+        List<Object> counts = shardResult.get(name + "_count");
+        List<Object> sums = shardResult.get(name + "_sum");
+        if (counts == null || sums == null || counts.get(row) == null || sums.get(row) == null) {
             return buildEmptyAggregation();
         }
-        return new InternalAvg(name, ((Number) sums[row]).doubleValue(), ((Number) counts[row]).longValue(), format, metadata());
+        return new InternalAvg(name, ((Number) sums.get(row)).doubleValue(), ((Number) counts.get(row)).longValue(), format, metadata());
     }
 }

@@ -213,7 +213,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     @Override
     public void executeQueryPhase(DatafusionContext context) {
-        Map<String, Object[]> finalRes = new HashMap<>();
+        Map<String, List<Object>> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
         RecordBatchStream stream = null;
 
@@ -244,7 +244,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                                 fieldValues[i] = fieldVector.getObject(i);
                             }
                         }
-                        finalRes.put(fieldName, fieldValues);
+                        if(finalRes.containsKey(fieldName)) {
+                            finalRes.get(fieldName).addAll(Arrays.asList(fieldValues));
+                        } else {
+                            finalRes.put(fieldName, new ArrayList<>(Arrays.asList(fieldValues)));
+                        }
                     }
                 }
             };
@@ -283,13 +287,13 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener) {
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, List<Object>>> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
 
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
-                Map<String, Object[]> finalRes = new HashMap<>();
+                Map<String, List<Object>> finalRes = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
                 if(streamPointer == null) {
                     throw new RuntimeException(error);
@@ -316,7 +320,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                                     fieldValues[i] = fieldVector.getObject(i);
                                 }
                             }
-                            finalRes.put(fieldName, fieldValues);
+                            if(finalRes.containsKey(fieldName)) {
+                                finalRes.get(fieldName).addAll(Arrays.asList(fieldValues));
+                            } else {
+                                finalRes.put(fieldName, new ArrayList<>(Arrays.asList(fieldValues)));
+                            }
                         }
                     }
                 };
@@ -343,9 +351,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         RecordBatchStream stream,
         Executor executor,
         SearchResultsCollector<RecordBatchStream> collector,
-        Map<String, Object[]> finalRes,
+        Map<String, List<Object>> finalRes,
         RootAllocator allocator,
-        ActionListener<Map<String, Object[]>> listener,
+        ActionListener<Map<String, List<Object>>> listener,
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
@@ -365,6 +373,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
+                // ArrayList<> --> Object[]
                 listener.onResponse(finalRes);
             }
         }, error -> {

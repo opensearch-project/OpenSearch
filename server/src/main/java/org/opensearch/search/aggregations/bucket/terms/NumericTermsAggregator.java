@@ -84,6 +84,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -523,15 +524,15 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
-                int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).length ;
+        public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+                int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).size() ;
                 List<LongTerms.Bucket> buckets = new ArrayList<>(rowCount);
                 for (int i = 0; i < rowCount; i++) {
                     final int j = i;
                     buckets.add(new LongTerms.Bucket(
-                        ((Number) searchContext.convertToComparable(shardResult.get(name)[i])).longValue(),
+                        ((Number) searchContext.convertToComparable(shardResult.get(name).get(i))).longValue(),
                         1,
-                        InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).toList()),
+                        InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).collect(Collectors.toList())),
                         true,
                         0,
                         format
@@ -640,18 +641,18 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+        public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
             if(shardResult.isEmpty()) {
                 return Collections.singletonList(buildEmptyAggregation());
             }
-            int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).length ;
+            int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).size() ;
             List<DoubleTerms.Bucket> buckets = new ArrayList<>(rowCount);
             for (int i = 0; i < rowCount; i++) {
                 final int j = i;
                 buckets.add(new DoubleTerms.Bucket(
-                    ((Number) searchContext.convertToComparable(shardResult.get(name)[i])).doubleValue(),
+                    ((Number) searchContext.convertToComparable(shardResult.get(name).get(i))).doubleValue(),
                     1,
-                    InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).toList()),
+                    InternalAggregations.from(Arrays.stream(subAggregators).map(subAgg -> ((ShardResultConvertor)subAgg).convertRow(shardResult, j, searchContext)).collect(Collectors.toList())),
                     true,
                     0,
                     format
@@ -877,7 +878,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, Object[]> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
         if(shardResult.isEmpty()) {
             return Collections.singletonList(buildEmptyAggregation());
         }

@@ -958,9 +958,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
 
             // Execute native query async
-            searchExecEngine.executeQueryPhaseAsync(finalContext, executor, new ActionListener<Map<String, Object[]>>() {
+            searchExecEngine.executeQueryPhaseAsync(finalContext, executor, new ActionListener<Map<String, List<Object>>>() {
                 @Override
-                public void onResponse(Map<String, Object[]> result) {
+                public void onResponse(Map<String, List<Object>> result) {
                     try {
                         finalContext.setDFResults(result);
                         // Continue with rest of query phase
