@@ -377,7 +377,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     public static final String NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY = "native.search.concurrent.max_slice_count";
-    public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE = computeDefaultSliceCount();
+    public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE = computeNativeDefaultPartitionCount();
     public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE = 1;
 
     // value == 0 means lucene slice computation will be used
@@ -2298,6 +2298,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @return the computed default slice count
      */
     private static int computeDefaultSliceCount() {
+        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+    }
+
+    // TODO:: IN current PR, it is kept same as original Concurrent slice, we will change to tune it later on
+    private static int computeNativeDefaultPartitionCount() {
         return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
     }
 

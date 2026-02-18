@@ -21,6 +21,7 @@ public class DatafusionQuery {
     private List<String> includeFields;
     private List<String> excludeFields;
     private Boolean isQueryPlanExplainEnabled;
+    private int targetPartitionsCount;
 
     public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
         this.indexName = indexName;
@@ -28,6 +29,7 @@ public class DatafusionQuery {
         this.searchExecutors = searchExecutors;
         this.isFetchPhase = false;
         this.isQueryPlanExplainEnabled = false;
+        this.targetPartitionsCount = 1;
     }
 
     public void setSource(List<String> includeFields, List<String> excludeFields) {
@@ -44,9 +46,15 @@ public class DatafusionQuery {
         isQueryPlanExplainEnabled = queryPlanExplainEnabled;
     }
 
+    public void setTargetPartitionsCount(int targetPartitionsCount) {
+        this.targetPartitionsCount = targetPartitionsCount;
+    }
+
     public boolean getQueryPlanExplainEnabled() {
        return isQueryPlanExplainEnabled;
     }
+
+    public int getTargetPartitionsCount() { return this.targetPartitionsCount; }
 
     public boolean isFetchPhase() {
         return this.isFetchPhase;

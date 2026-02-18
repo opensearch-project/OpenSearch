@@ -16,12 +16,12 @@ import org.apache.lucene.search.Query;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -33,6 +33,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.SearchExtBuilder;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.BucketCollectorProcessor;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -68,14 +69,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
-import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 
 /**
@@ -92,6 +92,7 @@ public class DatafusionContext extends SearchContext {
     private final FetchSearchResult fetchResult;
     private final IndexService indexService;
     private final QueryShardContext queryShardContext;
+    private final String nativeConcurrentSearchMode;
     private DatafusionQuery datafusionQuery;
     private QueryResult dfResults;
     private SearchContextAggregations aggregations;
@@ -143,6 +144,7 @@ public class DatafusionContext extends SearchContext {
         this.size(Optional.ofNullable(request.source()).isPresent() ? request.source().size() : 0);
         this.from(Optional.ofNullable(request.source()).isPresent() ? request.source().from() : 0);
         this.clusterService = clusterService;
+        this.nativeConcurrentSearchMode = evaluateConcurrentSearchMode();
     }
 
     /**
@@ -816,7 +818,23 @@ public class DatafusionContext extends SearchContext {
 
     @Override
     public int getTargetMaxSliceCount() {
-        return 0;
+        if (shouldUseConcurrentSearch() == false) {
+            return 1; // Disable slicing: run search in a single thread when concurrent search is off
+        }
+
+        return indexService.getIndexSettings()
+            .getSettings()
+            .getAsInt(
+                IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT.getKey(),
+                clusterService.getClusterSettings().get(SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING)
+            );
+
+    }
+
+    @Override
+    public boolean shouldUseConcurrentSearch() {
+        assert nativeConcurrentSearchMode != null : "concurrentSearchMode must be set";
+        return (nativeConcurrentSearchMode.equals(NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL));
     }
 
     @Override
@@ -879,8 +897,8 @@ public class DatafusionContext extends SearchContext {
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
 
         return indexSettings.get(
-            IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
-            clusterSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
+            IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
+            clusterSettings.get(NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
         );
     }
 }

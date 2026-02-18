@@ -109,6 +109,7 @@ pub async fn execute_query_with_cross_rt_stream(
     table_name: String,
     plan_bytes_vec: Vec<u8>,
     is_query_plan_explain_enabled: bool,
+    target_partitions: usize,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
@@ -142,7 +143,7 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 1;
+    config.options_mut().execution.target_partitions = target_partitions;
     config.options_mut().execution.batch_size = 8192;
 
     let state = datafusion::execution::SessionStateBuilder::new()

@@ -292,6 +292,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
+            context.getDatafusionQuery().setTargetPartitionsCount(context.getTargetMaxSliceCount());
 
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
                 Map<String, List<Object>> finalResColumns = new HashMap<>();
