@@ -68,8 +68,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 
 /**
  * Search context for Datafusion engine
@@ -857,6 +864,23 @@ public class DatafusionContext extends SearchContext {
         return indexSettings.getAsBoolean(
             IndexSettings.INDEX_SEARCH_QUERY_PLAN_EXPLAIN_SETTING.getKey(),
             clusterSettings.get(CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING)
+        );
+    }
+
+    private String evaluateConcurrentSearchMode() {
+        // Skip concurrent search for system indices, throttled requests, or if dependencies are missing
+        if (indexShard.isSystem()
+            || indexShard.indexSettings().isSearchThrottled()
+            || clusterService == null) {
+            return NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+        }
+
+        Settings indexSettings = indexService.getIndexSettings().getSettings();
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+
+        return indexSettings.get(
+            IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(),
+            clusterSettings.get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE)
         );
     }
 }
