@@ -222,7 +222,7 @@ public class DefaultStreamPoller implements StreamPoller {
         while (true) {
             try {
                 if (closed) {
-                    state = State.CLOSED;
+                    setStateWithWarmupAwareness(State.CLOSED);
                     closeConsumer();
                     break;
                 }
@@ -242,7 +242,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 }
 
                 if (paused || isWriteBlockEnabled) {
-                    state = State.PAUSED;
+                    setStateWithWarmupAwareness(State.PAUSED);
                     try {
                         Thread.sleep(DEFAULT_POLLER_SLEEP_PERIOD_MS);
                     } catch (Throwable e) {
@@ -251,7 +251,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
 
-                state = State.POLLING;
+                setStateWithWarmupAwareness(State.POLLING);
                 List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results;
 
                 // Force the consumer to start from forcedShardPointer if available
@@ -269,7 +269,7 @@ public class DefaultStreamPoller implements StreamPoller {
                     continue;
                 }
 
-                state = State.PROCESSING;
+                setStateWithWarmupAwareness(State.PROCESSING);
                 // processRecords returns failed shard pointers. Update forcedShardPointer to the failed pointer to retry on next iteration
                 // in case of failures
                 forcedShardPointer = processRecords(results);
@@ -387,6 +387,29 @@ public class DefaultStreamPoller implements StreamPoller {
     @Override
     public boolean isWarmupComplete() {
         return warmupComplete || !warmupConfig.isEnabled();
+    }
+
+    /**
+     * Sets the poller state with warmup-aware logic.
+     * During warmup, POLLING and PROCESSING states are reported as WARMING_UP
+     * to allow monitoring via the ingestion state API.
+     *
+     * @param newState the desired state to set
+     */
+    private void setStateWithWarmupAwareness(State newState) {
+        // CLOSED and PAUSED always take effect
+        if (newState == State.CLOSED || newState == State.PAUSED) {
+            this.state = newState;
+            return;
+        }
+
+        // During warmup, stay in WARMING_UP instead of POLLING/PROCESSING
+        if (!isWarmupComplete()) {
+            this.state = State.WARMING_UP;
+            return;
+        }
+
+        this.state = newState;
     }
 
     /**
