@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -42,6 +43,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.fielddata.NumericDoubleValues;
@@ -79,8 +81,14 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
     final String pointField;
     final Function<byte[], Number> pointConverter;
+    final String fieldName;
+    final boolean fieldIsFloat;
 
     DoubleArray mins;
+    LongArray skipUpTo;
+
+    private int defaultCollectorsUsed = 0;
+    private int skipListCollectorsUsed = 0;
 
     MinAggregator(String name, ValuesSourceConfig config, SearchContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
@@ -90,7 +98,13 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+            fieldName = valuesSource.getIndexFieldName();
+            fieldIsFloat = valuesSource.isFloatingPoint();
+        } else {
+            fieldName = null;
+            fieldIsFloat = false;
         }
+
         this.format = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -154,6 +168,23 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
+
+        // Try to use skiplist optimization if available
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
+
+        // Use skiplist collector if conditions are met
+        if (skipper != null) {
+            skipListCollectorsUsed++;
+            this.skipUpTo = bigArrays.newLongArray(1, false);
+            this.skipUpTo.fill(0, this.skipUpTo.size(), -1);
+            return new MinSkiplistLeafCollector(values, skipper, mins, fieldIsFloat, MinAggregator.this, sub);
+        }
+
+        // Fall back to standard collector selection logic
+        defaultCollectorsUsed++;
         return new LeafBucketCollectorBase(sub, allValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -190,14 +221,166 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 mins.set(0, minimum);
             }
 
-            private void growMins(long bucket) {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays.grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+
+        };
+    }
+
+    private DoubleArray growMins(long bucket) {
+        if (bucket >= mins.size()) {
+            long from = mins.size();
+            mins = context.bigArrays().grow(mins, bucket + 1);
+            mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+        }
+        return mins;
+    }
+
+
+    private LongArray growSkipUpTo(long bucket) {
+        if (bucket >= skipUpTo.size()) {
+            long from = skipUpTo.size();
+            skipUpTo = context.bigArrays().grow(skipUpTo, bucket + 1);
+            skipUpTo.fill(from, skipUpTo.size(), -1);
+        }
+        return skipUpTo;
+    }
+
+    /**
+     * Specialized leaf collector that uses DocValuesSkipper to efficiently skip document ranges
+     * that cannot improve the current minimum value.
+     *
+     * This collector leverages skip list metadata to avoid processing documents when the skip range's
+     * minimum value is greater than or equal to the current tracked minimum for a bucket.
+     */
+    private static class MinSkiplistLeafCollector extends LeafBucketCollectorBase {
+        private final NumericDoubleValues values;
+        private final DocValuesSkipper skipper;
+        private final MinAggregator minAgg;
+        private DoubleArray mins;
+        private final boolean isFloat;
+        private LongArray skipUpTo;
+        private final LeafBucketCollector sub;
+        private final boolean isSubNoOp;
+
+        /**
+         * Constructs a new MinSkiplistLeafCollector.
+         *
+         * @param values        the numeric doc values for the field
+         * @param skipper       the doc values skipper for skip list optimization
+         * @param mins          the array storing minimum values per bucket
+         * @param isFloat
+         * @param minAggregator
+         * @param sub           the sub-aggregator collector
+         */
+        MinSkiplistLeafCollector(
+            NumericDoubleValues values,
+            DocValuesSkipper skipper,
+            DoubleArray mins,
+            boolean isFloat,
+            MinAggregator minAggregator,
+            LeafBucketCollector sub
+        ) {
+            super(sub, null);
+            this.values = values;
+            this.isFloat = isFloat;
+            this.skipper = skipper;
+            this.mins = mins;
+            this.minAgg = minAggregator;
+            this.sub = sub;
+            this.isSubNoOp = sub == LeafBucketCollector.NO_OP_COLLECTOR;
+
+        }
+
+
+
+        /**
+         * Advances the skipper to the appropriate position and determines the skip range
+         * for a specific bucket. The result is stored in the skipUpTo array:
+         * - Positive value: Can skip up to and including this doc ID
+         * - Negative value: Cannot skip, must process documents individually
+         *
+         * @param doc the current document ID
+         * @param owningBucketOrd the bucket ordinal for which to evaluate skip range
+         * @throws IOException if an I/O error occurs
+         */
+        private void advanceSkipper(int doc, long owningBucketOrd) throws IOException {
+            if (doc > skipper.maxDocID(0)) {
+                skipper.advance(doc);
+            }
+
+            // Initialize to "do not skip" state
+            long upToInclusive = -1;
+
+            if (skipper.minDocID(0) > doc) {
+                // Corner case: doc is between skip intervals
+                // Set to (minDocID - 1) but keep negative to indicate no skipping
+                upToInclusive = -(skipper.minDocID(0) - 1) - 1;
+                mins = minAgg.growMins(owningBucketOrd);
+                skipUpTo = minAgg.growSkipUpTo(owningBucketOrd);
+                skipUpTo.set(owningBucketOrd, upToInclusive);
+                return;
+            }
+
+            upToInclusive = skipper.maxDocID(0);
+
+            // Ensure arrays are large enough
+            mins = minAgg.growMins(owningBucketOrd);
+            skipUpTo = minAgg.growSkipUpTo(owningBucketOrd);
+            double currentMin = mins.get(owningBucketOrd);
+
+            // Check progressively larger skip levels
+            boolean canSkip = false;
+            for (int level = 0; level < skipper.numLevels(); ++level) {
+                // Convert skipper's minValue (stored as sortable long) to double
+                long sortableLong = skipper.minValue(level);
+                double skipperMin = isFloat ? NumericUtils.sortableLongToDouble(sortableLong) : sortableLong;
+
+                if (skipperMin >= currentMin) {
+                    // All values in this range are >= current min, can skip
+                    upToInclusive = skipper.maxDocID(level);
+                    canSkip = true;
+                } else {
+                    // This range might contain better minimums
+                    break;
                 }
             }
-        };
+
+            // Store result: negative if cannot skip, positive if can skip
+            skipUpTo.set(owningBucketOrd, canSkip ? upToInclusive : -upToInclusive - 1);
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            // Get skipUpTo value for this bucket
+            mins = minAgg.growMins(owningBucketOrd);
+            skipUpTo = minAgg.growSkipUpTo(owningBucketOrd);
+            long skipUpToValue = skipUpTo.get(owningBucketOrd);
+
+            // Extract the upToInclusive boundary (handle negative encoding)
+            long upToInclusive = skipUpToValue >= 0 ? skipUpToValue : -skipUpToValue - 1;
+
+            // If doc > upToInclusive, we need to advance the skipper
+            // TODO: check if it should be doc >= or doc >
+            if (doc >= upToInclusive) {
+                advanceSkipper(doc, owningBucketOrd);
+                skipUpToValue = skipUpTo.get(owningBucketOrd);
+            }
+            if (!isSubNoOp) {
+                sub.collect(doc, owningBucketOrd);
+            }
+            // If skipUpTo >= 0, we can skip this document
+            if (skipUpToValue >= 0) {
+                return;
+            }
+
+            // Otherwise, process the document
+            if (values.advanceExact(doc)) {
+                double value = values.doubleValue();
+                double min = mins.get(owningBucketOrd);
+                if (value < min) {
+                    mins.set(owningBucketOrd, value);
+                }
+            }
+        }
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
@@ -228,9 +411,14 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
         return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
     }
 
+    public Map<String, Object> collectDebugInfo() {
+        return Map.of("defaultCollectorsUsed", defaultCollectorsUsed,
+            "skipListCollectorsUsed", skipListCollectorsUsed);
+    }
+
     @Override
     public void doClose() {
-        Releasables.close(mins);
+        Releasables.close(mins, skipUpTo);
     }
 
     /**
@@ -303,5 +491,8 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public void doReset() {
         mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
+        if (skipUpTo != null) {
+            skipUpTo.fill(0, skipUpTo.size(), -1);
+        }
     }
 }
