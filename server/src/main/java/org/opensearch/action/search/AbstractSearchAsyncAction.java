@@ -739,6 +739,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
+    protected SearchRequestContext getSearchRequestContext() {
+        return searchRequestContext;
+    }
+
     protected final SearchResponse buildSearchResponse(
         InternalSearchResponse internalSearchResponse,
         ShardSearchFailure[] failures,
