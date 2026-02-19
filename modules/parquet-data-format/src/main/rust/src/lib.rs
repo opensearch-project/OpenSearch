@@ -19,12 +19,12 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 pub mod logger;
 pub mod parquet_merge;
 pub mod rate_limited_writer;
-pub mod writer_config;
+pub mod native_settings;
 pub mod field_config;
 pub mod writer_properties_builder;
 
 pub use parquet_merge::*;
-pub use writer_config::WriterConfig;
+pub use native_settings::NativeSettings;
 pub use field_config::FieldConfig;
 pub use writer_properties_builder::WriterPropertiesBuilder;
 
@@ -34,13 +34,14 @@ pub use vectorized_exec_spi::{log_info, log_error, log_debug};
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
+    static ref SETTINGS_STORE: Mutex<NativeSettings> = Mutex::new(NativeSettings::default());
 }
 
 struct NativeParquetWriter;
 
 impl NativeParquetWriter {
 
-    fn create_writer(filename: String, schema_address: i64, config_json: String) -> Result<(), Box<dyn std::error::Error>> {
+    fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
 
         if (schema_address as *mut u8).is_null() {
@@ -53,12 +54,8 @@ impl NativeParquetWriter {
             return Err("Writer already exists for this file".into());
         }
 
-        // Parse configuration from JSON
-        let config: WriterConfig = WriterConfig::from_json(&config_json)
-            .map_err(|e| {
-                log_error!("[RUST] ERROR: Failed to parse writer config JSON: {}", e);
-                format!("Invalid writer configuration JSON: {}", e)
-            })?;
+        // Read configuration from the global settings store
+        let config: NativeSettings = SETTINGS_STORE.lock().unwrap().clone();
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
@@ -301,17 +298,91 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
     _class: JClass,
     file: JString,
     schema_address: jlong,
-    config_json: JString
 ) -> jint {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    let config_json_str: String = env.get_string(&config_json).expect("Couldn't get config JSON string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64, config_json_str) {
+    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
         Ok(_) => 0,
         Err(e) => {
             log_error!("[RUST] create_writer failed: {}", e);
             -1
         }
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_onSettingsUpdate(
+    mut env: JNIEnv,
+    _class: JClass,
+    settings: JObject
+) {
+    match read_native_settings(&mut env, &settings) {
+        Ok(config) => {
+            let mut store = SETTINGS_STORE.lock().unwrap();
+            *store = config;
+            log_info!(
+                "[RUST] onSettingsUpdate: settings store updated - compression_type={:?}, compression_level={:?}, \
+                 page_size_bytes={:?}, page_row_limit={:?}, dict_size_bytes={:?}, row_group_size_bytes={:?}",
+                store.compression_type,
+                store.compression_level,
+                store.page_size_bytes,
+                store.page_row_limit,
+                store.dict_size_bytes,
+                store.row_group_size_bytes
+            );
+        }
+        Err(e) => {
+            log_error!("[RUST] onSettingsUpdate: failed to read NativeSettings object: {}", e);
+            let _ = env.throw_new("java/io/IOException", &format!("Failed to read NativeSettings: {}", e));
+        }
+    }
+}
+
+/// Reads a NativeSettings Java object into a Rust NativeSettings struct via JNI getters.
+fn read_native_settings(env: &mut JNIEnv, obj: &JObject) -> Result<NativeSettings, Box<dyn std::error::Error>> {
+    macro_rules! get_boxed_int {
+        ($method:expr) => {{
+            let jobj = env.call_method(obj, $method, "()Ljava/lang/Integer;", &[])?.l()?;
+            if jobj.is_null() {
+                None
+            } else {
+                Some(env.call_method(&jobj, "intValue", "()I", &[])?.i()?)
+            }
+        }};
+    }
+
+    macro_rules! get_boxed_long_as_usize {
+        ($method:expr) => {{
+            let jobj = env.call_method(obj, $method, "()Ljava/lang/Long;", &[])?.l()?;
+            if jobj.is_null() {
+                None
+            } else {
+                Some(env.call_method(&jobj, "longValue", "()J", &[])?.j()? as usize)
+            }
+        }};
+    }
+
+    macro_rules! get_string {
+        ($method:expr) => {{
+            let jobj = env.call_method(obj, $method, "()Ljava/lang/String;", &[])?.l()?;
+            if jobj.is_null() {
+                None
+            } else {
+                let s: String = env.get_string(&jobj.into())?.into();
+                Some(s)
+            }
+        }};
+    }
+
+    Ok(NativeSettings {
+        compression_type:     get_string!("getCompressionType"),
+        compression_level:    get_boxed_int!("getCompressionLevel"),
+        page_size_bytes:      get_boxed_long_as_usize!("getPageSizeBytes"),
+        page_row_limit:       get_boxed_int!("getPageRowLimit").map(|v| v as usize),
+        dict_size_bytes:      get_boxed_long_as_usize!("getDictSizeBytes"),
+        row_group_size_bytes: get_boxed_long_as_usize!("getRowGroupSizeBytes"),
+        field_configs:        None,
+        custom_settings:      None,
+    })
 }
 
 #[unsafe(no_mangle)]
@@ -502,8 +573,13 @@ mod tests {
 
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
-        let config_json = r#"{"compression":true,"compressionType":"ZSTD","compressionLevel":3}"#.to_string();
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr, config_json);
+        // Seed the settings store directly (bypassing JNI in unit tests)
+        *SETTINGS_STORE.lock().unwrap() = NativeSettings {
+            compression_type: Some("ZSTD".to_string()),
+            compression_level: Some(3),
+            ..Default::default()
+        };
+        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -536,8 +612,7 @@ mod tests {
         let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
         let (_schema, schema_ptr) = create_test_ffi_schema();
 
-        let config_json = r#"{"compression":true}"#.to_string();
-        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr, config_json);
+        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
 
@@ -549,8 +624,7 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let config_json = r#"{"compression":true}"#.to_string();
-        let result = NativeParquetWriter::create_writer(filename, 0, config_json);
+        let result = NativeParquetWriter::create_writer(filename, 0);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
@@ -561,8 +635,7 @@ mod tests {
         let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
 
         // Second writer creation for same file should fail
-        let config_json = r#"{"compression":true}"#.to_string();
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr, config_json);
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
@@ -735,8 +808,11 @@ mod tests {
                 let filename = file_path.to_string_lossy().to_string();
                 let (_schema, schema_ptr) = create_test_ffi_schema();
 
-                let config_json = r#"{"compression":true}"#.to_string();
-                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr, config_json).is_ok() {
+                *SETTINGS_STORE.lock().unwrap() = NativeSettings {
+                    compression_type: Some("ZSTD".to_string()),
+                    ..Default::default()
+                };
+                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                     let _ = NativeParquetWriter::close_writer(filename);
                 }

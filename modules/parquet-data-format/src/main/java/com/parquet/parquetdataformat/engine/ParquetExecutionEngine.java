@@ -1,6 +1,8 @@
 package com.parquet.parquetdataformat.engine;
 
+import com.parquet.parquetdataformat.ParquetSettings;
 import com.parquet.parquetdataformat.bridge.RustBridge;
+import com.parquet.parquetdataformat.bridge.NativeSettings;
 import com.parquet.parquetdataformat.memory.ArrowBufferPool;
 import com.parquet.parquetdataformat.merge.CompactionStrategy;
 import com.parquet.parquetdataformat.merge.ParquetMergeExecutor;
@@ -84,6 +86,36 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
+
+        // Push current settings to Rust store once on construction, then keep in sync on updates
+        pushSettingsToRust(indexSettings);
+
+        //When we make the settings as dynamic enable the below code
+//        indexSettings.getScopedSettings().addSettingsUpdateConsumer(
+//            ignored -> pushSettingsToRust(indexSettings),
+//            List.of(
+//                ParquetSettings.COMPRESSION_TYPE,
+//                ParquetSettings.COMPRESSION_LEVEL,
+//                ParquetSettings.PAGE_SIZE_BYTES,
+//                ParquetSettings.PAGE_ROW_LIMIT,
+//                ParquetSettings.DICT_SIZE_BYTES
+//            )
+//        );
+    }
+
+    private void pushSettingsToRust(IndexSettings indexSettings) {
+        NativeSettings config = new NativeSettings();
+        config.setCompressionType(indexSettings.getValue(ParquetSettings.COMPRESSION_TYPE));
+        config.setCompressionLevel(indexSettings.getValue(ParquetSettings.COMPRESSION_LEVEL));
+        config.setPageSizeBytes(indexSettings.getValue(ParquetSettings.PAGE_SIZE_BYTES).getBytes());
+        config.setPageRowLimit(indexSettings.getValue(ParquetSettings.PAGE_ROW_LIMIT));
+        config.setDictSizeBytes(indexSettings.getValue(ParquetSettings.DICT_SIZE_BYTES).getBytes());
+        config.setRowGroupSizeBytes(indexSettings.getValue(ParquetSettings.ROW_GROUP_SIZE_BYTES).getBytes());
+        try {
+            RustBridge.onSettingsUpdate(config);
+        } catch (Exception e) {
+            logger.error("Failed to push Parquet settings to Rust store", e);
+        }
     }
 
     @Override

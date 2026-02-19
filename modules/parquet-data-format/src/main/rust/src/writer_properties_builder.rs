@@ -9,9 +9,9 @@
 use parquet::basic::{Compression, ZstdLevel, GzipLevel, BrotliLevel};
 use parquet::file::properties::WriterProperties;
 
-use crate::writer_config::WriterConfig;
+use crate::native_settings::NativeSettings;
 
-/// Builder for converting WriterConfig into Parquet WriterProperties.
+/// Builder for converting NativeSettings into Parquet WriterProperties.
 ///
 /// This struct follows the Single Responsibility Principle by focusing
 /// solely on the conversion logic from configuration to Parquet properties.
@@ -20,23 +20,23 @@ use crate::writer_config::WriterConfig;
 ///
 /// - **Single Responsibility**: Only handles WriterProperties construction
 /// - **Open/Closed**: Can be extended with new compression types without modification
-/// - **Dependency Inversion**: Depends on WriterConfig abstraction
+/// - **Dependency Inversion**: Depends on NativeSettings abstraction
 pub struct WriterPropertiesBuilder;
 
 impl WriterPropertiesBuilder {
-    /// Builds WriterProperties from a WriterConfig.
+    /// Builds WriterProperties from a NativeSettings.
     ///
     /// This method applies both index-level and field-level configurations
     /// to create a complete WriterProperties instance for Parquet writing.
     ///
     /// # Arguments
     ///
-    /// * `config` - The writer configuration to convert
+    /// * `config` - The native settings to convert
     ///
     /// # Returns
     ///
     /// A fully configured WriterProperties instance
-    pub fn build(config: &WriterConfig) -> WriterProperties {
+    pub fn build(config: &NativeSettings) -> WriterProperties {
         let mut builder = WriterProperties::builder();
 
         // Apply compression settings
@@ -57,7 +57,7 @@ impl WriterPropertiesBuilder {
     /// Applies compression settings to the builder.
     fn apply_compression_settings(
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
-        config: &WriterConfig
+        config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
         let compression = Self::parse_compression_type(
             config.get_compression_type(),
@@ -70,34 +70,26 @@ impl WriterPropertiesBuilder {
     /// Applies page size and row limit settings.
     fn apply_page_settings(
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
-        config: &WriterConfig
+        config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
-        if let Some(page_size) = config.page_size {
-            builder = builder.set_data_page_size_limit(page_size);
-        }
-
-        if let Some(page_row_limit) = config.page_row_limit {
-            builder = builder.set_data_page_row_count_limit(page_row_limit);
-        }
-
+        builder = builder.set_data_page_size_limit(config.get_page_size_bytes());
+        builder = builder.set_data_page_row_count_limit(config.get_page_row_limit());
         builder
     }
 
     /// Applies dictionary encoding settings.
     fn apply_dictionary_settings(
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
-        config: &WriterConfig
+        config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
-        if let Some(dict_size) = config.dict_size_bytes {
-            builder = builder.set_dictionary_page_size_limit(dict_size);
-        }
+        builder = builder.set_dictionary_page_size_limit(config.get_dict_size_bytes());
         builder
     }
 
     /// Applies field-level configurations.
     fn apply_field_configs(
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
-        config: &WriterConfig
+        config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
         if let Some(field_configs) = &config.field_configs {
             for (field_name, field_config) in field_configs {
@@ -146,11 +138,11 @@ impl WriterPropertiesBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::writer_config::WriterConfig;
+    use crate::native_settings::NativeSettings;
 
     #[test]
     fn test_build_with_compression() {
-        let config = WriterConfig {
+        let config = NativeSettings {
             compression_type: Some("ZSTD".to_string()),
             compression_level: Some(5),
             ..Default::default()

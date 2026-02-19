@@ -26,44 +26,38 @@ public final class ParquetSettings {
 
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting(
         "index.parquet.",
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<ByteSizeValue> ROW_GROUP_SIZE_BYTES = Setting.byteSizeSetting(
         "index.parquet.row_group_size_bytes",
         new ByteSizeValue(128, ByteSizeUnit.MB),
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<ByteSizeValue> PAGE_SIZE_BYTES = Setting.byteSizeSetting(
         "index.parquet.page_size_bytes",
         new ByteSizeValue(1, ByteSizeUnit.MB),
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<Integer> PAGE_ROW_LIMIT = Setting.intSetting(
         "index.parquet.page_row_limit",
         20000,
         1,
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<ByteSizeValue> DICT_SIZE_BYTES = Setting.byteSizeSetting(
         "index.parquet.dict_size_bytes",
         new ByteSizeValue(2, ByteSizeUnit.MB),
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<String> COMPRESSION_TYPE = Setting.simpleString(
         "index.parquet.compression_type",
         "ZSTD",
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<Integer> COMPRESSION_LEVEL = Setting.intSetting(
@@ -71,14 +65,12 @@ public final class ParquetSettings {
         2,
         1,
         9,
-        Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.IndexScope
     );
 
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "index.parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 }

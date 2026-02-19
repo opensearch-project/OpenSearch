@@ -6,20 +6,18 @@ use std::error::Error;
 use std::any::Any;
 use std::sync::Arc;
 use std::panic::AssertUnwindSafe;
-use parquet::basic::Compression;
-use parquet::file::properties::WriterProperties;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::arrow_writer::ArrowWriter;
 use arrow::array::{Int64Array, ArrayRef};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::arrow::arrow_writer::ArrowWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 
-use crate::{log_info, log_error};
+use crate::{log_info, log_error, SETTINGS_STORE};
+use crate::writer_properties_builder::WriterPropertiesBuilder;
 
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
-const WRITER_BATCH_SIZE: usize = 8192;
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
 
 // Custom error types
@@ -150,10 +148,8 @@ fn read_schema_from_file(file_path: &str) -> Result<SchemaRef, Box<dyn Error>> {
 
 // Writer creation
 fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
-    let props = WriterProperties::builder()
-        .set_write_batch_size(WRITER_BATCH_SIZE)
-        .set_compression(Compression::ZSTD(Default::default()))
-        .build();
+    let config = SETTINGS_STORE.lock().unwrap().clone();
+    let props = WriterPropertiesBuilder::build(&config);
 
     let out_file = File::create(output_path)
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create output file: {}", e)))?;

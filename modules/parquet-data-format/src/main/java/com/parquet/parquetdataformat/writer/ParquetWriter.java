@@ -55,7 +55,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     ) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, schema, arrowBufferPool, indexSettings);
+        this.vsrManager = new VSRManager(file, schema, arrowBufferPool);
         this.writerGeneration = writerGeneration;
     }
 
