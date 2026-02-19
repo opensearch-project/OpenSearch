@@ -25,6 +25,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -223,7 +224,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
-            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
+            return indexShard.state() != IndexShardState.STARTED || !(indexShard.getIndexer() instanceof InternalEngine);
         }
 
         // Extract crypto metadata once at start of sync
@@ -261,7 +262,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+                    long lastRefreshedCheckpoint = ((InternalEngine) ((EngineBackedIndexer) indexShard.getIndexer()).getEngine())
+                        .lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
@@ -405,7 +407,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Set the minimum sequence number for keeping translog
-        indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+        indexShard.getIndexer().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
         // Publishing the new checkpoint which is used for remote store + segrep indexes
         checkpointPublisher.publish(indexShard, checkpoint);
         logger.debug("onSuccessfulSegmentsSync lastRefreshedCheckpoint={} checkpoint={}", lastRefreshedCheckpoint, checkpoint);
@@ -449,14 +451,15 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = ((InternalEngine) indexShard.getEngine()).currentOngoingRefreshCheckpoint();
+        final long maxSeqNo = ((InternalEngine) ((EngineBackedIndexer) indexShard.getIndexer()).getEngine())
+            .currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
-        Translog.TranslogGeneration translogGeneration = indexShard.getEngine().translogManager().getTranslogGeneration();
+        Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
         } else {
@@ -573,8 +576,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             if (indexShard.state() != null) {
                 sb.append(" indexShardState=").append(indexShard.state());
             }
-            if (indexShard.getEngineOrNull() != null) {
-                sb.append(" engineType=").append(indexShard.getEngine().getClass().getSimpleName());
+            if (indexShard.getIndexerOrNull() != null) {
+                sb.append(" engineType=").append(indexShard.getIndexer().getClass().getSimpleName());
             }
             if (indexShard.recoveryState() != null) {
                 sb.append(" recoverySourceType=").append(indexShard.recoveryState().getRecoverySource().getType());

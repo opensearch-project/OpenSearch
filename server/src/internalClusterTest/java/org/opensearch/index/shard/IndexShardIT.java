@@ -852,7 +852,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
-            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+            assertThat(indexShard.getIndexer(), instanceOf(NoOpEngine.class));
         }
     }
 

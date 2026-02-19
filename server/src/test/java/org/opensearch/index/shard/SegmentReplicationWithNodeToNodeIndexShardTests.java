@@ -294,7 +294,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             }, ThreadPool.Names.GENERIC, "");
             latch.await();
-            assertEquals(nextPrimary.getEngine().getClass(), InternalEngine.class);
+            assertEquals(nextPrimary.getIndexer().getClass(), InternalEngine.class);
             nextPrimary.refresh("test");
 
             oldPrimary.close("demoted", false, false);
@@ -409,7 +409,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                         .collect(Collectors.toList());
 
                     // Step 4. Perform a commit on replica shard.
-                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getEngine();
+                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getIndexer();
                     engine.updateSegments(engine.getSegmentInfosSnapshot().get());
 
                     // Step 5. Validate temporary files are not deleted from store.
@@ -605,8 +605,8 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
         shards.recoverReplica(oldPrimary);
 
-        assertEquals(NRTReplicationEngine.class, oldPrimary.getEngine().getClass());
-        assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+        assertEquals(NRTReplicationEngine.class, getEngine(oldPrimary));
+        assertEquals(InternalEngine.class, nextPrimary.getIndexer().getClass());
         assertDocCounts(nextPrimary, totalDocs, totalDocs);
         assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
 

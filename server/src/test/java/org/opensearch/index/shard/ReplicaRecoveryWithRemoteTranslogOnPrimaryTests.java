@@ -130,11 +130,11 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
             shards.startAll();
             assertEquals(docIdAndSeqNosAfterFlush, getDocIdAndSeqNos(replica));
             assertDocCount(replica, numDocs);
-            assertEquals(NRTReplicationEngine.class, replica.getEngine().getClass());
+            assertEquals(NRTReplicationEngine.class, getEngine(replica));
 
             // Step 3 - Check replica's translog has no operations
-            assertEquals(WriteOnlyTranslogManager.class, replica.getEngine().translogManager().getClass());
-            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) replica.getEngine().translogManager();
+            assertEquals(WriteOnlyTranslogManager.class, replica.getIndexer().translogManager().getClass());
+            WriteOnlyTranslogManager replicaTranslogManager = (WriteOnlyTranslogManager) replica.getIndexer().translogManager();
             assertEquals(0, replicaTranslogManager.getTranslog().totalOperations());
 
             // Adding this for close to succeed

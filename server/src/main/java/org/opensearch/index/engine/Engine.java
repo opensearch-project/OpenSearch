@@ -2234,5 +2234,4 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
-
 }
