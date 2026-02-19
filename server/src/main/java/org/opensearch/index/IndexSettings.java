@@ -56,6 +56,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
@@ -81,9 +82,11 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE;
 import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -765,6 +768,7 @@ public final class IndexSettings {
         "index.optimized.search.concurrent.max_slice_count",
         NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
         NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE,
         Property.Dynamic,
         Property.IndexScope
     );
