@@ -68,6 +68,7 @@ import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.datafusion.search.DfResult;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -213,7 +214,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     @Override
     public void executeQueryPhase(DatafusionContext context) {
-        Map<String, Object[]> finalRes = new HashMap<>();
+        Map<String, List<Object>> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
         RecordBatchStream stream = null;
 
@@ -244,7 +245,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                                 fieldValues[i] = fieldVector.getObject(i);
                             }
                         }
-                        finalRes.put(fieldName, fieldValues);
+                        if(finalRes.containsKey(fieldName)) {
+                            finalRes.get(fieldName).addAll(Arrays.asList(fieldValues));
+                        } else {
+                            finalRes.put(fieldName, new ArrayList<>(Arrays.asList(fieldValues)));
+                        }
                     }
                 }
             };
@@ -278,18 +283,18 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 throw new RuntimeException(e);
             }
         }
-        context.setDFResults(finalRes);
+        context.setDFResults(new DfResult(finalRes));
         context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(), TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(), Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
     }
 
     @Override
-    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener) {
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<DfResult> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
 
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
-                Map<String, Object[]> finalRes = new HashMap<>();
+                Map<String, List<Object>> finalResColumns = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
                 if(streamPointer == null) {
                     throw new RuntimeException(error);
@@ -303,24 +308,27 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                         for (Field field : root.getSchema().getFields()) {
                             String fieldName = field.getName();
                             FieldVector fieldVector = root.getVector(fieldName);
-                            Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                            List<Object> fieldValues = new ArrayList<>(fieldVector.getValueCount());
                             if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
                                 FieldVector rowIdVector = root.getVector(fieldName);
                                 for(int i=0; i<fieldVector.getValueCount(); i++) {
                                     rowIdResult.add((long) rowIdVector.getObject(i));
-                                    fieldValues[i] = fieldVector.getObject(i);
+                                    fieldValues.add(fieldVector.getObject(i));
                                 }
-                            }
-                            else {
+                            } else {
                                 for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                                    fieldValues[i] = fieldVector.getObject(i);
+                                    fieldValues.add(fieldVector.getObject(i));
                                 }
                             }
-                            finalRes.put(fieldName, fieldValues);
+                            if(finalResColumns.containsKey(fieldName)) {
+                                finalResColumns.get(fieldName).addAll(fieldValues);
+                            } else {
+                                finalResColumns.put(fieldName, fieldValues);
+                            }
                         }
                     }
                 };
-                loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+                loadNextBatch(stream, executor, collector, finalResColumns, allocator, listener, context, rowIdResult);
             });
 
 //            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
@@ -343,9 +351,9 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         RecordBatchStream stream,
         Executor executor,
         SearchResultsCollector<RecordBatchStream> collector,
-        Map<String, Object[]> finalRes,
+        Map<String, List<Object>> finalRes,
         RootAllocator allocator,
-        ActionListener<Map<String, Object[]>> listener,
+        ActionListener<DfResult> listener,
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
@@ -365,7 +373,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
-                listener.onResponse(finalRes);
+                // ArrayList<> --> Object[]
+                listener.onResponse(new DfResult(finalRes));
             }
         }, error -> {
             cleanup(stream, allocator);

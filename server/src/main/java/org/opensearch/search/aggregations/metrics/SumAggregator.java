@@ -220,11 +220,11 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        Object[] values = shardResult.get(name);
-        if(values == null || values[row] == null) {
+    public InternalAggregation convertRow(Map<String, List<Object>> shardResult, int row, SearchContext searchContext) {
+        List<Object> values = shardResult.get(name);
+        if(values == null || values.get(row) == null) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, ((Number) values[row]).doubleValue(), format, metadata());
+        return new InternalSum(name, ((Number) values.get(row)).doubleValue(), format, metadata());
     }
 }

@@ -64,6 +64,7 @@ import org.opensearch.search.streaming.StreamingCostMetrics;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -277,16 +278,16 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        Object[] values = shardResult.get(name);
-        if (values == null || values[row] == null) {
+    public InternalAggregation convertRow(Map<String, List<Object>> shardResult, int row, SearchContext searchContext) {
+        List<Object> values = shardResult.get(name);
+        if (values == null || values.get(row) == null) {
             return buildEmptyAggregation();
         }
-        if (values[row].getClass().equals(LocalDateTime.class)) {
-            LocalDateTime value = (LocalDateTime) values[row];
+        if (values.get(row).getClass().equals(LocalDateTime.class)) {
+            LocalDateTime value = (LocalDateTime) values.get(row);
             return new InternalMin(name, convertLocalDateTimeToEpochMillis(value), format, metadata());
         }
-        return new InternalMin(name, ((Number) values[row]).doubleValue(), format, metadata());
+        return new InternalMin(name, ((Number) values.get(row)).doubleValue(), format, metadata());
     }
 
     @Override

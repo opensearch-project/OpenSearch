@@ -19,6 +19,7 @@ import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,14 +36,8 @@ public class SearchEngineResultConversionUtils {
 
     public static void convertDFResultGeneric(SearchContext searchContext) {
         if (searchContext.aggregations() != null) {
-            Map<String, Object[]> dfResult = searchContext.getDFResults();
+            QueryResult dfResult = searchContext.getDFResults();
 
-//            LOGGER.info("DF Results at convertDFResultGeneric:");
-//            for (Map.Entry<String, Object[]> entry : dfResult.entrySet()) {
-//                LOGGER.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-//            }
-
-            // Create aggregators which will process the result from DataFusion
             try {
 
                 List<Aggregator> aggregators = new ArrayList<>();
@@ -75,7 +70,7 @@ public class SearchEngineResultConversionUtils {
         }
     }
 
-    public static Tuple<List<InternalAggregation>, Long> extractSubAggsAndDocCount(Aggregator[] subAggregators, SearchContext searchContext, Map<String, Object[]> shardResult, int row) {
+    public static Tuple<List<InternalAggregation>, Long> extractSubAggsAndDocCount(Aggregator[] subAggregators, SearchContext searchContext, Map<String, List<Object>> shardResult, int row) {
         List<InternalAggregation> subAggs = new ArrayList<>();
         long docCount = -1;
         for (Aggregator aggregator : subAggregators) {
@@ -91,9 +86,9 @@ public class SearchEngineResultConversionUtils {
             }
         }
         if (docCount == -1) {
-            Object[] values = shardResult.get(INJECTED_COUNT_AGG_NAME);
+            List<Object> values = shardResult.get(INJECTED_COUNT_AGG_NAME);
             if (values != null) {
-                docCount = ((Number) values[row]).longValue();
+                docCount = ((Number) values.get(row)).longValue();
             } else {
                 throw new IllegalStateException(String.format("Unable to populate doc count from shard result [%s]", shardResult.keySet()));
             }

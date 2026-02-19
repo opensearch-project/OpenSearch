@@ -18,6 +18,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,7 +45,7 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
      */
     public abstract void executeQueryPhase(C context) throws IOException;
 
-    public abstract void executeQueryPhaseAsync(C context, Executor executor, ActionListener<Map<String, Object[]>> listener);
+    public abstract void executeQueryPhaseAsync(C context, Executor executor, ActionListener<QueryResult> listener);
 
     /**
      * execute Fetch Phase

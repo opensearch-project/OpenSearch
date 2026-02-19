@@ -76,6 +76,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
@@ -764,15 +765,15 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public InternalAggregation convertRow(Map<String, Object[]> shardResult, int row, SearchContext searchContext) {
-        Object[] hlls = shardResult.get(name + "[hll_registers]");
+    public InternalAggregation convertRow(Map<String, List<Object>> shardResult, int row, SearchContext searchContext) {
+        List<Object> hlls = shardResult.get(name + "[hll_registers]");
         if (hlls == null) {
             hlls = shardResult.get(name);
         }
-        if(hlls == null || hlls[row] == null) {
+        if(hlls == null || hlls.get(row) == null) {
             return buildEmptyAggregation();
         }
-        HyperLogLogPlusPlus sketch = DataFusionHLLWrapper.getHyperLogLogPlusPlus((byte[]) hlls[row]);
+        HyperLogLogPlusPlus sketch = DataFusionHLLWrapper.getHyperLogLogPlusPlus((byte[]) hlls.get(row));
         return new InternalCardinality(name, sketch, null);
     }
 }

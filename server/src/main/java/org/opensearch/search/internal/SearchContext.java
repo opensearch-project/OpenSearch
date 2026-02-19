@@ -79,6 +79,7 @@ import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
@@ -607,12 +608,10 @@ public abstract class SearchContext implements Releasable {
     }
 
 
-    public void setDFResults(Map<String, Object[]> dfResults) {
+    public void setDFResults(QueryResult dfResults) {}
 
-    }
-
-    public Map<String, Object[]> getDFResults() {
-        return Collections.emptyMap();
+    public QueryResult getDFResults() {
+        return null;
     }
 
     // TODO : This should be a part of mapper given by DataFormat or SearchEngine as related to Field type.

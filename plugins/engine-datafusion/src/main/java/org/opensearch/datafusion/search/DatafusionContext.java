@@ -86,7 +86,7 @@ public class DatafusionContext extends SearchContext {
     private final IndexService indexService;
     private final QueryShardContext queryShardContext;
     private DatafusionQuery datafusionQuery;
-    private Map<String, Object[]> dfResults;
+    private QueryResult dfResults;
     private SearchContextAggregations aggregations;
     private final BigArrays bigArrays;
     private final Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers = new HashMap<>();
@@ -825,11 +825,11 @@ public class DatafusionContext extends SearchContext {
         return new ContextEngineSearcher<>(this.engineSearcher, this);
     }
 
-    public void setDFResults(Map<String, Object[]> dfResults) {
+    public void setDFResults(QueryResult dfResults) {
         this.dfResults = dfResults;
     }
 
-    public Map<String, Object[]> getDFResults() {
+    public QueryResult getDFResults() {
         return dfResults;
     }
 
