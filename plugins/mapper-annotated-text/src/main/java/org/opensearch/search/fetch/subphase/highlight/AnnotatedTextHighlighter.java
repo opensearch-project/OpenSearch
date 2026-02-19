@@ -75,8 +75,9 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper));
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer fieldMaxAnalyzedOffset) {
+        Analyzer coreWrapped = super.wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset);
+        return new AnnotatedHighlighterAnalyzer(coreWrapped);
     }
 
     @Override
