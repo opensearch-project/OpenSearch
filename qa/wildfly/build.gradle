@@ -62,7 +62,7 @@ dependencies {
   api(project(path: ':client:rest-high-level')) {
     exclude module: 'jakarta.annotation-api'
   }
-  testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  testImplementation "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   testImplementation(project(':test:framework')) {
     exclude module: 'jakarta.annotation-api'
   }

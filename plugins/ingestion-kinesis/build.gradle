@@ -206,7 +206,6 @@ thirdPartyAudit {
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
     'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent',
 
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',

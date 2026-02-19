@@ -50,7 +50,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -90,29 +89,29 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        SearchPhaseContext searchPhaseContext1 = new MockSearchPhaseContext(1);
+        new MockSearchPhaseContext(1);
         ClusterService clusterService1 = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestSlowLog searchRequestSlowLog1 = new SearchRequestSlowLog(clusterService1);
+        new SearchRequestSlowLog(clusterService1);
         int numberOfLoggersBefore = context.getLoggers().size();
 
-        SearchPhaseContext searchPhaseContext2 = new MockSearchPhaseContext(1);
+        new MockSearchPhaseContext(1);
         ClusterService clusterService2 = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        SearchRequestOperationsCompositeListenerFactory searchRequestListeners = new SearchRequestOperationsCompositeListenerFactory();
-        SearchRequestSlowLog searchRequestSlowLog2 = new SearchRequestSlowLog(clusterService2);
+        new SearchRequestOperationsCompositeListenerFactory();
+        new SearchRequestSlowLog(clusterService2);
 
         int numberOfLoggersAfter = context.getLoggers().size();
         assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
     }
 
-    public void testOnRequestEnd() throws InterruptedException {
+    public void testOnRequestEnd() {
         final Logger logger = mock(Logger.class);
         final SearchRequestContext searchRequestContext = mock(SearchRequestContext.class);
         final SearchPhaseContext searchPhaseContext = mock(SearchPhaseContext.class);
@@ -204,7 +203,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         verify(logger, never()).trace(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
     }
 
-    public void testSearchRequestSlowLogHasJsonFields_EmptySearchRequestContext() throws IOException {
+    public void testSearchRequestSlowLogHasJsonFields_EmptySearchRequestContext() {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
@@ -225,11 +224,12 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("total_hits"), equalTo("-1"));
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo(""));
+        assertThat(p.getValueFor("indices"), equalTo("[]"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
         assertThat(p.getValueFor("id"), equalTo(null));
     }
 
-    public void testSearchRequestSlowLogHasJsonFields_NotEmptySearchRequestContext() throws IOException {
+    public void testSearchRequestSlowLogHasJsonFields_NotEmptySearchRequestContext() {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
@@ -255,11 +255,12 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("total_hits"), equalTo("3 hits"));
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo("{total:10, successful:8, skipped:1, failed:1}"));
+        assertThat(p.getValueFor("indices"), equalTo("[]"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
         assertThat(p.getValueFor("id"), equalTo(null));
     }
 
-    public void testSearchRequestSlowLogHasJsonFields_PartialContext() throws IOException {
+    public void testSearchRequestSlowLogHasJsonFields_PartialContext() {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         SearchRequest searchRequest = new SearchRequest().source(source);
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
@@ -285,13 +286,14 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getValueFor("total_hits"), equalTo("3 hits"));
         assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("shards"), equalTo("{total:5, successful:3, skipped:1, failed:1}"));
+        assertThat(p.getValueFor("indices"), equalTo("[]"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
         assertThat(p.getValueFor("id"), equalTo(null));
     }
 
-    public void testSearchRequestSlowLogSearchContextPrinterToLog() throws IOException {
+    public void testSearchRequestSlowLogSearchContextPrinterToLog() {
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        SearchRequest searchRequest = new SearchRequest().source(source);
+        SearchRequest searchRequest = new SearchRequest(new String[] { "index1", "index2" }, source);
         SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
         SearchRequestContext searchRequestContext = new SearchRequestContext(
             new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
@@ -315,6 +317,7 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         assertThat(p.getFormattedMessage(), containsString("total_hits[3 hits]"));
         assertThat(p.getFormattedMessage(), containsString("search_type[QUERY_THEN_FETCH]"));
         assertThat(p.getFormattedMessage(), containsString("shards[{total:10, successful:8, skipped:1, failed:1}]"));
+        assertThat(p.getFormattedMessage(), containsString("indices[index1, index2]"));
         assertThat(p.getFormattedMessage(), containsString("source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));

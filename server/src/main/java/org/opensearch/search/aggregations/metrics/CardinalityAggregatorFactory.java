@@ -42,11 +42,14 @@ import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -57,7 +60,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
 
     /**
      * Execution mode for cardinality agg
@@ -109,8 +112,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        if (searchContext.isStreamSearch()
-            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
@@ -134,13 +136,25 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
         }
 
-        if (searchContext.isStreamSearch()
-            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, precision(), searchContext, parent, metadata, executionMode);
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        ValuesSource valuesSource = config.getValuesSource();
+
+        // Only term ordinals values sources support streaming cardinality
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
+            // TODO topNSize can relate to precision
+            return new StreamingCostMetrics(true, 1);
+        }
+
+        return StreamingCostMetrics.nonStreamable();
     }
 
     @Override

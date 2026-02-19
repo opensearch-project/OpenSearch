@@ -718,6 +718,11 @@ public class TestSearchContext extends SearchContext {
         return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
     }
 
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
+
     /**
      * Clean the query results by consuming all of it
      */

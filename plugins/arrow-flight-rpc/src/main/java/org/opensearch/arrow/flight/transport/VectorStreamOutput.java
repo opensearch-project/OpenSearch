@@ -18,45 +18,60 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 class VectorStreamOutput extends StreamOutput {
 
     private int row = 0;
     private final VarBinaryVector vector;
-    private Optional<VectorSchemaRoot> root = Optional.empty();
+    private VectorSchemaRoot root;
+    private final byte[] tempBuffer = new byte[8192];
+    private int tempBufferPos = 0;
 
-    public VectorStreamOutput(BufferAllocator allocator, Optional<VectorSchemaRoot> root) {
-        if (root.isPresent()) {
-            vector = (VarBinaryVector) root.get().getVector(0);
+    public VectorStreamOutput(BufferAllocator allocator, VectorSchemaRoot root) {
+        if (root != null) {
+            vector = (VarBinaryVector) root.getVector(0);
             this.root = root;
         } else {
             Field field = new Field("0", new FieldType(true, new ArrowType.Binary(), null, null), null);
             vector = (VarBinaryVector) field.createVector(allocator);
+            // Pre-allocate with reasonable capacity to avoid repeated allocations
+            vector.setInitialCapacity(16);
+            vector.allocateNew();
         }
-        vector.allocateNew();
     }
 
     @Override
-    public void writeByte(byte b) throws IOException {
-        vector.setInitialCapacity(row + 1);
-        vector.setSafe(row++, new byte[] { b });
+    public void writeByte(byte b) {
+        // Buffer small writes to reduce vector operations
+        if (tempBufferPos >= tempBuffer.length) {
+            flushTempBuffer();
+        }
+        tempBuffer[tempBufferPos++] = b;
     }
 
     @Override
-    public void writeBytes(byte[] b, int offset, int length) throws IOException {
-        vector.setInitialCapacity(row + 1);
+    public void writeBytes(byte[] b, int offset, int length) {
         if (length == 0) {
             return;
         }
         if (b.length < (offset + length)) {
             throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
         }
+        if (tempBufferPos > 0) {
+            flushTempBuffer();
+        }
         vector.setSafe(row++, b, offset, length);
     }
 
+    private void flushTempBuffer() {
+        if (tempBufferPos > 0) {
+            vector.setSafe(row++, tempBuffer, 0, tempBufferPos);
+            tempBufferPos = 0;
+        }
+    }
+
     @Override
-    public void flush() throws IOException {
+    public void flush() {
 
     }
 
@@ -67,17 +82,19 @@ class VectorStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void reset() throws IOException {
+    public void reset() {
         row = 0;
+        tempBufferPos = 0;
         vector.clear();
     }
 
     public VectorSchemaRoot getRoot() {
+        flushTempBuffer();
         vector.setValueCount(row);
-        if (!root.isPresent()) {
-            root = Optional.of(new VectorSchemaRoot(List.of(vector)));
+        if (root == null) {
+            root = new VectorSchemaRoot(List.of(vector));
         }
-        root.get().setRowCount(row);
-        return root.get();
+        root.setRowCount(row);
+        return root;
     }
 }

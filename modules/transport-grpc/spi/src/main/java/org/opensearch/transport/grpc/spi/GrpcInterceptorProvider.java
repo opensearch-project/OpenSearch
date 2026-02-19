@@ -7,6 +7,7 @@
  */
 package org.opensearch.transport.grpc.spi;
 
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 
 import java.util.List;
@@ -19,6 +20,12 @@ import io.grpc.ServerInterceptor;
  * that will be executed in the order specified by their OrderedGrpcInterceptor.
  */
 public interface GrpcInterceptorProvider {
+
+    /**
+     * Provide visibility into node settings.
+     * @param settings for use in interceptors.
+     */
+    default void initNodeSettings(Settings settings) {}
 
     /**
      * Returns a list of ordered gRPC interceptors with access to ThreadContext.

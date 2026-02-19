@@ -252,6 +252,12 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory.swap.current", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.max", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.swap.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.swap.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.max", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory.current", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/${opensearch.cgroups.hierarchy.override}/memory/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/system.slice/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/init.scope/-", "read";
 

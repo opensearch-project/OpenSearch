@@ -193,8 +193,8 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "cluster-manager not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
-                    + "and [] from last-known cluster state; node term 15, last-accepted version 12 in term 4"
+                "cluster-manager not discovered yet: have discovered []; node term 15, last-accepted version 12 in term 4; "
+                    + "discovery will continue using [] from hosts providers and [] from last-known cluster state"
             )
         );
 
@@ -210,9 +210,10 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "cluster-manager not discovered yet: have discovered []; discovery will continue using ["
+                "cluster-manager not discovered yet: have discovered []; node term 16, last-accepted version 12 in term 4; "
+                    + "discovery will continue using ["
                     + otherAddress
-                    + "] from hosts providers and [] from last-known cluster state; node term 16, last-accepted version 12 in term 4"
+                    + "] from hosts providers and [] from last-known cluster state"
             )
         );
 
@@ -230,8 +231,8 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet: have discovered ["
                     + otherNode
-                    + "]; discovery will continue using [] from hosts providers "
-                    + "and [] from last-known cluster state; node term 17, last-accepted version 12 in term 4"
+                    + "]; node term 17, last-accepted version 12 in term 4; "
+                    + "discovery will continue using [] from hosts providers and [] from last-known cluster state"
             )
         );
     }
@@ -259,8 +260,8 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 new StatusInfo(HEALTHY, "healthy-info")
             ).getDescription(),
             is(
-                "cluster-manager not discovered yet: have discovered []; discovery will continue using [] from hosts providers "
-                    + "and [] from last-known cluster state; node term 15, last-accepted version 42 in term 0"
+                "cluster-manager not discovered yet: have discovered []; node term 15, last-accepted version 42 in term 0; "
+                    + "discovery will continue using [] from hosts providers and [] from last-known cluster state"
             )
         );
     }
@@ -332,9 +333,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered []; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 1, last-accepted version 7 in term 4; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 1, last-accepted version 7 in term 4"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -352,11 +353,11 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered []; "
-                    + "discovery will continue using ["
+                    + "node term 2, last-accepted version 7 in term 4; discovery will continue using ["
                     + otherAddress
                     + "] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 2, last-accepted version 7 in term 4"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -376,9 +377,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + "[cluster.initial_cluster_manager_nodes] is empty on this node: have discovered ["
                     + otherNode
                     + "]; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 3, last-accepted version 7 in term 4; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 3, last-accepted version 7 in term 4"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -395,9 +396,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "this node must discover cluster-manager-eligible nodes [other] to bootstrap a cluster: have discovered []; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 4, last-accepted version 7 in term 4; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
+                    + "] from last-known cluster state"
             )
         );
     }
@@ -423,9 +424,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet, this node has not previously joined a bootstrapped cluster, and "
                     + "this node must discover cluster-manager-eligible nodes [other] to bootstrap a cluster: have discovered []; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 4, last-accepted version 7 in term 4; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"
+                    + "] from last-known cluster state"
             )
         );
         assertWarnings(
@@ -478,9 +479,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet and this node was detached from its previous cluster, "
                     + "have discovered []; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -498,11 +499,11 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered yet and this node was detached from its previous cluster, "
                     + "have discovered []; "
-                    + "discovery will continue using ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using ["
                     + otherAddress
                     + "] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -522,9 +523,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + "have discovered ["
                     + otherNode
                     + "]; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -544,12 +545,68 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + "have discovered ["
                     + yetAnotherNode
                     + "]; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
+    }
+
+    public void testDescriptionWithLongHostsProviderAddressesList() {
+        final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .version(12L)
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(4L).build()))
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+
+        final TransportAddress a1 = buildNewFakeTransportAddress();
+        final TransportAddress a2 = buildNewFakeTransportAddress();
+        final TransportAddress a3 = buildNewFakeTransportAddress();
+        final TransportAddress a4 = buildNewFakeTransportAddress();
+        final TransportAddress a5 = buildNewFakeTransportAddress();
+        final TransportAddress a6 = buildNewFakeTransportAddress();
+        final TransportAddress a7 = buildNewFakeTransportAddress();
+        final TransportAddress a8 = buildNewFakeTransportAddress();
+        final TransportAddress a9 = buildNewFakeTransportAddress();
+        final TransportAddress a10 = buildNewFakeTransportAddress();
+
+        assertThat(
+            new ClusterFormationState(
+                Settings.EMPTY,
+                clusterState,
+                Arrays.asList(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10),
+                emptyList(),
+                16L,
+                electionStrategy,
+                new StatusInfo(HEALTHY, "healthy-info")
+            ).getDescription(),
+            is(
+                "cluster-manager not discovered yet: have discovered []; node term 16, last-accepted version 12 in term 4; "
+                    + "discovery will continue using ["
+                    + a1
+                    + ", "
+                    + a2
+                    + ", "
+                    + a3
+                    + ", "
+                    + a4
+                    + ", "
+                    + a5
+                    + ", "
+                    + a6
+                    + ", "
+                    + a7
+                    + ", "
+                    + a8
+                    + ", "
+                    + a9
+                    + ", "
+                    + a10
+                    + "] from hosts providers and [] from last-known cluster state"
+            )
+        );
     }
 
     public void testDescriptionAfterBootstrapping() {
@@ -570,9 +627,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires a node with id [otherNode], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -590,11 +647,11 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires a node with id [otherNode], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using ["
                     + otherAddress
                     + "] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -614,9 +671,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + "have discovered ["
                     + otherNode
                     + "] which is a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -636,9 +693,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                     + "have discovered ["
                     + yetAnotherNode
                     + "] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -655,9 +712,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -674,9 +731,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires at least 2 nodes with ids from [n1, n2, n3], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -693,9 +750,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires 2 nodes with ids [n1, n2], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -712,9 +769,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -731,9 +788,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4, n5], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -750,9 +807,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires at least 3 nodes with ids from [n1, n2, n3, n4], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -769,9 +826,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires 3 nodes with ids [n1, n2, n3], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -788,9 +845,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires a node with id [n1], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -807,9 +864,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires a node with id [n1] and a node with id [n2], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -826,9 +883,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             is(
                 "cluster-manager not discovered or elected yet, an election requires a node with id [n1] and two nodes with ids [n2, n3], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -846,9 +903,9 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 "cluster-manager not discovered or elected yet, an election requires a node with id [n1] and "
                     + "at least 2 nodes with ids from [n2, n3, n4], "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
 
@@ -905,19 +962,19 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 oneOf(
                     "cluster-manager not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                         + "have discovered [] which is not a quorum; "
-                        + "discovery will continue using [] from hosts providers and ["
+                        + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                         + localNode
                         + ", "
                         + otherClusterManagerNode
-                        + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
+                        + "] from last-known cluster state",
 
                     "cluster-manager not discovered or elected yet, an election requires two nodes with ids [n1, n2], "
                         + "have discovered [] which is not a quorum; "
-                        + "discovery will continue using [] from hosts providers and ["
+                        + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                         + otherClusterManagerNode
                         + ", "
                         + localNode
-                        + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                        + "] from last-known cluster state"
                 )
             )
         );
@@ -936,11 +993,11 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
                 "cluster-manager not discovered or elected yet, an election requires one or more nodes that have already participated as "
                     + "cluster-manager-eligible nodes in the cluster but this node was not cluster-manager-eligible the last time it joined the cluster, "
                     + "have discovered [] which is not a quorum; "
-                    + "discovery will continue using [] from hosts providers and ["
+                    + "node term 0, last-accepted version 0 in term 0; discovery will continue using [] from hosts providers and ["
                     + localNode
-                    + "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"
+                    + "] from last-known cluster state"
             )
         );
-
     }
+
 }

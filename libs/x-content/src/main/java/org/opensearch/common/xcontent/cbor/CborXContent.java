@@ -41,7 +41,7 @@ import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactoryBuilder;
 
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -61,7 +61,7 @@ import java.util.Set;
 /**
  * A CBOR based content implementation using Jackson.
  */
-public class CborXContent implements XContent, XContentContraints {
+public class CborXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(cborXContent);
     }
