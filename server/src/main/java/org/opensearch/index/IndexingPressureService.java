@@ -28,7 +28,11 @@ public class IndexingPressureService {
     private final ShardIndexingPressure shardIndexingPressure;
 
     public IndexingPressureService(Settings settings, ClusterService clusterService) {
-        shardIndexingPressure = new ShardIndexingPressure(settings, clusterService);
+        this(settings, clusterService, null);
+    }
+
+    public IndexingPressureService(Settings settings, ClusterService clusterService, IndexingPressureMetrics indexingPressureMetrics) {
+        shardIndexingPressure = new ShardIndexingPressure(settings, clusterService, indexingPressureMetrics);
     }
 
     /**

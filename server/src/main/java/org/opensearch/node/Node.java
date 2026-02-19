@@ -155,6 +155,7 @@ import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexingPressureMetrics;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.SegmentReplicationStatsTracker;
@@ -1326,7 +1327,12 @@ public class Node implements Closeable {
 
             pluginComponents.addAll(newAuxTransports(networkModule));
 
-            final IndexingPressureService indexingPressureService = new IndexingPressureService(settings, clusterService);
+            final IndexingPressureMetrics indexingPressureMetrics = new IndexingPressureMetrics(metricsRegistry);
+            final IndexingPressureService indexingPressureService = new IndexingPressureService(
+                settings,
+                clusterService,
+                indexingPressureMetrics
+            );
             // Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin
             // development. Then we can deprecate Getter and Setter for IndexingPressureService in ClusterService (#478).
             clusterService.setIndexingPressureService(indexingPressureService);

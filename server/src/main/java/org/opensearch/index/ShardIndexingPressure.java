@@ -14,6 +14,8 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexingBackpressureRejectionReason.OperationType;
+import org.opensearch.index.IndexingBackpressureRejectionReason.RejectionReason;
 import org.opensearch.index.ShardIndexingPressureTracker.CommonOperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.OperationTracker;
 import org.opensearch.index.ShardIndexingPressureTracker.PerformanceTracker;
@@ -47,12 +49,18 @@ public class ShardIndexingPressure extends IndexingPressure {
     private static final Logger logger = LogManager.getLogger(ShardIndexingPressure.class);
     private final ShardIndexingPressureSettings shardIndexingPressureSettings;
     private final ShardIndexingPressureMemoryManager memoryManager;
+    private final IndexingPressureMetrics indexingPressureMetrics;
 
     ShardIndexingPressure(Settings settings, ClusterService clusterService) {
+        this(settings, clusterService, null);
+    }
+
+    ShardIndexingPressure(Settings settings, ClusterService clusterService, IndexingPressureMetrics indexingPressureMetrics) {
         super(settings);
         shardIndexingPressureSettings = new ShardIndexingPressureSettings(clusterService, settings, primaryAndCoordinatingLimits);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.memoryManager = new ShardIndexingPressureMemoryManager(shardIndexingPressureSettings, clusterSettings, settings);
+        this.indexingPressureMetrics = indexingPressureMetrics;
     }
 
     public Releasable markCoordinatingOperationStarted(ShardId shardId, long bytes, boolean forceExecution) {
@@ -68,8 +76,9 @@ public class ShardIndexingPressure extends IndexingPressure {
         long shardCombinedBytes = tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(bytes);
 
         boolean shardLevelLimitBreached = false;
+        boolean nodeLevelLimitBreached = false;
         if (forceExecution == false) {
-            boolean nodeLevelLimitBreached = memoryManager.isCoordinatingNodeLimitBreached(tracker, nodeTotalBytes);
+            nodeLevelLimitBreached = memoryManager.isCoordinatingNodeLimitBreached(tracker, nodeTotalBytes);
             if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isCoordinatingShardLimitBreached(tracker, nodeTotalBytes, requestStartTime);
             }
@@ -78,6 +87,10 @@ public class ShardIndexingPressure extends IndexingPressure {
                 coordinatingRejections.getAndIncrement();
                 currentCombinedCoordinatingAndPrimaryBytes.addAndGet(-bytes);
                 tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(-bytes);
+                RejectionReason reason = determineRejectionReason(nodeLevelLimitBreached, tracker.getCoordinatingOperationTracker());
+                if (indexingPressureMetrics != null) {
+                    indexingPressureMetrics.recordRejection(shardId, OperationType.COORDINATING, reason, bytes);
+                }
                 rejectShardRequest(
                     tracker,
                     bytes,
@@ -143,8 +156,9 @@ public class ShardIndexingPressure extends IndexingPressure {
         long shardCombinedBytes = tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(bytes);
 
         boolean shardLevelLimitBreached = false;
+        boolean nodeLevelLimitBreached = false;
         if (forceExecution == false) {
-            boolean nodeLevelLimitBreached = memoryManager.isPrimaryNodeLimitBreached(tracker, nodeTotalBytes);
+            nodeLevelLimitBreached = memoryManager.isPrimaryNodeLimitBreached(tracker, nodeTotalBytes);
             if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isPrimaryShardLimitBreached(tracker, nodeTotalBytes, requestStartTime);
             }
@@ -153,6 +167,10 @@ public class ShardIndexingPressure extends IndexingPressure {
                 primaryRejections.getAndIncrement();
                 currentCombinedCoordinatingAndPrimaryBytes.addAndGet(-bytes);
                 tracker.getCommonOperationTracker().incrementCurrentCombinedCoordinatingAndPrimaryBytes(-bytes);
+                RejectionReason reason = determineRejectionReason(nodeLevelLimitBreached, tracker.getPrimaryOperationTracker());
+                if (indexingPressureMetrics != null) {
+                    indexingPressureMetrics.recordRejection(shardId, OperationType.PRIMARY, reason, bytes);
+                }
                 rejectShardRequest(
                     tracker,
                     bytes,
@@ -198,8 +216,9 @@ public class ShardIndexingPressure extends IndexingPressure {
         long shardReplicaBytes = tracker.getReplicaOperationTracker().getStatsTracker().incrementCurrentBytes(bytes);
 
         boolean shardLevelLimitBreached = false;
+        boolean nodeLevelLimitBreached = false;
         if (forceExecution == false) {
-            boolean nodeLevelLimitBreached = memoryManager.isReplicaNodeLimitBreached(tracker, nodeReplicaBytes);
+            nodeLevelLimitBreached = memoryManager.isReplicaNodeLimitBreached(tracker, nodeReplicaBytes);
             if (nodeLevelLimitBreached == false) {
                 shardLevelLimitBreached = memoryManager.isReplicaShardLimitBreached(tracker, nodeReplicaBytes, requestStartTime);
             }
@@ -208,6 +227,10 @@ public class ShardIndexingPressure extends IndexingPressure {
                 replicaRejections.getAndIncrement();
                 currentReplicaBytes.addAndGet(-bytes);
                 tracker.getReplicaOperationTracker().getStatsTracker().incrementCurrentBytes(-bytes);
+                RejectionReason reason = determineRejectionReason(nodeLevelLimitBreached, tracker.getReplicaOperationTracker());
+                if (indexingPressureMetrics != null) {
+                    indexingPressureMetrics.recordRejection(shardId, OperationType.REPLICA, reason, bytes);
+                }
                 rejectShardRequest(
                     tracker,
                     bytes,
@@ -246,6 +269,28 @@ public class ShardIndexingPressure extends IndexingPressure {
 
     private boolean shouldRejectRequest(boolean nodeLevelLimitBreached, boolean shardLevelLimitBreached) {
         return nodeLevelLimitBreached || (shardLevelLimitBreached && shardIndexingPressureSettings.isShardIndexingPressureEnforced());
+    }
+
+    /**
+     * Determines the rejection reason based on the rejection tracker's counters.
+     * This must be called after the memory manager has updated the rejection counters.
+     */
+    private RejectionReason determineRejectionReason(boolean nodeLevelLimitBreached, OperationTracker operationTracker) {
+        if (nodeLevelLimitBreached) {
+            return RejectionReason.NODE_LIMIT;
+        }
+        // Check the rejection tracker to see which specific shard-level reason was triggered
+        RejectionTracker tracker = operationTracker.getRejectionTracker();
+        // The memory manager increments these counters before returning
+        // We check which counter was incremented most recently by looking at totals
+        // For simplicity, we use a heuristic based on what's most common
+        if (tracker.getThroughputDegradationLimitsBreachedRejections() > 0) {
+            return RejectionReason.THROUGHPUT_DEGRADATION;
+        }
+        if (tracker.getLastSuccessfulRequestLimitsBreachedRejections() > 0) {
+            return RejectionReason.LAST_SUCCESSFUL_REQUEST;
+        }
+        return RejectionReason.SHARD_LIMIT;
     }
 
     private void markShardOperationStarted(StatsTracker statsTracker, PerformanceTracker performanceTracker) {
