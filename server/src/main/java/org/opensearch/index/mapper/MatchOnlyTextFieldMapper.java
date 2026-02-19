@@ -139,21 +139,22 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         @Override
         public MatchOnlyTextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            MatchOnlyTextFieldType tft = buildFieldType(fieldType, context);
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            MatchOnlyTextFieldType tft = buildFieldType(fieldType, multiFields, context);
             return new MatchOnlyTextFieldMapper(
                 name,
                 fieldType,
                 tft,
                 buildPrefixMapper(context, fieldType, tft),
                 buildPhraseMapper(fieldType, tft),
-                multiFieldsBuilder.build(this, context),
+                multiFields,
                 copyTo.build(),
                 this
             );
         }
 
         @Override
-        protected MatchOnlyTextFieldType buildFieldType(FieldType fieldType, BuilderContext context) {
+        protected MatchOnlyTextFieldType buildFieldType(FieldType fieldType, MultiFields multiFields, BuilderContext context) {
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();

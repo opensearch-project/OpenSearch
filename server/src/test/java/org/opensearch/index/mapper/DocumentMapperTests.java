@@ -35,12 +35,23 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.indices.IndicesModule;
+import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.MapperPlugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,6 +61,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -290,5 +303,101 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(mergedMapper.meta(), equalTo(expected));
+    }
+
+    public void testValidateDerivedSourceFieldConflictThrowsException() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("my_keyword")
+            .field("type", "keyword")
+            .field("ignore_above", 256)
+            .endObject()
+            .startObject("my_keyword.ignored_value")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+            mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        });
+        assertThat(e.getMessage(), containsString("conflicts with an internal field"));
+        assertThat(e.getMessage(), containsString("my_keyword.ignored_value"));
+    }
+
+    public void testValidateDerivedSourceNoConflictWhenIgnoredValueFieldAbsent() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("my_keyword")
+            .field("type", "keyword")
+            .field("ignore_above", 256)
+            .endObject()
+            .startObject("other_keyword")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+    }
+
+    public void testValidateDerivedSourceNoConflictWhenNestedMapping() throws IOException {
+        MapperService mapperService = getMapperServiceForDerivedSource();
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("disable_objects", true)
+            .startObject("properties")
+            .startObject("my_keyword")
+            .field("type", "keyword")
+            .field("ignore_above", 256)
+            .endObject()
+            .startObject("other_keyword.my_keyword.ignored_value")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        mapperService.merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+    }
+
+    private MapperService getMapperServiceForDerivedSource() {
+        IndexMetadata build = IndexMetadata.builder("test_index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), true)
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(build, Settings.EMPTY);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+        ScriptModule scriptModule = new ScriptModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
+        );
+        ScriptService scriptService = new ScriptService(getIndexSettings(), scriptModule.engines, scriptModule.contexts);
+        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, emptyMap());
+
+        return new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> {
+                throw new UnsupportedOperationException();
+            },
+            () -> true,
+            scriptService
+        );
     }
 }

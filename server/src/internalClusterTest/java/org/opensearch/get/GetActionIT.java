@@ -803,6 +803,15 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                             "enabled": true
                         },
                         "refresh_interval": -1
+                    },
+                    "analysis": {
+                        "normalizer": {
+                                "normalized_keyword": {
+                                "type": "custom",
+                                "char_filter": [],
+                                "filter": [ "lowercase" ]
+                            }
+                        }
                     }
                 },
                 "mappings": {
@@ -812,7 +821,8 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                                 "type": "geo_point"
                             },
                             "keyword_field": {
-                                "type": "keyword"
+                                "type": "keyword",
+                                "normalizer": "normalized_keyword"
                             },
                             "numeric_field": {
                                 "type": "long"
@@ -824,7 +834,17 @@ public class GetActionIT extends OpenSearchIntegTestCase {
                                 "type": "boolean"
                             },
                             "text_field": {
-                                "type": "text"
+                                "type": "text",
+                                "fields": {
+                                    "keyword_field_1": {
+                                        "type": "keyword",
+                                        "normalizer": "normalized_keyword"
+                                    },
+                                    "keyword_field_2": {
+                                        "type": "keyword",
+                                        "ignore_above": 20
+                                    }
+                                }
                             },
                             "ip_field": {
                                 "type": "ip"
@@ -843,11 +863,11 @@ public class GetActionIT extends OpenSearchIntegTestCase {
             .setSource(
                 jsonBuilder().startObject()
                     .field("geopoint_field", Geohash.stringEncode(40.33, 75.98))
-                    .field("keyword_field", "test_keyword")
+                    .field("keyword_field", "TEST_KEYWORD")
                     .field("numeric_field", 123)
                     .field("date_field", "2023-01-01")
                     .field("bool_field", true)
-                    .field("text_field", "test text")
+                    .field("text_field", "ALL CAPS TEXT FIELD")
                     .field("ip_field", "1.2.3.4")
                     .endObject()
             )
@@ -881,7 +901,7 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         assertTrue(getResponse.isExists());
         source = getResponse.getSourceAsMap();
         assertEquals(2, source.size());
-        assertEquals("test_keyword", source.get("keyword_field"));
+        assertEquals("TEST_KEYWORD", source.get("keyword_field"));
         assertEquals(123, source.get("numeric_field"));
 
         // Test get with field exclusion
@@ -1082,11 +1102,11 @@ public class GetActionIT extends OpenSearchIntegTestCase {
         Map<String, Object> latLon = (Map<String, Object>) source.get("geopoint_field");
         assertEquals(75.98, (Double) latLon.get("lat"), 0.001);
         assertEquals(40.33, (Double) latLon.get("lon"), 0.001);
-        assertEquals("test_keyword", source.get("keyword_field"));
+        assertEquals("TEST_KEYWORD", source.get("keyword_field"));
         assertEquals(123, source.get("numeric_field"));
         assertEquals("2023-01-01T00:00:00.000Z", source.get("date_field"));
         assertEquals(true, source.get("bool_field"));
-        assertEquals("test text", source.get("text_field"));
+        assertEquals("ALL CAPS TEXT FIELD", source.get("text_field"));
         assertEquals("1.2.3.4", source.get("ip_field"));
     }
 

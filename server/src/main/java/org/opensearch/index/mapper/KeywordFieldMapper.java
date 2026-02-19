@@ -37,6 +37,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
@@ -53,6 +54,7 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
@@ -71,6 +73,7 @@ import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -174,14 +177,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Float> boost = Parameter.boostParam();
 
         private final IndexAnalyzers indexAnalyzers;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
             this.indexAnalyzers = indexAnalyzers;
         }
 
         public Builder(String name) {
-            this(name, null);
+            this(name, Version.CURRENT, null);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -267,15 +272,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
-            throw new UnsupportedOperationException(
-                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
-            );
-        }
         checkStoredAndDocValuesForDerivedSource();
     }
 
@@ -284,10 +284,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      * 2. If doc_values is disabled in field mapping, then build source using stored field
      * <p>
      * Support:
-     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
-     *       considering for these cases we will need to have explicit stored field.
-     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
-     *       normalizer it is hard to regenerate original source
+     *    1. If "ignore_above" or "normalizer" is set in the field mapping, then we will fall back to
+     *    ignored_value explicitly being added for derived source
      * <p>
      * Considerations:
      *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
@@ -295,11 +293,31 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        return new DerivedFieldGenerator(
-            mappedFieldType,
-            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
-            new StoredFieldFetcher(mappedFieldType, simpleName())
-        );
+        List<FieldValueFetcher> fieldValueFetchers = new ArrayList<>();
+        NamedAnalyzer normalizer = fieldType().normalizer();
+        if (normalizer == null || Lucene.KEYWORD_ANALYZER.equals(normalizer)) {
+            final FieldValueFetcher primaryFieldValueFetcher = KeywordFieldMapper.getDerivedSourcePrimaryKeywordValueFetcher(
+                this,
+                simpleName()
+            );
+            fieldValueFetchers.add(primaryFieldValueFetcher);
+        }
+        if (fieldType().ignoreAbove != Integer.MAX_VALUE || (normalizer != null && !Lucene.KEYWORD_ANALYZER.equals(normalizer))) {
+            final FieldValueFetcher fallbackFieldValueFetcher = KeywordFieldMapper.getDerivedSourceFallbackKeywordValueFetcher(this);
+            fieldValueFetchers.add(fallbackFieldValueFetcher);
+        }
+        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(), fieldValueFetchers);
+        return new DerivedFieldGenerator(mappedFieldType, compositeFieldValueFetcher, null) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.DOC_VALUES;
+            }
+        };
+    }
+
+    @Override
+    public boolean hasDerivedSourceIgnoredField() {
+        return true;
     }
 
     /**
@@ -810,6 +828,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final boolean splitQueriesOnWhitespace;
 
     private final IndexAnalyzers indexAnalyzers;
+    private final Version indexCreatedVersion;
 
     protected KeywordFieldMapper(
         String simpleName,
@@ -834,6 +853,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
 
         this.indexAnalyzers = builder.indexAnalyzers;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     /**
@@ -872,11 +892,26 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
             return;
         }
 
         NamedAnalyzer normalizer = fieldType().normalizer();
+
+        // Explicitly add value as a stored field if value is getting ignored or normalizer is set on the field,
+        // to be able to derive the source
+        if ((this.indexCreatedVersion != null && this.indexCreatedVersion.onOrAfter(Version.V_3_6_0))
+            && (value.length() > ignoreAbove || (normalizer != null && !Lucene.KEYWORD_ANALYZER.equals(normalizer)))
+            && context.indexSettings().isDerivedSourceEnabled()
+            && context.isWithinMultiFields() == false) {
+            final BytesRef binaryValue = new BytesRef(value);
+            context.doc().add(new StoredField(fieldType().derivedSourceIgnoreFieldName(), binaryValue));
+        }
+
+        if (value.length() > ignoreAbove) {
+            return;
+        }
+
         if (normalizer != null) {
             value = normalizeValue(normalizer, name(), value);
         }
@@ -934,6 +969,50 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
+    }
+
+    public static FieldValueFetcher getDerivedSourcePrimaryKeywordValueFetcher(KeywordFieldMapper mapper, String fieldName) {
+        return mapper.fieldType().hasDocValues()
+            ? new SortedSetDocValuesFetcher(mapper.fieldType(), fieldName)
+            : new StoredFieldFetcher(mapper.fieldType(), fieldName);
+    }
+
+    public static FieldValueFetcher getDerivedSourceFallbackKeywordValueFetcher(KeywordFieldMapper mapper) {
+        // Override to read from the special ignored value field
+        final MappedFieldType ignoredFieldType = new MappedFieldType(
+            mapper.fieldType().derivedSourceIgnoreFieldName(),
+            false,  // not searchable
+            true,   // stored
+            false,  // no doc values
+            TextSearchInfo.NONE,
+            Collections.emptyMap()
+        ) {
+            @Override
+            public String typeName() {
+                return "keyword";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object valueForDisplay(Object value) {
+                if (value == null) {
+                    return null;
+                }
+                // keywords are internally stored as utf8 bytes
+                BytesRef binaryValue = (BytesRef) value;
+                return binaryValue.utf8ToString();
+            }
+        };
+        return new StoredFieldFetcher(ignoredFieldType, mapper.simpleName());
     }
 }

@@ -367,6 +367,27 @@ public class DocumentMapper implements ToXContentFragment {
         if (checkLimits) {
             this.fieldMappers.checkLimits(settings);
         }
+
+        if (settings.isDerivedSourceEnabled() && settings.getIndexVersionCreated().onOrAfter(Version.V_3_6_0)) {
+            validateDerivedSourceFieldConflicts();
+        }
+    }
+
+    private void validateDerivedSourceFieldConflicts() {
+        // Check if any user-defined field collides with a reserved name
+        for (MappedFieldType fieldType : fieldTypes()) {
+            Mapper mapper = fieldMappers.getMapper(fieldType.name());
+            if (mapper.hasDerivedSourceIgnoredField() && fieldMappers.getMapper(fieldType.derivedSourceIgnoreFieldName()) != null) {
+                throw new MapperParsingException(
+                    "Field ["
+                        + fieldType.derivedSourceIgnoreFieldName()
+                        + "] conflicts with an internal field "
+                        + "for field ["
+                        + mapper.name()
+                        + "]. Please rename this field."
+                );
+            }
+        }
     }
 
     @Override

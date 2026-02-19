@@ -83,6 +83,8 @@ import java.util.function.Supplier;
 @PublicApi(since = "1.0.0")
 public abstract class MappedFieldType {
 
+    public static final String IGNORED_VALUE_FIELD_SUFFIX = ".ignored_value";
+
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
@@ -531,5 +533,9 @@ public abstract class MappedFieldType {
      */
     public MappedFieldType unwrap() {
         return this;
+    }
+
+    public String derivedSourceIgnoreFieldName() {
+        return name() + IGNORED_VALUE_FIELD_SUFFIX;
     }
 }

@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -39,6 +40,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.opensearch.Version;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.search.AutomatonQueries;
@@ -83,6 +85,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
     private final String normalizerName;
     private final boolean hasDocValues;
     private final IndexAnalyzers indexAnalyzers;
+    private final Version indexCreatedVersion;
 
     /**
      * The builder for the field mapper.
@@ -104,14 +107,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true).alwaysSerialize();
         private final IndexAnalyzers indexAnalyzers;
+        private final Version indexCreatedVersion;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Builder(String name) {
-            this(name, null);
+            this(name, Version.CURRENT, null);
         }
 
         public WildcardFieldMapper.Builder ignoreAbove(int ignoreAbove) {
@@ -161,7 +166,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     public static final int NGRAM_SIZE = 3;
     public static final String CONTENT_TYPE = "wildcard";
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new WildcardFieldMapper.Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser(
+        (n, c) -> new WildcardFieldMapper.Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers())
+    );
 
     protected WildcardFieldMapper(
         String simpleName,
@@ -176,6 +183,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         this.normalizerName = builder.normalizer.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
         this.indexAnalyzers = builder.indexAnalyzers;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     public int ignoreAbove() {
@@ -205,11 +213,24 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
             return;
         }
 
         NamedAnalyzer normalizer = fieldType().normalizer();
+
+        // Explicitly add value as a stored field if value is getting ignored, to be able to derive the source
+        if ((indexCreatedVersion != null && indexCreatedVersion.onOrAfter(Version.V_3_6_0))
+            && (value.length() > ignoreAbove || (normalizer != null && !Lucene.KEYWORD_ANALYZER.equals(normalizer)))
+            && context.indexSettings().isDerivedSourceEnabled()) {
+            final BytesRef binaryValue = new BytesRef(value);
+            context.doc().add(new StoredField(fieldType().derivedSourceIgnoreFieldName(), binaryValue));
+        }
+
+        if (value.length() > ignoreAbove) {
+            return;
+        }
+
         if (normalizer != null) {
             value = normalizeValue(normalizer, name(), value);
         }
@@ -903,7 +924,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers).init(this);
+        return new Builder(simpleName(), indexCreatedVersion, indexAnalyzers).init(this);
     }
 
     private static WildcardFieldMapper toType(FieldMapper in) {
@@ -912,12 +933,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void canDeriveSourceInternal() {
-        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
-            throw new UnsupportedOperationException(
-                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
-            );
-        }
-        checkDocValuesForDerivedSource();
+        checkStoredAndDocValuesForDerivedSource();
     }
 
     /**
@@ -925,17 +941,40 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      *    derived source, so that we can always derive source even if doc values are disabled
      * <p>
      * Support:
-     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
-     *       considering for these cases we will need to have explicit stored field.
-     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
-     *       normalizer it is hard to regenerate original source
+     *    1. If "ignore_above" or "normalizer" is set in the field mapping, then we will fall back to ignored_value
+     *    explicitly being added for derived source
      * <p>
      * Considerations:
      *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
      */
     @Override
     protected DerivedFieldGenerator derivedFieldGenerator() {
-        return new DerivedFieldGenerator(mappedFieldType, new SortedSetDocValuesFetcher(mappedFieldType, simpleName()) {
+        List<FieldValueFetcher> fieldValueFetchers = new ArrayList<>();
+        NamedAnalyzer normalizer = fieldType().normalizer();
+        if (normalizer == null || Lucene.KEYWORD_ANALYZER.equals(normalizer)) {
+            final FieldValueFetcher primaryFieldValueFetcher = getDerivedSourcePrimaryWildcardValueFetcher(this, simpleName());
+            fieldValueFetchers.add(primaryFieldValueFetcher);
+        }
+        if (fieldType().ignoreAbove != Integer.MAX_VALUE || (normalizer != null && !Lucene.KEYWORD_ANALYZER.equals(normalizer))) {
+            final FieldValueFetcher fallbackFieldValueFetcher = getDerivedSourceFallbackWildcardValueFetcher(this);
+            fieldValueFetchers.add(fallbackFieldValueFetcher);
+        }
+        final FieldValueFetcher compositeFieldValueFetcher = new CompositeFieldValueFetcher(simpleName(), fieldValueFetchers);
+        return new DerivedFieldGenerator(mappedFieldType, compositeFieldValueFetcher, null) {
+            @Override
+            public FieldValueType getDerivedFieldPreference() {
+                return FieldValueType.DOC_VALUES;
+            }
+        };
+    }
+
+    @Override
+    public boolean hasDerivedSourceIgnoredField() {
+        return true;
+    }
+
+    private FieldValueFetcher getDerivedSourcePrimaryWildcardValueFetcher(WildcardFieldMapper mapper, String textFieldName) {
+        return mapper.fieldType().hasDocValues() ? new SortedSetDocValuesFetcher(mapper.fieldType(), textFieldName) {
             @Override
             public Object convert(Object value) {
                 if (value == null) {
@@ -944,11 +983,44 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 BytesRef binaryValue = (BytesRef) value;
                 return binaryValue.utf8ToString();
             }
-        }, null) {
+        } : new StoredFieldFetcher(mapper.fieldType(), textFieldName);
+    }
+
+    private FieldValueFetcher getDerivedSourceFallbackWildcardValueFetcher(WildcardFieldMapper mapper) {
+        // Override to read from the special ignored value field
+        final MappedFieldType ignoredFieldType = new MappedFieldType(
+            mapper.fieldType().derivedSourceIgnoreFieldName(),
+            false,  // not searchable
+            true,   // stored
+            false,  // no doc values
+            TextSearchInfo.NONE,
+            Collections.emptyMap()
+        ) {
             @Override
-            public FieldValueType getDerivedFieldPreference() {
-                return FieldValueType.DOC_VALUES;
+            public String typeName() {
+                return "wildcard";
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query termQuery(Object value, QueryShardContext context) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Object valueForDisplay(Object value) {
+                if (value == null) {
+                    return null;
+                }
+                // keywords are internally stored as utf8 bytes
+                BytesRef binaryValue = (BytesRef) value;
+                return binaryValue.utf8ToString();
             }
         };
+        return new StoredFieldFetcher(ignoredFieldType, mapper.simpleName());
     }
 }

@@ -633,14 +633,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return null;
     }
 
-    protected void setDerivedFieldGenerator(DerivedFieldGenerator derivedFieldGenerator) {
-        this.derivedFieldGenerator = derivedFieldGenerator;
-    }
-
-    protected DerivedFieldGenerator getDerivedFieldGenerator() {
-        return this.derivedFieldGenerator;
-    }
-
     /**
      * Method to determine, if it is possible to derive source for this field using field mapping parameters.
      * DerivedFieldGenerator should be set for which derived source feature is supported, this behaviour can be
@@ -652,7 +644,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             throw new UnsupportedOperationException("Unable to derive source for fields with copy_to parameter set");
         }
         canDeriveSourceInternal();
-        if (getDerivedFieldGenerator() == null) {
+        if (derivedFieldGenerator == null) {
             throw new UnsupportedOperationException(
                 "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
             );
@@ -666,24 +658,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         throw new UnsupportedOperationException(
             "Derive source is not supported for field [" + name() + "] with field " + "type [" + fieldType().typeName() + "]"
         );
-    }
-
-    /**
-     * Validates if doc values is enabled for a field or not
-     */
-    protected void checkDocValuesForDerivedSource() {
-        if (!mappedFieldType.hasDocValues()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with doc values disabled");
-        }
-    }
-
-    /**
-     * Validates if stored field is enabled for a field or not
-     */
-    protected void checkStoredForDerivedSource() {
-        if (!mappedFieldType.isStored()) {
-            throw new UnsupportedOperationException("Unable to derive source for [" + name() + "] with store disabled");
-        }
     }
 
     /**

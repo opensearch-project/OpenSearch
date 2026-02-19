@@ -687,33 +687,15 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
                 .putList("analysis.normalizer.lowercase.filter", "lowercase")
                 .build()
         ).mapperService().documentMapperParser();
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> normalizerMapperParser.parse("type", new CompressedXContent(normalizerMapping))
-        );
+        assertDoesNotThrow(() -> {
+            try {
+                normalizerMapperParser.parse("type", new CompressedXContent(normalizerMapping));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
-        // Test 5: Validate keyword field with ignore_above
-        String ignoreAboveMapping = """
-            {
-                "properties": {
-                    "keyword_field": {
-                        "type": "keyword",
-                        "ignore_above": 256
-                    }
-                }
-            }""";
-
-        // Should fail because ignore_above is not supported with derive source
-        DocumentMapperParser ignoreAboveMapperParser = createIndex(
-            "test_derive_5",
-            Settings.builder().put("index.derived_source.enabled", true).build()
-        ).mapperService().documentMapperParser();
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> ignoreAboveMapperParser.parse("type", new CompressedXContent(ignoreAboveMapping))
-        );
-
-        // Test 6: Validate object field with nested enabled
+        // Test 5: Validate object field with nested enabled
         String nestedMapping = """
             {
                 "properties": {
@@ -735,7 +717,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ).mapperService().documentMapperParser();
         expectThrows(UnsupportedOperationException.class, () -> nestedMapperParser.parse("type", new CompressedXContent(nestedMapping)));
 
-        // Test 7: Validate field with copy_to
+        // Test 6: Validate field with copy_to
         String copyToMapping = """
             {
                 "properties": {
@@ -756,7 +738,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ).mapperService().documentMapperParser();
         expectThrows(UnsupportedOperationException.class, () -> copyToMapperParser.parse("type", new CompressedXContent(copyToMapping)));
 
-        // Test 8: Validate multiple field types
+        // Test 7: Validate multiple field types
         String multiTypeMapping = """
             {
                 "properties": {
@@ -786,12 +768,10 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
                         "type": "geo_point"
                     },
                     "text_field": {
-                        "type": "text",
-                        "store": true
+                        "type": "text"
                     },
                     "wildcard_field": {
-                        "type": "wildcard",
-                        "doc_values": true
+                        "type": "wildcard"
                     }
                 }
             }""";
@@ -803,7 +783,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         ).mapperService().documentMapperParser();
         multiTypeMapperParser.parse("type", new CompressedXContent(multiTypeMapping));
 
-        // Test 9: Validate with both doc_values and stored disabled
+        // Test 8: Validate with both doc_values and stored disabled
         String bothDisabledMapping = """
             {
                 "properties": {
@@ -825,7 +805,7 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
             () -> bothDisabledMapperParser.parse("type", new CompressedXContent(bothDisabledMapping))
         );
 
-        // Test 10: Validate for the field type, for which derived source is not implemented
+        // Test 9: Validate for the field type, for which derived source is not implemented
         String unsupportedFieldType = """
             {
                 "properties": {
@@ -1024,5 +1004,13 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
+    }
+
+    private void assertDoesNotThrow(Runnable runnable) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            fail("Expected no exception, but got: " + e.getMessage());
+        }
     }
 }

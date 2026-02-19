@@ -777,12 +777,10 @@ public class SimpleSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTe
                                 "type": "ip"
                             },
                             "text_field": {
-                                "type": "text",
-                                "store": true
+                                "type": "text"
                             },
                             "wildcard_field": {
-                                "type": "wildcard",
-                                "doc_values": true
+                                "type": "wildcard"
                             },
                             "constant_keyword": {
                                 "type": "constant_keyword",
