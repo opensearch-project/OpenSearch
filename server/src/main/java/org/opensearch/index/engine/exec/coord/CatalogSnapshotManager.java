@@ -59,7 +59,7 @@ public class CatalogSnapshotManager {
         });
 
         indexFileDeleter.set(new IndexFileDeleter(compositeEngine, latestCatalogSnapshot, shardPath, deleteUnreferencedFiles));
-        logger.info("[RESET_DEBUG] IndexFileDeleter created, latestCatalogSnapshot={}, deleteUnreferencedFiles={}", latestCatalogSnapshot, deleteUnreferencedFiles);
+        logger.debug("[RESET_DEBUG] IndexFileDeleter created, latestCatalogSnapshot={}, deleteUnreferencedFiles={}", latestCatalogSnapshot, deleteUnreferencedFiles);
         if(latestCatalogSnapshot != null) {
             latestCatalogSnapshot.setIndexFileDeleterSupplier(indexFileDeleter::get);
             latestCatalogSnapshot.setCatalogSnapshotMap(catalogSnapshotMap);
