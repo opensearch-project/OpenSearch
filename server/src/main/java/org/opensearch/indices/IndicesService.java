@@ -162,7 +162,6 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
@@ -177,6 +176,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 

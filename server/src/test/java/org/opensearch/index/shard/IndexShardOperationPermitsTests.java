@@ -40,13 +40,10 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.shard.IndexShard;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.telemetry.TestInMemoryHistogram;
 import org.opensearch.test.telemetry.TestInMemoryMetricsRegistry;
-import org.opensearch.telemetry.metrics.Histogram;
-import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
-import org.opensearch.telemetry.metrics.tags.Tags;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
@@ -239,15 +236,9 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> {
             throw new IllegalArgumentException("fake error");
         }));
-        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(
-            wrap(() -> {
-                throw new IllegalArgumentException("fake error");
-            }),
-            randomInt(10),
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-            null
-        ));
+        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(wrap(() -> {
+            throw new IllegalArgumentException("fake error");
+        }), randomInt(10), TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -267,17 +258,11 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         try (Releasable ignored = blockAndWait()) {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
 
-            permits.asyncBlockOperations(
-                wrap(() -> {
-                    blocked.set(true);
-                    blockAcquired.countDown();
-                    releaseBlock.await();
-                }),
-                30,
-                TimeUnit.MINUTES,
-                IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-                null
-            );
+            permits.asyncBlockOperations(wrap(() -> {
+                blocked.set(true);
+                blockAcquired.countDown();
+                releaseBlock.await();
+            }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
             assertFalse(blocked.get());
             assertFalse(future.isDone());
         }
@@ -387,17 +372,11 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-            wrap(() -> {
-                blocked.set(true);
-                blockAcquired.countDown();
-                releaseBlock.await();
-            }),
-            30,
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-            null
-        );
+        permits.asyncBlockOperations(wrap(() -> {
+            blocked.set(true);
+            blockAcquired.countDown();
+            releaseBlock.await();
+        }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
         blockAcquired.await();
         assertTrue(blocked.get());
 
@@ -442,16 +421,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
-            wrap(() -> {
-                onBlocked.set(true);
-                blockedLatch.countDown();
-            }),
-            30,
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-            null
-        );
+        permits.asyncBlockOperations(wrap(() -> {
+            onBlocked.set(true);
+            blockedLatch.countDown();
+        }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
         assertFalse(onBlocked.get());
 
         // if we submit another operation, it should be delayed
@@ -530,16 +503,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(
-                wrap(() -> {
-                    values.add(operations);
-                    operationLatch.countDown();
-                }),
-                30,
-                TimeUnit.MINUTES,
-                IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-                null
-            );
+            permits.asyncBlockOperations(wrap(() -> {
+                values.add(operations);
+                operationLatch.countDown();
+            }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
         });
         blockingThread.start();
 
@@ -605,26 +572,20 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
     public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(
-            new ActionListener<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    try (Releasable ignored = releasable) {
-                        throw new RuntimeException("simulated");
-                    }
+        permits.asyncBlockOperations(new ActionListener<Releasable>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (Releasable ignored = releasable) {
+                    throw new RuntimeException("simulated");
                 }
+            }
 
-                @Override
-                public void onFailure(final Exception e) {
-                    reference.set(e);
-                    onFailureLatch.countDown();
-                }
-            },
-            10,
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-            null
-        );
+            @Override
+            public void onFailure(final Exception e) {
+                reference.set(e);
+                onFailureLatch.countDown();
+            }
+        }, 10, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
         onFailureLatch.await();
         assertThat(reference.get(), instanceOf(RuntimeException.class));
         assertThat(reference.get(), hasToString(containsString("simulated")));
@@ -654,24 +615,18 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         {
             final AtomicReference<Exception> reference = new AtomicReference<>();
             final CountDownLatch onFailureLatch = new CountDownLatch(1);
-            permits.asyncBlockOperations(
-                new ActionListener<Releasable>() {
-                    @Override
-                    public void onResponse(Releasable releasable) {
-                        releasable.close();
-                    }
+            permits.asyncBlockOperations(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    releasable.close();
+                }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        reference.set(e);
-                        onFailureLatch.countDown();
-                    }
-                },
-                1,
-                TimeUnit.MILLISECONDS,
-                IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-                null
-            );
+                @Override
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    onFailureLatch.countDown();
+                }
+            }, 1, TimeUnit.MILLISECONDS, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, null);
             onFailureLatch.await();
             assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
         }
@@ -832,16 +787,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch releaseBlock = new CountDownLatch(1);
 
         long startTime = System.currentTimeMillis();
-        testPermits.asyncBlockOperations(
-            wrap(() -> {
-                blockAcquired.countDown();
-                releaseBlock.await();
-            }),
-            30,
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.PRIMARY_OPERATIONS,
-            null
-        );
+        testPermits.asyncBlockOperations(wrap(() -> {
+            blockAcquired.countDown();
+            releaseBlock.await();
+        }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.PRIMARY_OPERATIONS, null);
 
         blockAcquired.await();
         releaseBlock.countDown();
@@ -878,16 +827,10 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
 
-        testPermits.asyncBlockOperations(
-            wrap(() -> {
-                blockAcquired.countDown();
-                releaseBlock.await();
-            }),
-            30,
-            TimeUnit.MINUTES,
-            IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION,
-            "test_phase"
-        );
+        testPermits.asyncBlockOperations(wrap(() -> {
+            blockAcquired.countDown();
+            releaseBlock.await();
+        }), 30, TimeUnit.MINUTES, IndexShard.BlockingOperationType.REPLICA_TO_PRIMARY_PROMOTION, "test_phase");
 
         blockAcquired.await();
         releaseBlock.countDown();

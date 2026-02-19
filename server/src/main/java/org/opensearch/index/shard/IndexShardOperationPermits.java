@@ -169,14 +169,14 @@ final class IndexShardOperationPermits implements Closeable {
         @Nullable final String phase
     ) {
         delayOperations();
-        
+
         final long startTime = System.currentTimeMillis();
-        
+
         threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
 
             final RunOnce released = new RunOnce(() -> {
                 releaseDelayedOperations();
-                
+
                 if (blockingDurationHistogram != null) {
                     long durationMs = System.currentTimeMillis() - startTime;
                     Tags tags = Tags.create()

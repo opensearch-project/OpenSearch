@@ -53,7 +53,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -89,7 +88,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     private final Map<Class<? extends SearchBackpressureTask>, SearchBackpressureState> searchBackpressureStates;
     private final TaskManager taskManager;
     private final WorkloadGroupService workloadGroupService;
-    private final List<SearchBackpressureCancellationListener> cancellationListeners = new CopyOnWriteArrayList<>();
+    private final SearchBackpressureMetrics searchBackpressureMetrics;
 
     public SearchBackpressureService(
         SearchBackpressureSettings settings,
@@ -97,6 +96,17 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         ThreadPool threadPool,
         TaskManager taskManager,
         WorkloadGroupService workloadGroupService
+    ) {
+        this(settings, taskResourceTrackingService, threadPool, taskManager, workloadGroupService, null);
+    }
+
+    public SearchBackpressureService(
+        SearchBackpressureSettings settings,
+        TaskResourceTrackingService taskResourceTrackingService,
+        ThreadPool threadPool,
+        TaskManager taskManager,
+        WorkloadGroupService workloadGroupService,
+        SearchBackpressureMetrics searchBackpressureMetrics
     ) {
         this(settings, taskResourceTrackingService, threadPool, System::nanoTime, new NodeDuressTrackers(new EnumMap<>(ResourceType.class) {
             {
@@ -137,7 +147,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             ),
             taskManager,
-            workloadGroupService
+            workloadGroupService,
+            searchBackpressureMetrics
         );
     }
 
@@ -150,9 +161,11 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         TaskResourceUsageTrackers searchTaskTrackers,
         TaskResourceUsageTrackers searchShardTaskTrackers,
         TaskManager taskManager,
-        WorkloadGroupService workloadGroupService
+        WorkloadGroupService workloadGroupService,
+        SearchBackpressureMetrics searchBackpressureMetrics
     ) {
         this.settings = settings;
+        this.searchBackpressureMetrics = searchBackpressureMetrics;
         this.taskResourceTrackingService = taskResourceTrackingService;
         this.taskResourceTrackingService.addTaskCompletionListener(this);
         this.threadPool = threadPool;
@@ -382,54 +395,28 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     }
 
     /**
-     * Registers a listener to receive task cancellation events.
-     *
-     * @param listener the listener to register
-     */
-    public void addCancellationListener(SearchBackpressureCancellationListener listener) {
-        cancellationListeners.add(listener);
-    }
-
-    /**
-     * Unregisters a previously registered listener.
-     *
-     * @param listener the listener to unregister
-     */
-    public void removeCancellationListener(SearchBackpressureCancellationListener listener) {
-        cancellationListeners.remove(listener);
-    }
-
-    /**
-     * Notifies all registered listeners about a task cancellation.
+     * Records task cancellation to telemetry metrics when a task is cancelled.
      */
     private void notifyListenersOnCancellation(
         CancellableTask task,
         Class<? extends SearchBackpressureTask> taskType,
         String reasonString
     ) {
-        for (SearchBackpressureCancellationListener listener : cancellationListeners) {
-            try {
-                listener.onTaskCancelled(task, taskType, reasonString);
-            } catch (Exception e) {
-                logger.warn("Failed to notify cancellation listener", e);
-            }
+        if (searchBackpressureMetrics != null) {
+            searchBackpressureMetrics.recordCancellation(task, taskType, reasonString);
         }
     }
 
     /**
-     * Notifies all registered listeners about a cancellation that was skipped due to rate limits.
+     * Records limit-reached to telemetry metrics when cancellation was skipped due to rate/ratio limits.
      */
     private void notifyListenersOnLimitReached(
         CancellableTask task,
         Class<? extends SearchBackpressureTask> taskType,
         String reasonString
     ) {
-        for (SearchBackpressureCancellationListener listener : cancellationListeners) {
-            try {
-                listener.onCancellationLimitReached(task, taskType, reasonString);
-            } catch (Exception e) {
-                logger.warn("Failed to notify cancellation listener on limit reached", e);
-            }
+        if (searchBackpressureMetrics != null) {
+            searchBackpressureMetrics.recordLimitReached(taskType);
         }
     }
 

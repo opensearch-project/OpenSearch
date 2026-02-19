@@ -176,7 +176,6 @@ import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
-import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteStoreFileDownloader;
@@ -218,6 +217,7 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -4658,7 +4658,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             maxSeqNoOfUpdatesOrDeletes,
             onPermitAcquired,
             true,
-            listener -> asyncBlockOperations(listener, timeout.duration(), timeout.timeUnit(), BlockingOperationType.REPLICA_OPERATIONS, null)
+            listener -> asyncBlockOperations(
+                listener,
+                timeout.duration(),
+                timeout.timeUnit(),
+                BlockingOperationType.REPLICA_OPERATIONS,
+                null
+            )
         );
     }
 
