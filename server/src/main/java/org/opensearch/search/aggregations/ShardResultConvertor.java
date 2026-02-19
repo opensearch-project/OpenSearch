@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,8 @@ import java.util.Map;
 
 public interface ShardResultConvertor {
 
-    default List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+    default List<InternalAggregation> convert(QueryResult queryResult, SearchContext searchContext) {
+        Map<String, List<Object>> shardResult = queryResult.getColumns();
         int rows = shardResult.entrySet().stream().findFirst().get().getValue().size();
         List<InternalAggregation> internalAggregations = new ArrayList<>();
         for (int i = 0; i < rows; i++) {

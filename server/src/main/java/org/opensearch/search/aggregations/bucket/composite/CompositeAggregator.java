@@ -61,6 +61,7 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.opensearch.search.DocValueFormat;
@@ -734,7 +735,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Shar
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+        Map<String, List<Object>> shardResult = dfResult.getColumns();
         if(shardResult.isEmpty()) {
             return Collections.singletonList(buildEmptyAggregation());
         }

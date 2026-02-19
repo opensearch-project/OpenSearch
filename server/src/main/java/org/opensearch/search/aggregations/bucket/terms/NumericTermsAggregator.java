@@ -42,6 +42,7 @@ import org.opensearch.common.Numbers;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -524,7 +525,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+        public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+                Map<String, List<Object>> shardResult = dfResult.getColumns();
                 int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(name).size() ;
                 List<LongTerms.Bucket> buckets = new ArrayList<>(rowCount);
                 for (int i = 0; i < rowCount; i++) {
@@ -641,7 +643,8 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         }
 
         @Override
-        public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+        public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+            Map<String, List<Object>> shardResult = dfResult.getColumns();
             if(shardResult.isEmpty()) {
                 return Collections.singletonList(buildEmptyAggregation());
             }
@@ -878,12 +881,12 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
-        if(shardResult.isEmpty()) {
+    public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+        if(dfResult.getColumns().isEmpty()) {
             return Collections.singletonList(buildEmptyAggregation());
         }
         if (resultStrategy instanceof ShardResultConvertor) {
-            return ((ShardResultConvertor) resultStrategy).convert(shardResult, searchContext);
+            return ((ShardResultConvertor) resultStrategy).convert(dfResult, searchContext);
         } else {
             throw new UnsupportedOperationException("Result strategy not supported for conversion " + resultStrategy.getClass().getName());
         }

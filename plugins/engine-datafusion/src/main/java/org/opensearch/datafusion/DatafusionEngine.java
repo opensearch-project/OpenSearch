@@ -68,6 +68,7 @@ import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.datafusion.search.DfResult;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -282,18 +283,18 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 throw new RuntimeException(e);
             }
         }
-        context.setDFResults(finalRes);
+        context.setDFResults(new DfResult(finalRes));
         context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(), TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(), Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
     }
 
     @Override
-    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<Map<String, List<Object>>> listener) {
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<DfResult> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
 
             datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
-                Map<String, List<Object>> finalRes = new HashMap<>();
+                Map<String, List<Object>> finalResColumns = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
                 if(streamPointer == null) {
                     throw new RuntimeException(error);
@@ -319,15 +320,15 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                                     fieldValues.add(fieldVector.getObject(i));
                                 }
                             }
-                            if(finalRes.containsKey(fieldName)) {
-                                finalRes.get(fieldName).addAll(fieldValues);
+                            if(finalResColumns.containsKey(fieldName)) {
+                                finalResColumns.get(fieldName).addAll(fieldValues);
                             } else {
-                                finalRes.put(fieldName, fieldValues);
+                                finalResColumns.put(fieldName, fieldValues);
                             }
                         }
                     }
                 };
-                loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+                loadNextBatch(stream, executor, collector, finalResColumns, allocator, listener, context, rowIdResult);
             });
 
 //            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
@@ -352,7 +353,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         SearchResultsCollector<RecordBatchStream> collector,
         Map<String, List<Object>> finalRes,
         RootAllocator allocator,
-        ActionListener<Map<String, List<Object>>> listener,
+        ActionListener<DfResult> listener,
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
@@ -373,7 +374,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                     TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
                     Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
                 // ArrayList<> --> Object[]
-                listener.onResponse(finalRes);
+                listener.onResponse(new DfResult(finalRes));
             }
         }, error -> {
             cleanup(stream, allocator);

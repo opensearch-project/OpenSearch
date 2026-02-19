@@ -19,6 +19,7 @@ import org.opensearch.search.aggregations.metrics.CardinalityAggregator;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregator;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,14 +36,8 @@ public class SearchEngineResultConversionUtils {
 
     public static void convertDFResultGeneric(SearchContext searchContext) {
         if (searchContext.aggregations() != null) {
-            Map<String, List<Object>> dfResult = searchContext.getDFResults();
+            QueryResult dfResult = searchContext.getDFResults();
 
-//            LOGGER.info("DF Results at convertDFResultGeneric:");
-//            for (Map.Entry<String, Object[]> entry : dfResult.entrySet()) {
-//                LOGGER.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
-//            }
-
-            // Create aggregators which will process the result from DataFusion
             try {
 
                 List<Aggregator> aggregators = new ArrayList<>();

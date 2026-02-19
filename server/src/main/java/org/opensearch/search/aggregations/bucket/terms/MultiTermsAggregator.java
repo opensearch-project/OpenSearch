@@ -20,6 +20,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -709,7 +710,8 @@ public class MultiTermsAggregator extends DeferableBucketAggregator implements S
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+        Map<String, List<Object>> shardResult = dfResult.getColumns();
         int rowCount = shardResult.isEmpty() ? 0 : shardResult.get(fields.getFirst()).size() ;
         List<InternalMultiTerms.Bucket> buckets = new ArrayList<>(rowCount);
         for (int i = 0; i < rowCount; i++) {

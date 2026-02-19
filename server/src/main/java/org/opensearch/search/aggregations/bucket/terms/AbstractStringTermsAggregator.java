@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -120,7 +121,8 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator implements 
     }
 
     @Override
-    public List<InternalAggregation> convert(Map<String, List<Object>> shardResult, SearchContext searchContext) {
+    public List<InternalAggregation> convert(QueryResult dfResult, SearchContext searchContext) {
+        Map<String, List<Object>> shardResult = dfResult.getColumns();
         if(shardResult.isEmpty()) {
             return Collections.singletonList(buildEmptyTermsAggregation());
         }

@@ -142,6 +142,7 @@ import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.profile.SearchProfileShardResults;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.search.query.*;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.searchafter.SearchAfterBuilder;
@@ -958,9 +959,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
 
             // Execute native query async
-            searchExecEngine.executeQueryPhaseAsync(finalContext, executor, new ActionListener<Map<String, List<Object>>>() {
+            searchExecEngine.executeQueryPhaseAsync(finalContext, executor, new ActionListener<QueryResult>() {
                 @Override
-                public void onResponse(Map<String, List<Object>> result) {
+                public void onResponse(QueryResult result) {
                     try {
                         finalContext.setDFResults(result);
                         // Continue with rest of query phase
