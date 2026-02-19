@@ -162,10 +162,10 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
         return true;
     }
 
-    @Override
+    /*@Override
     protected boolean supportsIntraSegmentSearch() {
         return true;
-    }
+    }*/
 
     private int precision() {
         return precisionThreshold == null
