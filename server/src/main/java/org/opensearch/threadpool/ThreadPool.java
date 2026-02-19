@@ -99,6 +99,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
+        public static final String TRANSLOG_RECOVERY = "translog_recovery";
         @Deprecated
         public static final String LISTENER = "listener";
         public static final String GET = "get";
@@ -179,6 +180,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         HashMap<String, ThreadPoolType> map = new HashMap<>();
         map.put(Names.SAME, ThreadPoolType.DIRECT);
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
+        map.put(Names.TRANSLOG_RECOVERY, ThreadPoolType.FIXED);
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
@@ -258,6 +260,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(Names.TRANSLOG_RECOVERY, new FixedExecutorBuilder(settings, Names.TRANSLOG_RECOVERY, allocatedProcessors, -1));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
@@ -541,7 +544,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 continue;
             }
             if (holder.info.type == ThreadPoolType.FORK_JOIN) {
-                stats.add(new ThreadPoolStats.Stats(name, 0, 0, 0, 0, 0, 0, -1, holder.info.getMax()));
+                stats.add(
+                    new ThreadPoolStats.Stats.Builder().name(name)
+                        .threads(0)
+                        .queue(0)
+                        .active(0)
+                        .rejected(0)
+                        .largest(0)
+                        .completed(0)
+                        .waitTimeNanos(-1)
+                        .parallelism(holder.info.getMax())
+                        .build()
+                );
                 continue;
             }
             int threads = -1;
@@ -553,8 +567,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             long waitTimeNanos = -1;
             int parallelism = -1;
 
-            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
-                OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
+            if (holder.executor() instanceof OpenSearchThreadPoolExecutor threadPoolExecutor) {
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
@@ -563,8 +576,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
 
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler xRejectedExecutionHandler) {
+                    rejected = xRejectedExecutionHandler.rejected();
                 }
             }
             stats.add(

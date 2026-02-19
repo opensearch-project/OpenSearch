@@ -350,13 +350,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 );
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
-                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
+                if (newOp instanceof Translog.Index newIndex && prvOp instanceof Translog.Index prvIndex) {
+                    final Translog.Index o1 = prvIndex;
+                    final Translog.Index o2 = newIndex;
                     sameOp = translogOperationHelper.hasSameIndexOperation(o1, o2);
-                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) newOp;
-                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                } else if (newOp instanceof Translog.Delete newDelete && prvOp instanceof Translog.Delete prvDelete) {
+                    final Translog.Delete o1 = newDelete;
+                    final Translog.Delete o2 = prvDelete;
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()

@@ -45,13 +45,8 @@ dependencies {
 
 thirdPartyAudit {
   ignoreViolations(
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField',
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
-   'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
-   'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
-   'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
-   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess',
-   'io.opentelemetry.exporter.internal.marshal.UnsafeAccess$UnsafeHolder'
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder',
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder$UnsafeHolder'
   )
 
   ignoreMissingClasses(

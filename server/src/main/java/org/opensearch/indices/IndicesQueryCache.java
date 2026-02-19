@@ -183,7 +183,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         // We also have some shared ram usage that we try to distribute to
         // proportionally to their number of cache entries of each shard
         if (stats.isEmpty()) {
-            shardStats.add(new QueryCacheStats(sharedRamBytesUsed, 0, 0, 0, 0));
+            shardStats.add(
+                new QueryCacheStats.Builder().ramBytesUsed(sharedRamBytesUsed).hitCount(0).missCount(0).cacheCount(0).cacheSize(0).build()
+            );
         } else {
             long totalSize = 0;
             for (QueryCacheStats s : stats.values()) {
@@ -191,15 +193,22 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             }
             final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
             final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
+            shardStats.add(
+                new QueryCacheStats.Builder().ramBytesUsed(additionalRamBytesUsed)
+                    .hitCount(0)
+                    .missCount(0)
+                    .cacheCount(0)
+                    .cacheSize(0)
+                    .build()
+            );
         }
         return shardStats;
     }
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-        while (weight instanceof CachingWeightWrapper) {
-            weight = ((CachingWeightWrapper) weight).in;
+        while (weight instanceof CachingWeightWrapper cachingWeightWrapper) {
+            weight = cachingWeightWrapper.in;
         }
         final Weight in = cache.doCache(weight, policy);
         // We wrap the weight to track the readers it sees and map them with
@@ -287,7 +296,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         QueryCacheStats toQueryCacheStats() {
-            return new QueryCacheStats(ramBytesUsed, hitCount, missCount, cacheCount, cacheSize);
+            return new QueryCacheStats.Builder().ramBytesUsed(ramBytesUsed)
+                .hitCount(hitCount)
+                .missCount(missCount)
+                .cacheCount(cacheCount)
+                .cacheSize(cacheSize)
+                .build();
         }
 
         @Override

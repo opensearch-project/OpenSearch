@@ -2,6 +2,37 @@
 
 Service Provider Interface (SPI) for the OpenSearch gRPC transport module. This module provides interfaces and utilities that allow external plugins to extend the gRPC transport functionality.
 
+## Table of Contents
+
+- [transport-grpc-spi](#transport-grpc-spi)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Key Components](#key-components)
+    - [QueryBuilderProtoConverter](#querybuilderprotoconverter)
+    - [QueryBuilderProtoConverterRegistry](#querybuilderprotoconverterregistry)
+    - [GrpcInterceptorProvider](#grpcinterceptorprovider)
+    - [GrpcServiceFactory](#grpcservicefactory)
+  - [Usage for Plugin Developers](#usage-for-plugin-developers)
+    - [1. Add Dependency](#1-add-dependency)
+    - [2. Declare Extension in build.gradle](#2-declare-extension-in-buildgradle)
+    - [3. Create SPI Registration File(s)](#3-create-spi-registration-files)
+  - [QueryBuilderProtoConverter](#querybuilderprotoconverter-1)
+    - [1. Implement Custom Query Converter](#1-implement-custom-query-converter)
+    - [2. Register Your Converter](#2-register-your-converter)
+    - [3. Accessing the Registry (For Complex Queries)](#3-accessing-the-registry-for-complex-queries)
+  - [Testing](#testing)
+    - [Unit Tests](#unit-tests)
+    - [4. Testing Your Custom Converter](#4-testing-your-custom-converter)
+  - [Real-World Example: k-NN Plugin](#real-world-example-k-nn-plugin)
+  - [gRPC Interceptors](#grpc-interceptors)
+    - [Overview](#overview-1)
+    - [Basic Usage](#basic-usage)
+    - [Understanding Interceptor Ordering](#understanding-interceptor-ordering)
+      - [How Order Values Work](#how-order-values-work)
+      - [Duplicate Order Values](#duplicate-order-values)
+  - [GrpcServiceFactory](#grpcservicefactory-1)
+    - [1. Implement Custom Service Factory](#1-implement-custom-service-factory)
+
 ## Overview
 
 The `transport-grpc-spi` module enables plugin developers to:
@@ -10,6 +41,10 @@ The `transport-grpc-spi` module enables plugin developers to:
 - Register custom query types that can be processed via gRPC
 - Register gRPC interceptors with explicit ordering
 - Register `BindableService` implementation to the gRPC transport
+
+**For contributing to OpenSearch gRPC APIs, see the [Contributing to gRPC APIs](../README.md#contributing-to-grpc-apis) guide in the transport-grpc module.**
+
+---
 
 ## Key Components
 
@@ -334,7 +369,9 @@ The k-NN query's `filter` field is a `QueryContainer` protobuf type that can con
 
 ### Overview
 
-Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting,etc
+Intercept incoming gRPC requests for authentication, authorization, logging, metrics, rate limiting, etc. Interceptors have access to OpenSearch's `ThreadContext` to store and retrieve request-scoped data.
+
+**Context Preservation:** The transport-grpc module automatically preserves ThreadContext across async boundaries. Any data set by interceptors will be available in the gRPC service implementation, even when execution switches to different threads.
 
 ### Basic Usage
 
@@ -342,7 +379,7 @@ Intercept incoming gRPC requests for authentication, authorization, logging, met
 ```java
 public class SampleInterceptorProvider implements GrpcInterceptorProvider {
     @Override
-    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors() {
+    public List<GrpcInterceptorProvider.OrderedGrpcInterceptor> getOrderedGrpcInterceptors(ThreadContext threadContext) {
         return Arrays.asList(
             // First interceptor (order = 5, runs first)
             new GrpcInterceptorProvider.OrderedGrpcInterceptor() {
@@ -353,6 +390,7 @@ public class SampleInterceptorProvider implements GrpcInterceptorProvider {
                 public ServerInterceptor getInterceptor() {
                     return (call, headers, next) -> {
                         String methodName = call.getMethodDescriptor().getFullMethodName();
+                        threadContext.putTransient("grpc.method", methodName);
                         System.out.println("First interceptor - Method: " + methodName);
                         return next.startCall(call, headers);
                     };
@@ -397,7 +435,7 @@ Each interceptor must have a unique order value.
 
 ## GrpcServiceFactory
 
-### 1. Implement Custom Query Converter
+### 1. Implement Custom Service Factory
 
 Several node resources are exposed to a `GrpcServiceFactory` for use within services such as client, settings, and thread pools.
 A plugin's `GrpcServiceFactory` implementation will be discovered through the SPI registration file and registered on the gRPC transport.

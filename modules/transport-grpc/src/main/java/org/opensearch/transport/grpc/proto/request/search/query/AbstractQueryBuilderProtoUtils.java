@@ -35,6 +35,15 @@ public class AbstractQueryBuilderProtoUtils {
     }
 
     /**
+     * Gets the registry used for query conversion.
+     *
+     * @return The query builder proto converter registry
+     */
+    public QueryBuilderProtoConverterRegistryImpl getRegistry() {
+        return registry;
+    }
+
+    /**
      * Parse a query from its Protocol Buffer representation.
      * Similar to {@link AbstractQueryBuilder#parseInnerQueryBuilder(XContentParser)}, this method
      * determines the query type from the Protocol Buffer container and delegates to the appropriate

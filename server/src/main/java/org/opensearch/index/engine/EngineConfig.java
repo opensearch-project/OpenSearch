@@ -152,8 +152,7 @@ public final class EngineConfig {
 
                 for (String codecName : Codec.availableCodecs()) {
                     Codec codec = Codec.forName(codecName);
-                    if (codec instanceof CodecAliases) {
-                        CodecAliases codecWithAlias = (CodecAliases) codec;
+                    if (codec instanceof CodecAliases codecWithAlias) {
                         if (codecWithAlias.aliases().contains(s)) {
                             return s;
                         }
@@ -208,18 +207,17 @@ public final class EngineConfig {
             default:
                 if (Codec.availableCodecs().contains(codec)) {
                     Codec luceneCodec = Codec.forName(codec);
-                    if (luceneCodec instanceof CodecSettings
-                        && ((CodecSettings) luceneCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                    if (luceneCodec instanceof CodecSettings codecSettings
+                        && codecSettings.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                         return;
                     }
                 }
                 for (String codecName : Codec.availableCodecs()) {
                     Codec availableCodec = Codec.forName(codecName);
-                    if (availableCodec instanceof CodecAliases) {
-                        CodecAliases availableCodecWithAlias = (CodecAliases) availableCodec;
+                    if (availableCodec instanceof CodecAliases availableCodecWithAlias) {
                         if (availableCodecWithAlias.aliases().contains(codec)) {
-                            if (availableCodec instanceof CodecSettings
-                                && ((CodecSettings) availableCodec).supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
+                            if (availableCodec instanceof CodecSettings codecSettings
+                                && codecSettings.supports(INDEX_CODEC_COMPRESSION_LEVEL_SETTING)) {
                                 return;
                             }
                         }
@@ -356,7 +354,8 @@ public final class EngineConfig {
             .leafSorter(this.leafSorter)
             .documentMapperForTypeSupplier(this.documentMapperForTypeSupplier)
             .indexReaderWarmer(this.indexReaderWarmer)
-            .clusterApplierService(this.clusterApplierService);
+            .clusterApplierService(this.clusterApplierService)
+            .mergedSegmentTransferTracker(this.mergedSegmentTransferTracker);
     }
 
     /**

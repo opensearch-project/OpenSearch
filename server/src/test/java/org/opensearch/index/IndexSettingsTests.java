@@ -58,6 +58,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.index.IndexSettings.INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -181,15 +183,18 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         }
 
         // use version number that is unknown
-        metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99")).build()
+        );
         settings = new IndexSettings(metadata, Settings.EMPTY);
-        assertEquals(Version.fromId(999999), settings.getIndexVersionCreated());
+        assertEquals(Version.fromString("99.99.99"), settings.getIndexVersionCreated());
         assertEquals("_na_", settings.getUUID());
         settings.updateIndexMetadata(
             newIndexMeta(
                 "index",
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromString("99.99.99"))
                     .put("index.test.setting.int", 42)
                     .build()
             )
@@ -1096,5 +1101,110 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         );
         settings = new IndexSettings(metadata, Settings.EMPTY);
         assertFalse(settings.isDerivedSourceEnabledForTranslog());
+    }
+
+    public void testDefaultPeriodicFlushIntervalForRegularIndex() {
+        // Test that regular indices have periodic flush disabled by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.MINUS_ONE, defaultValue);
+    }
+
+    public void testDefaultPeriodicFlushIntervalForPullBasedIngestionIndex() {
+        // Test that ingestion indices have periodic flush enabled by default
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .build();
+
+        TimeValue defaultValue = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(10), defaultValue);
+    }
+
+    public void testPeriodicFlushIntervalExplicitValue() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "5m")
+            .build();
+
+        TimeValue value = IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.get(indexSettings);
+        assertEquals(TimeValue.timeValueMinutes(5), value);
+    }
+
+    public void testPeriodicFlushIntervalDynamicUpdate() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                .build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+
+        // Verify default value
+        assertEquals(TimeValue.timeValueMinutes(10), settings.getPeriodicFlushInterval());
+
+        // Update to 10 minutes
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                    .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "10m")
+                    .build()
+            )
+        );
+        assertEquals(TimeValue.timeValueMinutes(10), settings.getPeriodicFlushInterval());
+
+        // Update to disabled (-1)
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "index",
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INGESTION_SOURCE_TYPE, "kafka")
+                    .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "-1")
+                    .build()
+            )
+        );
+        assertEquals(TimeValue.MINUS_ONE, settings.getPeriodicFlushInterval());
+    }
+
+    public void testPartitionStrategyDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals("segment", INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+    }
+
+    public void testPartitionStrategyValidValues() {
+        for (String strategy : new String[] { "segment", "balanced", "force" }) {
+            IndexMetadata metadata = newIndexMeta(
+                "index",
+                Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), strategy).build()
+            );
+            IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+            assertEquals(strategy, INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.get(settings.getSettings()));
+        }
+    }
+
+    public void testPartitionMinSegmentSizeDefault() {
+        IndexMetadata metadata = newIndexMeta("index", Settings.builder().build());
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(500_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
+    }
+
+    public void testPartitionMinSegmentSizeCustom() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 100_000).build()
+        );
+        IndexSettings settings = newIndexSettings(metadata, Settings.EMPTY);
+        assertEquals(100_000, (int) INDEX_CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.get(settings.getSettings()));
     }
 }

@@ -40,6 +40,7 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -167,6 +168,27 @@ public class GoogleCloudStorageClientSettings {
         () -> PROXY_USERNAME_SETTING
     );
 
+    /** The path to the truststore file for SSL/TLS connections */
+    static final Setting.AffixSetting<String> TRUSTSTORE_PATH_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "truststore.path",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
+
+    /** The secure password for the truststore */
+    static final Setting.AffixSetting<SecureString> TRUSTSTORE_PASSWORD_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "truststore.password",
+        key -> SecureSetting.secureString(key, null)
+    );
+
+    /** The type of the truststore (e.g., BCFKS, PKCS11, PKCS12, JKS) */
+    static final Setting.AffixSetting<String> TRUSTSTORE_TYPE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "truststore.type",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -191,6 +213,9 @@ public class GoogleCloudStorageClientSettings {
     /** The GCS SDK Proxy settings. */
     private final ProxySettings proxySettings;
 
+    /** The GCS SDK Truststore settings. */
+    private final TruststoreSettings truststoreSettings;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -199,7 +224,8 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue readTimeout,
         final String applicationName,
         final URI tokenUri,
-        final ProxySettings proxySettings
+        final ProxySettings proxySettings,
+        final TruststoreSettings truststoreSettings
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -209,6 +235,7 @@ public class GoogleCloudStorageClientSettings {
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
         this.proxySettings = proxySettings;
+        this.truststoreSettings = truststoreSettings;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -243,6 +270,10 @@ public class GoogleCloudStorageClientSettings {
         return proxySettings;
     }
 
+    public TruststoreSettings getTruststoreSettings() {
+        return truststoreSettings;
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName : settings.getGroups(PREFIX).keySet()) {
@@ -265,7 +296,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
-            validateAndCreateProxySettings(settings, clientName)
+            validateAndCreateProxySettings(settings, clientName),
+            validateAndCreateTruststoreSettings(settings, clientName)
         );
     }
 
@@ -297,6 +329,36 @@ public class GoogleCloudStorageClientSettings {
         }
     }
 
+    static TruststoreSettings validateAndCreateTruststoreSettings(final Settings settings, final String clientName) {
+        final String truststorePathString = getConfigValue(settings, clientName, TRUSTSTORE_PATH_SETTING);
+        final String truststoreType = getConfigValue(settings, clientName, TRUSTSTORE_TYPE_SETTING);
+        final SecureString truststorePassword = getConfigValue(settings, clientName, TRUSTSTORE_PASSWORD_SETTING);
+        final SecureString password = (truststorePassword != null) ? truststorePassword : new SecureString(new char[0]);
+        final boolean hasPath = Strings.hasText(truststorePathString);
+        final boolean hasType = Strings.hasText(truststoreType);
+        final boolean hasPassword = Strings.hasText(password);
+
+        if (!hasPath && !hasType && !hasPassword) {
+            return TruststoreSettings.NO_TRUSTSTORE_SETTINGS;
+        }
+        if (!hasType) {
+            throw new SettingsException(
+                "Google Cloud Storage truststore type is missing. Use '"
+                    + TRUSTSTORE_TYPE_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+                    + "' setting to configure the truststore type."
+            );
+        }
+        if (!hasPath) {
+            throw new SettingsException(
+                "Google Cloud Storage truststore path is missing. Use '"
+                    + TRUSTSTORE_PATH_SETTING.getConcreteSettingForNamespace(clientName).getKey()
+                    + "' setting to configure the truststore path."
+            );
+        }
+
+        return new TruststoreSettings(java.nio.file.Path.of(truststorePathString), truststoreType, password);
+    }
+
     /**
      * Loads the service account file corresponding to a given client name. If no
      * file is defined for the client, a {@code null} credential is returned.
@@ -318,7 +380,7 @@ public class GoogleCloudStorageClientSettings {
             }
             try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                return SocketAccess.doPrivilegedIOException(() -> {
+                return AccessController.doPrivilegedChecked(() -> {
                     final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
                     if (credentials.createScopedRequired()) {
                         return (ServiceAccountCredentials) credentials.createScoped(scopes);

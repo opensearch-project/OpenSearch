@@ -8,13 +8,16 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.script.ContextAwareGroupingScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -145,5 +148,22 @@ public class ContextAwareGroupingFieldMapperTests extends OpenSearchTestCase {
 
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parseCreateField(mockParseContext));
         assertTrue(e.getMessage().contains("context_aware_grouping cannot be ingested in the document"));
+    }
+
+    public void testContextAwareFieldMapperWithDerivedSource() throws IOException {
+        ContextAwareGroupingFieldType fieldType = new ContextAwareGroupingFieldType(Collections.emptyList(), null);
+        ContextAwareGroupingFieldMapper mapper = new ContextAwareGroupingFieldMapper(
+            "context_aware_grouping",
+            fieldType,
+            new ContextAwareGroupingFieldMapper.Builder("context_aware_grouping")
+        );
+        LeafReader leafReader = mock(LeafReader.class);
+
+        try {
+            mapper.canDeriveSource();
+            mapper.deriveSource(XContentFactory.jsonBuilder().startObject(), leafReader, 0);
+        } catch (Exception e) {
+            fail(e.getMessage());
+        }
     }
 }

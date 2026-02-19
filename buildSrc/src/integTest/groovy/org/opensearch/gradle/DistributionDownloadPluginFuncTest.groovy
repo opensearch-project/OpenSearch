@@ -30,6 +30,7 @@
 package org.opensearch.gradle
 
 
+import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.fixtures.AbstractGradleFuncTest
 import org.opensearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.gradle.testkit.runner.TaskOutcome
@@ -65,6 +66,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def version = VersionProperties.getOpenSearch()
         def platform = OpenSearchDistribution.Platform.LINUX
+        def arch = Architecture.current().name().toLowerCase()
 
         buildFile << applyPluginAndSetupDistro(version, platform)
         buildFile << """
@@ -83,7 +85,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        result.output.count("Unpacking opensearch-${version}-linux-x64.tar.gz " +
+        result.output.count("Unpacking opensearch-${version}-linux-${arch}.tar.gz " +
             "using SymbolicLinkPreservingUntarTransform.") == 0
     }
 
@@ -91,6 +93,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         given:
         def version = VersionProperties.getOpenSearch()
         def platform = OpenSearchDistribution.Platform.LINUX
+        def arch = Architecture.current().name().toLowerCase()
 
         3.times {
             testProjectDir.newFolder("sub-$it")
@@ -122,7 +125,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking opensearch-${version}-linux-x64.tar.gz " +
+        result.output.count("Unpacking opensearch-${version}-linux-${arch}.tar.gz " +
                 "using SymbolicLinkPreservingUntarTransform.") == 1
     }
 

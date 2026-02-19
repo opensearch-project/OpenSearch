@@ -50,7 +50,6 @@ import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.hc.client5.http.classic.methods.HttpTrace;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.RequestConfig;
-import org.apache.hc.client5.http.entity.GzipDecompressingEntity;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
 import org.apache.hc.client5.http.impl.auth.BasicScheme;
@@ -483,12 +482,6 @@ public class RestClient implements Closeable {
         throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
         int statusCode = httpResponse.getCode();
-
-        Optional.ofNullable(httpResponse.getEntity())
-            .map(HttpEntity::getContentEncoding)
-            .filter("gzip"::equalsIgnoreCase)
-            .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
-            .ifPresent(httpResponse::setEntity);
 
         Response response = new Response(new RequestLine(request.httpRequest), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {

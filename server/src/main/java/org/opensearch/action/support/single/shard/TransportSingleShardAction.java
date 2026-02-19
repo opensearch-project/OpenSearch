@@ -160,7 +160,17 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     @Override
     public ResolvedIndices resolveIndices(Request request) {
-        return ResolvedIndices.ofNonNull(resolveToConcreteSingleIndex(request, clusterService.state()));
+        if (resolveIndex(request)) {
+            // We do not use resolveToConcreteSingleIndex() here because it might throw exceptions for validation errors.
+            // Instead, we use indexNameExpressionResolver.concreteResolvedIndices(), which allows us to retrieve
+            // index names without validation errors. This is potentially a super-set of the indices resolved in
+            // resolveToConcreteSingleIndex(), but this is only a hypothetical state. In practise, we should
+            // also always get one element here. If for some reason that's not the case, the code will hit the
+            // validation error when executing the action.
+            return ResolvedIndices.of(indexNameExpressionResolver.concreteResolvedIndices(clusterService.state(), request));
+        } else {
+            return ResolvedIndices.of(request.index());
+        }
     }
 
     private String resolveToConcreteSingleIndex(Request request, ClusterState clusterState) {

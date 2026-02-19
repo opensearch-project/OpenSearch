@@ -43,6 +43,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.index.query.QueryBuilders.prefixQuery;
@@ -64,15 +65,12 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
         Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
         PrefixQueryBuilder prefixQuery = randomPrefixQuery();
-        String contentString = "{\n"
-            + "    \"prefix\" : {\n"
-            + "        \""
-            + prefixQuery.fieldName()
-            + "\" : \""
-            + prefixQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = String.format(Locale.ROOT, """
+            {
+                "prefix" : {
+                    "%s" : "%s"
+                }
+            }""", prefixQuery.fieldName(), prefixQuery.value());
         alternateVersions.put(contentString, prefixQuery);
         return alternateVersions;
     }
@@ -136,20 +134,27 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "    \"prefix\": {\n"
-            + "      \"user1\": {\n"
-            + "        \"value\": \"ki\"\n"
-            + "      },\n"
-            + "      \"user2\": {\n"
-            + "        \"value\": \"ki\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "prefix": {
+                  "user1": {
+                    "value": "ki"
+                  },
+                  "user2": {
+                    "value": "ki"
+                  }
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
 
-        String shortJson = "{\n" + "    \"prefix\": {\n" + "      \"user1\": \"ki\",\n" + "      \"user2\": \"ki\"\n" + "    }\n" + "}";
+        String shortJson = """
+            {
+                "prefix": {
+                  "user1": "ki",
+                  "user2": "ki"
+                }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }

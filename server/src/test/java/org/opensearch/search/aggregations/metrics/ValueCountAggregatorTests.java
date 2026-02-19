@@ -52,6 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
+import org.opensearch.index.mapper.HllFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -111,6 +112,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.IP
         );
+    }
+
+    @Override
+    protected List<String> unsupportedMappedFieldTypes() {
+        return List.of(HllFieldMapper.CONTENT_TYPE);
     }
 
     @Override

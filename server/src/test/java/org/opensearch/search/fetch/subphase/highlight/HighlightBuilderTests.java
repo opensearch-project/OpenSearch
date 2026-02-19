@@ -173,24 +173,24 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
      */
     public void testUnknownArrayNameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" : [ "field1" 1 "field2" ]
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : [ "field1" , "field2" ]
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -208,24 +208,24 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
      */
     public void testUnknownFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" : \"value\"\n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" : "value"
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : \"value\"\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : "value"
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -237,24 +237,25 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
      */
     public void testUnknownObjectFieldnameExpection() throws IOException {
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n" + "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                    "bad_fieldname" :  { "field" : "value" }
+
+                }
+                """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());
         }
 
         {
-            XContentParseException e = expectParseThrows(
-                XContentParseException.class,
-                "{\n"
-                    + "  \"fields\" : {\n"
-                    + "     \"body\" : {\n"
-                    + "        \"bad_fieldname\" : { \"field\" : \"value\" }\n"
-                    + "     }\n"
-                    + "   }\n"
-                    + "}\n"
-            );
+            XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {
+                  "fields" : {
+                     "body" : {
+                        "bad_fieldname" : { "field" : "value" }
+                     }
+                   }
+                }
+                """);
             assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
             assertThat(e.getCause().getMessage(), containsString("[fields] failed to parse field [body]"));
             assertEquals("[4:9] [highlight_field] unknown field [bad_fieldname]", e.getCause().getCause().getMessage());
@@ -262,7 +263,9 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
     }
 
     public void testStringInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\"fields\" : [ \"junk\" ]}");
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+                {"fields" : [ "junk" ]}
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(
             e.getCause().getMessage(),
@@ -274,7 +277,12 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
     }
 
     public void testNoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(XContentParseException.class, "{\n" + "  \"fields\" : [ {\n" + "   }] \n" + "}\n");
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+            {
+              "fields" : [ {
+               }]
+            }
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(
             e.getCause().getMessage(),
@@ -286,10 +294,14 @@ public class HighlightBuilderTests extends OpenSearchTestCase {
     }
 
     public void testTwoFieldsInObjectInFieldsArray() throws IOException {
-        XContentParseException e = expectParseThrows(
-            XContentParseException.class,
-            "{\n" + "  \"fields\" : [ {\n" + "     \"body\" : {},\n" + "     \"nope\" : {}\n" + "   }] \n" + "}\n"
-        );
+        XContentParseException e = expectParseThrows(XContentParseException.class, """
+            {
+              "fields" : [ {
+                 "body" : {},
+                 "nope" : {}
+               }]
+            }
+            """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));
         assertThat(
             e.getCause().getMessage(),

@@ -33,6 +33,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.StepListener;
+import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
@@ -58,6 +59,7 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.disruption.NetworkDisruption;
@@ -86,6 +88,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -152,7 +155,20 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             repoName,
             dataNode
         );
-        Thread.sleep(1000); // Wait for the snapshot to start
+        // Poll for snapshot to actually start
+        assertBusy(
+            () -> assertThat(
+                client().admin()
+                    .cluster()
+                    .prepareGetSnapshots(repoName)
+                    .addSnapshots("slow-snapshot")
+                    .get()
+                    .getSnapshots()
+                    .getFirst()
+                    .state(),
+                equalTo(SnapshotState.IN_PROGRESS)
+            )
+        );
         assertFalse(createSlowFuture.isDone()); // Ensure the snapshot is still in progress
         // Attempt to update the repository settings while the snapshot is in progress
         settings.put("chunk_size", 2000, ByteSizeUnit.BYTES);
@@ -163,7 +179,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(createSlowFuture); // Ensure the snapshot completes successfully
     }
 
-    public void testSettingsUpdateFailWhenDeleteSnapshotInProgress() throws InterruptedException {
+    public void testSettingsUpdateFailWhenDeleteSnapshotInProgress() throws Exception {
         // Start a cluster with a cluster manager node and a data node
         String clusterManagerName = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -179,7 +195,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(RestStatus.OK, snapshotInfo.status()); // Ensure the snapshot status is OK
         // Start deleting the snapshot and block it on the cluster manager node
         ActionFuture<AcknowledgedResponse> future = deleteSnapshotBlockedOnClusterManager(repoName, snapshotName);
-        Thread.sleep(1000); // Wait for the delete operation to start
+        // Wait for the delete operation to start
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().listTasks(new ListTasksRequest()).get().getTasks().stream().map(TaskInfo::getAction).toList(),
+                hasItem(equalTo("cluster:admin/snapshot/delete"))
+            )
+        );
         assertFalse(future.isDone()); // Ensure the delete operation is still in progress
         // Attempt to update the repository settings while the delete operation is in progress
         Settings.Builder newSettings = randomRepositorySettings();

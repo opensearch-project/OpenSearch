@@ -25,6 +25,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreCoreTestCase;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPoolStats;
 
@@ -49,14 +50,14 @@ public class S3RemoteStoreIT extends RemoteStoreCoreTestCase {
     @Override
     @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     @SuppressForbidden(reason = "Need to reset system property here for AWS SDK v2")
     public void tearDown() throws Exception {
-        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         clearIndices();
         waitForEmptyRemotePurgeQueue();
         super.tearDown();

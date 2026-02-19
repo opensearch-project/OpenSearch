@@ -38,6 +38,7 @@ import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.cli.EnvironmentAwareCommand;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.PluginsService;
@@ -98,11 +99,18 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
 
         // first make sure nothing extends this plugin
-        List<String> usedBy = PluginsService.findPluginsByDependency(env.pluginsDir(), pluginName);
+        Tuple<List<String>, List<String>> dependents = PluginsService.findPluginsByDependency(env.pluginsDir(), pluginName);
+        List<String> usedBy = dependents.v1();
+        List<String> optionallyExtendedBy = dependents.v2();
         if (usedBy.isEmpty() == false) {
             throw new UserException(
                 PLUGIN_STILL_USED,
                 "plugin [" + pluginName + "] cannot be removed" + " because it is extended by other plugins: " + usedBy
+            );
+        }
+        if (optionallyExtendedBy.isEmpty() == false) {
+            terminal.println(
+                "WARNING: Some features of " + optionallyExtendedBy + " may not function without the dependency [" + pluginName + "]."
             );
         }
 

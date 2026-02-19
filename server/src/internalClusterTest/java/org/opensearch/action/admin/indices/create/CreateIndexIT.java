@@ -214,10 +214,10 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
 
     public void testPrivateSettingFails() {
         try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, -1).build()).get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build()).get();
             fail("should have thrown an exception about private settings");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("private index setting [index.creation_date] can not be set explicitly"));
+            assertTrue(e.getMessage().contains("private index setting [index.uuid] can not be set explicitly"));
         }
     }
 

@@ -957,12 +957,13 @@ public class MetadataIndexTemplateService {
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         Set<String> matches = new HashSet<>();
-        template.indexPatterns()
-            .forEach(
-                indexPattern -> matches.addAll(
-                    dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())
-                )
-            );
+        template.indexPatterns().forEach(indexPattern -> {
+            dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).filter(stream -> {
+                // Check if this template is the highest priority template and used by this data stream
+                final String usingTemplate = findV2Template(state.metadata(), stream, false);
+                return templateName.equals(usingTemplate);
+            }).forEach(matches::add);
+        });
         return matches;
     }
 
@@ -1156,35 +1157,37 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
-        final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
+        ComposableIndexTemplate winner = null;
+        String winnerName = null;
+        long highestPriority = -1;
+
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
+            boolean matched = false;
+
             if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    matchedTemplates.put(template, name);
-                }
+                matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
             } else {
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        matchedTemplates.put(template, name);
-                    }
+                    matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
+                }
+            }
+
+            if (matched) {
+                long priority = template.priorityOrZero();
+                if (winner == null || priority > highestPriority) {
+                    winner = template;
+                    winnerName = name;
+                    highestPriority = priority;
                 }
             }
         }
 
-        if (matchedTemplates.size() == 0) {
+        if (winner == null) {
             return null;
         }
-
-        final List<ComposableIndexTemplate> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(ComposableIndexTemplate::priorityOrZero, Comparator.reverseOrder()));
-
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
-        ComposableIndexTemplate winner = candidates.get(0);
-        String winnerName = matchedTemplates.get(winner);
 
         // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)

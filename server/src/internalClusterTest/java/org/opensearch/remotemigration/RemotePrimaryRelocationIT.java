@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.repositories.get.GetRepositoriesRespo
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.query.QueryBuilders;
@@ -138,6 +139,7 @@ public class RemotePrimaryRelocationIT extends MigrationBaseTestCase {
         );
     }
 
+    @SuppressForbidden(reason = "Waiting longer than timeout")
     public void testMixedModeRelocation_RemoteSeedingFail() throws Exception {
         String docRepNode = internalCluster().startNode();
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();

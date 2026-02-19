@@ -322,19 +322,36 @@ public class XContentBuilderTests extends OpenSearchTestCase {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         String string = builder.toString();
-        assertEquals("{\n" + "  \"test\" : \"foo\",\n" + "  \"foo\" : {\n" + "    \"foobar\" : \"boom\"\n" + "  }\n" + "}", string);
+        assertEquals("""
+            {
+              "test" : "foo",
+              "foo" : {
+                "foobar" : "boom"
+              }
+            }""", string);
 
         builder = MediaTypeRegistry.contentBuilder(XContentType.YAML).prettyPrint();
         builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         string = builder.toString();
-        assertEquals("---\n" + "test: \"foo\"\n" + "foo:\n" + "  foobar: \"boom\"\n", string);
+        assertEquals("""
+            ---
+            test: "foo"
+            foo:
+              foobar: "boom"
+            """, string);
     }
 
     public void testRenderGeoPoint() throws IOException {
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON).prettyPrint();
         builder.startObject().field("foo").value(new GeoPoint(1, 2)).endObject();
         String string = builder.toString();
-        assertEquals("{\n" + "  \"foo\" : {\n" + "    \"lat\" : 1.0,\n" + "    \"lon\" : 2.0\n" + "  }\n" + "}", string.trim());
+        assertEquals("""
+            {
+              "foo" : {
+                "lat" : 1.0,
+                "lon" : 2.0
+              }
+            }""", string.trim());
     }
 
     public void testWriteMapWithNullKeys() throws IOException {

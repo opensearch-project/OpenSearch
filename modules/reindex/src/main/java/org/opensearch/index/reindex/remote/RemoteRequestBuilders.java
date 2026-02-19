@@ -104,12 +104,9 @@ final class RemoteRequestBuilders {
             // Detect if we should use search_type=scan rather than a sort
             if (remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_1_0)) {
                 for (SortBuilder<?> sort : searchRequest.source().sorts()) {
-                    if (sort instanceof FieldSortBuilder) {
-                        FieldSortBuilder f = (FieldSortBuilder) sort;
-                        if (f.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
-                            useScan = true;
-                            break;
-                        }
+                    if (sort instanceof FieldSortBuilder f && f.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
+                        useScan = true;
+                        break;
                     }
                 }
             }
@@ -217,8 +214,7 @@ final class RemoteRequestBuilders {
     }
 
     private static String sortToUri(SortBuilder<?> sort) {
-        if (sort instanceof FieldSortBuilder) {
-            FieldSortBuilder f = (FieldSortBuilder) sort;
+        if (sort instanceof FieldSortBuilder f) {
             return f.getFieldName() + ":" + f.order();
         }
         throw new IllegalArgumentException("Unsupported sort [" + sort + "]");

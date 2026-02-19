@@ -91,7 +91,7 @@ tasks.withType(NoticeTask).configureEach {
  *****************************************************************************/
 String distOutputs = 'build/outputs/dist'
 String systemdOutputs = 'build/outputs/systemd'
-String transportOutputs = 'build/outputs/transport-only'
+String integTestOutputs = 'build/outputs/integ-test'
 String externalTestOutputs = 'build/outputs/external-test'
 
 def processOutputsTaskProvider = tasks.register("processOutputs", Sync) {
@@ -106,10 +106,9 @@ def processExternalTestOutputsTaskProvider = tasks.register("processExternalTest
   into externalTestOutputs
 }
 
-// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
-// All transport modules are included so that they may be randomized for testing
-def processTransportOutputsTaskProvider = tasks.register("processTransportOutputs", Sync) {
-  into transportOutputs
+// Copy all modules to integ test build to ensure integ test and min distro behavior is the same since modules are mandatory
+def processIntegTestModulesOutputsTaskProvider = tasks.register("processIntegTestOutputs", Sync) {
+  into integTestOutputs
 }
 
 // these are dummy tasks that can be used to depend on the relevant sub output dir
@@ -129,9 +128,9 @@ def buildSystemdModuleTaskProvider = tasks.register("buildSystemdModule") {
   dependsOn "processSystemdOutputs"
   outputs.dir "${systemdOutputs}/modules"
 }
-def buildTransportModulesTaskProvider = tasks.register("buildTransportModules") {
-  dependsOn processTransportOutputsTaskProvider
-  outputs.dir "${transportOutputs}/modules"
+def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") {
+  dependsOn processIntegTestModulesOutputsTaskProvider
+  outputs.dir "${integTestOutputs}/modules"
 }
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
@@ -230,9 +229,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
 
   copyModule(processOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-')) {
-    copyModule(processTransportOutputsTaskProvider, module)
-  }
+  copyModule(processIntegTestModulesOutputsTaskProvider, module)
 
   copyLog4jProperties(buildLog4jConfigTaskProvider, module)
 
@@ -312,7 +309,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'bcFips'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'bcFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -333,6 +330,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
+    libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
 
     bcFips libs.bundles.bouncycastle
   }
@@ -346,7 +344,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
-        if ( BuildParams.inFipsJvm ) {
+        if ( BuildParams.isInFipsJvm() ) {
           from(configurations.bcFips)
         }
         into('tools/plugin-cli') {
@@ -354,6 +352,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/keystore-cli') {
           from(configurations.libsKeystoreCli)
+        }
+        // Add FIPS installer CLI
+        into('tools/fips-demo-installer-cli') {
+          from(configurations.libsFipsInstallerCli)
         }
       }
     }
@@ -402,8 +404,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    transportModulesFiles = copySpec {
-      from buildTransportModulesTaskProvider
+    integTestModulesFiles = copySpec {
+      from buildIntegTestModulesTaskProvider
     }
 
     configFiles = { distributionType, java ->

@@ -83,6 +83,19 @@ public class RecoverySettingsDynamicUpdateTests extends OpenSearchTestCase {
         assertEquals(80, (int) recoverySettings.replicationRateLimiter().getMBPerSec());
     }
 
+    public void testSetTranslogConcurrentRecoverySettings() {
+        assertFalse(recoverySettings.isTranslogConcurrentRecoveryEnable());
+        assertEquals(500000, recoverySettings.getTranslogConcurrentRecoveryBatchSize());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.getKey(), 700000)
+                .put(RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE.getKey(), true)
+                .build()
+        );
+        assertTrue(recoverySettings.isTranslogConcurrentRecoveryEnable());
+        assertEquals(700000, recoverySettings.getTranslogConcurrentRecoveryBatchSize());
+    }
+
     public void testSetMergedSegmentReplicationMaxBytesPerSec() {
         assertEquals(40, (int) recoverySettings.mergedSegmentReplicationRateLimiter().getMBPerSec());
         clusterSettings.applySettings(

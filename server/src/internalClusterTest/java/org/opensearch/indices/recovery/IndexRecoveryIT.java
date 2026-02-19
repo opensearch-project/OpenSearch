@@ -73,6 +73,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -1268,6 +1269,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
 
+            @SuppressForbidden(reason = "Simulating disconnect after sending request with a delay")
             @Override
             public void sendRequest(
                 Transport.Connection connection,

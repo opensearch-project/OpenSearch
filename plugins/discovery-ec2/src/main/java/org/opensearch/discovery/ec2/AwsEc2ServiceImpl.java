@@ -52,6 +52,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.util.LazyInitializable;
 import org.opensearch.core.common.Strings;
+import org.opensearch.secure_sm.AccessController;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -65,10 +66,10 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         new AtomicReference<>();
 
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
-        SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
+        AccessController.doPrivileged(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
-        final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(() -> buildProxyConfiguration(logger, clientSettings));
+        final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(() -> buildProxyConfiguration(logger, clientSettings));
         return buildClient(
             awsCredentialsProvider,
             proxyConfiguration,
@@ -107,7 +108,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             builder.region(Region.of(region));
         }
 
-        return SocketAccess.doPrivileged(builder::build);
+        return AccessController.doPrivileged(builder::build);
     }
 
     protected String getFullEndpoint(String endpoint) {

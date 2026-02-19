@@ -49,7 +49,7 @@ jobs:
           echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.BASE }}
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Create PR for BASE
         id: base_pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
@@ -75,7 +75,7 @@ jobs:
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ env.MAIN_BRANCH }}
 
@@ -88,7 +88,7 @@ jobs:
 
       - name: Create PR for MAIN_BRANCH
         id: main_branch_pr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           base: ${{ env.MAIN_BRANCH }}
           branch: 'create-pull-request/patch-${{ env.MAIN_BRANCH }}'
@@ -103,7 +103,7 @@ jobs:
 
       - name: Create tracking issue
         id: create-issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const body = `

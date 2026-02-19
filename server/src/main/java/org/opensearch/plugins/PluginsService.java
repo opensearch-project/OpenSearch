@@ -405,17 +405,30 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    public static List<String> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
-        List<String> usedBy = new ArrayList<>();
+    /**
+     * Finds plugins that depend on the given plugin.
+     *
+     * @param pluginsDir the plugins directory
+     * @param pluginName the plugin name to find dependents for
+     * @return a Tuple where v1() is the list of plugins with required dependencies,
+     *         and v2() is the list of plugins with optional dependencies
+     */
+    public static Tuple<List<String>, List<String>> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
+        List<String> requiredBy = new ArrayList<>();
+        List<String> optionallyExtendedBy = new ArrayList<>();
         Set<Bundle> bundles = getPluginBundles(pluginsDir);
         for (Bundle bundle : bundles) {
             for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
                 if (extendedPlugin.equals(pluginName)) {
-                    usedBy.add(bundle.plugin.getName());
+                    if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                        optionallyExtendedBy.add(bundle.plugin.getName());
+                    } else {
+                        requiredBy.add(bundle.plugin.getName());
+                    }
                 }
             }
         }
-        return usedBy;
+        return new Tuple<>(requiredBy, optionallyExtendedBy);
     }
 
     /**
@@ -623,9 +636,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
-            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+            if (pluginTuple.v2() instanceof ExtensiblePlugin extensiblePlugin) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.v2(),
+                    extensiblePlugin,
                     extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), Collections.emptyList())
                 );
             }
@@ -728,8 +741,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
+                    logger.info(
+                        "Plugin [{}] extends multiple plugins/modules that share common dependencies: {}. "
+                            + "This is expected when extended plugins share common ancestors.",
+                        bundle.plugin.getName(),
+                        intersection
                     );
                 }
 

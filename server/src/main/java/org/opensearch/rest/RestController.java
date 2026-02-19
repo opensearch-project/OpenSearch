@@ -40,6 +40,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.common.util.RequestUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.Streams;
 import org.opensearch.common.xcontent.XContentType;
@@ -54,6 +55,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
+import org.opensearch.tasks.Task;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 
@@ -221,8 +223,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
-        if (handler instanceof BaseRestHandler) {
-            usageService.addRestHandler((BaseRestHandler) handler);
+        if (handler instanceof BaseRestHandler baseRestHandler) {
+            usageService.addRestHandler(baseRestHandler);
         }
         registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
     }
@@ -301,8 +303,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final Exception e;
             if (cause == null) {
                 e = new OpenSearchException("unknown cause");
-            } else if (cause instanceof Exception) {
-                e = (Exception) cause;
+            } else if (cause instanceof Exception exception) {
+                e = exception;
             } else {
                 e = new OpenSearchException(cause);
             }
@@ -346,8 +348,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             if (handler.supportsStreaming()) {
                 // The handler may support streaming but not the engine, in this case we fail with the bad request
-                if (channel instanceof StreamingRestChannel) {
-                    responseChannel = new StreamHandlingHttpChannel((StreamingRestChannel) channel, circuitBreakerService, contentLength);
+                if (channel instanceof StreamingRestChannel streamingRestChannel) {
+                    responseChannel = new StreamHandlingHttpChannel(streamingRestChannel, circuitBreakerService, contentLength);
                 } else {
                     throw new IllegalStateException(
                         "The engine does not support HTTP streaming, unable to serve uri ["
@@ -431,12 +433,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     return;
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                    // Validate request-id header if present
+                    if (Task.X_REQUEST_ID.equals(restHeader.getName())) {
+                        RequestUtils.validateRequestId(distinctHeaderValues.getFirst());
+                    }
                 }
             }
         }
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (channel.detailedErrorStackTraceEnabled() && channel.detailedErrorsEnabled() == false) {
             channel.sendResponse(
                 BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled.")
             );
@@ -637,6 +643,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
@@ -697,6 +708,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public boolean detailedErrorsEnabled() {
             return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public boolean detailedErrorStackTraceEnabled() {
+            return delegate.detailedErrorStackTraceEnabled();
         }
 
         @Override

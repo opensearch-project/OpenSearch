@@ -49,6 +49,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferEventLoopGroup;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -56,6 +57,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static java.util.Collections.emptyMap;
@@ -64,8 +66,6 @@ class S3AsyncService implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3AsyncService.class);
 
     private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "aws.stsEndpointOverride";
-
-    private static final String DEFAULT_S3_ENDPOINT = "s3.amazonaws.com";
 
     // We will need to support the cache with both type of clients. Since S3ClientSettings doesn't contain Http Client.
     // Also adding the Http Client type in S3ClientSettings is not good option since it is used by Async and Sync clients.
@@ -255,22 +255,10 @@ class S3AsyncService implements Closeable {
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : DEFAULT_S3_ENDPOINT;
-        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
-            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
-            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
-        }
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
-
-        // If the endpoint configuration isn't set on the builder then the default behaviour is to try
-        // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
-        // In contrast, directly-constructed clients use s3.amazonaws.com unless otherwise instructed. We currently
-        // use a directly-constructed client, and need to keep the existing behaviour to avoid a breaking change,
-        // so to move to using the builder we must set it explicitly to keep the existing behaviour.
-        //
-        // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
-        // so this change removes that usage of a deprecated API.
-        builder.endpointOverride(URI.create(endpoint));
+        // Only apply endpointOverride when the user explicitly configures "endpoint".
+        // If "endpoint" is absent, DO NOT override; allow the AWS SDK to resolve endpoints dynamically.
+        // This is required for ARN buckets (access points / outposts / MRAP), and is also correct for normal buckets.
+        resolveEndpointOverride(clientSettings).ifPresent(builder::endpointOverride);
         builder.region(Region.of(clientSettings.region));
         if (clientSettings.pathStyleAccess) {
             builder.forcePathStyle(true);
@@ -285,7 +273,7 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient urgentClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient urgentClient = AccessController.doPrivileged(builder::build);
 
         builder.httpClient(buildHttpClient(clientSettings, priorityExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
@@ -296,7 +284,7 @@ class S3AsyncService implements Closeable {
                 )
                 .build()
         );
-        final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient priorityClient = AccessController.doPrivileged(builder::build);
 
         builder.httpClient(buildHttpClient(clientSettings, normalExecutorBuilder.getAsyncTransferEventLoopGroup(), asyncHttpClientType));
         builder.asyncConfiguration(
@@ -312,8 +300,30 @@ class S3AsyncService implements Closeable {
         if (clientSettings.legacyMd5ChecksumCalculation) {
             builder.addPlugin(LegacyMd5Plugin.create());
         }
-        final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
+        final S3AsyncClient client = AccessController.doPrivileged(builder::build);
         return AmazonAsyncS3WithCredentials.create(client, priorityClient, urgentClient, credentials);
+    }
+
+    /**
+     * Returns an endpoint override ONLY when the user explicitly provided one.
+     * Otherwise returns Optional.empty().
+     *
+     * Package-private to allow unit testing.
+     */
+    Optional<URI> resolveEndpointOverride(final S3ClientSettings clientSettings) {
+        if (Strings.hasLength(clientSettings.endpoint) == false) {
+            return Optional.empty();
+        }
+
+        String endpoint = clientSettings.endpoint;
+        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
+            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
+            // TODO: Remove this once fixed in the AWS SDK
+            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
+        }
+
+        // Use URI.create for simplicity; if your codebase prefers checked handling, swap to new URI(endpoint).
+        return Optional.of(URI.create(endpoint));
     }
 
     static SdkAsyncHttpClient buildHttpClient(
@@ -382,7 +392,7 @@ class S3AsyncService implements Closeable {
         final S3ClientSettings clientSettings,
         ScheduledExecutorService clientExecutorService
     ) {
-        RetryPolicy retryPolicy = SocketAccess.doPrivileged(
+        RetryPolicy retryPolicy = AccessController.doPrivileged(
             () -> RetryPolicy.builder()
                 .numRetries(clientSettings.maxRetries)
                 .throttlingBackoffStrategy(
@@ -408,7 +418,7 @@ class S3AsyncService implements Closeable {
             logger.debug("Using IRSA credentials");
 
             final Region region = Region.of(clientSettings.region);
-            StsClient stsClient = SocketAccess.doPrivileged(() -> {
+            StsClient stsClient = AccessController.doPrivileged(() -> {
                 StsClientBuilder builder = StsClient.builder().region(region);
 
                 final String stsEndpoint = System.getProperty(STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY);
@@ -435,7 +445,7 @@ class S3AsyncService implements Closeable {
                             .build()
                     );
 
-                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsAssumeRoleCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -448,7 +458,7 @@ class S3AsyncService implements Closeable {
                         .roleSessionName(irsaCredentials.getRoleSessionName())
                         .webIdentityTokenFile(Path.of(irsaCredentials.getIdentityTokenFile()));
 
-                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                final StsWebIdentityTokenFileCredentialsProvider stsCredentialsProvider = AccessController.doPrivileged(
                     stsCredentialsProviderBuilder::build
                 );
 
@@ -526,7 +536,7 @@ class S3AsyncService implements Closeable {
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 
@@ -544,18 +554,21 @@ class S3AsyncService implements Closeable {
 
         @Override
         public void close() throws IOException {
-            SocketAccess.doPrivilegedIOException(() -> {
-                credentials.close();
-                if (stsClient != null) {
-                    stsClient.close();
-                }
-                return null;
-            });
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    credentials.close();
+                    if (stsClient != null) {
+                        stsClient.close();
+                    }
+                });
+            } catch (Exception e) {
+                throw (IOException) e;
+            }
         }
 
         @Override
         public AwsCredentials resolveCredentials() {
-            return SocketAccess.doPrivileged(credentials::resolveCredentials);
+            return AccessController.doPrivileged(credentials::resolveCredentials);
         }
     }
 

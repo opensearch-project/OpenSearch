@@ -84,10 +84,9 @@ public final class RepositoryShardId implements Writeable {
         if (this == obj) {
             return true;
         }
-        if (obj instanceof RepositoryShardId == false) {
+        if (!(obj instanceof RepositoryShardId that)) {
             return false;
         }
-        final RepositoryShardId that = (RepositoryShardId) obj;
         return that.index.equals(index) && that.shard == shard;
     }
 

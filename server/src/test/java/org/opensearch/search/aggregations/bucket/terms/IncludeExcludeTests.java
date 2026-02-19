@@ -545,4 +545,153 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             assertEquals(!expectedFilter[i], longBitSet.get(i));
         }
     }
+
+    /**
+     * Test case for prefix filter when the prefix doesn't exist and would be inserted beyond all existing terms.
+     * This validates the fix for the IndexOutOfBoundsException bug.
+     */
+    public void testPrefixFilterWithNonExistentPrefixBeyondRange() throws IOException {
+        // Create a regex pattern that will trigger prefix optimization
+        // The prefix "zzz" doesn't exist in our doc values and would be inserted after all existing terms
+        IncludeExclude includeExclude = new IncludeExclude("zzz.*", null);
+
+        OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+
+        // Create doc values with terms that all come before "zzz" alphabetically
+        BytesRef[] bytesRefs = toBytesRefArray("aaa", "bbb", "ccc");
+
+        SortedSetDocValues sortedSetDocValues = new AbstractSortedSetDocValues() {
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public long nextOrd() {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                if (ord < 0 || ord >= bytesRefs.length) {
+                    throw new IndexOutOfBoundsException("ord=" + ord + " is out of bounds [0," + bytesRefs.length + ")");
+                }
+                int ordIndex = Math.toIntExact(ord);
+                return bytesRefs[ordIndex];
+            }
+
+            @Override
+            public long getValueCount() {
+                return bytesRefs.length;
+            }
+        };
+
+        // This should not throw IndexOutOfBoundsException after the fix
+        LongBitSet acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(sortedSetDocValues);
+
+        // Since "zzz" doesn't exist in the doc values, no ordinals should be accepted
+        assertEquals(bytesRefs.length, acceptedOrds.length());
+        for (int i = 0; i < bytesRefs.length; i++) {
+            assertFalse("Ordinal " + i + " should not be accepted", acceptedOrds.get(i));
+        }
+    }
+
+    /**
+     * Test case for prefix filter with exclude pattern when the prefix doesn't exist.
+     */
+    public void testPrefixFilterWithNonExistentExcludePrefixBeyondRange() throws IOException {
+        // Test with an exclude pattern where the prefix doesn't exist
+        IncludeExclude includeExclude = new IncludeExclude(null, "zzz.*");
+
+        OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+
+        BytesRef[] bytesRefs = toBytesRefArray("aaa", "bbb", "ccc");
+
+        SortedSetDocValues sortedSetDocValues = new AbstractSortedSetDocValues() {
+            @Override
+            public boolean advanceExact(int target) {
+                return false;
+            }
+
+            @Override
+            public long nextOrd() {
+                return 0;
+            }
+
+            @Override
+            public int docValueCount() {
+                return 1;
+            }
+
+            @Override
+            public BytesRef lookupOrd(long ord) {
+                if (ord < 0 || ord >= bytesRefs.length) {
+                    throw new IndexOutOfBoundsException("ord=" + ord + " is out of bounds [0," + bytesRefs.length + ")");
+                }
+                int ordIndex = Math.toIntExact(ord);
+                return bytesRefs[ordIndex];
+            }
+
+            @Override
+            public long getValueCount() {
+                return bytesRefs.length;
+            }
+        };
+
+        // This should not throw IndexOutOfBoundsException after the fix
+        LongBitSet acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(sortedSetDocValues);
+
+        // Since "zzz" doesn't exist and we're excluding it, all ordinals should be accepted
+        assertEquals(bytesRefs.length, acceptedOrds.length());
+        for (int i = 0; i < bytesRefs.length; i++) {
+            assertTrue("Ordinal " + i + " should be accepted", acceptedOrds.get(i));
+        }
+    }
+
+    /**
+     * Test case for prefix filter when the prefix exists before all terms.
+     */
+    public void testPrefixFilterWithNonExistentPrefixBeforeRange() throws IOException {
+        // Test with a prefix that would be inserted before all existing terms
+        IncludeExclude includeExclude = new IncludeExclude("aaa.*", null);
+
+        OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+
+        // Create doc values where "aaa" would be at the beginning but doesn't exist
+        BytesRef[] bytesRefs = toBytesRefArray("bbb", "ccc", "ddd");
+
+        LongBitSet acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(toDocValues(bytesRefs));
+
+        // No ordinals should be accepted since "aaa" doesn't exist
+        assertEquals(bytesRefs.length, acceptedOrds.length());
+        for (int i = 0; i < bytesRefs.length; i++) {
+            assertFalse("Ordinal " + i + " should not be accepted", acceptedOrds.get(i));
+        }
+    }
+
+    /**
+     * Test case for prefix filter when the prefix matches some terms.
+     */
+    public void testPrefixFilterWithMatchingPrefix() throws IOException {
+        // Test with a prefix that matches some terms
+        IncludeExclude includeExclude = new IncludeExclude("aa.*", null);
+
+        OrdinalsFilter ordinalsFilter = includeExclude.convertToOrdinalsFilter(DocValueFormat.RAW);
+
+        BytesRef[] bytesRefs = toBytesRefArray("aaa", "aab", "bbb", "ccc");
+
+        LongBitSet acceptedOrds = ordinalsFilter.acceptedGlobalOrdinals(toDocValues(bytesRefs));
+
+        // Only the first two ordinals should be accepted (matching "aa" prefix)
+        assertEquals(bytesRefs.length, acceptedOrds.length());
+        assertTrue("Ordinal 0 (aaa) should be accepted", acceptedOrds.get(0));
+        assertTrue("Ordinal 1 (aab) should be accepted", acceptedOrds.get(1));
+        assertFalse("Ordinal 2 (bbb) should not be accepted", acceptedOrds.get(2));
+        assertFalse("Ordinal 3 (ccc) should not be accepted", acceptedOrds.get(3));
+    }
 }

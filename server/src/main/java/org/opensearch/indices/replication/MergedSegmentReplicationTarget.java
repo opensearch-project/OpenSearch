@@ -33,7 +33,7 @@ public class MergedSegmentReplicationTarget extends AbstractSegmentReplicationTa
         SegmentReplicationSource source,
         ReplicationListener listener
     ) {
-        super("merged_segment_replication_target", indexShard, checkpoint, source, listener);
+        super("merged_segment_replication_target", indexShard, checkpoint, source, false, listener);
     }
 
     @Override

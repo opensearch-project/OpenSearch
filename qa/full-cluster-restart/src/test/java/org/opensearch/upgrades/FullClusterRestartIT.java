@@ -326,7 +326,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
             Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
-            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            updateSettingsRequest.setJsonEntity(
+                """
+                {
+                  "settings": {
+                    "index.blocks.write": true
+                  }
+                }
+                """);
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
@@ -400,7 +407,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
             Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
-            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            updateSettingsRequest.setJsonEntity(
+                """
+                {
+                  "settings": {
+                    "index.blocks.write": true
+                  }
+                }
+                """);
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
@@ -1357,7 +1371,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 }
             }
             Request updateSettingsRequest = new Request("PUT", "/" + index + "/_settings");
-            updateSettingsRequest.setJsonEntity("{\"settings\": {\"index.blocks.write\": true}}");
+            updateSettingsRequest.setJsonEntity(
+                """
+                {
+                  "settings": {
+                    "index.blocks.write": true
+                  }
+                }""");
             client().performRequest(updateSettingsRequest);
             {
                 final String target = index + "_shrunken";
@@ -1410,14 +1430,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
             reindex.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test_index_old\"\n" +
-                    "  },\n" +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"test_index_reindex\"\n" +
-                    "  }\n" +
-                    "}");
+                """
+                {
+                  "source":{
+                    "index":"test_index_old"
+                  },
+                  "dest":{
+                    "index":"test_index_reindex"
+                  }
+                }""");
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");

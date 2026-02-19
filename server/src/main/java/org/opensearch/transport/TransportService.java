@@ -1710,8 +1710,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         protected RemoteTransportException wrapInRemote(Exception e) {
-            if (e instanceof RemoteTransportException) {
-                return (RemoteTransportException) e;
+            if (e instanceof RemoteTransportException remoteTransportException) {
+                return remoteTransportException;
             }
             return new RemoteTransportException(localNode.getName(), localNode.getAddress(), action, e);
         }

@@ -43,7 +43,10 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map);
+        FieldDataStats stats = new FieldDataStats.Builder().memorySize(randomNonNegativeLong())
+            .evictions(randomNonNegativeLong())
+            .fieldMemoryStats(map)
+            .build();
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();

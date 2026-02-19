@@ -122,8 +122,8 @@ class FlightTransportChannel extends TcpTransportChannel {
                 ((FlightOutboundHandler) outboundHandler).completeStream(version, features, getChannel(), this, requestId, action);
             } catch (Exception e) {
                 release(true);
-                if (e instanceof StreamException) {
-                    throw (StreamException) e;
+                if (e instanceof StreamException se) {
+                    throw se;
                 }
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error completing stream", e);
             }

@@ -117,7 +117,6 @@ public class NettyAllocator {
                         maxOrder = 5;
                     }
                 }
-                int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();
                 int smallCacheSize = PooledByteBufAllocator.defaultSmallCacheSize();
                 int normalCacheSize = PooledByteBufAllocator.defaultNormalCacheSize();
                 boolean useCacheForAllThreads = PooledByteBufAllocator.defaultUseCacheForAllThreads();
@@ -127,7 +126,6 @@ public class NettyAllocator {
                     0,
                     pageSize,
                     maxOrder,
-                    tinyCacheSize,
                     smallCacheSize,
                     normalCacheSize,
                     useCacheForAllThreads
@@ -154,6 +152,14 @@ public class NettyAllocator {
     public static void logAllocatorDescriptionIfNeeded() {
         if (descriptionLogged.compareAndSet(false, true)) {
             logger.info("creating NettyAllocator with the following configs: " + NettyAllocator.getAllocatorDescription());
+        }
+    }
+
+    public static ByteBufAllocator getAllocator(boolean directBuffers) {
+        if (directBuffers == true && ALLOCATOR instanceof NoDirectBuffers ndb) {
+            return ndb.delegate; /* Http3/Quic only supports direct buffers */
+        } else {
+            return ALLOCATOR;
         }
     }
 

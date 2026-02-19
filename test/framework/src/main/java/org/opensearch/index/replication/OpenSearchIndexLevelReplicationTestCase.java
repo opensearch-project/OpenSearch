@@ -312,7 +312,7 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             this.indexMetadata = indexMetadata;
             updateAllocationIDsOnPrimary();
             for (int i = 0; i < indexMetadata.getNumberOfReplicas(); i++) {
-                addReplica(remotePath);
+                addReplica(remotePath, recoverySettings);
             }
         }
 
@@ -464,6 +464,23 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 () -> {},
                 retentionLeaseSyncer,
                 remotePath
+            );
+            addReplica(replica);
+            return replica;
+        }
+
+        public IndexShard addReplica(Path remotePath, RecoverySettings recoverySettings) throws IOException {
+            final ShardRouting replicaRouting = createShardRouting("s" + replicaId.incrementAndGet(), false);
+            final IndexShard replica = newShard(
+                replicaRouting,
+                indexMetadata,
+                null,
+                getEngineFactory(replicaRouting),
+                () -> {},
+                retentionLeaseSyncer,
+                recoverySettings,
+                remotePath,
+                MergedSegmentPublisher.EMPTY
             );
             addReplica(replica);
             return replica;

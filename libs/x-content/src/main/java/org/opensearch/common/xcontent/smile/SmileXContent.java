@@ -39,9 +39,10 @@ import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
+import com.fasterxml.jackson.dataformat.smile.SmileFactoryBuilder;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -60,7 +61,7 @@ import java.util.Set;
 /**
  * A Smile based content implementation using Jackson.
  */
-public class SmileXContent implements XContent, XContentContraints {
+public class SmileXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(smileXContent);
     }
@@ -69,10 +70,12 @@ public class SmileXContent implements XContent, XContentContraints {
     public static final SmileXContent smileXContent;
 
     static {
-        smileFactory = new SmileFactory();
+        final SmileFactoryBuilder builder = new SmileFactoryBuilder(new SmileFactory());
+        builder.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+
+        smileFactory = builder.build();
         // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
-        smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);

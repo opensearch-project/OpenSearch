@@ -187,22 +187,19 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
                 continue;
             }
             for (MetricStat metricStat : metric.getBaseMetrics()) {
-                FieldValueConverter fieldValueConverter;
                 Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper(metric.getField());
-                if (fieldMapper instanceof FieldMapper && ((FieldMapper) fieldMapper).fieldType() instanceof FieldValueConverter) {
-                    fieldValueConverter = (FieldValueConverter) ((FieldMapper) fieldMapper).fieldType();
+                if (fieldMapper instanceof FieldMapper fm && fm.fieldType() instanceof FieldValueConverter fvc) {
+                    MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
+                        metricStat,
+                        metric.getField(),
+                        starTreeField.getName(),
+                        fvc
+                    );
+                    metricAggregatorInfos.add(metricAggregatorInfo);
                 } else {
                     logger.error("unsupported mapper type");
                     throw new IllegalStateException("unsupported mapper type");
                 }
-
-                MetricAggregatorInfo metricAggregatorInfo = new MetricAggregatorInfo(
-                    metricStat,
-                    metric.getField(),
-                    starTreeField.getName(),
-                    fieldValueConverter
-                );
-                metricAggregatorInfos.add(metricAggregatorInfo);
             }
         }
         return metricAggregatorInfos;
@@ -315,9 +312,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
         // Group iterators by dimension
         for (StarTreeValues starTree : starTreeValuesSubs) {
             for (String dimName : starTree.getStarTreeField().getDimensionNames()) {
-                if (starTree.getDimensionValuesIterator(dimName) instanceof SortedSetStarTreeValuesIterator) {
-                    dimensionToIterators.computeIfAbsent(dimName, k -> new ArrayList<>())
-                        .add((SortedSetStarTreeValuesIterator) starTree.getDimensionValuesIterator(dimName));
+                if (starTree.getDimensionValuesIterator(dimName) instanceof SortedSetStarTreeValuesIterator sortedSetIterator) {
+                    dimensionToIterators.computeIfAbsent(dimName, k -> new ArrayList<>()).add(sortedSetIterator);
                 }
             }
         }
@@ -515,21 +511,18 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
      * Adds startree field to respective field writers
      */
     private void indexDocValue(DocValuesWriterWrapper<?> dvWriter, int docId, long value, String field) throws IOException {
-        if (dvWriter instanceof SortedSetDocValuesWriterWrapper) {
+        if (dvWriter instanceof SortedSetDocValuesWriterWrapper sortedSetWriter) {
             // TODO : cache lookupOrd to make it faster
             if (isMerge) {
                 OrdinalMap map = mergeSortedSetDimensionsOrdinalMap.get(field);
                 int segmentNumber = map.getFirstSegmentNumber(value);
                 long segmentOrd = map.getFirstSegmentOrd(value);
-                ((SortedSetDocValuesWriterWrapper) dvWriter).addValue(
-                    docId,
-                    mergeSortedSetDimensionsMap.get(field).get(segmentNumber).lookupOrd(segmentOrd)
-                );
+                sortedSetWriter.addValue(docId, mergeSortedSetDimensionsMap.get(field).get(segmentNumber).lookupOrd(segmentOrd));
             } else {
-                ((SortedSetDocValuesWriterWrapper) dvWriter).addValue(docId, flushSortedSetDocValuesMap.get(field).lookupOrd(value));
+                sortedSetWriter.addValue(docId, flushSortedSetDocValuesMap.get(field).lookupOrd(value));
             }
-        } else if (dvWriter instanceof SortedNumericDocValuesWriterWrapper) {
-            ((SortedNumericDocValuesWriterWrapper) dvWriter).addValue(docId, value);
+        } else if (dvWriter instanceof SortedNumericDocValuesWriterWrapper sortedNumericWriter) {
+            sortedNumericWriter.addValue(docId, value);
         }
     }
 
@@ -836,8 +829,8 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
     private static Long getLong(Object metric) {
         Long metricValue = null;
 
-        if (metric instanceof Long) {
-            metricValue = (long) metric;
+        if (metric instanceof Long longMetric) {
+            metricValue = longMetric;
         }
         return metricValue;
     }
@@ -1100,18 +1093,6 @@ public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
             }
         }
         return aggregatedStarTreeDocument;
-    }
-
-    /**
-     * Handles the dimension of date time field type
-     *
-     * @param fieldName name of the field
-     * @param val       value of the field
-     * @return returns the converted dimension of the field to a particular granularity
-     */
-    private long handleDateDimension(final String fieldName, final long val) {
-        // TODO: handle timestamp granularity
-        return val;
     }
 
     public void close() throws IOException {

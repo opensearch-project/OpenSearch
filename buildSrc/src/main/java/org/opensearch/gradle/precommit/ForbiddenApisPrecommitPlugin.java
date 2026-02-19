@@ -136,6 +136,22 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     return null;
                 }
             });
+            // Add a closure to allow projects to optionally call `forbidSleep()` which will add the signatures
+            // to forbid all usages of `Thread.sleep`
+            ext.set("forbidSleep", new Closure<Void>(t) {
+                @Override
+                public Void call(Object... unused) {
+                    final List<String> signatures = new ArrayList<>();
+                    signatures.addAll(t.getSignatures());
+                    signatures.add(
+                        "java.lang.Thread#sleep(**) @ Fixed sleeps lead to non-deterministic test failures."
+                            + " Poll for whatever condition you're waiting for."
+                            + " Use helpers like `assertBusy` or the awaitility lib."
+                    );
+                    t.setSignatures(signatures);
+                    return null;
+                }
+            });
             // Use of the deprecated security manager APIs are pervasive so set them to warn
             // globally for all projects. Replacements for (most of) these APIs are available
             // so usages can move to the non-deprecated variants to avoid the warnings.

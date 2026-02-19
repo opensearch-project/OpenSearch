@@ -39,6 +39,7 @@ import org.opensearch.test.VersionUtils;
 
 import java.nio.file.Path;
 
+import static org.opensearch.Version.MASK;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +49,10 @@ public class NodeMetadataTests extends OpenSearchTestCase {
     private Version randomVersion() {
         // VersionUtils.randomVersion() only returns known versions, which are necessarily no later than Version.CURRENT; however we want
         // also to consider our behaviour with all versions, so occasionally pick up a truly random version.
-        return rarely() ? Version.fromId(randomInt()) : VersionUtils.randomVersion(random());
+        //
+        // Version.fromId(...) requires the OpenSearch mask to be present, so we must generate ids in the valid masked range.
+        // The maximum id used elsewhere in this test class is 234217727 (see tooNewVersion()).
+        return rarely() ? Version.fromId(between(MASK, 234217727)) : VersionUtils.randomVersion(random());
     }
 
     public void testEqualsHashcodeSerialization() {
@@ -118,6 +122,6 @@ public class NodeMetadataTests extends OpenSearchTestCase {
     }
 
     public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+        return Version.fromId(between(MASK, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
     }
 }

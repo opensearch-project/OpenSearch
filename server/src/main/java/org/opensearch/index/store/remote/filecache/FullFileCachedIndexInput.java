@@ -18,6 +18,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import java.io.IOException;
 import java.lang.ref.Cleaner;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Extension of {@link FileCachedIndexInput} for full files for handling clones and slices
@@ -37,7 +38,7 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
 
     public FullFileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput, boolean isClone) {
         super(cache, filePath, underlyingIndexInput, isClone);
-        indexInputHolder = new IndexInputHolder(underlyingIndexInput, isClone, cache, filePath);
+        indexInputHolder = new IndexInputHolder(closed, underlyingIndexInput, isClone, cache, filePath);
         CLEANER.register(this, indexInputHolder);
     }
 
@@ -83,7 +84,7 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
      */
     @Override
     public void close() throws IOException {
-        if (!closed) {
+        if (!closed.get()) {
             if (isClone) {
                 cache.decRef(filePath);
             }
@@ -93,17 +94,26 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
                 logger.trace("FullFileCachedIndexInput already closed");
             }
             luceneIndexInput = null;
-            closed = true;
+            closed.set(true);
         }
     }
 
+    /**
+     * Run resource cleaning，To be used only in test
+     */
+    public void indexInputHolderRun() {
+        indexInputHolder.run();
+    }
+
     private static class IndexInputHolder implements Runnable {
+        private final AtomicBoolean closed;
         private final IndexInput indexInput;
         private final FileCache cache;
         private final boolean isClone;
         private final Path path;
 
-        IndexInputHolder(IndexInput indexInput, boolean isClone, FileCache cache, Path path) {
+        IndexInputHolder(AtomicBoolean closed, IndexInput indexInput, boolean isClone, FileCache cache, Path path) {
+            this.closed = closed;
             this.indexInput = indexInput;
             this.isClone = isClone;
             this.cache = cache;
@@ -113,8 +123,11 @@ public class FullFileCachedIndexInput extends FileCachedIndexInput {
         @Override
         public void run() {
             try {
-                indexInput.close();
-                if (isClone) cache.decRef(path);
+                if (!closed.get()) {
+                    indexInput.close();
+                    if (isClone) cache.decRef(path);
+                    closed.set(true);
+                }
             } catch (IOException e) {
                 logger.error("Failed to close IndexInput while clearing phantom reachable object");
             }

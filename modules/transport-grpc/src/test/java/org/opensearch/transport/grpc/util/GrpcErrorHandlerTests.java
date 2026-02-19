@@ -279,4 +279,12 @@ public class GrpcErrorHandlerTests extends OpenSearchTestCase {
         assertTrue(result.getMessage().contains("Root cause"));
         assertTrue(result.getMessage().contains("Wrapper exception"));
     }
+
+    public void testNullExceptionConversion() {
+        StatusRuntimeException result = GrpcErrorHandler.convertToGrpcError(null);
+
+        // null -> INTERNAL via case null handling
+        assertEquals(Status.INTERNAL.getCode(), result.getStatus().getCode());
+        assertEquals("INTERNAL: Unexpected null exception", result.getMessage());
+    }
 }

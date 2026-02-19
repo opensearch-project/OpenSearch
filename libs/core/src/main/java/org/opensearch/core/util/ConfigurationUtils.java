@@ -76,8 +76,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String stringValue) {
+            return stringValue;
         }
         throw newConfigurationException(propertyName, "property isn't a string, but of type [" + value.getClass().getName() + "]");
     }
@@ -105,15 +105,15 @@ public final class ConfigurationUtils {
     }
 
     private static String readStringOrInt(String propertyName, Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof String) {
-            return (String) value;
-        } else if (value instanceof Integer) {
-            return String.valueOf(value);
-        }
-        throw newConfigurationException(propertyName, "property isn't a string or int, but of type [" + value.getClass().getName() + "]");
+        return switch (value) {
+            case null -> null;
+            case String stringValue -> stringValue;
+            case Integer intValue -> String.valueOf(intValue);
+            default -> throw newConfigurationException(
+                propertyName,
+                "property isn't a string or int, but of type [" + value.getClass().getName() + "]"
+            );
+        };
     }
 
     /**
@@ -142,8 +142,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof Boolean) {
-            return (boolean) value;
+        if (value instanceof Boolean boolValue) {
+            return boolValue;
         }
         throw newConfigurationException(propertyName, "property isn't a boolean, but of type [" + value.getClass().getName() + "]");
     }

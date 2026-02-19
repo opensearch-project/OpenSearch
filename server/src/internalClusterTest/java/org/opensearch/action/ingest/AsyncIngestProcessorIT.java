@@ -136,13 +136,6 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
                     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                         threadPool.generic().execute(() -> {
                             String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                            if (usually()) {
-                                try {
-                                    Thread.sleep(10);
-                                } catch (InterruptedException e) {
-                                    // ignore
-                                }
-                            }
                             ingestDocument.setFieldValue("foo", "bar-" + id);
                             handler.accept(ingestDocument, null);
                         });

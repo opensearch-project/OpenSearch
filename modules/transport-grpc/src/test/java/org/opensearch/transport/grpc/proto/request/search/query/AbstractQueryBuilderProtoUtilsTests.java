@@ -104,4 +104,12 @@ public class AbstractQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
         // Verify the exception message
         assertTrue("Exception message should mention 'Unsupported query type'", exception.getMessage().contains("Unsupported query type"));
     }
+
+    public void testGetRegistry() {
+        assertNotNull("Registry should not be null", queryUtils.getRegistry());
+    }
+
+    public void testGetRegistryReturnsSameInstance() {
+        assertEquals("Registry should be the same instance", queryUtils.getRegistry(), queryUtils.getRegistry());
+    }
 }

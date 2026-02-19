@@ -9,26 +9,44 @@ jobs:
     if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v8
         with:
           script: |
             const { issue, repository } = context.payload;
-            const { number, body } = issue;
+            const { number, body, user } = issue;
             const { owner, name } = repository;
             const regex = /###\sRelated\scomponent\n\n(\w.*)\n/gm;
             let match;
+
             while ( ( match = regex.exec( body ) ) ) {
               const [ , component_label ] = match;
-              await github.rest.issues.addLabels( {
+
+              let label
+              // Check if the component label is "_No response_"
+              if (component_label.trim() === "_No response_") {
+                // Add a comment tagging the user
+                await github.rest.issues.createComment({
+                  owner: owner.login,
+                  repo: name,
+                  issue_number: number,
+                  body: `@${user.login} Please reply to this comment with the relevant component to ensure it gets properly triaged:\n\n- Build\n- Clients\n- Cluster Manager\n- Extensions\n- Indexing:Performance\n- Indexing:Replication\n- Indexing\n- Libraries\n- Other\n- Plugins\n- Search:Aggregations\n- Search:Performance\n- Search:Query Capabilities\n- Search:Query Insights\n- Search:Relevance\n- Search:Remote Search\n- Search:Resiliency\n- Search:Searchable Snapshots\n- Search\n- Storage:Durability\n- Storage:Performance\n- Storage:Remote\n- Storage:Snapshots\n- Storage\n\nReply with the component name, and we'll label this issue appropriately.`
+                });
+                label = 'missing-component'
+              } else {
+                label = component_label
+              }
+              await github.rest.issues.addLabels({
                 owner: owner.login,
                 repo: name,
                 issue_number: number,
-                labels: [ `${ component_label }` ],
-              } );
+                labels: [label]
+              });
             }
-            github.rest.issues.addLabels({
+
+            // Always add the untriaged label
+            await github.rest.issues.addLabels({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               labels: ['untriaged']
-            })
+            });

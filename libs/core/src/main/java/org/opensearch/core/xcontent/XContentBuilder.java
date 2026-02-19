@@ -846,19 +846,19 @@ public final class XContentBuilder implements Closeable, Flushable {
         Writer writer = WRITERS.get(value.getClass());
         if (writer != null) {
             writer.write(this, value);
-        } else if (value instanceof Path) {
+        } else if (value instanceof Path path) {
             // Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
-            value((Path) value);
-        } else if (value instanceof Map) {
+            value(path);
+        } else if (value instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             final Map<String, ?> valueMap = (Map<String, ?>) value;
             map(valueMap, ensureNoSelfReferences, true);
-        } else if (value instanceof Iterable) {
-            value((Iterable<?>) value, ensureNoSelfReferences);
-        } else if (value instanceof Object[]) {
-            values((Object[]) value, ensureNoSelfReferences);
-        } else if (value instanceof ToXContent) {
-            value((ToXContent) value);
+        } else if (value instanceof Iterable<?> iterable) {
+            value(iterable, ensureNoSelfReferences);
+        } else if (value instanceof Object[] objectArray) {
+            values(objectArray, ensureNoSelfReferences);
+        } else if (value instanceof ToXContent toXContent) {
+            value(toXContent);
         } else if (value instanceof Enum<?>) {
             // Write out the Enum toString
             value(Objects.toString(value));
@@ -942,9 +942,9 @@ public final class XContentBuilder implements Closeable, Flushable {
             return nullValue();
         }
 
-        if (values instanceof Path) {
+        if (values instanceof Path path) {
             // treat as single value
-            value((Path) values);
+            value(path);
         } else {
             // checks that the iterable does not contain references to itself because
             // iterating over entries will cause a stackoverflow error
@@ -1073,12 +1073,12 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (value == null) {
             return null;
         }
-        if (value instanceof Map) {
-            return ((Map<?, ?>) value).values();
-        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-            return (Iterable<?>) value;
-        } else if (value instanceof Object[]) {
-            return Arrays.asList((Object[]) value);
+        if (value instanceof Map<?, ?> map) {
+            return map.values();
+        } else if (value instanceof Iterable<?> iterable && value instanceof Path == false) {
+            return iterable;
+        } else if (value instanceof Object[] objectArray) {
+            return Arrays.asList(objectArray);
         } else {
             return null;
         }

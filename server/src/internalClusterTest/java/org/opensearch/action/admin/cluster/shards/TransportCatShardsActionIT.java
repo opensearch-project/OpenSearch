@@ -95,27 +95,13 @@ public class TransportCatShardsActionIT extends DataStreamTestCase {
         // Dropping master node to delay in cluster state call.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
 
-        CountDownLatch latch = new CountDownLatch(2);
-        new Thread(() -> {
-            try {
-                // Ensures the cancellation timeout expires.
-                Thread.sleep(2000);
-                // Starting master node to proceed in cluster state call.
-                internalCluster().startClusterManagerOnlyNode(
-                    Settings.builder().put("node.name", masterNodes.get(0)).put(clusterManagerDataPathSettings).build()
-                );
-                latch.countDown();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        }).start();
-
+        CountDownLatch latch = new CountDownLatch(1);
         final CatShardsRequest shardsRequest = new CatShardsRequest();
         TimeValue timeoutInterval = timeValueMillis(1000);
         shardsRequest.setCancelAfterTimeInterval(timeoutInterval);
         shardsRequest.clusterManagerNodeTimeout(timeValueMillis(2500));
         shardsRequest.setIndices(Strings.EMPTY_ARRAY);
-        client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<CatShardsResponse>() {
+        client().execute(CatShardsAction.INSTANCE, shardsRequest, new ActionListener<>() {
             @Override
             public void onResponse(CatShardsResponse catShardsResponse) {
                 // onResponse should not be called.
@@ -132,7 +118,13 @@ public class TransportCatShardsActionIT extends DataStreamTestCase {
                 latch.countDown();
             }
         });
+
         latch.await();
+
+        // Restart cluster manager to restore cluster and allow test to cleanup and exit
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put("node.name", masterNodes.get(0)).put(clusterManagerDataPathSettings).build()
+        );
     }
 
     public void testListShardsWithHiddenIndex() throws Exception {

@@ -412,7 +412,16 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testStatsParallelismConstructorAndToXContent() throws IOException {
         // 1. Test the full constructor and toXContent with parallelism set
-        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 8);
+        ThreadPoolStats.Stats stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(8)
+            .build();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -421,7 +430,16 @@ public class ThreadPoolTests extends OpenSearchTestCase {
         assertThat(json, containsString("\"parallelism\":8"));
 
         // 2. Test with parallelism = -1 (should not output the field)
-        stats = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        stats = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(-1)
+            .build();
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -432,7 +450,16 @@ public class ThreadPoolTests extends OpenSearchTestCase {
 
     public void testStatsSerializationParallelismVersion() throws IOException {
         // 3. Test serialization for version >= 3.4.0 (parallelism is written and read)
-        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, 9);
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(9)
+            .build();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_4_0);
         statsOut.writeTo(out);
@@ -540,7 +567,16 @@ public class ThreadPoolTests extends OpenSearchTestCase {
     }
 
     public void testStatsSerializationParallelismNegativeValue() throws IOException {
-        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats("test", 1, 2, 3, 4L, 5, 6L, 7L, -1);
+        ThreadPoolStats.Stats statsOut = new ThreadPoolStats.Stats.Builder().name("test")
+            .threads(1)
+            .queue(2)
+            .active(3)
+            .rejected(4L)
+            .largest(5)
+            .completed(6L)
+            .waitTimeNanos(7L)
+            .parallelism(-1)
+            .build();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_4_0);
         statsOut.writeTo(out);

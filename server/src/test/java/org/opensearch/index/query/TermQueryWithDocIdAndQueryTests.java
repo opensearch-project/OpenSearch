@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
+import static org.opensearch.Version.MASK;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -46,7 +47,7 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
 
     private IndexSettings newTestIndexSettings(int maxTermsCount, int maxResultWindow) {
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, 2000099 ^ MASK)
             .put("index.max_terms_count", maxTermsCount)
             .put("index.max_result_window", maxResultWindow)
             .build();
@@ -247,22 +248,6 @@ public class TermQueryWithDocIdAndQueryTests extends OpenSearchTestCase {
         builder.doRewrite(mockRewriteContext);
 
         verify(mockClient, atLeastOnce()).get(any(GetRequest.class), any());
-    }
-
-    private QueryBuilder mockQueryBuilder() {
-        return mock(QueryBuilder.class);
-    }
-
-    private QueryRewriteContext mockRewriteContextForFetch(Client client) {
-        QueryRewriteContext rewriteContext = mock(QueryRewriteContext.class);
-        doAnswer(invocation -> {
-            Object asyncAction = invocation.getArgument(0);
-            @SuppressWarnings("unchecked")
-            BiConsumer<Client, ActionListener<List<Object>>> lambda = (BiConsumer<Client, ActionListener<List<Object>>>) asyncAction;
-            lambda.accept(client, ActionListener.wrap(resp -> {}, ex -> fail("Should not throw")));
-            return null;
-        }).when(rewriteContext).registerAsyncAction(any());
-        return rewriteContext;
     }
 
     public void testFetchIsCoveredWithTermsLookupQuery() throws Exception {

@@ -63,6 +63,8 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
@@ -77,6 +79,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -138,6 +141,87 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     private static String indexOrAlias() {
         return randomBoolean() ? INDEX_NAME : "alias";
+    }
+
+    public void testLocalSegmentReplicationWithException() throws Exception {
+        // this test stubs transport calls specific to node-node replication.
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store.",
+            segmentReplicationWithRemoteEnabled()
+        );
+
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        MockTransportService primaryTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+
+        AtomicBoolean mockException = new AtomicBoolean(true);
+        CountDownLatch latch1 = new CountDownLatch(1);
+        CountDownLatch latch2 = new CountDownLatch(1);
+
+        primaryTransportService.addRequestHandlingBehavior(
+            SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES,
+            (handler, request, channel, task) -> {
+                logger.info(
+                    "replicationId {}, get segment files {}",
+                    ((GetSegmentFilesRequest) request).getReplicationId(),
+                    ((GetSegmentFilesRequest) request).getFilesToFetch().stream().map(StoreFileMetadata::name).collect(Collectors.toList())
+                );
+                if (mockException.get()) {
+                    mockException.set(false);
+                    latch1.countDown();
+                    latch2.await();
+                    throw new CircuitBreakingException("mock circuit break exception", CircuitBreaker.Durability.TRANSIENT);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        // generate _0.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(1))
+            .setSource("foo", "bar")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        latch1.await();
+
+        MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNode
+        ));
+        replicaTransportService.addRequestHandlingBehavior(
+            PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
+            (handler, request, channel, task) -> {
+                logger.info("replica receive publish checkpoint request");
+                handler.messageReceived(request, channel, task);
+                latch2.countDown();
+            }
+        );
+
+        // generate _1.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(2))
+            .setSource("foo2", "bar2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForSearchableDocs(2, primaryNode, replicaNode);
+
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(3))
+            .setSource("foo3", "bar3")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForSearchableDocs(3, primaryNode, replicaNode);
     }
 
     public void testAcquireLastIndexCommit() throws Exception {
@@ -305,8 +389,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         waitForSearchableDocs(1, primary, replica);
 
-        // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
-        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // index another doc but don't refresh, it should become searchable once the replica is promoted and refreshed there.
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+
+        // make sure doc 2 is on the replica realtime GET reads from translog, not search
+        assertBusy(() -> assertTrue(client(replica).prepareGet(INDEX_NAME, "2").setRealtime(true).get().isExists()));
 
         // stop the primary node - we only have one shard on here.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
@@ -319,8 +406,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // new primary should have at least the doc count from the first set of segments.
         assertTrue(response.getHits().getTotalHits().value() >= 1);
 
-        // assert we can index into the new primary.
-        client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // assert we can index into the new primary and refresh there, making doc2 searchable too.
+        client(replica).prepareIndex(INDEX_NAME)
+            .setId("3")
+            .setSource("bar", "baz")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
         // start another node, index another doc and replicate.

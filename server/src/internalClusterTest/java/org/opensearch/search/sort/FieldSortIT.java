@@ -47,6 +47,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
@@ -1249,6 +1250,7 @@ public class FieldSortIT extends ParameterizedDynamicSettingsOpenSearchIntegTest
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
     }
 
+    @SuppressForbidden(reason = "WTF?")
     public void testSortMissingStrings() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(

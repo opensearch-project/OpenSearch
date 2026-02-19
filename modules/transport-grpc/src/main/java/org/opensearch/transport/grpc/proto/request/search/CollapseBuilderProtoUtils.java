@@ -11,6 +11,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.protobufs.FieldCollapse;
 import org.opensearch.search.collapse.CollapseBuilder;
+import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,10 +37,11 @@ public class CollapseBuilderProtoUtils {
      * and inner hits settings.
      *
      * @param collapseProto The Protocol Buffer FieldCollapse to convert
+     * @param registry The registry for query conversion (needed for inner hits with sorts/highlights)
      * @return A configured CollapseBuilder instance
      * @throws IOException if there's an error during parsing or conversion
      */
-    protected static CollapseBuilder fromProto(FieldCollapse collapseProto) throws IOException {
+    static CollapseBuilder fromProto(FieldCollapse collapseProto, QueryBuilderProtoConverterRegistry registry) throws IOException {
         CollapseBuilder collapseBuilder = new CollapseBuilder(collapseProto.getField());
 
         if (collapseProto.hasMaxConcurrentGroupSearches()) {
@@ -48,7 +50,7 @@ public class CollapseBuilderProtoUtils {
         if (collapseProto.getInnerHitsCount() > 0) {
             List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
             for (org.opensearch.protobufs.InnerHits innerHits : collapseProto.getInnerHitsList()) {
-                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits));
+                innerHitBuilders.add(InnerHitsBuilderProtoUtils.fromProto(innerHits, registry));
             }
             collapseBuilder.setInnerHits(innerHitBuilders);
         }

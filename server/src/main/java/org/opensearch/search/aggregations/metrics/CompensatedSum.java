@@ -112,6 +112,26 @@ public class CompensatedSum {
         return this;
     }
 
+    /**
+     * Increments the Kahan sum by adding two sums, and updating the correction term for reducing numeric errors.
+     */
+    public void add(double[] values, int count) {
+        // If the value is Inf or NaN, just add it to the running tally to "convert" to
+        // Inf/NaN. This keeps the behavior bwc from before kahan summing
+        double sum = value;
+        double c = delta; // Compensation for lost low-order bits
+
+        for (int i = 0; i < count; i++) {
+            double y = values[i] - c;
+            double t = sum + y;
+            c = (t - sum) - y; // Calculate the lost part
+            sum = t;
+        }
+
+        this.value = sum;
+        this.delta = c;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

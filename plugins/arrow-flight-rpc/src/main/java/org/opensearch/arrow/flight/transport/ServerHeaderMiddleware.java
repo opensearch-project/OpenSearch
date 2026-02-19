@@ -37,6 +37,10 @@ class ServerHeaderMiddleware implements FlightServerMiddleware {
         this.headerBuffer = headerBuffer;
     }
 
+    String getCorrelationId() {
+        return requestId;
+    }
+
     @Override
     public void onBeforeSendingHeaders(CallHeaders outgoingHeaders) {
         if (headerBuffer != null) {

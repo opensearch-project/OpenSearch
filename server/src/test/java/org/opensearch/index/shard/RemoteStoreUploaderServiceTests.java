@@ -141,7 +141,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Should not fail for empty segments")
         );
 
-        uploaderService.uploadSegments(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        uploaderService.uploadSegments(emptySegments, segmentSizeMap, listener, mockUploadListenerFunction, false, null);
 
         assertTrue(latch.await(1, TimeUnit.SECONDS));
     }
@@ -192,7 +192,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onResponse(null);
             return true;
-        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -201,7 +201,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false, null);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         // Verify the upload listener was called correctly
@@ -255,7 +255,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onResponse(null);
             return true;
-        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -264,7 +264,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, true);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, true, null);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         // Verify the upload listener was called correctly
@@ -321,7 +321,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onResponse(null);
             return true;
-        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -330,7 +330,7 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             exception -> fail("Upload should succeed: " + exception.getMessage())
         );
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false, null);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(mockCompositeDirectory).afterSyncToRemote("segment1");
@@ -390,14 +390,14 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onFailure(corruptException);
             return true;
-        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with corrupt index"), exception -> {
             assertEquals(corruptException, exception);
             latch.countDown();
         });
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false, null);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(freshMockShard).failShard(eq("Index corrupted (resource=test)"), eq(corruptException));
@@ -457,14 +457,14 @@ public class RemoteStoreUploaderServiceTests extends OpenSearchTestCase {
             ActionListener<Void> callback = invocation.getArgument(5);
             callback.onFailure(genericException);
             return true;
-        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class));
+        }).when(remoteDirectory).copyFrom(any(), any(), any(), any(), any(), any(), any(Boolean.class), any());
 
         ActionListener<Void> listener = ActionListener.wrap(response -> fail("Should not succeed with generic exception"), exception -> {
             assertEquals(genericException, exception);
             latch.countDown();
         });
 
-        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false);
+        testUploaderService.uploadSegments(segments, segmentSizeMap, listener, mockUploadListenerFunction, false, null);
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         verify(freshMockShard, never()).failShard(any(), any());

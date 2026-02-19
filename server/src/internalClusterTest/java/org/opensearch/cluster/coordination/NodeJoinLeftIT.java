@@ -40,6 +40,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.MockEngineFactoryPlugin;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.is;
  https://github.com/opensearch-project/OpenSearch/pull/15521 for context
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@SuppressForbidden(reason = "Pending fix: https://github.com/opensearch-project/OpenSearch/issues/18972")
 public class NodeJoinLeftIT extends OpenSearchIntegTestCase {
 
     private TestLogsAppender testLogsAppender;

@@ -34,13 +34,15 @@ package org.opensearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.StreamWriteConstraints;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -59,7 +61,7 @@ import java.util.Set;
 /**
  * A JSON based content implementation using Jackson.
  */
-public class JsonXContent implements XContent, XContentContraints {
+public class JsonXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
@@ -69,10 +71,12 @@ public class JsonXContent implements XContent, XContentContraints {
     public static final JsonXContent jsonXContent;
 
     static {
-        jsonFactory = new JsonFactory();
-        jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
+        final JsonFactoryBuilder builder = new JsonFactoryBuilder(new JsonFactory());
+        builder.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        builder.configure(JsonWriteFeature.QUOTE_FIELD_NAMES, true);
+
+        jsonFactory = builder.build();
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
-        jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);

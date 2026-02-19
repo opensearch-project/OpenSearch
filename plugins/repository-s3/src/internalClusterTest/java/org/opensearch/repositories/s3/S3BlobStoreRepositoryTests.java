@@ -63,6 +63,7 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -101,16 +102,16 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     @Override
     public void setUp() throws Exception {
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
-        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        previousOpenSearchPathConf = AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     public void tearDown() throws Exception {
         if (previousOpenSearchPathConf != null) {
-            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+            AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
         } else {
-            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+            AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         }
         super.tearDown();
     }
@@ -150,7 +151,7 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret_password");
 
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time

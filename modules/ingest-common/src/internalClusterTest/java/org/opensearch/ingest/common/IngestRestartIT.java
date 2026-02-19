@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -88,29 +89,13 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startClusterManagerOnlyNode();
         final String pipelineId = "foo";
-        client().admin()
-            .cluster()
-            .preparePutPipeline(
-                pipelineId,
-                new BytesArray(
-                    "{\n"
-                        + "  \"processors\" : [\n"
-                        + "  {\"set\" : {\"field\": \"any_field\", \"value\": \"any_value\"}},\n"
-                        + "  {\"set\" : {"
-                        + ""
-                        + "    \"if\" : "
-                        + "{\"lang\": \""
-                        + MockScriptEngine.NAME
-                        + "\", \"source\": \"throwing_script\"},"
-                        + "    \"field\": \"any_field2\","
-                        + "    \"value\": \"any_value2\"}"
-                        + "  }\n"
-                        + "  ]\n"
-                        + "}"
-                ),
-                MediaTypeRegistry.JSON
-            )
-            .get();
+        client().admin().cluster().preparePutPipeline(pipelineId, new BytesArray(String.format(Locale.ROOT, """
+            {
+              "processors" : [
+                {"set" : {"field": "any_field", "value": "any_value"}},
+                {"set" : {"if" : {"lang": "%s", "source": "throwing_script"},    "field": "any_field2",    "value": "any_value2"}  }
+              ]
+            }""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
 
         Exception e = expectThrows(
             Exception.class,
@@ -142,18 +127,18 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray(
-            "{\n"
-                + "  \"processors\" : [\n"
-                + "      {\"script\" : {\"lang\": \""
-                + MockScriptEngine.NAME
-                + "\", \"source\": \"my_script\"}}\n"
-                + "  ]\n"
-                + "}"
-        );
-        BytesReference pipelineWithoutScript = new BytesArray(
-            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
-        );
+        BytesReference pipelineWithScript = new BytesArray(String.format(Locale.ROOT, """
+            {
+              "processors" : [
+                  {"script" : {"lang": "%s", "source": "my_script"}}
+              ]
+            }""", MockScriptEngine.NAME));
+        BytesReference pipelineWithoutScript = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
 
         Consumer<String> checkPipelineExists = (id) -> assertThat(
             client().admin().cluster().prepareGetPipeline(id).get().pipelines().get(0).getId(),
@@ -219,23 +204,15 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin()
-            .cluster()
-            .preparePutStoredScript()
-            .setId("1")
-            .setContent(
-                new BytesArray("{\"script\": {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"} }"),
-                MediaTypeRegistry.JSON
-            )
-            .get();
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"processors\" : [\n"
-                + "      {\"set\" : {\"field\": \"y\", \"value\": 0}},\n"
-                + "      {\"script\" : {\"id\": \"1\"}}\n"
-                + "  ]\n"
-                + "}"
-        );
+        client().admin().cluster().preparePutStoredScript().setId("1").setContent(new BytesArray(String.format(Locale.ROOT, """
+            {"script": {"lang": "%s", "source": "my_script"} }""", MockScriptEngine.NAME)), MediaTypeRegistry.JSON).get();
+        BytesReference pipeline = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}},
+                  {"script" : {"id": "1"}}
+              ]
+            }""");
         client().admin().cluster().preparePutPipeline("_id", pipeline, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("index")
@@ -274,9 +251,12 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         String node = internalCluster().startNode();
         String ingestNode = internalCluster().startNode(Settings.builder().put("node.master", false).put("node.data", false));
 
-        BytesReference pipeline = new BytesArray(
-            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
         client().admin().cluster().preparePutPipeline("_id", pipeline, MediaTypeRegistry.JSON).get();
 
         client().prepareIndex("index")

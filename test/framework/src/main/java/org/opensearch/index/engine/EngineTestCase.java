@@ -62,6 +62,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -70,6 +71,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.compress.CompressedXContent;
@@ -112,6 +114,9 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.LocalTranslog;
@@ -121,6 +126,13 @@ import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.ScriptPlugin;
+import org.opensearch.script.MockScriptEngine;
+import org.opensearch.script.ScriptContext;
+import org.opensearch.script.ScriptEngine;
+import org.opensearch.script.ScriptModule;
+import org.opensearch.script.ScriptService;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -134,8 +146,10 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -215,7 +229,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
-        CodecService codecService = new CodecService(null, INDEX_SETTINGS, logger);
+        CodecService codecService = new CodecService(null, INDEX_SETTINGS, logger, List.of());
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -224,6 +238,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         } else {
             codecName = "default";
         }
+
         defaultSettings = IndexSettingsModule.newIndexSettings("test", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
@@ -259,7 +274,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -285,7 +300,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(analyzer)
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -311,7 +326,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(mergePolicy)
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -364,6 +379,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
+    protected static ParseContext.Document testContextSpecificDocument(String groupingCriteria) {
+        ParseContext.Document doc = testDocumentWithTextField("criteria");
+        doc.setGroupingCriteria(groupingCriteria);
+        return doc;
+    }
+
     protected static ParseContext.Document testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
@@ -371,6 +392,12 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     protected static ParseContext.Document testDocumentWithTextField(String value) {
         ParseContext.Document document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
+        return document;
+    }
+
+    protected static ParseContext.Document testDocumentWithGroupingCriteria() {
+        ParseContext.Document document = new ParseContext.Document();
+        document.setGroupingCriteria("grouping_criteria");
         return document;
     }
 
@@ -525,7 +552,17 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
     }
 
     protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
-        return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        return new Store(
+            shardId,
+            indexSettings,
+            directory,
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath,
+            new FsDirectoryFactory()
+        );
     }
 
     protected Translog createTranslog(LongSupplier primaryTermSupplier) throws IOException {
@@ -675,6 +712,43 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
 
     protected InternalEngine createEngine(EngineConfig config) throws IOException {
         return createEngine(null, null, null, config);
+    }
+
+    protected InternalEngine createEngineForWrapper(
+        EngineConfig config,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
+    ) throws IOException {
+        final Store store = config.getStore();
+        final Directory directory = store.directory();
+        if (Lucene.indexExists(directory) == false) {
+            store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+            final String translogUuid = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUuid);
+
+        }
+
+        InternalEngine internalEngine = new InternalEngine(config) {
+            @Override
+            public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper)
+                throws EngineException {
+                try {
+                    Searcher searcher = super.acquireSearcher(source, scope, wrapper);
+                    return IndexShard.wrapSearcher(searcher, readerWrapper);
+                } catch (IOException ex) {
+                    throw new OpenSearchException("failed to wrap searcher", ex);
+                }
+
+            }
+        };
+
+        translogHandler = createTranslogHandler(config.getIndexSettings(), internalEngine);
+        internalEngine.translogManager().recoverFromTranslog(translogHandler, internalEngine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+        return internalEngine;
     }
 
     protected InternalEngine createEngine(
@@ -932,7 +1006,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(mergePolicy)
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -978,7 +1052,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -1015,7 +1089,7 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -1588,8 +1662,67 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         }
     }
 
+    public static MapperService createMapperServiceForContextAwareIndex() throws IOException {
+        String mapping = "{\"properties\": {}}";
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_CONTEXT_AWARE_ENABLED_SETTING.getKey(), true)
+            )
+            .putMapping(mapping)
+            .build();
+
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, Collections.singletonList(new ContextAwareCustomScriptPlugin()));
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
+
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(),
+            Settings.EMPTY,
+            "test",
+            scriptService
+        );
+        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService;
+
+    }
+
     public static MapperService createMapperService() throws IOException {
         return createMapperService("{\"properties\": {}}");
+    }
+
+    public static class ContextAwareCustomScriptPlugin extends Plugin implements ScriptPlugin {
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> pluginScripts = new HashMap<>();
+            pluginScripts.put("ctx.op='delete'", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
+            pluginScripts.put("String.valueOf(grouping_criteria)", vars -> "grouping_criteria");
+
+            return pluginScripts;
+        }
+
+        public static final String NAME = "painless";
+
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), nonDeterministicPluginScripts(), pluginContextCompilers());
+        }
+
+        protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
+            return Collections.emptyMap();
+        }
+
+        protected Map<ScriptContext<?>, MockScriptEngine.ContextCompiler> pluginContextCompilers() {
+            return Collections.emptyMap();
+        }
+
+        public String pluginScriptLang() {
+            return NAME;
+        }
     }
 
     public static MapperService createMapperService(String mapping) throws IOException {

@@ -8,6 +8,8 @@
 
 package org.opensearch.transport.grpc.interceptor;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
 import org.junit.Before;
@@ -46,6 +48,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
     private ServerCall.Listener<String> mockListener;
 
     private Metadata headers;
+    private ThreadContext threadContext;
 
     @Before
     public void setUp() throws Exception {
@@ -53,21 +56,22 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
         when(mockHandler.startCall(any(), any())).thenReturn(mockListener);
         headers = new Metadata();
+        threadContext = new ThreadContext(Settings.EMPTY);
     }
 
     public void testEmptyChain() {
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(Collections.emptyList());
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, Collections.emptyList());
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
-        assertEquals(mockListener, result);
+        // The result is now wrapped in a ThreadContextPreservingListener, not the raw mockListener
         verify(mockHandler).startCall(mockCall, headers);
     }
 
     public void testSingleSuccessfulInterceptor() {
         List<OrderedGrpcInterceptor> interceptors = Arrays.asList(createTestInterceptor(10, false, null));
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
@@ -81,7 +85,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(30, false, null)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
@@ -96,7 +100,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(30, false, null)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
 
         verify(mockCall).close(
@@ -112,7 +116,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(30, false, null)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
 
         verify(mockCall).close(
@@ -128,7 +132,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(30, true, "Last failure")
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
 
         verify(mockCall).close(
@@ -144,7 +148,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(30, false, null)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
@@ -160,7 +164,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createTestInterceptor(20, false, null)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
@@ -177,7 +181,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createStatusRuntimeExceptionInterceptor(30, Status.RESOURCE_EXHAUSTED.withDescription("Rate limit exceeded"))
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);
 
         assertNotNull(result);
@@ -199,7 +203,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
         // Sort as GrpcPlugin would
         interceptors.sort((a, b) -> Integer.compare(a.order(), b.order()));
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
 
         // Verify execution order
@@ -221,7 +225,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
             createLoggingInterceptor(30, "METRICS", executionLog)
         );
 
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
         chain.interceptCall(mockCall, headers, mockHandler);
 
         assertEquals(Arrays.asList("AUTH", "LOGGING", "METRICS"), executionLog);
@@ -231,7 +235,7 @@ public class GrpcInterceptorChainTests extends OpenSearchTestCase {
      * Generic test method that can be extended for different scenarios
      */
     public void testChainWithPattern(List<OrderedGrpcInterceptor> interceptors, boolean expectSuccess, String expectedErrorMessage) {
-        GrpcInterceptorChain chain = new GrpcInterceptorChain(interceptors);
+        GrpcInterceptorChain chain = new GrpcInterceptorChain(threadContext, interceptors);
 
         if (expectSuccess) {
             ServerCall.Listener<String> result = chain.interceptCall(mockCall, headers, mockHandler);

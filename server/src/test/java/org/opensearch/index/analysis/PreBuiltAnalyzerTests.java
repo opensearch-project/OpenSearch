@@ -32,7 +32,6 @@
 package org.opensearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -98,10 +97,7 @@ public class PreBuiltAnalyzerTests extends OpenSearchSingleNodeTestCase {
         );
 
         // Same Lucene version should be cached:
-        assertSame(
-            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.fromId(6020199)),
-            PreBuiltAnalyzers.STOP.getAnalyzer(LegacyESVersion.fromId(6020299))
-        );
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_2_6_0), PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_2_7_0));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

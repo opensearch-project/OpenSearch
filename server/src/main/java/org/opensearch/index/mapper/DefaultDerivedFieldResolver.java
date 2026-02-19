@@ -197,8 +197,8 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
             .parse(DerivedFieldMapper.CONTENT_TYPE, (Map) deepCopy(derivedFieldObject));
         if (documentMapper != null && documentMapper.mappers() != null) {
             for (Mapper mapper : documentMapper.mappers()) {
-                if (mapper instanceof DerivedFieldMapper) {
-                    DerivedFieldType derivedFieldType = ((DerivedFieldMapper) mapper).fieldType();
+                if (mapper instanceof DerivedFieldMapper derivedFieldMapper) {
+                    DerivedFieldType derivedFieldType = derivedFieldMapper.fieldType();
                     derivedFieldTypes.put(derivedFieldType.name(), derivedFieldType);
                 }
             }
@@ -231,22 +231,19 @@ public class DefaultDerivedFieldResolver implements DerivedFieldResolver {
     }
 
     private static Object deepCopy(Object value) {
-        if (value instanceof Map) {
-            Map<?, ?> mapValue = (Map<?, ?>) value;
+        if (value instanceof Map<?, ?> mapValue) {
             Map<Object, Object> copy = new HashMap<>(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
             return copy;
-        } else if (value instanceof List) {
-            List<?> listValue = (List<?>) value;
+        } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
-        } else if (value instanceof byte[]) {
-            byte[] bytes = (byte[]) value;
+        } else if (value instanceof byte[] bytes) {
             return Arrays.copyOf(bytes, bytes.length);
         } else {
             return value;

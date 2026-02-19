@@ -10,7 +10,6 @@ package org.opensearch.http.reactor.netty4.ssl;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -19,7 +18,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -34,13 +32,10 @@ import org.opensearch.http.reactor.netty4.ReactorNetty4HttpServerTransport;
 import org.opensearch.plugins.SecureHttpTransportSettingsProvider;
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.NettyAllocator;
@@ -72,7 +67,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -89,10 +86,12 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http2.Http2SecurityUtil;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.pkitesting.CertificateBuilder.Algorithm;
 
 import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
 import static org.opensearch.test.KeyStoreUtils.KEYSTORE_PASSWORD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -117,7 +116,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         var keyManagerFactory = KeyManagerFactory.getInstance("PKIX");
-        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(), KEYSTORE_PASSWORD);
+        keyManagerFactory.init(KeyStoreUtils.createServerKeyStore(Algorithm.ecp384), KEYSTORE_PASSWORD);
 
         secureHttpTransportSettingsProvider = new SecureHttpTransportSettingsProvider() {
             @Override
@@ -162,21 +161,17 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
 
             @Override
             public Optional<SSLEngine> buildSecureHttpServerEngine(Settings settings, HttpServerTransport transport) throws SSLException {
-                try {
-                    SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
-                        .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                        .build()
-                        .newEngine(NettyAllocator.getAllocator());
-                    return Optional.of(engine);
-                } catch (final Exception ex) {
-                    throw new SSLException(ex);
-                }
+                SSLEngine engine = SslContextBuilder.forServer(keyManagerFactory)
+                    .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                    .build()
+                    .newEngine(NettyAllocator.getAllocator());
+                return Optional.of(engine);
             }
         };
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         if (threadPool != null) {
             threadPool.shutdownNow();
         }
@@ -188,18 +183,20 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
 
     /**
      * Test that {@link ReactorNetty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeader() throws InterruptedException {
         final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
-        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength);
     }
 
     /**
      * Test that {@link ReactorNetty4HttpServerTransport} responds to a
      * 100-continue expectation with too large a content-length
      * with a 413 status.
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
@@ -207,39 +204,26 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         final int maxContentLength = randomIntBetween(1, 104857600);
         final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
-        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength);
     }
 
     /**
      * Test that {@link ReactorNetty4HttpServerTransport} responds to an unsupported expectation with a 417 status.
+     *
      * @throws InterruptedException if the client communication with the server is interrupted
      */
     public void testExpectUnsupportedExpectation() throws InterruptedException {
         Settings settings = createSettings();
-        runExpectHeaderTest(settings, "chocolate=yummy", 0, HttpResponseStatus.EXPECTATION_FAILED);
+        runExpectHeaderTest(settings, "chocolate=yummy", 0);
     }
 
-    private void runExpectHeaderTest(
-        final Settings settings,
-        final String expectation,
-        final int contentLength,
-        final HttpResponseStatus expectedStatus
-    ) throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-            @Override
-            public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
-            }
-
-            @Override
-            public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-        };
+    private void runExpectHeaderTest(final Settings settings, final String expectation, final int contentLength)
+        throws InterruptedException {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> channel.sendResponse(
+                new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))
+            )
+        ).build();
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
                 settings,
@@ -256,7 +240,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
@@ -285,7 +269,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
                 xContentRegistry(),
                 new NullDispatcher(),
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(initialSettings),
                 secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
@@ -295,6 +279,10 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             Settings settings = Settings.builder()
                 .put("http.port", remoteAddress.getPort())
                 .put("network.host", remoteAddress.getAddress())
+                .put(
+                    HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey(),
+                    HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.get(initialSettings)
+                )
                 .build();
             try (
                 ReactorNetty4HttpServerTransport otherTransport = new ReactorNetty4HttpServerTransport(
@@ -317,19 +305,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     public void testBadRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError();
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error("--> Unexpected bad request request");
-                throw new AssertionError(cause);
-            }
-        };
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
 
         final Settings settings;
         final int maxInitialLineLength;
@@ -359,7 +335,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final String url = "/" + randomAlphaOfLength(maxInitialLineLength);
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
@@ -375,18 +351,11 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     public void testDispatchFailed() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 throw new RuntimeException("Bad things happen");
             }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error("--> Unexpected bad request request");
-                throw new AssertionError(cause);
-            }
-        };
+        ).build();
 
         final Settings settings = createSettings();
         try (
@@ -406,7 +375,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
 
                 final FullHttpResponse response = client.send(remoteAddress.address(), request);
@@ -421,12 +390,11 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     public void testLargeCompressedResponse() throws InterruptedException {
+        final Settings settings = createSettings();
         final String responseString = randomAlphaOfLength(4 * 1024 * 1024);
         final String url = "/thing/";
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
+            (request, channel, threadContext) -> {
                 if (url.equals(request.uri())) {
                     channel.sendResponse(new BytesRestResponse(OK, responseString));
                 } else {
@@ -434,28 +402,18 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
                     throw new AssertionError();
                 }
             }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-
-        };
+        ).build();
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
-                Settings.EMPTY,
+                settings,
                 networkService,
                 bigArrays,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
                 clusterSettings,
-                new SharedGroupFactory(Settings.EMPTY),
+                new SharedGroupFactory(settings),
                 secureHttpTransportSettingsProvider,
                 NoopTracer.INSTANCE
             )
@@ -463,7 +421,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 request.headers().add(HttpHeaderNames.ACCEPT_ENCODING, randomFrom("deflate", "gzip"));
                 long numOfHugeAllocations = getHugeAllocationCount();
@@ -494,25 +452,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     public void testCorsRequest() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError();
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError();
-            }
-
-        };
-
+        final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "test-cors.org")
             .build();
@@ -535,7 +475,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             // Test pre-flight request
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.OPTIONS, "/");
                 request.headers().add(CorsHandler.ORIGIN, "test-cors.org");
                 request.headers().add(CorsHandler.ACCESS_CONTROL_REQUEST_METHOD, "POST");
@@ -552,7 +492,7 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
             }
 
             // Test short-circuited request
-            try (ReactorHttpClient client = ReactorHttpClient.https()) {
+            try (ReactorHttpClient client = ReactorHttpClient.https(settings)) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
                 request.headers().add(CorsHandler.ORIGIN, "google.com");
 
@@ -567,31 +507,13 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     public void testConnectTimeout() throws Exception {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                logger.error("--> Unexpected successful request [{}]", FakeRestRequest.requestToString(request));
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(
-                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
-                    cause
-                );
-                throw new AssertionError("Should not have received a dispatched request");
-            }
-
-        };
-
+        HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().build();
         Settings settings = createBuilderWithPort().put(
             HttpTransportSettings.SETTING_HTTP_CONNECT_TIMEOUT.getKey(),
             new TimeValue(randomIntBetween(100, 300))
         ).build();
 
-        NioEventLoopGroup group = new NioEventLoopGroup();
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
                 settings,
@@ -638,6 +560,8 @@ public class SecureReactorNetty4HttpServerTransportTests extends OpenSearchTestC
     }
 
     private Settings.Builder createBuilderWithPort() {
-        return Settings.builder().put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange());
+        return Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
+            .put(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey(), randomBoolean());
     }
 }
