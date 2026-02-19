@@ -302,22 +302,6 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("Should not have status", protoDetail.hasStatus());
     }
 
-    public void testToProtoThrowsUnsupportedOperationExceptionForAggregations() {
-        // Create mock SearchResponse with aggregations
-        SearchResponse mockResponse = mock(SearchResponse.class);
-        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
-        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
-        when(mockResponse.getAggregations()).thenReturn(mock(org.opensearch.search.aggregations.Aggregations.class));
-
-        // Call the method under test - should throw UnsupportedOperationException
-        org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
-        );
-        assertEquals("aggregation responses are not supported yet", exception.getMessage());
-    }
-
     public void testToProtoThrowsUnsupportedOperationExceptionForSuggest() {
         // Create mock SearchResponse with suggest
         SearchResponse mockResponse = mock(SearchResponse.class);

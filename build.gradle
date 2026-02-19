@@ -87,6 +87,14 @@ allprojects {
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
+
+  repositories {
+    mavenLocal()  // Add this to use your local Maven repository
+    mavenCentral()
+    maven {
+      url = "https://aws.oss.sonatype.org/content/repositories/snapshots"
+    }
+  }
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {
