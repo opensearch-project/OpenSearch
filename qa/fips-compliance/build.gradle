@@ -33,6 +33,7 @@ afterEvaluate {
   testClusters {
     // configure cluster to start in FIPS JVM
     javaRestTest {
+      environment 'OPENSEARCH_FIPS_MODE', 'true'
       keystorePassword 'notarealpasswordphrase'
       extraConfigFile 'opensearch-fips-truststore.bcfks',
           file("${project.rootDir}/buildSrc/src/main/resources/opensearch-fips-truststore.bcfks")

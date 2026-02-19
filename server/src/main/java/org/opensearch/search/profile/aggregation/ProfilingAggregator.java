@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.sort.SortOrder;
 
@@ -48,7 +49,7 @@ import java.util.Iterator;
 /**
  * An aggregator that aggregates the performance profiling of other aggregations
  */
-public class ProfilingAggregator extends Aggregator {
+public class ProfilingAggregator extends Aggregator implements ProfilingWrapper<Aggregator> {
 
     private final Aggregator delegate;
     private final AggregationProfiler profiler;
@@ -160,6 +161,11 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    @Override
+    public Aggregator getDelegate() {
+        return delegate;
     }
 
     @Override

@@ -47,6 +47,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -797,42 +798,45 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     public void testPutGlobalV2TemplateWhichProvidesContextWithContextDisabled() throws Exception {
-        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
-            List.of("*"),
-            null,
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            new Context("any")
-        );
-        InvalidIndexTemplateException ex = expectThrows(
-            InvalidIndexTemplateException.class,
-            () -> metadataIndexTemplateService.putIndexTemplateV2(
-                "testing",
-                true,
-                "template-referencing-context-as-ct",
-                TimeValue.timeValueSeconds(30L),
-                globalIndexTemplate,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        fail("the listener should not be invoked as validation should fail");
-                    }
+        // Explicitly disable the FF
+        FeatureFlags.TestUtils.with(APPLICATION_BASED_CONFIGURATION_TEMPLATES, false, () -> {
+            MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+            ComposableIndexTemplate globalIndexTemplate = new ComposableIndexTemplate(
+                List.of("*"),
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                new Context("any")
+            );
+            InvalidIndexTemplateException ex = expectThrows(
+                InvalidIndexTemplateException.class,
+                () -> metadataIndexTemplateService.putIndexTemplateV2(
+                    "testing",
+                    true,
+                    "template-referencing-context-as-ct",
+                    TimeValue.timeValueSeconds(30L),
+                    globalIndexTemplate,
+                    new ActionListener<AcknowledgedResponse>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse response) {
+                            fail("the listener should not be invoked as validation should fail");
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("the listener should not be invoked as validation should fail");
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail("the listener should not be invoked as validation should fail");
+                        }
                     }
-                }
-            )
-        );
-        assertTrue(
-            "Invalid exception message." + ex.getMessage(),
-            ex.getMessage().contains("specifies a context which cannot be used without enabling")
-        );
+                )
+            );
+            assertTrue(
+                "Invalid exception message." + ex.getMessage(),
+                ex.getMessage().contains("specifies a context which cannot be used without enabling")
+            );
+        });
     }
 
     @LockFeatureFlag(APPLICATION_BASED_CONFIGURATION_TEMPLATES)
