@@ -31,14 +31,7 @@
 
 package org.opensearch.repositories.blobstore;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.ByteBuffersDataInput;
-import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
@@ -59,10 +52,11 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.CorruptStateException;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.metadata.remote.ChecksumValidator;
+import org.opensearch.metadata.remote.CorruptMetadataException;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -96,6 +90,8 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
 
     private final CheckedFunction<XContentParser, T, IOException> reader;
 
+    private final ChecksumValidator checksumValidator = new ChecksumValidator();
+
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
@@ -126,25 +122,18 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> extends BaseBlo
     public T deserialize(String blobName, NamedXContentRegistry namedXContentRegistry, BytesReference bytes) throws IOException {
         final String resourceDesc = "ChecksumBlobStoreFormat.readBlob(blob=\"" + blobName + "\")";
         try {
-            final IndexInput indexInput = bytes.length() > 0
-                ? new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(bytes))), resourceDesc)
-                : new ByteArrayIndexInput(resourceDesc, BytesRef.EMPTY_BYTES);
-            CodecUtil.checksumEntireFile(indexInput);
-            CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
-            long filePointer = indexInput.getFilePointer();
-            long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
+            BytesReference content = checksumValidator.validateAndSlice(bytes, codec, VERSION, VERSION, resourceDesc);
             try (
                 XContentParser parser = XContentHelper.createParser(
                     namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE,
-                    bytes.slice((int) filePointer, (int) contentSize),
+                    content,
                     XContentType.SMILE
                 )
             ) {
                 return reader.apply(parser);
             }
-        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-            // we trick this into a dedicated exception with the original stacktrace
+        } catch (CorruptMetadataException ex) {
             throw new CorruptStateException(ex);
         }
     }

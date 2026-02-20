@@ -48,7 +48,8 @@ public final class CompressorRegistry {
      * Returns the default compressor
      */
     public static Compressor defaultCompressor() {
-        return registeredCompressors.get("DEFLATE");
+        Compressor c = registeredCompressors.get("DEFLATE");
+        return c != null ? c : registeredCompressors.get("SIMPLE_DEFLATE");
     }
 
     public static Compressor none() {
