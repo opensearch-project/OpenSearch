@@ -17,6 +17,9 @@ import java.util.Map;
  */
 public class NativeSettings {
 
+    // Index identifier
+    private String indexName;
+
     // Index-level defaults
     private String compressionType;
     private Integer compressionLevel;
@@ -28,6 +31,9 @@ public class NativeSettings {
     // Field-level overrides
     private Map<String, FieldConfig> fieldConfigs;
     private Map<String, Object> customSettings;
+
+    public String getIndexName() { return indexName; }
+    public void setIndexName(String indexName) { this.indexName = indexName; }
 
     public String getCompressionType() { return compressionType; }
     public void setCompressionType(String compressionType) { this.compressionType = compressionType; }

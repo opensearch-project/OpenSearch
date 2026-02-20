@@ -12,6 +12,7 @@ use crate::field_config::FieldConfig;
 
 #[derive(Debug, Clone, Default)]
 pub struct NativeSettings {
+    pub index_name: Option<String>,
     pub compression_level: Option<i32>,
     pub compression_type: Option<String>,
     pub page_size_bytes: Option<usize>,

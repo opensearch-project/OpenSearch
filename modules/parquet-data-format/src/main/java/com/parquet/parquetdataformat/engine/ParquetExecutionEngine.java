@@ -72,7 +72,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     private final Supplier<Schema> schema;
     private final ShardPath shardPath;
-    private final ParquetMerger parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
+    private final ParquetMerger parquetMerger;
     private final ArrowBufferPool arrowBufferPool;
     private final IndexSettings indexSettings;
 
@@ -86,6 +86,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
+        this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH, indexSettings.getIndex().getName());
 
         // Push current settings to Rust store once on construction, then keep in sync on updates
         pushSettingsToRust(indexSettings);
@@ -105,6 +106,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     private void pushSettingsToRust(IndexSettings indexSettings) {
         NativeSettings config = new NativeSettings();
+        config.setIndexName(indexSettings.getIndex().getName());
         config.setCompressionType(indexSettings.getValue(ParquetSettings.COMPRESSION_TYPE));
         config.setCompressionLevel(indexSettings.getValue(ParquetSettings.COMPRESSION_LEVEL));
         config.setPageSizeBytes(indexSettings.getValue(ParquetSettings.PAGE_SIZE_BYTES).getBytes());

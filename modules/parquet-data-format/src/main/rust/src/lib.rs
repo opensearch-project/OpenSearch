@@ -34,15 +34,15 @@ pub use vectorized_exec_spi::{log_info, log_error, log_debug};
 lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
-    static ref SETTINGS_STORE: Mutex<NativeSettings> = Mutex::new(NativeSettings::default());
+    static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
 }
 
 struct NativeParquetWriter;
 
 impl NativeParquetWriter {
 
-    fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
+    fn create_writer(filename: String, index_name: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
+        log_info!("[RUST] create_writer called for file: {}, index: {}, schema_address: {}", filename, index_name, schema_address);
 
         if (schema_address as *mut u8).is_null() {
             log_error!("[RUST] ERROR: Invalid schema address (null pointer) for file: {}, schema_address: {}", filename, schema_address);
@@ -54,8 +54,11 @@ impl NativeParquetWriter {
             return Err("Writer already exists for this file".into());
         }
 
-        // Read configuration from the global settings store
-        let config: NativeSettings = SETTINGS_STORE.lock().unwrap().clone();
+        // Look up settings for this index; fall back to defaults if not found
+        let config: NativeSettings = SETTINGS_STORE
+            .get(&index_name)
+            .map(|r| r.clone())
+            .unwrap_or_default();
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
@@ -297,10 +300,12 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
+    index_name: JString,
     schema_address: jlong,
 ) -> jint {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
+    let index_name: String = env.get_string(&index_name).expect("Couldn't get java string!").into();
+    match NativeParquetWriter::create_writer(filename, index_name, schema_address as i64) {
         Ok(_) => 0,
         Err(e) => {
             log_error!("[RUST] create_writer failed: {}", e);
@@ -317,18 +322,26 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_onSe
 ) {
     match read_native_settings(&mut env, &settings) {
         Ok(config) => {
-            let mut store = SETTINGS_STORE.lock().unwrap();
-            *store = config;
+            let index_name = match &config.index_name {
+                Some(name) => name.clone(),
+                None => {
+                    log_error!("[RUST] onSettingsUpdate: missing index_name, cannot store settings");
+                    let _ = env.throw_new("java/io/IOException", "NativeSettings missing indexName");
+                    return;
+                }
+            };
             log_info!(
-                "[RUST] onSettingsUpdate: settings store updated - compression_type={:?}, compression_level={:?}, \
+                "[RUST] onSettingsUpdate: storing settings for index '{}' - compression_type={:?}, compression_level={:?}, \
                  page_size_bytes={:?}, page_row_limit={:?}, dict_size_bytes={:?}, row_group_size_bytes={:?}",
-                store.compression_type,
-                store.compression_level,
-                store.page_size_bytes,
-                store.page_row_limit,
-                store.dict_size_bytes,
-                store.row_group_size_bytes
+                index_name,
+                config.compression_type,
+                config.compression_level,
+                config.page_size_bytes,
+                config.page_row_limit,
+                config.dict_size_bytes,
+                config.row_group_size_bytes
             );
+            SETTINGS_STORE.insert(index_name, config);
         }
         Err(e) => {
             log_error!("[RUST] onSettingsUpdate: failed to read NativeSettings object: {}", e);
@@ -374,6 +387,7 @@ fn read_native_settings(env: &mut JNIEnv, obj: &JObject) -> Result<NativeSetting
     }
 
     Ok(NativeSettings {
+        index_name:           get_string!("getIndexName"),
         compression_type:     get_string!("getCompressionType"),
         compression_level:    get_boxed_int!("getCompressionLevel"),
         page_size_bytes:      get_boxed_long_as_usize!("getPageSizeBytes"),
@@ -574,12 +588,12 @@ mod tests {
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
         // Seed the settings store directly (bypassing JNI in unit tests)
-        *SETTINGS_STORE.lock().unwrap() = NativeSettings {
+        SETTINGS_STORE.insert("test-index".to_string(), NativeSettings {
             compression_type: Some("ZSTD".to_string()),
             compression_level: Some(3),
             ..Default::default()
-        };
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
+        });
+        let result = NativeParquetWriter::create_writer(filename.to_string(), "test-index".to_string(), schema_ptr);
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -624,7 +638,7 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let result = NativeParquetWriter::create_writer(filename, 0);
+        let result = NativeParquetWriter::create_writer(filename, "test-index".to_string(), 0);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
