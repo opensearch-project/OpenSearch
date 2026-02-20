@@ -132,11 +132,19 @@ public class StringsTests extends OpenSearchTestCase {
         assertTrue(Strings.validFileNameExcludingSlash("file123"));
         assertTrue(Strings.validFileNameExcludingSlash("file-name.txt"));
 
-        // Valid cases - slashes are allowed
+        // Valid cases - relative slashes are allowed
         assertTrue(Strings.validFileNameExcludingSlash("path/to/file"));
         assertTrue(Strings.validFileNameExcludingSlash("path\\to\\file"));
-        assertTrue(Strings.validFileNameExcludingSlash("/absolute/path"));
         assertTrue(Strings.validFileNameExcludingSlash("mixed/path\\file"));
+
+        // Invalid cases - absolute paths must be rejected
+        assertFalse(Strings.validFileNameExcludingSlash("/absolute/path"));
+        assertFalse(Strings.validFileNameExcludingSlash("\\absolute\\path"));
+
+        // Invalid cases - path traversal must be rejected
+        assertFalse(Strings.validFileNameExcludingSlash("../etc/passwd"));
+        assertFalse(Strings.validFileNameExcludingSlash("path/../../etc/passwd"));
+        assertFalse(Strings.validFileNameExcludingSlash("path\\..\\..\\secret"));
 
         // Invalid cases - other invalid chars should still fail
         assertFalse(Strings.validFileNameExcludingSlash("file*name"));

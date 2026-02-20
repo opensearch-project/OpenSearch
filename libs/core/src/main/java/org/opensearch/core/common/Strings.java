@@ -332,9 +332,20 @@ public class Strings {
     }
 
     public static boolean validFileNameExcludingSlash(String fileName) {
+        // Reject absolute paths
+        if (fileName.startsWith("/") || fileName.startsWith("\\")) {
+            return false;
+        }
+        // Reject invalid characters (excluding slashes)
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
             if (c != '/' && c != '\\' && INVALID_FILENAME_CHARS.contains(c)) {
+                return false;
+            }
+        }
+        // Reject path traversal: ".." as a path segment
+        for (String segment : fileName.split("[/\\\\]")) {
+            if (segment.equals("..")) {
                 return false;
             }
         }

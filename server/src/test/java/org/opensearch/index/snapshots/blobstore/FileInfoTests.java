@@ -218,4 +218,25 @@ public class FileInfoTests extends OpenSearchTestCase {
         }
         assertThat(parsedInfo.physicalName(), equalTo(physicalName));
     }
+
+    public void testPhysicalNameWithPathTraversal() throws IOException {
+        // Path traversal and absolute paths in physical name should be rejected
+        String[] maliciousNames = { "../etc/passwd", "path/../../secret", "/absolute/path" };
+        for (String malicious : maliciousNames) {
+            XContentBuilder builder = MediaTypeRegistry.contentBuilder(MediaTypeRegistry.JSON);
+            builder.startObject();
+            builder.field(FileInfo.NAME, "segments_1");
+            builder.field(FileInfo.PHYSICAL_NAME, malicious);
+            builder.field(FileInfo.LENGTH, 100);
+            builder.field(FileInfo.WRITTEN_BY, Version.LATEST.toString());
+            builder.field(FileInfo.CHECKSUM, "666");
+            builder.endObject();
+            byte[] xContent = BytesReference.toBytes(BytesReference.bytes(builder));
+
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
+                parser.nextToken();
+                expectThrows(OpenSearchParseException.class, () -> FileInfo.fromXContent(parser));
+            }
+        }
+    }
 }
