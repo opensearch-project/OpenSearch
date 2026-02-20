@@ -62,6 +62,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestionSearchContext;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 
 import java.time.LocalDateTime;

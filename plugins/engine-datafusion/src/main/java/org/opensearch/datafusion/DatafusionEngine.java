@@ -71,6 +71,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.datafusion.search.DfResult;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -288,7 +289,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     }
 
     @Override
-    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<DfResult> listener) {
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<QueryResult> listener) {
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
@@ -354,7 +355,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         SearchResultsCollector<RecordBatchStream> collector,
         Map<String, List<Object>> finalRes,
         RootAllocator allocator,
-        ActionListener<DfResult> listener,
+        ActionListener<QueryResult> listener,
         DatafusionContext context,
         List<Long> rowIdResult
     ) {
