@@ -9,16 +9,19 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.TrackHits;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationContainerProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
@@ -152,13 +155,22 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // Aggregations field was removed in protobufs 1.0.0
-        // TODO: Support aggregations when they are re-added to the proto
-        /*
+        // Parse aggregations from protobuf (both "aggregations" and "aggs" fields)
         if (protoRequest.getAggregationsCount() > 0) {
-            throw new UnsupportedOperationException("aggregations param is not supported yet");
+            for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
+                AggregationBuilder aggBuilder = AggregationContainerProtoUtils.fromProto(entry.getKey(), entry.getValue());
+                searchSourceBuilder.aggregation(aggBuilder);
+            }
         }
-        */
+
+        // Also check "aggs" field (alternate field name in OpenSearch)
+        if (protoRequest.getAggsCount() > 0) {
+            for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggsMap().entrySet()) {
+                AggregationBuilder aggBuilder = AggregationContainerProtoUtils.fromProto(entry.getKey(), entry.getValue());
+                searchSourceBuilder.aggregation(aggBuilder);
+            }
+        }
+
         if (protoRequest.hasHighlight()) {
             searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
         }
