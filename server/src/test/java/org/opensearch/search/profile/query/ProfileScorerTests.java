@@ -37,13 +37,16 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.opensearch.search.profile.ProfileMetricUtil;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 
 public class ProfileScorerTests extends OpenSearchTestCase {
 
@@ -102,14 +105,71 @@ public class ProfileScorerTests extends OpenSearchTestCase {
         assertEquals(42f, profileScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS), 0f);
     }
 
-    public void testGetWrappedScorer() throws IOException {
+    public void testGetDelegate() throws IOException {
         Query query = new MatchAllDocsQuery();
         Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
         FakeScorer fakeScorer = new FakeScorer(weight);
         QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
         ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
 
-        // Verify getWrappedScorer returns the original scorer
-        assertSame(fakeScorer, profileScorer.getWrappedScorer());
+        // Verify getDelegate returns the original scorer
+        assertSame(fakeScorer, profileScorer.getDelegate());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testImplementsProfilingWrapper() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // ProfileScorer implements ProfilingWrapper<Scorer>, allowing plugins to detect and unwrap
+        // profiling wrappers using instanceof without reflection
+        assertTrue("ProfileScorer should implement ProfilingWrapper", profileScorer instanceof ProfilingWrapper);
+        ProfilingWrapper<Scorer> wrapper = (ProfilingWrapper<Scorer>) profileScorer;
+        assertSame("ProfilingWrapper.getDelegate() should return the original scorer", fakeScorer, wrapper.getDelegate());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUnwrapNestedProfilingScorerFromScorableReference() throws IOException {
+        // Simulate nested profiling: a scorer wrapped in two ProfileScorer layers.
+        // This tests that a plugin can iteratively unwrap through multiple profiling
+        // layers via a generic Scorable reference (as received in LeafCollector.setScorer())
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown innerProfile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        QueryProfileBreakdown outerProfile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+
+        // Create nested profiling: FakeScorer -> innerProfileScorer -> outerProfileScorer
+        ProfileScorer innerProfileScorer = new ProfileScorer(fakeScorer, innerProfile);
+        ProfileScorer outerProfileScorer = new ProfileScorer(innerProfileScorer, outerProfile);
+
+        // Plugin only sees a Scorable reference
+        Scorable scorable = outerProfileScorer;
+
+        // Unwrap first layer
+        assertTrue("Outer Scorable should be detected as ProfilingWrapper", scorable instanceof ProfilingWrapper);
+        Scorer firstUnwrap = ((ProfilingWrapper<Scorer>) scorable).getDelegate();
+        assertNotSame("First unwrap should not be the original scorer", fakeScorer, firstUnwrap);
+        assertTrue("First unwrap should still be a ProfilingWrapper (inner ProfileScorer)", firstUnwrap instanceof ProfilingWrapper);
+
+        // Unwrap second layer to reach the original scorer
+        Scorer secondUnwrap = ((ProfilingWrapper<Scorer>) firstUnwrap).getDelegate();
+        assertSame("Second unwrap should be the original FakeScorer", fakeScorer, secondUnwrap);
+        assertFalse("Original scorer should not implement ProfilingWrapper", secondUnwrap instanceof ProfilingWrapper);
+    }
+
+    public void testGetChildren_delegatesToWrappedScorer() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Weight weight = query.createWeight(new IndexSearcher(new MultiReader()), ScoreMode.TOP_SCORES, 1f);
+        FakeScorer fakeScorer = new FakeScorer(weight);
+        QueryProfileBreakdown profile = new QueryProfileBreakdown(ProfileMetricUtil.getDefaultQueryProfileMetrics());
+        ProfileScorer profileScorer = new ProfileScorer(fakeScorer, profile);
+
+        // getChildren() should delegate to the wrapped scorer's getChildren()
+        Collection<Scorer.ChildScorable> children = profileScorer.getChildren();
+        assertEquals("FakeScorer has no children, so ProfileScorer should return empty collection", 0, children.size());
     }
 }
