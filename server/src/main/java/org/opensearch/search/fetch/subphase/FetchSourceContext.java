@@ -141,13 +141,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            fetchSource = parser.booleanValue();
-        } else if (token == XContentParser.Token.VALUE_STRING) {
+            boolean fetchSource = parser.booleanValue();
+            return new FetchSourceContext(fetchSource);
+        }
+        if (token == XContentParser.Token.VALUE_STRING) {
             includes = new String[] { parser.text() };
+            return new FetchSourceContext(true, includes, excludes);
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -228,7 +230,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 parser.getTokenLocation()
             );
         }
-        return new FetchSourceContext(fetchSource, includes, excludes);
+        return new FetchSourceContext(true, includes, excludes);
     }
 
     @Override
