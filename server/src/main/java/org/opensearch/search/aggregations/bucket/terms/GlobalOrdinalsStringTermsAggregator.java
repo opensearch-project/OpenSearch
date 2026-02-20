@@ -210,17 +210,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         final TermsEnum segmentTermsEnum = segmentTerms.iterator();
         final LongUnaryOperator globalOrdsMapping = valuesSource.globalOrdinalsMapping(ctx);
-        BytesRef segmentTerm = segmentTermsEnum.next();
+        segmentTermsEnum.next();
 
         // Iterate over the ordinals in the segment, look for matches in the global ordinal,
         // and increment bucket count when segment ordinal is contained in global ordinals.
-        while (segmentTerm != null) {
-            long globalOrd = globalOrdsMapping.applyAsLong(segmentTermsEnum.ord());
+        for (long segmentOrd = 0; segmentOrd < termCount; segmentOrd++) {
+            long globalOrd = globalOrdsMapping.applyAsLong(segmentOrd);
             if (acceptedGlobalOrdinals.test(globalOrd)) {
                 ordCountConsumer.accept(globalOrd, segmentTermsEnum.docFreq());
             }
-            segmentTerm = segmentTermsEnum.next();
+            segmentTermsEnum.next();
         }
+        // assert segmentTermsEnum is exhausted?
         return true;
     }
 
@@ -557,11 +558,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
             if (subAggregators.length == 0) {
-                if (mapping != null) {
-                    mapSegmentCountsToGlobalCounts(mapping);
-                }
-                mapping = valuesSource.globalOrdinalsMapping(ctx);
-                return tryCollectFromTermFrequencies(ctx, (ord, docCount) -> incrementBucketDocCount(mapping.applyAsLong(ord), docCount));
+                return tryCollectFromTermFrequencies(ctx, (globalOrd, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, globalOrd), docCount));
             }
             return tryStarTreePrecompute(ctx);
         }
