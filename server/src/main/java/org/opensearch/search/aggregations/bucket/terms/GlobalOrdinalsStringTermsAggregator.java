@@ -558,7 +558,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
             if (subAggregators.length == 0) {
-                return tryCollectFromTermFrequencies(ctx, (globalOrd, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, globalOrd), docCount));
+                return tryCollectFromTermFrequencies(
+                    ctx,
+                    (globalOrd, docCount) -> incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, globalOrd), docCount)
+                );
             }
             return tryStarTreePrecompute(ctx);
         }
