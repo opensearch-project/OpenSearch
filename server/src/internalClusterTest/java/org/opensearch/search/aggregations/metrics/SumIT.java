@@ -446,6 +446,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sumAgg = response.getAggregations().get("sum");
         assertThat(sumAgg, notNullValue());
         assertThat(sumAgg.getValue(), equalTo((double) expectedSum));
-        client().admin().indices().prepareDelete("intra_test").get();
+        internalCluster().wipeIndices("intra_test");
+        }
     }
 }

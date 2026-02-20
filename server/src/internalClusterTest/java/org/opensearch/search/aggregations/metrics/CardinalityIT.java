@@ -687,6 +687,6 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         Cardinality cardinalityAgg = response.getAggregations().get("cardinality");
         assertThat(cardinalityAgg, notNullValue());
         assertThat(cardinalityAgg.getValue(), equalTo(100L));
-        client().admin().indices().prepareDelete("intra_test").get();
+        internalCluster().wipeIndices("intra_test");
     }
 }

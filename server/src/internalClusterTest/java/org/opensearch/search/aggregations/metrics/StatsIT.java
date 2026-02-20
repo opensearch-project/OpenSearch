@@ -429,6 +429,6 @@ public class StatsIT extends AbstractNumericTestCase {
         assertThat(statsAgg.getMax(), equalTo(5000.0));
         assertThat(statsAgg.getSum(), equalTo((double) expectedSum));
         assertThat(statsAgg.getAvg(), equalTo((double) expectedSum / 5000));
-        client().admin().indices().prepareDelete("intra_test").get();
+        internalCluster().wipeIndices("intra_test");
     }
 }

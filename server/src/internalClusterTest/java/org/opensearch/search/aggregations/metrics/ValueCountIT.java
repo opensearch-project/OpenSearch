@@ -437,6 +437,7 @@ public class ValueCountIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         ValueCount countAgg = response.getAggregations().get("count");
         assertThat(countAgg, notNullValue());
         assertThat(countAgg.getValue(), equalTo(5000L));
-        client().admin().indices().prepareDelete("intra_test").get();
+        internalCluster().wipeIndices("intra_test");
+        }
     }
 }
