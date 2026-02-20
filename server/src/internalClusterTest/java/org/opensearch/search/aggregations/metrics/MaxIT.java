@@ -50,37 +50,45 @@ public class MaxIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     public void testMaxAggregation() throws Exception {
         createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
-        int totalDocs = 5000;
-        for (int i = 0; i < totalDocs; i++) {
-            client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-            if (i % 2500 == 2499) {
-                refresh();
+        try {
+            int totalDocs = 5000;
+            for (int i = 0; i < totalDocs; i++) {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
+                if (i % 2500 == 2499) {
+                    refresh();
+                }
             }
+            refresh();
+            indexRandomForConcurrentSearch("test");
+            SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
+            assertSearchResponse(response);
+            Max maxAgg = response.getAggregations().get("max_agg");
+            assertThat(maxAgg, notNullValue());
+            assertThat(maxAgg.getValue(), equalTo(5000.0));
+        } finally {
+            internalCluster().wipeIndices("test");
         }
-        refresh();
-        indexRandomForConcurrentSearch("test");
-        SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
-        assertSearchResponse(response);
-        Max maxAgg = response.getAggregations().get("max_agg");
-        assertThat(maxAgg, notNullValue());
-        assertThat(maxAgg.getValue(), equalTo(5000.0));
     }
 
     public void testMaxAggregationMultipleShards() throws Exception {
         createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        int totalDocs = 5000;
-        for (int i = 0; i < totalDocs; i++) {
-            client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-            if (i % 2500 == 2499) {
-                refresh();
+        try {
+            int totalDocs = 5000;
+            for (int i = 0; i < totalDocs; i++) {
+                client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
+                if (i % 2500 == 2499) {
+                    refresh();
+                }
             }
+            refresh();
+            indexRandomForConcurrentSearch("test");
+            SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
+            assertSearchResponse(response);
+            Max maxAgg = response.getAggregations().get("max_agg");
+            assertThat(maxAgg, notNullValue());
+            assertThat(maxAgg.getValue(), equalTo(5000.0));
+        } finally {
+            internalCluster().wipeIndices("test");
         }
-        refresh();
-        indexRandomForConcurrentSearch("test");
-        SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
-        assertSearchResponse(response);
-        Max maxAgg = response.getAggregations().get("max_agg");
-        assertThat(maxAgg, notNullValue());
-        assertThat(maxAgg.getValue(), equalTo(5000.0));
     }
 }
