@@ -13,7 +13,7 @@ import org.apache.arrow.memory.BufferAllocator;
 /**
  * Holds the execution engine context: the discovered {@link ExecutionEngine}
  * and the Arrow {@link BufferAllocator}. Returned from
- * {@code ExtensibleEnginePlugin.createComponents()} so Guice can inject it
+ * {@code ExtensibleQueryEnginePlugin.createComponents()} so Guice can inject it
  * into transport actions.
  */
 public class EngineContext {

@@ -48,11 +48,11 @@ import org.junit.BeforeClass;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 
 /**
- * Integration tests for the calcite engine's streaming transport wiring
+ * Integration tests for the query engine's streaming transport wiring
  * and end-to-end query execution via TransportQueryAction.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class CalciteEngineIT extends OpenSearchIntegTestCase {
+public class QueryEngineIT extends OpenSearchIntegTestCase {
 
     private static final String TEST_INDEX = "test_table";
     private static final int NUM_SHARDS = 2;

@@ -12,7 +12,7 @@ def calciteVersion = '1.41.0'
 
 opensearchplugin {
   description = 'extensible-based query engine with native execution across OpenSearch data nodes.'
-  classname = 'org.opensearch.eqe.ExtensibleEnginePlugin'
+  classname = 'org.opensearch.eqe.ExtensibleQueryEnginePlugin'
 }
 
 dependencies {
@@ -40,10 +40,10 @@ dependencies {
   // Substrait runtime dependencies
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  implementation 'org.jooq:joou-java-6:0.9.4'
+  runtimeOnly 'org.jooq:joou-java-6:0.9.4'
 
   // Guava (required by Calcite internals)
-  implementation "com.google.guava:guava:33.4.0-jre"
+  implementation "com.google.guava:guava:${versions.guava}"
   runtimeOnly "com.google.guava:failureaccess:1.0.2"
 
   // Calcite runtime dependencies
@@ -59,11 +59,6 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-
-  // Optional annotations (suppress Calcite warnings)
-  compileOnly 'org.apiguardian:apiguardian-api:1.1.2'
-  compileOnly 'org.checkerframework:checker-qual:3.42.0'
-
 }
 
 configurations.all {
@@ -80,11 +75,6 @@ configurations.all {
   }
 }
 
-// Disable -Werror (Calcite generates unavoidable warnings)
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs.remove('-Werror')
-}
-
 // Arrow/Flight requires these JVM flags
 internalClusterTest {
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
@@ -97,9 +87,6 @@ internalClusterTest {
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
-
-// Disable thirdPartyAudit for now
-thirdPartyAudit.enabled = false
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /calcite-.*/, to: 'calcite'
