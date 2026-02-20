@@ -747,7 +747,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             } else {
                 expectedClusterName = null;
             }
-            if (input.getVersion().onOrAfter(Version.V_3_6_0)) {
+            if (input.getVersion().onOrAfter(Version.V_3_4_0)) {
                 lazyConnectionRefresh = input.readOptionalBoolean();
             } else {
                 lazyConnectionRefresh = null;
@@ -780,7 +780,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
                 out.writeOptionalString(expectedClusterName);
             }
-            if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
                 out.writeOptionalBoolean(lazyConnectionRefresh);
             }
         }
