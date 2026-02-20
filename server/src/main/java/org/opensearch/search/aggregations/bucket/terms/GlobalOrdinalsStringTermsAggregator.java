@@ -91,7 +91,6 @@ import java.util.function.LongPredicate;
 import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
