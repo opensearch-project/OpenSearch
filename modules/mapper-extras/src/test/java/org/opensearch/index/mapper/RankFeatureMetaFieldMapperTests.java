@@ -40,6 +40,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.util.Collection;
+import java.util.Locale;
 
 public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
@@ -49,7 +50,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
-        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase());
+        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
 
         String mapping = MediaTypeRegistry.JSON.contentBuilder()
@@ -75,7 +76,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
      * and parsing of a document fails if the document contains these meta-fields.
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
-        String indexName = randomAlphaOfLength(10).toLowerCase();
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         IndexService indexService = createIndex(indexName);
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
 
