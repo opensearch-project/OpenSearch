@@ -677,16 +677,21 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
 
     public void testCardinalityWithIntraSegmentPartitioning() throws Exception {
         createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
-        for (int i = 0; i < 5000; i++) {
-            client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("category", i % 100).get();
-            if (i % 2500 == 2499) refresh();
+        try {
+            for (int i = 0; i < 5000; i++) {
+                client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("category", i % 100).get();
+                if (i % 2500 == 2499) refresh();
+            }
+            refresh();
+            indexRandomForConcurrentSearch("intra_test");
+            SearchResponse response = client().prepareSearch("intra_test")
+                .addAggregation(cardinality("cardinality").field("category"))
+                .get();
+            Cardinality cardinalityAgg = response.getAggregations().get("cardinality");
+            assertThat(cardinalityAgg, notNullValue());
+            assertThat(cardinalityAgg.getValue(), equalTo(100L));
+        } finally {
+            internalCluster().wipeIndices("intra_test");
         }
-        refresh();
-        indexRandomForConcurrentSearch("intra_test");
-        SearchResponse response = client().prepareSearch("intra_test").addAggregation(cardinality("cardinality").field("category")).get();
-        Cardinality cardinalityAgg = response.getAggregations().get("cardinality");
-        assertThat(cardinalityAgg, notNullValue());
-        assertThat(cardinalityAgg.getValue(), equalTo(100L));
-        internalCluster().wipeIndices("intra_test");
     }
 }
