@@ -47,12 +47,13 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
+// ISSUE-20612 Source Validation
 /**
  * Context used to fetch the {@code _source}.
  *
@@ -142,36 +143,37 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         XContentParser.Token token = parser.currentToken();
         switch (token) {
             case XContentParser.Token.VALUE_BOOLEAN -> {
-                return parser.booleanValue() ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
+                return new FetchSourceContext(parser.booleanValue());
             }
             case XContentParser.Token.VALUE_STRING -> {
                 String[] includes = new String[] { parser.text() };
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                ArrayList<String> list = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    list.add(parser.text());
-                }
-                String[] includes = list.toArray(new String[0]);
+                String[] includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
             }
-            default -> {
+            default ->
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Expected one of ["
                         + XContentParser.Token.VALUE_BOOLEAN
                         + ", "
+                        + XContentParser.Token.VALUE_STRING
+                        + ", "
+                        + XContentParser.Token.START_ARRAY
+                        + ", "
                         + XContentParser.Token.START_OBJECT
                         + "] but found ["
                         + token
-                        + "]"
+                        + "]",
+                    parser.getTokenLocation()
                 );
-            }
         }
+        // MUST never reach here
     }
 
     private static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
@@ -179,12 +181,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
         String currentFieldName = null;
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                "Expected a " + XContentParser.Token.START_OBJECT + " but got a " + token + " in [" + parser.currentName() + "]."
-            );
-        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -194,47 +190,65 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceArray(parser).toArray(new String[0]);
-                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceArray(parser).toArray(new String[0]);
-                    } else {
+                        includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
+                    }
+                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludes = parseSourceArray(parser, EXCLUDES_FIELD).toArray(new String[0]);
+                    }
+                    else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + currentFieldName + "]."
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
                         );
                     }
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = new String[] { parser.text() };
-                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = new String[] { parser.text() };
-                    } else {
+                        includes = new String[]{parser.text()};
+                    }
+                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludes = new String[]{parser.text()};
+                    }
+                    else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "]."
                         );
                     }
                 }
-                default -> {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
+                default ->  {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             }
         }
         return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static List<String> parseSourceArray(XContentParser parser) throws IOException {
-        List<String> sourceArr = new ArrayList<>();
+    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField) throws IOException {
+        Set<String> sourceArr = new HashSet<>(); // include or exclude lists
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 sourceArr.add(parser.text());
-            } else {
+            }
+            else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "]."
+                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "].",
+                    parser.getTokenLocation()
                 );
             }
+        }
+        if (sourceArr.isEmpty()) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected at least one value for an array of [" + parseField.getPreferredName() + "]",
+                parser.getTokenLocation()
+            );
         }
         return sourceArr;
     }
