@@ -1240,3 +1240,27 @@ setup:
 
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.a_field: "quick brown fox jump lazy dog" }
+
+---
+"index document with term_vector on search_as_you_type field":
+
+  - do:
+      indices.create:
+        index: test-term-vector-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              my_field:
+                type: search_as_you_type
+                term_vector: with_positions_offsets
+
+  - do:
+      index:
+        index: test-term-vector-index
+        id: 1
+        body:
+          my_field: "hello world"
+
+  - match: { result: created }

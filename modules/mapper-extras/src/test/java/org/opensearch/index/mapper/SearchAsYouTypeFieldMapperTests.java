@@ -382,6 +382,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorOffsets());
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorPositions());
             assertFalse(prefixFieldMapper.fieldType.storeTermVectorPayloads());
+
+            // Verify that actually indexing a document does not throw an exception,
+            // i.e. the _index_prefix subfield does not illegally inherit term vector flags.
+            mapper.parse(source(b -> b.field("field", "test text")));
         }
     }
 
