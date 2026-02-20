@@ -1245,6 +1245,11 @@ setup:
 "index document with term_vector on search_as_you_type field":
 
   - do:
+      indices.delete:
+        index: test-term-vector-index
+        ignore_unavailable: true
+
+  - do:
       indices.create:
         index: test-term-vector-index
         body:
