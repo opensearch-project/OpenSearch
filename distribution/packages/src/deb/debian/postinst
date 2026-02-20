@@ -41,7 +41,7 @@ if [ -d "$ENGINE_DIR" ]; then
     [ -f "$ENGINE_DIR/bin/wazuh-engine" ] && chmod 750 "$ENGINE_DIR/bin/wazuh-engine"
 
     # Set sockets directory permissions
-    [ -d "$ENGINE_DIR/sockets" ] && chmod 777 "$ENGINE_DIR/sockets"
+    [ -d "$ENGINE_DIR/sockets" ] && chmod 750 "$ENGINE_DIR/sockets"
 fi
 
 # Reload systemctl daemon

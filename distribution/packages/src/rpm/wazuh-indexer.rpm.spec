@@ -302,7 +302,7 @@ exit 0
 %dir %attr(750, %{name}, %{name}) %{product_dir}/engine/bin
 %attr(750, %{name}, %{name}) %{product_dir}/engine/bin/wazuh-engine
 %attr(750, %{name}, %{name}) %{product_dir}/engine/run_engine.sh
-%dir %attr(777, %{name}, %{name}) %{product_dir}/engine/sockets
+%dir %attr(750, %{name}, %{name}) %{product_dir}/engine/sockets
 %attr(-, %{name}, %{name}) %{product_dir}/engine/sockets/.keep
 %attr(-, %{name}, %{name}) %{product_dir}/engine/bin/lib
 %attr(-, %{name}, %{name}) %{product_dir}/engine/data
