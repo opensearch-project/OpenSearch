@@ -38,16 +38,10 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
-import org.junit.Before;
 
 import java.util.Collection;
 
 public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCase {
-
-    @Before
-    public void setup() {
-        // Index creation is handled per-test to avoid conflicts
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -55,7 +49,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
-        IndexService indexService = createIndex("test");
+        IndexService indexService = createIndex(randomAlphaOfLength(10).toLowerCase());
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
 
         String mapping = MediaTypeRegistry.JSON.contentBuilder()
@@ -81,7 +75,8 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
      * and parsing of a document fails if the document contains these meta-fields.
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
-        IndexService indexService = createIndex("test");
+        String indexName = randomAlphaOfLength(10).toLowerCase();
+        IndexService indexService = createIndex(indexName);
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
 
         String mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
@@ -92,7 +87,7 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
         );
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> mapper.parse(new SourceToParse("test", "1", bytes, MediaTypeRegistry.JSON))
+            () -> mapper.parse(new SourceToParse(indexName, "1", bytes, MediaTypeRegistry.JSON))
         );
         assertTrue(
             e.getCause().getMessage().contains("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")
