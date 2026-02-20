@@ -44,13 +44,9 @@ import java.util.Collection;
 
 public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
-    IndexService indexService;
-    DocumentMapperParser parser;
-
     @Before
     public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
+        // Index creation is handled per-test to avoid conflicts
     }
 
     @Override
@@ -59,6 +55,9 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
     }
 
     public void testBasics() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
         String mapping = MediaTypeRegistry.JSON.contentBuilder()
             .startObject()
             .startObject("type")
@@ -82,6 +81,9 @@ public class RankFeatureMetaFieldMapperTests extends OpenSearchSingleNodeTestCas
      * and parsing of a document fails if the document contains these meta-fields.
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
         String mapping = MediaTypeRegistry.JSON.contentBuilder().startObject().startObject("_doc").endObject().endObject().toString();
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
