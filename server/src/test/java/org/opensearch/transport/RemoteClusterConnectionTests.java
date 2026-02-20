@@ -497,6 +497,85 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
         }
     }
 
+    public void testRenderConnectionInfoXContentWithLazyConnectionRefresh() throws IOException {
+        List<String> remoteAddresses = Arrays.asList("seed:1", "seed:2");
+
+        // Test with lazy_connection_refresh enabled
+        SniffConnectionStrategy.SniffModeInfo modeInfoWithLazyRefresh = new SniffConnectionStrategy.SniffModeInfo(
+            remoteAddresses,
+            3,
+            2,
+            "expected_cluster",
+            true
+        );
+
+        RemoteConnectionInfo stats = new RemoteConnectionInfo(
+            "test_cluster",
+            modeInfoWithLazyRefresh,
+            TimeValue.timeValueMinutes(30),
+            true
+        );
+        stats = assertSerialization(stats);
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+
+        assertEquals(
+            "{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"],"
+                + "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"cluster_name\":\"expected_cluster\","
+                + "\"lazy_connection_refresh\":true,\"initial_connect_timeout\":\"30m\","
+                + "\"skip_unavailable\":true}}",
+            builder.toString()
+        );
+
+        // Test with lazy_connection_refresh disabled (false) - should still show in output
+        SniffConnectionStrategy.SniffModeInfo modeInfoWithoutLazyRefresh = new SniffConnectionStrategy.SniffModeInfo(
+            remoteAddresses,
+            3,
+            2,
+            "expected_cluster",
+            false
+        );
+
+        stats = new RemoteConnectionInfo("test_cluster", modeInfoWithoutLazyRefresh, TimeValue.timeValueMinutes(30), true);
+        stats = assertSerialization(stats);
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+
+        assertEquals(
+            "{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"],"
+                + "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"cluster_name\":\"expected_cluster\","
+                + "\"lazy_connection_refresh\":false,\"initial_connect_timeout\":\"30m\",\"skip_unavailable\":true}}",
+            builder.toString()
+        );
+
+        // Test with lazy_connection_refresh null - should NOT show in output
+        SniffConnectionStrategy.SniffModeInfo modeInfoWithNullLazyRefresh = new SniffConnectionStrategy.SniffModeInfo(
+            remoteAddresses,
+            3,
+            2,
+            "expected_cluster",
+            null
+        );
+
+        stats = new RemoteConnectionInfo("test_cluster", modeInfoWithNullLazyRefresh, TimeValue.timeValueMinutes(30), true);
+        stats = assertSerialization(stats);
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        stats.toXContent(builder, null);
+        builder.endObject();
+
+        assertEquals(
+            "{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"],"
+                + "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"cluster_name\":\"expected_cluster\","
+                + "\"initial_connect_timeout\":\"30m\",\"skip_unavailable\":true}}",
+            builder.toString()
+        );
+    }
+
     public void testCollectNodes() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
@@ -746,6 +825,26 @@ public class RemoteClusterConnectionTests extends OpenSearchTestCase {
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             Strings.collectionToCommaDelimitedString(seedNodes)
         );
+        return builder.build();
+    }
+
+    private static Settings buildSniffSettingsWithClusterName(
+        String clusterAlias,
+        List<String> seedNodes,
+        String expectedClusterName,
+        int maxConnections
+    ) {
+        Settings.Builder builder = Settings.builder();
+        builder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).getKey(), "sniff");
+        builder.put(
+            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            Strings.collectionToCommaDelimitedString(seedNodes)
+        );
+        builder.put(
+            SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(clusterAlias).getKey(),
+            expectedClusterName
+        );
+        builder.put(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).getKey(), maxConnections);
         return builder.build();
     }
 }

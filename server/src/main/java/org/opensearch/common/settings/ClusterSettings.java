@@ -465,6 +465,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
                 SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
                 SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME,
+                SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH,
                 TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
                 ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,

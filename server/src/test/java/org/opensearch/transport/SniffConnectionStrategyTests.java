@@ -1185,7 +1185,460 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Test that when seeds change but lazy_connection_refresh is enabled and cluster_name is set and unchanged,
+     * the strategy does NOT need to be rebuilt (existing connections are preserved).
+     * Seeds are updated in-place for future reconnection attempts.
+     */
+    public void testSeedUpdateWithoutRebuildWhenLazyRefreshEnabledAndClusterNameSetAndUnchanged() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Use clusterAlias as expected name - matches what startTransport() sets
+                String expectedClusterName = clusterAlias;
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        3,
+                        n -> true,
+                        seedNodes(seedNode),
+                        Collections.singletonList(() -> seedNode),
+                        expectedClusterName,
+                        true  // lazy_connection_refresh enabled
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                    Setting<?> expectedNameSetting = SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(
+                        clusterAlias
+                    );
+                    Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                        .getConcreteSettingForNamespace(clusterAlias);
+
+                    // Seeds changed but lazy_connection_refresh=true and cluster_name is set and unchanged - should NOT rebuild
+                    Settings seedsChangedWithSameClusterName = Settings.builder()
+                        .put(seedSetting.getKey(), discoverableNode.getAddress().toString())
+                        .put(expectedNameSetting.getKey(), expectedClusterName)
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+
+                    // This should return false - no rebuild needed
+                    assertFalse(strategy.shouldRebuildConnection(seedsChangedWithSameClusterName));
+
+                    // Connections should still be there
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that when seeds change and cluster_name is NOT set,
+     * the strategy MUST be rebuilt even if lazy_connection_refresh is enabled.
+     */
+    public void testSeedUpdateTriggersRebuildWhenClusterNameNotSet() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        3,
+                        n -> true,
+                        seedNodes(seedNode),
+                        Collections.singletonList(() -> seedNode),
+                        null,  // No cluster_name set
+                        true   // lazy_connection_refresh enabled
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                    Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                        .getConcreteSettingForNamespace(clusterAlias);
+
+                    // Seeds changed and cluster_name is NOT set - should rebuild even with lazy_connection_refresh=true
+                    Settings seedsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), discoverableNode.getAddress().toString())
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+
+                    // This should return true - rebuild required (cluster_name not set)
+                    assertTrue(strategy.shouldRebuildConnection(seedsChanged));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that when seeds change and cluster_name changes,
+     * the strategy MUST be rebuilt even if lazy_connection_refresh is enabled.
+     */
+    public void testSeedUpdateTriggersRebuildWhenClusterNameChanges() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Use clusterAlias as initial expected name - matches what startTransport() sets
+                String initialClusterName = clusterAlias;
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        3,
+                        n -> true,
+                        seedNodes(seedNode),
+                        Collections.singletonList(() -> seedNode),
+                        initialClusterName,
+                        true  // lazy_connection_refresh enabled
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                    Setting<?> expectedNameSetting = SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(
+                        clusterAlias
+                    );
+                    Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                        .getConcreteSettingForNamespace(clusterAlias);
+
+                    // Seeds changed AND cluster_name changed - should rebuild even with lazy_connection_refresh=true
+                    Settings bothChanged = Settings.builder()
+                        .put(seedSetting.getKey(), discoverableNode.getAddress().toString())
+                        .put(expectedNameSetting.getKey(), "new-cluster-name")
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+
+                    assertTrue(strategy.shouldRebuildConnection(bothChanged));
+
+                    // Only cluster_name changed (seeds same) - should still rebuild
+                    Settings onlyClusterNameChanged = Settings.builder()
+                        .put(seedSetting.getKey(), seedNode.getAddress().toString())
+                        .put(expectedNameSetting.getKey(), "new-cluster-name")
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+
+                    assertTrue(strategy.shouldRebuildConnection(onlyClusterNameChanged));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that updated seeds (without rebuild) are used when reconnecting after disconnect.
+     */
+    public void testUpdatedSeedsUsedOnReconnect() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+            MockTransportService newSeedTransport = startTransport("new_seed_node", knownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode newSeedNode = newSeedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(newSeedNode);
+            knownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Use clusterAlias as expected name - matches what startTransport() sets
+                String expectedClusterName = clusterAlias;
+                int maxConnections = 2;
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        maxConnections,
+                        n -> true,
+                        seedNodes(seedNode),
+                        Collections.singletonList(() -> seedNode),
+                        expectedClusterName,
+                        true  // lazy_connection_refresh enabled
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertEquals(2, connectionManager.size());
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+
+                    // Now update seeds without rebuild (lazy_connection_refresh=true and cluster_name is set and unchanged)
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                    Setting<?> expectedNameSetting = SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(
+                        clusterAlias
+                    );
+                    Setting<?> numConnectionsSetting = SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(
+                        clusterAlias
+                    );
+                    Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                        .getConcreteSettingForNamespace(clusterAlias);
+
+                    Settings seedsUpdated = Settings.builder()
+                        .put(seedSetting.getKey(), newSeedNode.getAddress().toString())
+                        .put(expectedNameSetting.getKey(), expectedClusterName)
+                        .put(numConnectionsSetting.getKey(), maxConnections)
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+
+                    // Verify no rebuild needed - seeds updated in-place
+                    assertFalse(strategy.shouldRebuildConnection(seedsUpdated));
+
+                    // Original seed still connected (no rebuild happened)
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+
+                    // Now close the original seed to trigger reconnection
+                    seedTransport.close();
+
+                    // Wait for reconnection using the new seed
+                    assertBusy(() -> {
+                        assertEquals(2, connectionManager.size());
+                        assertTrue(connectionManager.nodeConnected(newSeedNode));
+                    });
+                }
+            }
+        }
+    }
+
     private static List<String> seedNodes(final DiscoveryNode... seedNodes) {
         return Arrays.stream(seedNodes).map(s -> s.getAddress().toString()).collect(Collectors.toList());
+    }
+
+    /**
+     * Test that lazy_connection_refresh is disabled (false) by default.
+     */
+    public void testLazyConnectionRefreshDisabledByDefault() {
+        Setting<Boolean> setting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH.getConcreteSettingForNamespace(
+            clusterAlias
+        );
+        Boolean defaultValue = setting.get(Settings.EMPTY);
+        assertFalse(defaultValue);
+    }
+
+    /**
+     * Test that changing lazy_connection_refresh triggers strategy rebuild.
+     */
+    public void testLazyConnectionRefreshChangeTriggersRebuild() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            knownNodes.add(seedNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                    .getConcreteSettingForNamespace(clusterAlias);
+
+                Settings initialSettings = Settings.builder()
+                    .put(seedSetting.getKey(), seedNode.getAddress().toString())
+                    .put(lazyRefreshSetting.getKey(), false)  // Disabled
+                    .build();
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        initialSettings
+                    )
+                ) {
+                    // Same settings - no rebuild
+                    assertFalse(strategy.shouldRebuildConnection(initialSettings));
+
+                    // Change lazy_connection_refresh - should trigger rebuild
+                    Settings changedLazyRefreshSettings = Settings.builder()
+                        .put(seedSetting.getKey(), seedNode.getAddress().toString())
+                        .put(lazyRefreshSetting.getKey(), true)
+                        .build();
+                    assertTrue(strategy.shouldRebuildConnection(changedLazyRefreshSettings));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test that seeds change triggers rebuild when lazy_connection_refresh is disabled (default).
+     */
+    public void testSeedUpdateTriggersRebuildWhenLazyRefreshDisabled() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Use clusterAlias as expected name - matches what startTransport() sets
+                String expectedClusterName = clusterAlias;
+
+                ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                try (
+                    RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                    SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                        clusterAlias,
+                        localService,
+                        remoteConnectionManager,
+                        null,
+                        Settings.EMPTY,
+                        3,
+                        n -> true,
+                        seedNodes(seedNode),
+                        Collections.singletonList(() -> seedNode),
+                        expectedClusterName,
+                        false  // lazy_connection_refresh disabled (default)
+                    )
+                ) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+
+                    Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias);
+                    Setting<?> expectedNameSetting = SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(
+                        clusterAlias
+                    );
+                    Setting<?> lazyRefreshSetting = SniffConnectionStrategy.REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH
+                        .getConcreteSettingForNamespace(clusterAlias);
+
+                    // Seeds changed with cluster_name set but lazy_connection_refresh=false - should rebuild
+                    Settings seedsChanged = Settings.builder()
+                        .put(seedSetting.getKey(), discoverableNode.getAddress().toString())
+                        .put(expectedNameSetting.getKey(), expectedClusterName)
+                        .put(lazyRefreshSetting.getKey(), false)
+                        .build();
+
+                    // This should return true - rebuild required because lazy_connection_refresh is false
+                    assertTrue(strategy.shouldRebuildConnection(seedsChanged));
+                }
+            }
+        }
     }
 }

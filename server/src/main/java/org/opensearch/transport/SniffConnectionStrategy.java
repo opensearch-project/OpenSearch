@@ -60,6 +60,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -156,18 +157,38 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         )
     );
 
+    /**
+     * When enabled, allows seed updates without rebuilding existing connections if cluster_name is also set and unchanged.
+     * This is useful for seed rotation scenarios where you want to update the seed list without disrupting
+     * existing connections to the remote cluster. The new seeds will be used for future connection attempts
+     * (e.g., when replacing lost connections via onNodeDisconnected).
+     * Defaults to false.
+     */
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH = Setting.affixKeySetting(
+        "cluster.remote.",
+        "lazy_connection_refresh",
+        (ns, key) -> Setting.boolSetting(
+            key,
+            false,
+            new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF),
+            Setting.Property.Dynamic,
+            Setting.Property.NodeScope
+        )
+    );
+
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isClusterManagerNode() == false || node.isDataNode() || node.isIngestNode());
 
-    private final List<String> configuredSeedNodes;
-    private final List<Supplier<DiscoveryNode>> seedNodes;
+    private volatile List<String> configuredSeedNodes;
+    private volatile List<Supplier<DiscoveryNode>> seedNodes;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private final String proxyAddress;
     private final String expectedClusterName;
+    private final boolean lazyConnectionRefresh;
 
     SniffConnectionStrategy(
         String clusterAlias,
@@ -227,6 +248,34 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         List<Supplier<DiscoveryNode>> seedNodes,
         String expectedClusterName
     ) {
+        this(
+            clusterAlias,
+            transportService,
+            connectionManager,
+            proxyAddress,
+            settings,
+            maxNumRemoteConnections,
+            nodePredicate,
+            configuredSeedNodes,
+            seedNodes,
+            expectedClusterName,
+            REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH.getConcreteSettingForNamespace(clusterAlias).get(settings)
+        );
+    }
+
+    SniffConnectionStrategy(
+        String clusterAlias,
+        TransportService transportService,
+        RemoteConnectionManager connectionManager,
+        String proxyAddress,
+        Settings settings,
+        int maxNumRemoteConnections,
+        Predicate<DiscoveryNode> nodePredicate,
+        List<String> configuredSeedNodes,
+        List<Supplier<DiscoveryNode>> seedNodes,
+        String expectedClusterName,
+        boolean lazyConnectionRefresh
+    ) {
         super(clusterAlias, transportService, connectionManager, settings);
         this.proxyAddress = proxyAddress;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
@@ -234,6 +283,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.configuredSeedNodes = configuredSeedNodes;
         this.seedNodes = seedNodes;
         this.expectedClusterName = Strings.hasText(expectedClusterName) ? expectedClusterName : null;
+        this.lazyConnectionRefresh = lazyConnectionRefresh;
     }
 
     static Stream<Setting.AffixSetting<?>> enablementSettings() {
@@ -255,10 +305,59 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         String newExpectedClusterName = REMOTE_CLUSTER_EXPECTED_NAME.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
-        return nodeConnections != maxNumRemoteConnections
-            || seedsChanged(configuredSeedNodes, addresses)
+        boolean newLazyConnectionRefresh = REMOTE_CLUSTER_LAZY_CONNECTION_REFRESH.getConcreteSettingForNamespace(clusterAlias)
+            .get(newSettings);
+
+        // Check if non-seed settings changed - these always require rebuild
+        if (nodeConnections != maxNumRemoteConnections
             || proxyChanged(proxyAddress, proxy)
-            || expectedClusterNameChanged(expectedClusterName, newExpectedClusterName);
+            || expectedClusterNameChanged(expectedClusterName, newExpectedClusterName)
+            || lazyConnectionRefresh != newLazyConnectionRefresh) {
+            return true;
+        }
+
+        // Check if seeds changed
+        boolean seedsDidChange = seedsChanged(configuredSeedNodes, addresses);
+
+        if (seedsDidChange) {
+            // We can safely update seeds without rebuild if:
+            // 1. lazy_connection_refresh is enabled
+            // 2. cluster_name is set and unchanged (ensures new seeds point to the same cluster)
+            // This avoids tearing down existing valid connections when seeds are rotated.
+            // The new seeds will be used for future connection attempts (e.g., when replacing lost connections).
+            boolean clusterNameSetAndUnchanged = Strings.hasText(newExpectedClusterName)
+                && expectedClusterName.equals(newExpectedClusterName);
+
+            if (lazyConnectionRefresh && clusterNameSetAndUnchanged) {
+                // Update seeds in-place without rebuilding connections
+                updateSeeds(addresses);
+                logger.info(
+                    "[{}] seeds updated without connection rebuild (lazy_connection_refresh=true, cluster_name={} unchanged)",
+                    clusterAlias,
+                    expectedClusterName
+                );
+                return false;
+            }
+            // Must rebuild: either lazy_connection_refresh is disabled, or cluster_name not set/changed
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Updates the seed nodes without rebuilding connections.
+     * This is safe to call when:
+     * - lazy_connection_refresh is enabled
+     * - cluster_name is set and unchanged (ensures new seeds point to the same remote cluster)
+     * The new seeds will be used for future connection attempts.
+     */
+    private void updateSeeds(List<String> newSeedAddresses) {
+        this.configuredSeedNodes = Collections.unmodifiableList(new ArrayList<>(newSeedAddresses));
+        this.seedNodes = newSeedAddresses.stream()
+            .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
+            .collect(Collectors.toList());
+        logger.info("[{}] seeds updated to {}", clusterAlias, newSeedAddresses);
     }
 
     @Override
@@ -273,7 +372,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected RemoteConnectionInfo.ModeInfo getModeInfo() {
-        return new SniffModeInfo(configuredSeedNodes, maxNumRemoteConnections, connectionManager.size(), expectedClusterName);
+        return new SniffModeInfo(
+            configuredSeedNodes,
+            maxNumRemoteConnections,
+            connectionManager.size(),
+            expectedClusterName,
+            lazyConnectionRefresh
+        );
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
@@ -613,16 +718,24 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         final int maxConnectionsPerCluster;
         final int numNodesConnected;
         final String expectedClusterName;
+        final Boolean lazyConnectionRefresh;
 
         public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected) {
-            this(seedNodes, maxConnectionsPerCluster, numNodesConnected, null);
+            this(seedNodes, maxConnectionsPerCluster, numNodesConnected, null, null);
         }
 
-        public SniffModeInfo(List<String> seedNodes, int maxConnectionsPerCluster, int numNodesConnected, String expectedClusterName) {
+        public SniffModeInfo(
+            List<String> seedNodes,
+            int maxConnectionsPerCluster,
+            int numNodesConnected,
+            String expectedClusterName,
+            Boolean lazyConnectionRefresh
+        ) {
             this.seedNodes = seedNodes;
             this.maxConnectionsPerCluster = maxConnectionsPerCluster;
             this.numNodesConnected = numNodesConnected;
             this.expectedClusterName = expectedClusterName;
+            this.lazyConnectionRefresh = lazyConnectionRefresh;
         }
 
         private SniffModeInfo(StreamInput input) throws IOException {
@@ -633,6 +746,11 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 expectedClusterName = input.readOptionalString();
             } else {
                 expectedClusterName = null;
+            }
+            if (input.getVersion().onOrAfter(Version.V_3_6_0)) {
+                lazyConnectionRefresh = input.readOptionalBoolean();
+            } else {
+                lazyConnectionRefresh = null;
             }
         }
 
@@ -648,6 +766,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             if (expectedClusterName != null) {
                 builder.field("cluster_name", expectedClusterName);
             }
+            if (lazyConnectionRefresh != null) {
+                builder.field("lazy_connection_refresh", lazyConnectionRefresh);
+            }
             return builder;
         }
 
@@ -658,6 +779,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             out.writeVInt(numNodesConnected);
             if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
                 out.writeOptionalString(expectedClusterName);
+            }
+            if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+                out.writeOptionalBoolean(lazyConnectionRefresh);
             }
         }
 
@@ -687,6 +811,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return expectedClusterName;
         }
 
+        public Boolean getLazyConnectionRefresh() {
+            return lazyConnectionRefresh;
+        }
+
         @Override
         public RemoteConnectionStrategy.ConnectionStrategy modeType() {
             return RemoteConnectionStrategy.ConnectionStrategy.SNIFF;
@@ -700,12 +828,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             return maxConnectionsPerCluster == sniff.maxConnectionsPerCluster
                 && numNodesConnected == sniff.numNodesConnected
                 && Objects.equals(seedNodes, sniff.seedNodes)
-                && Objects.equals(expectedClusterName, sniff.expectedClusterName);
+                && Objects.equals(expectedClusterName, sniff.expectedClusterName)
+                && Objects.equals(lazyConnectionRefresh, sniff.lazyConnectionRefresh);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected, expectedClusterName);
+            return Objects.hash(seedNodes, maxConnectionsPerCluster, numNodesConnected, expectedClusterName, lazyConnectionRefresh);
         }
     }
 }
