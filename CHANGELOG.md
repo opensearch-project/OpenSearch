@@ -17,7 +17,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move Randomness from server to libs/common ([#20570](https://github.com/opensearch-project/OpenSearch/pull/20570))
 - Use env variable (OPENSEARCH_FIPS_MODE) to enable opensearch to run in FIPS enforced mode instead of checking for existence of bcFIPS jars ([#20625](https://github.com/opensearch-project/OpenSearch/pull/20625))
 - Update streaming flag to use search request context ([#20530](https://github.com/opensearch-project/OpenSearch/pull/20530))
-- Relaxed validation for field-level `meta` ([#19884](https://github.com/opensearch-project/OpenSearch/issues/19884))
 - Relax validation for field-level `meta` ([#19884](https://github.com/opensearch-project/OpenSearch/issues/19884))
 
 ### Fixed
