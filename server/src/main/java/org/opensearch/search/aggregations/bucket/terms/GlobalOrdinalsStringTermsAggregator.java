@@ -92,6 +92,7 @@ import java.util.function.LongUnaryOperator;
 
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_DOCS;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -207,27 +208,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return false;
         }
 
-        TermsEnum indexTermsEnum = segmentTerms.iterator();
-        BytesRef indexTerm = indexTermsEnum.next();
-        final SortedSetDocValues globalOrds = this.getGlobalOrds(ctx);
-        TermsEnum globalOrdinalTermsEnum = globalOrds.termsEnum();
-        BytesRef ordinalTerm = globalOrdinalTermsEnum.next();
+        final TermsEnum segmentTermsEnum = segmentTerms.iterator();
+        final LongUnaryOperator globalOrdsMapping = valuesSource.globalOrdinalsMapping(ctx);
+        BytesRef segmentTerm = segmentTermsEnum.next();
 
-        // Iterate over the terms in the segment, look for matches in the global ordinal terms,
-        // and increment bucket count when segment terms match global ordinal terms.
-        while (indexTerm != null && ordinalTerm != null) {
-            int compare = indexTerm.compareTo(ordinalTerm);
-            if (compare == 0) {
-                if (acceptedGlobalOrdinals.test(globalOrdinalTermsEnum.ord())) {
-                    ordCountConsumer.accept(globalOrdinalTermsEnum.ord(), indexTermsEnum.docFreq());
-                }
-                indexTerm = indexTermsEnum.next();
-                ordinalTerm = globalOrdinalTermsEnum.next();
-            } else if (compare < 0) {
-                indexTerm = indexTermsEnum.next();
-            } else {
-                ordinalTerm = globalOrdinalTermsEnum.next();
+        // Iterate over the ordinals in the segment, look for matches in the global ordinal,
+        // and increment bucket count when segment ordinal is contained in global ordinals.
+        while (segmentTerm != null) {
+            long globalOrd = globalOrdsMapping.applyAsLong(segmentTermsEnum.ord());
+            if (acceptedGlobalOrdinals.test(globalOrd)) {
+                ordCountConsumer.accept(globalOrd, segmentTermsEnum.docFreq());
             }
+            segmentTerm = segmentTermsEnum.next();
         }
         return true;
     }
