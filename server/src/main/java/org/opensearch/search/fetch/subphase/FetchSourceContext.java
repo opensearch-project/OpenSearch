@@ -134,7 +134,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+            return new FetchSourceContext(fetchSource == null || fetchSource, sourceIncludes, sourceExcludes);
         }
         return null;
     }
