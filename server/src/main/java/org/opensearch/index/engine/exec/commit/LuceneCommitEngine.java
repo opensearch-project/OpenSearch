@@ -69,6 +69,10 @@ public class LuceneCommitEngine implements Committer {
         }
     }
 
+    public IndexWriter getIndexWriter() {
+        return indexWriter;
+    }
+
     @Override
     public synchronized void addLuceneIndexes(List<Segment> segments) throws IOException {
 

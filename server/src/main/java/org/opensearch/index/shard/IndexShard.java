@@ -39,6 +39,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -125,6 +126,7 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -2485,45 +2487,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        if (forceLucene) {
-            // Open a DirectoryReader directly on the shard's index directory to bypass
-            // InternalEngine's empty temp directory when isOptimizedIndex
-            return new EngineSearcherSupplier<Engine.Searcher>() {
-                @Override
-                protected Engine.Searcher acquireSearcherInternal(String source) {
-                    try {
-                        DirectoryReader reader = DirectoryReader.open(store.directory());
-                        OpenSearchDirectoryReader wrappedReader = OpenSearchDirectoryReader.wrap(reader, shardId());
-                        return new Engine.Searcher(
-                            source,
-                            wrappedReader,
-                            engine.config().getSimilarity(),
-                            engine.config().getQueryCache(),
-                            engine.config().getQueryCachingPolicy(),
-                            () -> {
-                                try {
-                                    wrappedReader.close();
-                                } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
-                                }
-                            }
-                        );
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
-
-                @Override
-                protected void doClose() {}
-
-                @Override
-                public void close() {}
-            };
-        }
-        if (currentCompositeEngineReference.get() != null) {
+        if(!forceLucene && currentCompositeEngineReference.get() != null ) {
             return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         }
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+
+//        // For forceLucene, skip reader wrappers (DerivedSource etc.) to avoid per-term overhead
+//        return forceLucene ? engine.acquireSearcherSupplier(Function.identity(), scope)
+//            : engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -3255,6 +3226,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
                 );
                 currentCompositeEngineReference.set(compositeEngine);
+                // Reinitialize InternalEngine's reader manager with LuceneCommitEngine's IndexWriter
+                IndexWriter luceneWriter = compositeEngine.getLuceneIndexWriter();
+                if (luceneWriter != null && newEngine instanceof InternalEngine) {
+                    ((InternalEngine) newEngine).reinitReaderManager(luceneWriter);
+                }
             }
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);

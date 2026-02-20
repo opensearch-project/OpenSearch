@@ -130,6 +130,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -186,8 +187,8 @@ public class InternalEngine extends Engine {
     protected String historyUUID;
 
     private final OpenSearchConcurrentMergeScheduler mergeScheduler;
-    private final ExternalReaderManager externalReaderManager;
-    private final OpenSearchReaderManager internalReaderManager;
+    private volatile ExternalReaderManager externalReaderManager;
+    private volatile OpenSearchReaderManager internalReaderManager;
 
     private final Lock flushLock = new ReentrantLock();
     private final ReentrantLock optimizeLock = new ReentrantLock();
@@ -643,8 +644,11 @@ public class InternalEngine extends Engine {
         OpenSearchReaderManager internalReaderManager = null;
         try {
             try {
+                final DirectoryReader rawReader = engineConfig.getIndexSettings().isOptimizedIndex()
+                    ? DirectoryReader.open(store.directory())
+                    : DirectoryReader.open(indexWriter);
                 final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
-                    DirectoryReader.open(indexWriter),
+                    rawReader,
                     shardId
                 );
                 internalReaderManager = new OpenSearchReaderManager(directoryReader);
@@ -666,6 +670,32 @@ public class InternalEngine extends Engine {
                 IOUtils.closeWhileHandlingException(internalReaderManager, indexWriter);
             }
         }
+    }
+
+    /**
+     * Reinitialize the reader manager to use an external IndexWriter (e.g. from LuceneCommitEngine)
+     * for NRT reads. This allows the InternalEngine's searcher infrastructure to see data written
+     * by the CompositeEngine.
+     */
+    public void reinitReaderManager(IndexWriter externalWriter) throws IOException {
+        final OpenSearchDirectoryReader directoryReader = OpenSearchDirectoryReader.wrap(
+            DirectoryReader.open(externalWriter),
+            shardId
+        );
+        OpenSearchReaderManager newInternalRM = new OpenSearchReaderManager(directoryReader);
+        ExternalReaderManager newExternalRM = new ExternalReaderManager(
+            newInternalRM, new RefreshWarmerListener(logger, isClosed, engineConfig)
+        );
+        newInternalRM.addListener(versionMap);
+        for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+            newExternalRM.addListener(listener);
+        }
+        for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+            newInternalRM.addListener(listener);
+        }
+        this.internalReaderManager = newInternalRM;
+        this.externalReaderManager = newExternalRM;
+        logger.info("reinitReaderManager: numDocs={}, segments={}", directoryReader.numDocs(), directoryReader.leaves().size());
     }
 
     @Override
