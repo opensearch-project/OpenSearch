@@ -96,4 +96,15 @@ public class Tags {
         return Collections.unmodifiableMap(tagsMap);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Tags)) return false;
+        return tagsMap.equals(((Tags) o).tagsMap);
+    }
+
+    @Override
+    public int hashCode() {
+        return tagsMap.hashCode();
+    }
 }
