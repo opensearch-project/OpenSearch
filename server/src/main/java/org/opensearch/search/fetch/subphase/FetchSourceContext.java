@@ -192,7 +192,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         XContentParser.Token token = parser.currentToken();
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
-
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             switch (token) {
@@ -201,35 +200,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> includesList = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                includesList.add(parser.text());
-                            }
-                            else {
-                                throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                    parser.getTokenLocation()
-                                );
-                            }
-                        }
+                        List<String> includesList = parseStringArray(parser);
                         includes = includesList.toArray(new String[0]);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> excludesList = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                excludesList.add(parser.text());
-                            }
-                            else {
-                                throw new ParsingException(
-                                    parser.getTokenLocation(),
-                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                    parser.getTokenLocation()
-                                );
-                            }
-                        }
+                        List<String> excludesList = parseStringArray(parser);
                         excludes = excludesList.toArray(new String[0]);
                     }
                     else {
@@ -265,6 +240,23 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
         return new FetchSourceContext(true, includes, excludes);
+    }
+
+    private static List<String> parseStringArray(XContentParser parser) throws IOException {
+        List<String> list = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                list.add(parser.text());
+            }
+            else {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "].",
+                    parser.getTokenLocation()
+                );
+            }
+        }
+        return list;
     }
 
     @Override
