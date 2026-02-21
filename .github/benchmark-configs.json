@@ -259,4 +259,22 @@
     },
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
   }
-}
+},
+"id_16": {
+    "description": "clickbench workload DSL queries test",
+    "supported_major_versions": ["3"],
+    "cluster-benchmark-configs": {
+      "SINGLE_NODE_CLUSTER": "true",
+      "MIN_DISTRIBUTION": "true",
+      "DATA_INSTANCE_TYPE": "c5.2xlarge",
+      "TEST_WORKLOAD": "clickbench",
+      "WORKLOAD_PARAMS": "{\"snapshot_repo_name\":\"benchmark-workloads-repo-3x\",\"snapshot_bucket_name\":\"benchmark-workload-snapshots\",\"snapshot_region\":\"us-east-1\",\"snapshot_base_path\":\"10.3.2\",\"snapshot_name\":\"clickbench_3_shards\",\"warmup_iterations\":10,\"test_iterations\":20}",
+      "CAPTURE_NODE_STAT": "true",
+      "TEST_PROCEDURE": "dsl-clickbench-snapshot"
+    },
+    "cluster_configuration": {
+      "size": "Single-Node",
+      "data_instance_config": "8vCPU, 32G Mem, 16G Heap"
+    },
+    "baseline_cluster_config": "x64-c5.2xlarge-3-shard-0-replica-snapshot-baseline"
+  }
