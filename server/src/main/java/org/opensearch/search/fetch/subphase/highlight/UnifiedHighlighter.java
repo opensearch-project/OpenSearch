@@ -162,11 +162,11 @@ public class UnifiedHighlighter implements Highlighter {
         Integer fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
         Analyzer analyzer = fieldContext.context.mapperService().documentMapper().mappers().indexAnalyzer();
-        analyzer = wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         MappedFieldType derivedFieldType = fieldContext.context.getQueryShardContext().resolveDerivedFieldType(fieldContext.fieldName);
         if (derivedFieldType != null) {
             analyzer = ((DerivedFieldType) derivedFieldType).getIndexAnalyzer();
         }
+        analyzer = wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);

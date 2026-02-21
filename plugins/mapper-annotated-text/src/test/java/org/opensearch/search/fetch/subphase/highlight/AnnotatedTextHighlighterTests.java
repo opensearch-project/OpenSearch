@@ -80,7 +80,8 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         Locale locale,
         BreakIterator breakIterator,
         int noMatchSize,
-        String[] expectedPassages
+        String[] expectedPassages,
+        int maxAnalyzedOffset
     ) throws Exception {
 
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
@@ -111,8 +112,9 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         for (int i = 0; i < markedUpInputs.length; i++) {
             annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
         }
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
-        hiliteAnalyzer.setAnnotations(annotations);
+        AnnotatedTextHighlighter pluginHighlighter = new AnnotatedTextHighlighter();
+        Analyzer hiliteAnalyzer = pluginHighlighter.wrapAnalyzer(wrapperAnalyzer, maxAnalyzedOffset);
+        ((AnnotatedHighlighterAnalyzer) hiliteAnalyzer).setAnnotations(annotations);
         AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
         passageFormatter.setAnnotations(annotations);
 
@@ -137,7 +139,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
             query,
             noMatchSize,
             expectedPassages.length,
-            Integer.MAX_VALUE,
+            maxAnalyzedOffset,
             null
         );
         final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
@@ -175,7 +177,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
                 + " longer text that gets scored lower." };
         Query query = new TermQuery(new Term("text", url));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
     }
 
     public void testAnnotatedTextOverlapsWithUnstructuredSearchTerms() throws Exception {
@@ -188,7 +190,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
             "[Donald](_hit_term=donald) duck is a [Disney](Disney+Inc) invention" };
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
     }
 
     public void testAnnotatedTextMultiFieldWithBreakIterator() throws Exception {
@@ -202,7 +204,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         breakIterator = new SplittingBreakIterator(breakIterator, '.');
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
     }
 
     public void testAnnotatedTextSingleFieldWithBreakIterator() throws Exception {
@@ -213,7 +215,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         Query query = new TermQuery(new Term("text", "donald"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
         breakIterator = new SplittingBreakIterator(breakIterator, '.');
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
     }
 
     public void testAnnotatedTextSingleFieldWithPhraseQuery() throws Exception {
@@ -221,7 +223,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         String[] expectedPassages = { "[Donald](_hit_term=donald) [Trump](_hit_term=trump) visited Singapore" };
         Query query = new PhraseQuery("text", "donald", "trump");
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
     }
 
     public void testBadAnnotation() throws Exception {
@@ -229,7 +231,36 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         String[] expectedPassages = { "Missing bracket for [Donald Trump](Donald+Trump visited [Singapore](_hit_term=singapore)" };
         Query query = new TermQuery(new Term("text", "singapore"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages);
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedPassages, Integer.MAX_VALUE);
+    }
+
+    public void testMaxAnalyzedOffset() throws Exception {
+        String annotatedWord = "[OpenSearch](OpenSearch)";
+        final String[] markedUpInputs = { annotatedWord + " is a search engine" };
+        Query query = new TermQuery(new Term("text", "engine"));
+        BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+
+        // Scenario 1: Large limit - "engine" should be highlighted
+        String[] expectedWithHighlight = { annotatedWord + " is a search [engine](_hit_term=engine)" };
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedWithHighlight, Integer.MAX_VALUE);
+
+        // Scenario 2: Small limit. The analyzer stops before "engine", so the highlighter finds 0 matches.
+        String[] expectedNothing = {};
+        assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedNothing, 10);
+    }
+
+    public void testWrapAnalyzerOrder() {
+        AnnotatedTextHighlighter highlighter = new AnnotatedTextHighlighter();
+        Analyzer baseAnalyzer = new StandardAnalyzer();
+        Analyzer result = highlighter.wrapAnalyzer(baseAnalyzer, 10);
+        assertTrue("Outermost analyzer must be AnnotatedHighlighterAnalyzer", result instanceof AnnotatedHighlighterAnalyzer);
+
+        AnnotatedHighlighterAnalyzer annotated = (AnnotatedHighlighterAnalyzer) result;
+        Analyzer inner = annotated.getWrappedAnalyzer("text");
+        assertTrue(
+            "The internal analyzer should be a wrapper (the Limit wrapper)",
+            inner instanceof org.apache.lucene.analysis.AnalyzerWrapper
+        );
     }
 
 }
