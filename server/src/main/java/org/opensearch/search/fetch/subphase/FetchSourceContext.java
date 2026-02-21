@@ -141,15 +141,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        String[] includes = Strings.EMPTY_ARRAY;
-        String[] excludes = Strings.EMPTY_ARRAY;
+        String[] emptyExcludes = Strings.EMPTY_ARRAY;
         switch (token) {
             case XContentParser.Token.VALUE_BOOLEAN -> {
                 return new FetchSourceContext(parser.booleanValue());
             }
             case XContentParser.Token.VALUE_STRING -> {
-                includes = new String[]{parser.text()};
-                return new FetchSourceContext(true, includes, excludes);
+                String[] includes = new String[]{parser.text()};
+                return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_ARRAY -> {
                 ArrayList<String> list = new ArrayList<>();
@@ -163,17 +162,21 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         parser.getTokenLocation()
                     );
                 }
-                includes = list.toArray(new String[0]);
-                return new FetchSourceContext(true, includes, excludes);
+                String[] includes = list.toArray(new String[0]);
+                return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
             }
-            default -> {
+            default ->
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Expected one of ["
                         + XContentParser.Token.VALUE_BOOLEAN
+                        + ", "
+                        + XContentParser.Token.VALUE_STRING
+                        + ", "
+                        + XContentParser.Token.START_ARRAY
                         + ", "
                         + XContentParser.Token.START_OBJECT
                         + "] but found ["
@@ -181,7 +184,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         + "]",
                     parser.getTokenLocation()
                 );
-            }
         }
         // MUST never reach here
     }
