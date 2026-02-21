@@ -322,20 +322,29 @@ class FlightTransport extends TcpTransport {
             .intercept(factory)
             .build();
 
-        return new FlightClientChannel(
-            boundAddress,
-            client,
-            node,
-            location,
-            context,
-            DEFAULT_PROFILE,
-            getResponseHandlers(),
-            threadPool,
-            this.inboundHandler.getMessageListener(),
-            namedWriteableRegistry,
-            statsCollector,
-            config
-        );
+        try {
+            return new FlightClientChannel(
+                boundAddress,
+                client,
+                node,
+                location,
+                context,
+                DEFAULT_PROFILE,
+                getResponseHandlers(),
+                threadPool,
+                this.inboundHandler.getMessageListener(),
+                namedWriteableRegistry,
+                statsCollector,
+                config
+            );
+        } catch (Exception e) {
+            try {
+                client.close();
+            } catch (Exception ce) {
+                e.addSuppressed(ce);
+            }
+            throw e;
+        }
     }
 
     @Override
