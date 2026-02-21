@@ -143,14 +143,16 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         XContentParser.Token token = parser.currentToken();
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
-        if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            boolean fetchSource = parser.booleanValue();
-            return new FetchSourceContext(fetchSource);
+        switch (token) {
+            case XContentParser.Token.VALUE_BOOLEAN -> {
+                return new FetchSourceContext(parser.booleanValue());
+            }
+            case XContentParser.Token.VALUE_STRING -> {
+                includes = new String[]{parser.text()};
+                return new FetchSourceContext(true, includes, excludes);
+            }
         }
-        if (token == XContentParser.Token.VALUE_STRING) {
-            includes = new String[] { parser.text() };
-            return new FetchSourceContext(true, includes, excludes);
-        } else if (token == XContentParser.Token.START_ARRAY) {
+        if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
