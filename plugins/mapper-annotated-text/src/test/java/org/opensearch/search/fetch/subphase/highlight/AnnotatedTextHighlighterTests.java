@@ -244,7 +244,7 @@ public class AnnotatedTextHighlighterTests extends OpenSearchTestCase {
         String[] expectedWithHighlight = { annotatedWord + " is a search [engine](_hit_term=engine)" };
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedWithHighlight, Integer.MAX_VALUE);
 
-        // Scenario 2: Small limit. The analyzer stops before "engine", so the highlighter finds 0 matches.
+        // Scenario 2: Small limit - analyzer stops before "engine", so the highlighter finds 0 matches.
         String[] expectedNothing = {};
         assertHighlightOneDoc("text", markedUpInputs, query, Locale.ROOT, breakIterator, 0, expectedNothing, 10);
     }
