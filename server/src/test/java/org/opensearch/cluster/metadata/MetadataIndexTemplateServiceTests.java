@@ -1316,6 +1316,73 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         }
     }
 
+    public void testPatternsActuallyOverlap() {
+        // Patterns that share a genuine conflict: baz matches baz*
+        assertTrue(
+            MetadataIndexTemplateService.patternsActuallyOverlap(Arrays.asList("egg*", "baz"), Arrays.asList("abc", "baz*"))
+        );
+
+        // Patterns with multi-wildcards where literal segments after the first wildcard distinguish them
+        assertFalse(
+            MetadataIndexTemplateService.patternsActuallyOverlap(
+                Arrays.asList("app-test-*-some-*"),
+                Arrays.asList("app-test-*-some_other-*")
+            )
+        );
+
+        // Patterns with a common prefix and different literal suffixes after a wildcard
+        assertFalse(
+            MetadataIndexTemplateService.patternsActuallyOverlap(Arrays.asList("foo-*-bar"), Arrays.asList("foo-*-baz"))
+        );
+
+        // Patterns where one is a superset of the other (logs-* matches any logs-prod-* index name)
+        assertTrue(
+            MetadataIndexTemplateService.patternsActuallyOverlap(Arrays.asList("logs-*"), Arrays.asList("logs-prod-*"))
+        );
+
+        // Completely disjoint literal prefixes do not overlap
+        assertFalse(
+            MetadataIndexTemplateService.patternsActuallyOverlap(Arrays.asList("foo-*"), Arrays.asList("bar-*"))
+        );
+
+        // Identical patterns overlap with themselves
+        assertTrue(
+            MetadataIndexTemplateService.patternsActuallyOverlap(Arrays.asList("app-*"), Arrays.asList("app-*"))
+        );
+    }
+
+    public void testDistinguishableMultiWildcardTemplatesAccepted() throws Exception {
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComposableIndexTemplate t1 = new ComposableIndexTemplate(
+            Arrays.asList("app-test-*-some-*"),
+            null,
+            null,
+            0L,
+            null,
+            null,
+            null
+        );
+        state = service.addIndexTemplateV2(state, false, "app-test-some", t1);
+
+        // This must not throw: the second pattern is distinguishable from the first because
+        // the literal segment after the first wildcard differs (_other vs nothing).
+        ComposableIndexTemplate t2 = new ComposableIndexTemplate(
+            Arrays.asList("app-test-*-some_other-*"),
+            null,
+            null,
+            0L,
+            null,
+            null,
+            null
+        );
+        state = service.addIndexTemplateV2(state, false, "app-test-some-other", t2);
+
+        assertNotNull(state.metadata().templatesV2().get("app-test-some"));
+        assertNotNull(state.metadata().templatesV2().get("app-test-some-other"));
+    }
+
     public void testFindV2Templates() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;

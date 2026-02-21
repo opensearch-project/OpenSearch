@@ -103,6 +103,49 @@
               number_of_replicas: 0
 
 ---
+"Put distinguishable multi-wildcard templates at the same priority":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [app-test-some] has index patterns [app-test-*-some-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [app-test-some] will take precedence during new index creation"
+      indices.put_index_template:
+        name: app-test-some
+        body:
+          index_patterns: ["app-test-*-some-*"]
+          priority: 0
+
+  # The second template has a literal segment after the first wildcard that differs from the first
+  # template (-some_other- vs -some-), so the two patterns do not practically overlap and both
+  # templates should be accepted at the same priority.
+  - do:
+      allowed_warnings:
+        - "index template [app-test-some-other] has index patterns [app-test-*-some_other-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [app-test-some-other] will take precedence during new index creation"
+      indices.put_index_template:
+        name: app-test-some-other
+        body:
+          index_patterns: ["app-test-*-some_other-*"]
+          priority: 0
+
+  - do:
+      indices.get_index_template:
+        name: app-test-some
+  - match: {index_templates.0.index_template.index_patterns: ["app-test-*-some-*"]}
+
+  - do:
+      indices.get_index_template:
+        name: app-test-some-other
+  - match: {index_templates.0.index_template.index_patterns: ["app-test-*-some_other-*"]}
+
+  - do:
+      indices.delete_index_template:
+        name: app-test-some
+  - do:
+      indices.delete_index_template:
+        name: app-test-some-other
+
+---
 "Put index template without index_patterns":
 
   - do:
