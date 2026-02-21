@@ -9,6 +9,10 @@ members = [
 datafusion = "52.1.0"
 datafusion-expr = "52.1.0"
 datafusion-datasource = "52.1.0"
+datafusion-datasource-parquet = "52.1.0"
+datafusion-common = "52.1.0"
+datafusion-execution = "52.1.0"
+datafusion-physical-expr = "52.1.0"
 arrow-json = "57.3.0"
 arrow = { version = "57.3.0", features = ["ffi", "ipc_compression"] }
 arrow-array = "57.3.0"
@@ -86,3 +90,22 @@ codegen-units = 1    # More parallel compilation
 incremental = true    # Enable incremental compilation
 debug = "full"
 strip = false
+
+# Patch arrow/parquet to local arrow-rs with sparse column chunk fix
+# Required by indexed-table crate for correct page index handling
+[patch.crates-io]
+parquet = { path = "../../../arrow-rs/parquet" }
+arrow = { path = "../../../arrow-rs/arrow" }
+arrow-array = { path = "../../../arrow-rs/arrow-array" }
+arrow-buffer = { path = "../../../arrow-rs/arrow-buffer" }
+arrow-data = { path = "../../../arrow-rs/arrow-data" }
+arrow-schema = { path = "../../../arrow-rs/arrow-schema" }
+arrow-select = { path = "../../../arrow-rs/arrow-select" }
+arrow-ipc = { path = "../../../arrow-rs/arrow-ipc" }
+arrow-cast = { path = "../../../arrow-rs/arrow-cast" }
+arrow-ord = { path = "../../../arrow-rs/arrow-ord" }
+arrow-string = { path = "../../../arrow-rs/arrow-string" }
+arrow-row = { path = "../../../arrow-rs/arrow-row" }
+arrow-csv = { path = "../../../arrow-rs/arrow-csv" }
+arrow-json = { path = "../../../arrow-rs/arrow-json" }
+arrow-arith = { path = "../../../arrow-rs/arrow-arith" }

@@ -1085,15 +1085,16 @@ impl ListingTable {
     }
 
     /// Creates a schema adapter for mapping between file and table schemas
+    ///
+    /// Uses the configured schema adapter factory if available, otherwise falls back
+    /// to the default implementation.
     /// Creates a file source and applies schema adapter factory if available
     fn create_file_source_with_schema_adapter(&self) -> Result<Arc<dyn FileSource>> {
         let table_schema = datafusion_datasource::table_schema::TableSchema::new(
             self.file_schema.clone(),
-            self.options
-                .table_partition_cols
-                .iter()
-                .map(|(name, dt)| Arc::new(Field::new(name, dt.clone(), false)) as _)
-                .collect(),
+            self.options.table_partition_cols.iter().map(|(name, dt)| {
+                Arc::new(Field::new(name, dt.clone(), false)) as _
+            }).collect(),
         );
         let mut source = self.options.format.file_source(table_schema);
         // Apply schema adapter to source if available
@@ -1464,22 +1465,21 @@ impl ListingTable {
             inexact_stats,
         )?;
 
-        // Only map statistics if schema_adapter_factory is explicitly set
-        // In DataFusion 52.1, SchemaAdapter has been removed and replaced with PhysicalExprAdapterFactory
-        // Statistics mapping is now optional and only done when explicitly configured
+        // In DF 52, SchemaAdapter is deprecated. Skip statistics schema mapping
+        // when no custom adapter is configured — the common case.
+        // The file source handles schema adaptation internally via PhysicalExprAdapterFactory.
         if let Some(factory) = &self.schema_adapter_factory {
             let schema_adapter = factory.create_with_projected_schema(self.schema());
             let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
-            
             stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
             file_groups.iter_mut().try_for_each(|file_group| {
                 if let Some(stat) = file_group.statistics_mut() {
-                    stat.column_statistics = schema_mapper.map_column_statistics(&stat.column_statistics)?;
+                    stat.column_statistics =
+                        schema_mapper.map_column_statistics(&stat.column_statistics)?;
                 }
                 Ok::<_, DataFusionError>(())
             })?;
         }
-        
         Ok((file_groups, stats))
     }
 

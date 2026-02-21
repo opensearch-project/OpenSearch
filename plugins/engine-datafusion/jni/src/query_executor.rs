@@ -148,7 +148,7 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = target_partitions;
+    config.options_mut().execution.target_partitions = 4;
     config.options_mut().execution.batch_size = 8192;
 
     let state = datafusion::execution::SessionStateBuilder::new()
@@ -423,6 +423,7 @@ pub async fn execute_fetch_phase(
 
     let file_group = FileGroup::new(partitioned_files);
 
+    // In DF 52, ParquetSource takes a TableSchema which includes partition columns
     let table_schema = datafusion_datasource::table_schema::TableSchema::new(
         parquet_schema.clone(),
         vec![Arc::new(Field::new(ROW_BASE_FIELD_NAME, DataType::Int64, false))],

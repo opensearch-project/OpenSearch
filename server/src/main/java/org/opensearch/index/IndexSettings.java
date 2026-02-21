@@ -859,7 +859,7 @@ public final class IndexSettings {
 
     public static final Setting<Boolean> OPTIMIZED_INDEX_ENABLED_SETTING = Setting.boolSetting(
         "index.optimized.enabled",
-        false,
+        true,
         Property.IndexScope,
         Property.Final
     );

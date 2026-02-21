@@ -48,6 +48,8 @@ mod runtime_manager;
 mod cache_jni;
 mod partial_agg_optimizer;
 mod query_executor;
+mod indexed_query_executor;
+mod indexed_table;
 mod project_row_id_analyzer;
 pub mod logger;
 
@@ -730,13 +732,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     let stream_ptr = stream;
     let io_runtime = manager.io_runtime.clone();
 
-    // TODO : this can be 'io_runtime.block_on' if we see rust workers getting overloaded
-    // benchmarks so far are good with spawn
-    // TODO : Thread leaks in tests if its spawn
     io_runtime.block_on(async move {
 
         let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
-        // Poll the stream with monitoring
         let result = stream.try_next().await;
 
         // Uncomment for monitoring stream next
@@ -903,4 +901,171 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     stream: jlong,
 ) {
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+}
+
+/// Execute an indexed query asynchronously.
+///
+/// Registers an IndexedTableProvider under `tableName`, then executes the
+/// substrait plan against it — same response path as executeQueryPhaseAsync.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeIndexedQueryAsync(
+    mut env: JNIEnv,
+    _class: JClass,
+    weight_ptr: jlong,
+    segment_max_docs: JLongArray,
+    parquet_paths: JObjectArray,
+    table_name: JString,
+    substrait_bytes: jbyteArray,
+    num_partitions: jint,
+    bitset_mode: jint,
+    is_query_plan_explain_enabled: jboolean,
+    runtime_ptr: jlong,
+    listener: JObject,
+) {
+    use crate::indexed_table::index::BitsetMode;
+
+    let manager = match TOKIO_RUNTIME_MANAGER.get() {
+        Some(m) => m,
+        None => {
+            log_error!("Runtime manager not initialized");
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution("Runtime manager not initialized".to_string()));
+            return;
+        }
+    };
+
+    // Extract all Java data before async block
+    let seg_max_docs = {
+        let len = match env.get_array_length(&segment_max_docs) {
+            Ok(l) => l as usize,
+            Err(e) => {
+                set_action_listener_error(&mut env, listener,
+                    &DataFusionError::Execution(format!("get_array_length: {}", e)));
+                return;
+            }
+        };
+        let mut buf = vec![0i64; len];
+        if let Err(e) = env.get_long_array_region(segment_max_docs, 0, &mut buf) {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("get_long_array_region: {}", e)));
+            return;
+        }
+        buf
+    };
+
+    let pq_paths = match parse_string_arr(&mut env, parquet_paths) {
+        Ok(paths) => paths,
+        Err(e) => {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("parse parquet paths: {}", e)));
+            return;
+        }
+    };
+
+    let tbl_name: String = match env.get_string(&table_name) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("Failed to get table name: {}", e)));
+            return;
+        }
+    };
+
+    let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes) };
+    let plan_bytes_vec = match env.convert_byte_array(plan_bytes_obj) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)));
+            return;
+        }
+    };
+
+    let n = (num_partitions as usize).max(1);
+    let mode = match bitset_mode {
+        1 => BitsetMode::Or,
+        _ => BitsetMode::And,
+    };
+
+    let jvm = match JAVA_VM.get() {
+        Some(vm) => Arc::new(unsafe {
+            JavaVM::from_raw(vm.get_java_vm_pointer())
+                .expect("Failed to create JavaVM from pointer")
+        }),
+        None => {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution("JavaVM not initialized".to_string()));
+            return;
+        }
+    };
+
+    let listener_ref = match env.new_global_ref(&listener) {
+        Ok(r) => r,
+        Err(e) => {
+            log_error!("Failed to create global ref: {}", e);
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
+            return;
+        }
+    };
+
+    // Pre-resolve the LuceneIndexSearcher class on the calling thread (which has the plugin classloader).
+    // Tokio worker threads use the system classloader and can't find plugin classes.
+    let searcher_class_ref = match env.find_class("org/opensearch/datafusion/search/LuceneIndexSearcher") {
+        Ok(cls) => match env.new_global_ref(cls) {
+            Ok(r) => r,
+            Err(e) => {
+                set_action_listener_error(&mut env, listener,
+                    &DataFusionError::Execution(format!("Failed to create global ref for LuceneIndexSearcher: {}", e)));
+                return;
+            }
+        },
+        Err(e) => {
+            set_action_listener_error(&mut env, listener,
+                &DataFusionError::Execution(format!("Failed to find LuceneIndexSearcher class: {}", e)));
+            return;
+        }
+    };
+
+    let io_runtime = manager.io_runtime.clone();
+    let cpu_executor = manager.cpu_executor();
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
+
+    let is_explain: bool = is_query_plan_explain_enabled != 0;
+
+    // Use spawn + blocking channel instead of block_on.
+    // block_on occupies the calling thread as a worker, causing RepartitionExec's
+    // spawned tasks to serialize on that thread. spawn() lets the io_runtime's
+    // worker threads handle the tasks concurrently.
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    io_runtime.spawn(async move {
+        let result = indexed_query_executor::execute_indexed_query_stream(
+            weight_ptr,
+            seg_max_docs,
+            pq_paths,
+            tbl_name,
+            plan_bytes_vec,
+            n,
+            mode,
+            is_explain,
+            jvm,
+            searcher_class_ref,
+            runtime,
+            cpu_executor,
+        ).await;
+        let _ = tx.send(result);
+    });
+
+    let result = rx.recv().unwrap_or_else(|_| Err(DataFusionError::Execution("Channel closed".to_string())));
+
+    match result {
+        Ok(stream_ptr) => {
+            set_action_listener_ok(&mut env, listener, stream_ptr);
+        }
+        Err(e) => {
+            log_error!("Indexed query execution failed: {}", e);
+            set_action_listener_error(&mut env, listener, &e);
+        }
+    }
 }
