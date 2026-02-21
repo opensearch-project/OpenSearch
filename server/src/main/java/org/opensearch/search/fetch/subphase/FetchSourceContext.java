@@ -151,14 +151,23 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 includes = new String[]{parser.text()};
                 return new FetchSourceContext(true, includes, excludes);
             }
-        }
-        if (token == XContentParser.Token.START_ARRAY) {
-            ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                list.add(parser.text());
+            case XContentParser.Token.START_ARRAY -> {
+                ArrayList<String> list = new ArrayList<>();
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    list.add(parser.text());
+                }
+                if (list.isEmpty()) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Expected at least one value for an array of [" + INCLUDES_FIELD.getPreferredName() + "]",
+                        parser.getTokenLocation()
+                    );
+                }
+                includes = list.toArray(new String[0]);
+                return new FetchSourceContext(true, includes, excludes);
             }
-            includes = list.toArray(new String[0]);
-        } else if (token == XContentParser.Token.START_OBJECT) {
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
