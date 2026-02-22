@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.indices.streamingingestion;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -24,9 +24,9 @@ import java.util.Map;
 /**
  * Indicates ingestion failures at index and shard level.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public record IngestionStateShardFailure(String index, int shard, String errorMessage) implements Writeable, ToXContentFragment {
 
     private static final String SHARD = "shard";
