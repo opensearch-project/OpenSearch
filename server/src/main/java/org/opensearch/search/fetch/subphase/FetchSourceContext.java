@@ -141,18 +141,17 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        String[] emptyExcludes = Strings.EMPTY_ARRAY;
         switch (token) {
             case XContentParser.Token.VALUE_BOOLEAN -> {
                 return new FetchSourceContext(parser.booleanValue());
             }
             case XContentParser.Token.VALUE_STRING -> {
                 String[] includes = new String[] { parser.text() };
-                return new FetchSourceContext(true, includes, emptyExcludes);
+                return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
                 String[] includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
-                return new FetchSourceContext(true, includes, emptyExcludes);
+                return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
