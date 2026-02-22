@@ -47,7 +47,6 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -148,19 +147,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(parser.booleanValue());
             }
             case XContentParser.Token.VALUE_STRING -> {
-                String[] includes = new String[]{parser.text()};
+                String[] includes = new String[] { parser.text() };
                 return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_ARRAY -> {
-                Set<String> includesSet = parseSourceArray(parser);
-                if (includesSet.isEmpty()) {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Expected at least one value for an array of [" + INCLUDES_FIELD.getPreferredName() + "]",
-                        parser.getTokenLocation()
-                    );
-                }
-                String[] includes = includesSet.toArray(new String[0]);
+                String[] includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
                 return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_OBJECT -> {
@@ -200,12 +191,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        Set<String> includesList = parseSourceArray(parser);
-                        includes = includesList.toArray(new String[0]);
+                        includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        Set<String> excludesList = parseSourceArray(parser);
-                        excludes = excludesList.toArray(new String[0]);
+                        excludes = parseSourceArray(parser, EXCLUDES_FIELD).toArray(new String[0]);
                     }
                     else {
                         throw new ParsingException(
@@ -242,7 +231,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static Set<String> parseSourceArray(XContentParser parser) throws IOException {
+    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField) throws IOException {
         Set<String> sourceArr = new HashSet<>(); // include or exclude lists
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -255,6 +244,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     parser.getTokenLocation()
                 );
             }
+        }
+        if (sourceArr.isEmpty()) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected at least one value for an array of [" + parseField.getPreferredName() + "]",
+                parser.getTokenLocation()
+            );
         }
         return sourceArr;
     }
