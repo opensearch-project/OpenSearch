@@ -258,9 +258,8 @@
       "data_instance_config": "4vCPU, 32G Mem, 16G Heap"
     },
     "baseline_cluster_config": "x64-r5.xlarge-1-shard-0-replica-snapshot-baseline"
-  }
-},
-"id_16": {
+  },
+  "id_16": {
     "description": "clickbench workload DSL queries test",
     "supported_major_versions": ["3"],
     "cluster-benchmark-configs": {
@@ -278,3 +277,4 @@
     },
     "baseline_cluster_config": "x64-c5.2xlarge-3-shard-0-replica-snapshot-baseline"
   }
+}
