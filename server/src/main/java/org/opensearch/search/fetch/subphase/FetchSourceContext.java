@@ -45,6 +45,7 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.secure_sm.policy.PolicyParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -194,10 +195,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         String[] excludes = Strings.EMPTY_ARRAY;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                continue; // only field name is required in this iteration
+            }
+            // process field value
             switch (token) {
-                case XContentParser.Token.FIELD_NAME -> {
-                    currentFieldName = parser.currentName();
-                }
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> includesList = parseStringArray(parser);
