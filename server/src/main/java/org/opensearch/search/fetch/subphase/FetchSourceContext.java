@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -48,6 +49,7 @@ import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +69,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
+
+    private static final String AMBIGUOUS_FIELD_MESSAGE = "The same entry [{}] cannot be both included and excluded in _source.";
+
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
@@ -76,6 +81,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        validateAmbiguousFields();
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -86,6 +92,20 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
+        validateAmbiguousFields();
+    }
+
+    /**
+     * The same entry cannot be both included and excluded in _source.
+     * Since the constructors are public, this validation is required to be called in the constructor.
+     * */
+    private void validateAmbiguousFields() {
+        Set<String> includeSet = new HashSet<>(Arrays.asList(this.includes));
+        for (String exclude : this.excludes) {
+            if (includeSet.contains(exclude)) {
+                throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, exclude);
+            }
+        }
     }
 
     @Override
@@ -150,13 +170,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                String[] includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
+                String[] includes = parseSourceArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
             }
-            default ->
+            default -> {
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Expected one of ["
@@ -172,28 +192,36 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         + "]",
                     parser.getTokenLocation()
                 );
+            }
         }
         // MUST never reach here
     }
 
-    private static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
+    public static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        Set<String> includes = new HashSet<>();
-        Set<String> excludes = new HashSet<>();
+        Set<String> includes = Collections.emptySet();
+        Set<String> excludes = Collections.emptySet();
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 continue; // only field name is required in this iteration
             }
+            if (currentFieldName == null) {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Expected a field name but got a " + token + " in [" + parser.currentName() + "].",
+                    parser.getTokenLocation()
+                );
+            }
             // process field value
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceArray(parser, INCLUDES_FIELD);
+                        includes = parseSourceArray(parser, INCLUDES_FIELD, excludes);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceArray(parser, EXCLUDES_FIELD);
+                        excludes = parseSourceArray(parser, EXCLUDES_FIELD, includes);
                     }
                     else {
                         throw new ParsingException(
@@ -205,12 +233,18 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // safe, field names are unique in objects
-                        includes.add(parser.text());
+                        String includeEntry = parser.text();
+                        if (excludes.contains(includeEntry)) {
+                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, includeEntry);
+                        }
+                        includes = Collections.singleton(includeEntry);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // safe, field names are unique in objects
-                        excludes.add(parser.text());
+                        String excludeEntry = parser.text();
+                        if (includes.contains(excludeEntry)) {
+                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
+                        }
+                        excludes = Collections.singleton(excludeEntry);
                     }
                     else {
                         throw new ParsingException(
@@ -219,7 +253,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         );
                     }
                 }
-                default ->  {
+                default -> {
                     throw new ParsingException(
                         parser.getTokenLocation(),
                         "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -228,15 +262,26 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
             }
         }
-        // TODO: validate no intersections: retainAll vs manual loop
+        if (currentFieldName == null) {
+            // no field names -> empty object; empty object is not allowed
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]",
+                parser.getTokenLocation()
+            );
+        }
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
-    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField) throws IOException {
+    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField, Set<String> opposite) throws IOException {
         Set<String> sourceArr = new HashSet<>(); // include or exclude lists
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                sourceArr.add(parser.text());
+                String entry = parser.text();
+                if (opposite != null && opposite.contains(entry)) {
+                    throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, entry);
+                }
+                sourceArr.add(entry);
             }
             else {
                 throw new ParsingException(
