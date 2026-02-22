@@ -45,13 +45,13 @@ import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.secure_sm.policy.PolicyParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 // ISSUE-20612 Source Validation
@@ -203,11 +203,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> includesList = parseStringArray(parser);
+                        Set<String> includesList = parseSourceArray(parser);
                         includes = includesList.toArray(new String[0]);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> excludesList = parseStringArray(parser);
+                        Set<String> excludesList = parseSourceArray(parser);
                         excludes = excludesList.toArray(new String[0]);
                     }
                     else {
@@ -245,11 +245,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static List<String> parseStringArray(XContentParser parser) throws IOException {
-        List<String> list = new ArrayList<>();
+    private static Set<String> parseSourceArray(XContentParser parser) throws IOException {
+        Set<String> sourceArr = new HashSet<>(); // include or exclude lists
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                list.add(parser.text());
+                sourceArr.add(parser.text());
             }
             else {
                 throw new ParsingException(
@@ -259,7 +259,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 );
             }
         }
-        return list;
+        return sourceArr;
     }
 
     @Override
