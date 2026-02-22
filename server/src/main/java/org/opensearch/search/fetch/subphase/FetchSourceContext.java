@@ -178,8 +178,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     private static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        String[] includes = Strings.EMPTY_ARRAY;
-        String[] excludes = Strings.EMPTY_ARRAY;
+        Set<String> includes = new HashSet<>();
+        Set<String> excludes = new HashSet<>();
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -190,10 +190,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
+                        includes = parseSourceArray(parser, INCLUDES_FIELD);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceArray(parser, EXCLUDES_FIELD).toArray(new String[0]);
+                        excludes = parseSourceArray(parser, EXCLUDES_FIELD);
                     }
                     else {
                         throw new ParsingException(
@@ -205,10 +205,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = new String[]{parser.text()};
+                        // safe, field names are unique in objects
+                        includes.add(parser.text());
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = new String[]{parser.text()};
+                        // safe, field names are unique in objects
+                        excludes.add(parser.text());
                     }
                     else {
                         throw new ParsingException(
@@ -227,7 +229,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
             }
         }
-        return new FetchSourceContext(true, includes, excludes);
+        // TODO: validate no intersections: retainAll vs manual loop
+        return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
     private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField) throws IOException {
