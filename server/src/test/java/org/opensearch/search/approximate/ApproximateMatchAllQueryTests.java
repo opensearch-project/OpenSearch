@@ -13,6 +13,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -160,6 +161,59 @@ public class ApproximateMatchAllQueryTests extends OpenSearchTestCase {
 
         searchContext.trackTotalHitsUpTo(SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         assertTrue("Should approximate when track_total_hits is not accurate", approximateMatchAllQuery.canApproximate(searchContext));
+    }
+
+    public void testCannotApproximateWithConstantFieldType() {
+        ApproximateMatchAllQuery approximateMatchAllQuery = new ApproximateMatchAllQuery();
+
+        ShardSearchRequest[] shardSearchRequest = new ShardSearchRequest[1];
+
+        MapperService mockMapper = mock(MapperService.class);
+        String indexField = IndexFieldMapper.NAME;
+        MappedFieldType indexFieldType = new IndexFieldMapper().fieldType();
+        when(mockMapper.fieldType(indexField)).thenReturn(indexFieldType);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+        QueryShardContext queryShardContext = new QueryShardContext(
+            0,
+            new IndexSettings(indexMetadata, settings),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            mockMapper,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        TestSearchContext searchContext = new TestSearchContext(queryShardContext) {
+            @Override
+            public ShardSearchRequest request() {
+                return shardSearchRequest[0];
+            }
+        };
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        shardSearchRequest[0] = new ShardSearchRequest(null, System.currentTimeMillis(), null);
+        shardSearchRequest[0].source(source);
+        source.sort(indexField, SortOrder.ASC);
+
+        assertFalse(
+            "Should not approximate when sort field is a ConstantFieldType like _index",
+            approximateMatchAllQuery.canApproximate(searchContext)
+        );
     }
 
 }
