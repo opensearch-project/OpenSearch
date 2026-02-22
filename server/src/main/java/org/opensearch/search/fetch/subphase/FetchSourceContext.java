@@ -47,10 +47,10 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 // ISSUE-20612 Source Validation
@@ -141,29 +141,17 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        String[] emptyExcludes = Strings.EMPTY_ARRAY;
         switch (token) {
             case XContentParser.Token.VALUE_BOOLEAN -> {
                 return new FetchSourceContext(parser.booleanValue());
             }
             case XContentParser.Token.VALUE_STRING -> {
-                String[] includes = new String[]{parser.text()};
-                return new FetchSourceContext(true, includes, emptyExcludes);
+                String[] includes = new String[] { parser.text() };
+                return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                ArrayList<String> list = new ArrayList<>();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    list.add(parser.text());
-                }
-                if (list.isEmpty()) {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Expected at least one value for an array of [" + INCLUDES_FIELD.getPreferredName() + "]",
-                        parser.getTokenLocation()
-                    );
-                }
-                String[] includes = list.toArray(new String[0]);
-                return new FetchSourceContext(true, includes, emptyExcludes);
+                String[] includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
+                return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
@@ -194,18 +182,18 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         String[] excludes = Strings.EMPTY_ARRAY;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                continue; // only field name is required in this iteration
+            }
+            // process field value
             switch (token) {
-                case XContentParser.Token.FIELD_NAME -> {
-                    currentFieldName = parser.currentName();
-                }
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> includesList = parseStringArray(parser);
-                        includes = includesList.toArray(new String[0]);
+                        includes = parseSourceArray(parser, INCLUDES_FIELD).toArray(new String[0]);
                     }
                     else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        List<String> excludesList = parseStringArray(parser);
-                        excludes = excludesList.toArray(new String[0]);
+                        excludes = parseSourceArray(parser, EXCLUDES_FIELD).toArray(new String[0]);
                     }
                     else {
                         throw new ParsingException(
@@ -242,11 +230,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static List<String> parseStringArray(XContentParser parser) throws IOException {
-        List<String> list = new ArrayList<>();
+    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField) throws IOException {
+        Set<String> sourceArr = new HashSet<>(); // include or exclude lists
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                list.add(parser.text());
+                sourceArr.add(parser.text());
             }
             else {
                 throw new ParsingException(
@@ -256,7 +244,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 );
             }
         }
-        return list;
+        if (sourceArr.isEmpty()) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected at least one value for an array of [" + parseField.getPreferredName() + "]",
+                parser.getTokenLocation()
+            );
+        }
+        return sourceArr;
     }
 
     @Override
