@@ -152,18 +152,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_ARRAY -> {
-                ArrayList<String> list = new ArrayList<>();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    list.add(parser.text());
-                }
-                if (list.isEmpty()) {
+                Set<String> includesSet = parseSourceArray(parser);
+                if (includesSet.isEmpty()) {
                     throw new ParsingException(
                         parser.getTokenLocation(),
                         "Expected at least one value for an array of [" + INCLUDES_FIELD.getPreferredName() + "]",
                         parser.getTokenLocation()
                     );
                 }
-                String[] includes = list.toArray(new String[0]);
+                String[] includes = includesSet.toArray(new String[0]);
                 return new FetchSourceContext(true, includes, emptyExcludes);
             }
             case XContentParser.Token.START_OBJECT -> {
