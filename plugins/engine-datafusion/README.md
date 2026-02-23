@@ -81,7 +81,6 @@ curl --location --request POST 'http://localhost:9200/_bulk' \
 {"index":{"_index":"index-7"}}
 {"id":"5","name":"Diana","age":35,"salary":65000,"score":71.1,"active":true,"created_date":"2024-02-05"}
 '
-'
 ```
 4. Refresh the index
 ```

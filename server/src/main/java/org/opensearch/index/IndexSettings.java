@@ -56,6 +56,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Arrays;
@@ -80,6 +81,12 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MIN_
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
+import static org.opensearch.search.SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING;
 
 /**
  * This class encapsulates all index level settings and handles settings updates.
@@ -735,6 +742,33 @@ public final class IndexSettings {
         "index.search.concurrent.max_slice_count",
         CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
         CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+
+    public static final Setting<String> OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "index.optimized.search.concurrent_segment_search.mode",
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE,
+        value -> {
+            switch (value) {
+                case NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    public static final Setting<Integer> OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT = Setting.intSetting(
+        "index.optimized.search.concurrent.max_slice_count",
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE,
         Property.Dynamic,
         Property.IndexScope
     );

@@ -56,6 +56,7 @@ import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lease.Releasable;
@@ -350,6 +351,46 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // TODO: Should come from plugin, adding it now for time being
+    // Allow concurrent segment search for all requests
+    public static final String NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL = "all";
+
+    // Disallow concurrent search for all requests
+    public static final String NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE = "none";
+
+    public static final Setting<String> NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE = Setting.simpleString(
+        "native.search.concurrent_segment_search.mode",
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL,
+        value -> {
+            switch (value) {
+                case NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_ALL:
+                case NATIVE_CONCURRENT_SEGMENT_SEARCH_MODE_NONE:
+                    // valid setting
+                    break;
+                default:
+                    throw new IllegalArgumentException("Setting value must be one of [all, none, auto]");
+            }
+        },
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final String NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY = "native.search.concurrent.max_slice_count";
+    public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE = computeNativeDefaultPartitionCount();
+    public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE = 1;
+    public static final int NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE = computeNativeMaxPartitionCount();
+
+    // value == 0 means lucene slice computation will be used
+    public static final Setting<Integer> NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING = Setting.intSetting(
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_DEFAULT_SLICE_COUNT_VALUE,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MIN_SLICE_COUNT_VALUE,
+        NATIVE_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_VALUE,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // value 0 means rewrite filters optimization in aggregations will be disabled
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
@@ -2260,6 +2301,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private static int computeDefaultSliceCount() {
         return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+    }
+
+    // TODO:: IN current PR, it is kept same as original Concurrent slice, we will change to tune it later on
+    private static int computeNativeDefaultPartitionCount() {
+        return Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
+    }
+
+    private static int computeNativeMaxPartitionCount() {
+        return Runtime.getRuntime().availableProcessors();
     }
 
     /**

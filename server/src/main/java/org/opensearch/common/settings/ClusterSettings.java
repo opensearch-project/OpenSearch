@@ -870,7 +870,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
                 StreamSearchTransportService.STREAM_SEARCH_ENABLED,
 
-                SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING
+                SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING,
+                SearchService.NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
+                SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
             )
         )
     );
