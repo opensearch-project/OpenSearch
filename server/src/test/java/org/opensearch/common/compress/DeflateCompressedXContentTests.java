@@ -35,7 +35,9 @@ package org.opensearch.common.compress;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.compress.Compressor;
+import org.opensearch.metadata.compress.CompressedData;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
@@ -110,6 +112,90 @@ public class DeflateCompressedXContentTests extends OpenSearchTestCase {
 
     public void testHashCode() throws IOException {
         assertFalse(new CompressedXContent("{\"a\":\"b\"}").hashCode() == new CompressedXContent("{\"a\":\"c\"}").hashCode());
+    }
+
+    public void testCompressedDataSerialization() throws IOException {
+        String str = "---\nf:this is a test string for compressed data";
+        CompressedXContent compressedXContent = new CompressedXContent(str);
+
+        // Serialize using CompressedXContent
+        final BytesStreamOutput out = new BytesStreamOutput();
+        compressedXContent.writeTo(out);
+
+        // Deserialize using CompressedData
+        final StreamInput in = out.bytes().streamInput();
+        final CompressedData compressedData = new CompressedData(in);
+
+        // Verify the data matches
+        assertArrayEquals(compressedXContent.compressed(), compressedData.compressedBytes());
+        assertThat(compressedXContent.compressedData().checksum(), equalTo(compressedData.checksum()));
+    }
+
+    public void testCompressedDataToCompressedXContent() throws IOException {
+        String str = "---\nf:this is a test string for round trip";
+        CompressedXContent original = new CompressedXContent(str);
+
+        // Serialize using CompressedXContent
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        // Deserialize as CompressedData
+        final StreamInput in1 = out1.bytes().streamInput();
+        final CompressedData compressedData = new CompressedData(in1);
+
+        // Serialize using CompressedData
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        compressedData.writeTo(out2);
+
+        // Deserialize as CompressedXContent
+        final StreamInput in2 = out2.bytes().streamInput();
+        final CompressedXContent restored = CompressedXContent.readCompressedString(in2);
+
+        // Verify round-trip preserves data
+        assertEquals(original, restored);
+        assertThat(restored.string(), equalTo(str));
+    }
+
+    public void testCompressedDataRoundTripWithRandomContent() throws IOException {
+        Random r = random();
+        for (int i = 0; i < 100; i++) {
+            String string = TestUtil.randomUnicodeString(r, 1000);
+            // hack to make it detected as YAML
+            string = "---\n" + string;
+
+            CompressedXContent original = new CompressedXContent(string);
+
+            // CompressedXContent -> CompressedData -> CompressedXContent
+            final BytesStreamOutput out1 = new BytesStreamOutput();
+            original.writeTo(out1);
+
+            final StreamInput in1 = out1.bytes().streamInput();
+            final CompressedData compressedData = new CompressedData(in1);
+
+            final BytesStreamOutput out2 = new BytesStreamOutput();
+            compressedData.writeTo(out2);
+
+            final StreamInput in2 = out2.bytes().streamInput();
+            final CompressedXContent restored = CompressedXContent.readCompressedString(in2);
+
+            assertEquals(original, restored);
+            assertThat(restored.string(), equalTo(string));
+        }
+    }
+
+    public void testCompressedXContentFromCompressedData() throws IOException {
+        String str = "---\nf:test content";
+        CompressedXContent original = new CompressedXContent(str);
+
+        // Get CompressedData from CompressedXContent
+        CompressedData compressedData = original.compressedData();
+
+        // Create new CompressedXContent from CompressedData
+        CompressedXContent fromData = new CompressedXContent(compressedData);
+
+        // Verify they are equal
+        assertEquals(original, fromData);
+        assertThat(fromData.string(), equalTo(str));
     }
 
 }

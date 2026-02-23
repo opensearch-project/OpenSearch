@@ -37,6 +37,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.metadata.index.model.AliasMetadataModel;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -45,6 +46,8 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.equalTo;
 
 public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> {
+
+    // --- Serialization tests ---
 
     public void testSerialization() throws IOException {
         final AliasMetadata before = AliasMetadata.builder("alias")
@@ -66,6 +69,178 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
 
         assertThat(after, equalTo(before));
     }
+
+    // --- Model interop tests ---
+
+    public void testModelDeserialization() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        aliasMetadata.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in);
+
+        assertThat(model.alias(), equalTo(aliasMetadata.alias()));
+        assertThat(model.indexRouting(), equalTo(aliasMetadata.indexRouting()));
+        assertThat(model.searchRouting(), equalTo(aliasMetadata.searchRouting()));
+        assertThat(model.searchRoutingValues(), equalTo(aliasMetadata.searchRoutingValues()));
+        assertThat(model.writeIndex(), equalTo(aliasMetadata.writeIndex()));
+        assertThat(model.isHidden(), equalTo(aliasMetadata.isHidden()));
+        assertThat(model.filteringRequired(), equalTo(aliasMetadata.filteringRequired()));
+
+        if (aliasMetadata.filter() != null) {
+            assertNotNull(model.filter());
+            assertArrayEquals(aliasMetadata.filter().compressed(), model.filter().compressedBytes());
+        } else {
+            assertNull(model.filter());
+        }
+    }
+
+    public void testModelDeserializationWithNullValues() throws IOException {
+        final AliasMetadata aliasMetadata = AliasMetadata.builder("minimal-alias").build();
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        aliasMetadata.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in);
+
+        assertThat(model.alias(), equalTo(aliasMetadata.alias()));
+        assertNull(model.filter());
+        assertNull(model.indexRouting());
+        assertNull(model.searchRouting());
+        assertTrue(model.searchRoutingValues().isEmpty());
+        assertNull(model.writeIndex());
+        assertNull(model.isHidden());
+        assertFalse(model.filteringRequired());
+    }
+
+    public void testModelToMetadataSerialization() throws IOException {
+        final AliasMetadata original = AliasMetadata.builder("test-alias")
+            .filter("{ \"term\": \"foo\"}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        original.writeTo(out1);
+
+        final StreamInput in1 = out1.bytes().streamInput();
+        final AliasMetadataModel model = new AliasMetadataModel(in1);
+
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        model.writeTo(out2);
+
+        final StreamInput in2 = out2.bytes().streamInput();
+        final AliasMetadata restored = new AliasMetadata(in2);
+
+        assertThat(restored.alias(), equalTo(original.alias()));
+        assertThat(restored.indexRouting(), equalTo(original.indexRouting()));
+        assertThat(restored.searchRouting(), equalTo(original.searchRouting()));
+        assertThat(restored.writeIndex(), equalTo(original.writeIndex()));
+        assertThat(restored.isHidden(), equalTo(original.isHidden()));
+    }
+
+    public void testConstructorFromModel() throws IOException {
+        final AliasMetadata original = AliasMetadata.builder("model-alias")
+            .filter("{ \"term\": \"bar\"}")
+            .indexRouting("idx-routing")
+            .searchRouting("search1,search2")
+            .writeIndex(false)
+            .isHidden(true)
+            .build();
+
+        AliasMetadata fromModel = new AliasMetadata.Builder(original.model()).build();
+
+        assertThat(fromModel, equalTo(original));
+    }
+
+    public void testModelAccessor() {
+        final AliasMetadata am = AliasMetadata.builder("test-alias")
+            .filter("{\"term\":{\"year\":2016}}")
+            .indexRouting("indexRouting")
+            .searchRouting("routing1,routing2")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        AliasMetadataModel model = am.model();
+        assertNotNull(model);
+        assertThat(model.alias(), equalTo("test-alias"));
+        assertThat(model.indexRouting(), equalTo("indexRouting"));
+        assertTrue(model.filteringRequired());
+    }
+
+    // --- Getter alias tests ---
+
+    public void testGetterAliases() {
+        AliasMetadata am = AliasMetadata.builder("a").filter("{\"term\":{\"x\":1}}").indexRouting("ir").searchRouting("sr").build();
+
+        assertEquals(am.alias(), am.getAlias());
+        assertEquals(am.filter(), am.getFilter());
+        assertEquals(am.indexRouting(), am.getIndexRouting());
+        assertEquals(am.searchRouting(), am.getSearchRouting());
+    }
+
+    // --- newAliasMetadata (rename) test ---
+
+    public void testNewAliasMetadata() {
+        AliasMetadata original = AliasMetadata.builder("orig")
+            .filter("{\"term\":{\"x\":1}}")
+            .indexRouting("ir")
+            .searchRouting("sr")
+            .writeIndex(true)
+            .isHidden(false)
+            .build();
+
+        AliasMetadata renamed = AliasMetadata.newAliasMetadata(original, "renamed");
+
+        assertEquals("renamed", renamed.alias());
+        assertEquals(original.indexRouting(), renamed.indexRouting());
+        assertEquals(original.searchRouting(), renamed.searchRouting());
+        assertEquals(original.writeIndex(), renamed.writeIndex());
+        assertEquals(original.isHidden(), renamed.isHidden());
+    }
+
+    // --- Equals/hashCode tests ---
+
+    public void testEquals() {
+        AliasMetadata m1 = AliasMetadata.builder("a").indexRouting("r").build();
+        AliasMetadata m2 = AliasMetadata.builder("a").indexRouting("r").build();
+        assertEquals(m1, m2);
+        assertEquals(m1.hashCode(), m2.hashCode());
+    }
+
+    public void testNotEqualsNull() {
+        assertNotEquals(AliasMetadata.builder("a").build(), null);
+    }
+
+    public void testNotEqualsDifferentType() {
+        assertNotEquals(AliasMetadata.builder("a").build(), "a string");
+    }
+
+    public void testNotEqualsDifferentAlias() {
+        assertNotEquals(AliasMetadata.builder("a").build(), AliasMetadata.builder("b").build());
+    }
+
+    // --- toString test ---
+
+    public void testToString() {
+        AliasMetadata am = AliasMetadata.builder("test-alias").indexRouting("ir").build();
+        String str = am.toString();
+        assertTrue(str.contains("test-alias"));
+    }
+
+    // --- AbstractXContentTestCase overrides ---
 
     @Override
     protected void assertEqualInstances(AliasMetadata expectedInstance, AliasMetadata newInstance) {
@@ -90,8 +265,7 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new alias
-            || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
+        return p -> p.equals("") || p.contains(".filter");
     }
 
     @Override
@@ -112,24 +286,12 @@ public class AliasMetadataTests extends AbstractXContentTestCase<AliasMetadata> 
 
     private static AliasMetadata createTestItem() {
         Builder builder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
-        if (randomBoolean()) {
-            builder.routing(randomAlphaOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
-            builder.searchRouting(randomAlphaOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
-            builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
-        }
-        if (randomBoolean()) {
-            builder.filter("{\"term\":{\"year\":2016}}");
-        }
+        if (randomBoolean()) builder.routing(randomAlphaOfLengthBetween(3, 10));
+        if (randomBoolean()) builder.searchRouting(randomAlphaOfLengthBetween(3, 10));
+        if (randomBoolean()) builder.indexRouting(randomAlphaOfLengthBetween(3, 10));
+        if (randomBoolean()) builder.filter("{\"term\":{\"year\":2016}}");
         builder.writeIndex(randomBoolean());
-
-        if (randomBoolean()) {
-            builder.isHidden(randomBoolean());
-        }
+        if (randomBoolean()) builder.isHidden(randomBoolean());
         return builder.build();
     }
-
 }

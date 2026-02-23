@@ -755,4 +755,106 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         isAllActiveIngestionEnabled = IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings6);
         assertFalse(isAllActiveIngestionEnabled);
     }
+
+    public void testXContentRoundTripWithIngestionStatus() throws IOException {
+        IndexMetadata metadata = IndexMetadata.builder("ingestion-test")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", Version.V_3_3_0.id)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(randomLong())
+            .primaryTerm(0, 2)
+            .setRoutingNumShards(32)
+            .system(true)
+            .context(new Context(randomAlphaOfLength(5)))
+            .ingestionStatus(new IngestionStatus(true))
+            .build();
+
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        IndexMetadata.FORMAT.toXContent(builder, metadata);
+        builder.endObject();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        final IndexMetadata fromXContent = IndexMetadata.fromXContent(parser);
+
+        assertEquals(metadata, fromXContent);
+        assertEquals(metadata.hashCode(), fromXContent.hashCode());
+        assertTrue(fromXContent.isSystem());
+        assertNotNull(fromXContent.context());
+        assertNotNull(fromXContent.getIngestionStatus());
+        assertTrue(fromXContent.getIngestionStatus().isPaused());
+    }
+
+    public void testEqualsAndHashCode() {
+        Map<String, String> customMap = Map.of("k1", "v1");
+        IndexMetadata base = IndexMetadata.builder("eq-test")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(1L)
+            .primaryTerm(0, 1)
+            .setRoutingNumShards(32)
+            .putCustom("c1", customMap)
+            .build();
+
+        // Same construction → equal
+        IndexMetadata same = IndexMetadata.builder("eq-test")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(1L)
+            .primaryTerm(0, 1)
+            .setRoutingNumShards(32)
+            .putCustom("c1", customMap)
+            .build();
+
+        assertEquals(base, same);
+        assertEquals(base.hashCode(), same.hashCode());
+
+        // Different version (model field) → not equal
+        IndexMetadata diffVersion = IndexMetadata.builder("eq-test")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(1L)
+            .primaryTerm(0, 1)
+            .setRoutingNumShards(32)
+            .version(99)
+            .putCustom("c1", customMap)
+            .build();
+
+        assertNotEquals(base, diffVersion);
+
+        // Different customData (server field) → not equal
+        IndexMetadata diffCustom = IndexMetadata.builder("eq-test")
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", 1 ^ MASK)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .build()
+            )
+            .creationDate(1L)
+            .primaryTerm(0, 1)
+            .setRoutingNumShards(32)
+            .putCustom("c1", Map.of("k1", "different"))
+            .build();
+
+        assertNotEquals(base, diffCustom);
+    }
 }

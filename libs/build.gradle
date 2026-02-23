@@ -47,7 +47,9 @@ subprojects {
             if (depProject != null
               && (false == depProject.path.equals(':libs:opensearch-core') &&
                   false == depProject.path.equals(':libs:opensearch-common')&&
-                  false == depProject.path.equals(':libs:agent-sm:agent-policy'))
+                  false == depProject.path.equals(':libs:agent-sm:agent-policy') &&
+                  // Allow libs:opensearch-metadata to depend on libs:opensearch-x-content
+                  false == (project.path.equals(':libs:opensearch-metadata') && depProject.path.equals(':libs:opensearch-x-content')))
               && depProject.path.startsWith(':libs')) {
               throw new InvalidUserDataException("projects in :libs "
                 + "may not depend on other projects libs except "

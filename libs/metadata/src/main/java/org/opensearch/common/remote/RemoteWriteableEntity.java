@@ -22,12 +22,16 @@ import java.io.InputStream;
 @ExperimentalApi
 public interface RemoteWriteableEntity<T> {
     /**
+     * Serializes the entity to an InputStream.
+     *
      * @return An InputStream created by serializing the entity T
      * @throws IOException Exception encountered while serialization
      */
     public InputStream serialize() throws IOException;
 
     /**
+     * Deserializes the entity from an InputStream.
+     *
      * @param inputStream The InputStream which is used to read the serialized entity
      * @return The entity T after deserialization
      * @throws IOException Exception encountered while deserialization
