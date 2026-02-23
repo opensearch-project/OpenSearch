@@ -1982,6 +1982,10 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return type.numericType();
         }
 
+        public boolean isSkiplist() {
+            return skiplist;
+        }
+
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();

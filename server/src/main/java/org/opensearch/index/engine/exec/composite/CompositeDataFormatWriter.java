@@ -85,7 +85,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
             writerPair.getValue().close();
         }

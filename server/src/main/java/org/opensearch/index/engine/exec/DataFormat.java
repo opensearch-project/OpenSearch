@@ -23,7 +23,8 @@ public interface DataFormat {
 
     void configureStore();
 
-    static class LuceneDataFormat implements DataFormat {
+    class LuceneDataFormat implements DataFormat {
+
         @Override
         public Setting<Settings> dataFormatSettings() {
             return null;
@@ -36,7 +37,7 @@ public interface DataFormat {
 
         @Override
         public String name() {
-            return "";
+            return "lucene";
         }
 
         @Override

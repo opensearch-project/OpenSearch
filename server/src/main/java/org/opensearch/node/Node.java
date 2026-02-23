@@ -165,6 +165,7 @@ import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.exec.lucene.LuceneDataSourcePlugin;
 import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
@@ -551,6 +552,20 @@ public class Node implements Closeable {
 
             // Ensure feature flags from opensearch.yml are valid during plugin initialization.
             FeatureFlags.initializeFeatureFlags(tmpSettings);
+
+            PluginInfo lucenePluginInfo = new PluginInfo(
+                LuceneDataSourcePlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                LuceneDataSourcePlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
+            );
+
+            classpathPlugins = List.of(lucenePluginInfo);
 
             this.pluginsService = new PluginsService(
                 tmpSettings,

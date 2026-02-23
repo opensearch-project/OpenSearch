@@ -12,11 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.*;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -34,7 +37,6 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     private static final Logger logger = LogManager.getLogger(CompositeEngineCatalogSnapshot.class);
 
     public static final String CATALOG_SNAPSHOT_KEY = "_catalog_snapshot_";
-    public static final String LAST_COMPOSITE_WRITER_GEN_KEY = "_last_composite_writer_gen_";
     private Map<String, String> userData;
     private long lastWriterGeneration;
     private final Map<String, List<WriterFileSet>> dfGroupedSearchableFiles;
@@ -42,7 +44,13 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     private Supplier<IndexFileDeleter> indexFileDeleterSupplier;
     private Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap;
 
-    public CompositeEngineCatalogSnapshot(long id, long version, List<Segment> segmentList, Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap, Supplier<IndexFileDeleter> indexFileDeleterSupplier) {
+    public CompositeEngineCatalogSnapshot(
+        long id,
+        long version,
+        List<Segment> segmentList,
+        Map<Long, CompositeEngineCatalogSnapshot> catalogSnapshotMap,
+        Supplier<IndexFileDeleter> indexFileDeleterSupplier
+    ) {
         super("catalog_snapshot_" + id, id, version);
         this.segmentList = segmentList;
         this.userData = new HashMap<>();
@@ -166,10 +174,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
                 for (String filePath : writerFileSet.getFiles()) {
                     File file = new File(filePath);
                     String fileName = file.getName();
-                    FileMetadata fileMetadata = new FileMetadata(
-                        dataFormatName,
-                            fileName
-                    );
+                    FileMetadata fileMetadata = new FileMetadata(dataFormatName, fileName);
                     allFileMetadata.add(fileMetadata);
                 }
             });
@@ -216,7 +221,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public  void setUserData(Map<String, String> userData, boolean b) {
+    public void setUserData(Map<String, String> userData, boolean b) {
         if (userData == null) {
             this.userData = Collections.emptyMap();
         } else {
@@ -245,6 +250,7 @@ public class CompositeEngineCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public String toString() {
-        return "CatalogSnapshot{" + "id=" + generation + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles + ", List of Segment= " + segmentList + ", userData=" + userData +'}';
+        return "CatalogSnapshot{" + "id=" + generation + ", version=" + version + ", dfGroupedSearchableFiles=" + dfGroupedSearchableFiles
+            + ", List of Segment= " + segmentList + ", userData=" + userData + '}';
     }
 }

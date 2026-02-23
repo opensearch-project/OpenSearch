@@ -11,14 +11,13 @@ package org.opensearch.index.engine.exec.merge;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class MergeResult {
 
     private final RowIdMapping rowIdMapping;
 
-    private Map<DataFormat, WriterFileSet> mergedWriterFileSet;
+    private final Map<DataFormat, WriterFileSet> mergedWriterFileSet;
 
     public MergeResult(RowIdMapping rowIdMapping, Map<DataFormat, WriterFileSet> mergedWriterFileSet) {
         this.rowIdMapping = rowIdMapping;
