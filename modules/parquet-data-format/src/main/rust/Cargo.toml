@@ -44,9 +44,11 @@ vectorized-exec-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
 # Parquet support
 parquet = "53.0.0"
 #polars = { version = "0.51.0", features = ["lazy", "parquet", "dtype-datetime"] }
-polars = { version = "0.52.0", features = ["lazy", "parquet", "dtype-datetime", "temporal", "timezones", "pivot", "new_streaming", "cum_agg"] }
+polars = { version = "0.52.0", features = ["lazy", "parquet", "dtype-datetime", "temporal", "timezones", "pivot", "new_streaming", "cum_agg", "ipc_streaming"] }
 polars-core = { version = "0.52.0", features = ["dtype-datetime", "temporal"] }
 polars-expr = { version = "0.52.0", features = ["timezones"] }
+polars-arrow = { version = "0.52.0", features = ["io_ipc"] }
+
 # Object store for file access
 object_store = "0.11"
 url = "2.0"

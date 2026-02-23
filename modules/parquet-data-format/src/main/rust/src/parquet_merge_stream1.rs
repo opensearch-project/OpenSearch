@@ -8,11 +8,38 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
+use std::io::Cursor;
 use std::path::Path;
+use std::sync::Arc;
+
+// arrow-rs imports
+use arrow::array::RecordBatch;
+use arrow::datatypes::{Field as ArrowField, Schema as ArrowSchema};
+use arrow::ipc::reader::StreamReader as ArrowIpcStreamReader;
+
+// parquet arrow writer
+use parquet::arrow::ArrowWriter;
+use parquet::basic::Compression;
+use parquet::file::properties::WriterProperties;
 
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
 const BATCH_SIZE: usize = 50_000;
-const OUTPUT_FLUSH_ROWS: usize = 500_000;
+const OUTPUT_FLUSH_ROWS: usize = 100_000;
+
+// =============================================================================
+// Error conversion helpers
+// =============================================================================
+
+fn parquet_to_polars_err(e: parquet::errors::ParquetError) -> PolarsError {
+    PolarsError::IO {
+        error: Arc::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
+        msg: None,
+    }
+}
+
+fn arrow_to_polars_err(e: arrow::error::ArrowError) -> PolarsError {
+    PolarsError::ComputeError(format!("Arrow error: {e}").into())
+}
 
 // =============================================================================
 // FileCursor — reads BATCH_SIZE rows at a time via with_slice
@@ -52,7 +79,6 @@ impl FileCursor {
     }
 
     fn load_next_batch(&mut self) -> PolarsResult<bool> {
-        // Drop old batch FIRST to free memory before allocating new one
         self.current_batch = None;
 
         let file = File::open(&self.path).map_err(|e| PolarsError::IO {
@@ -83,7 +109,6 @@ impl FileCursor {
         }
     }
 
-    /// Sort value of the LAST row in current batch — used for batch-level fast path
     fn last_sort_value(&self) -> PolarsResult<i64> {
         match &self.current_batch {
             Some(batch) => get_sort_value(batch, batch.height() - 1, &self.sort_column),
@@ -120,8 +145,6 @@ impl FileCursor {
         Ok(true)
     }
 
-    /// Skip remainder of current batch and load the next one.
-    /// Drops old batch before loading to minimize peak memory.
     fn advance_past_batch(&mut self) -> PolarsResult<bool> {
         self.current_batch = None;
         self.load_next_batch()
@@ -143,19 +166,77 @@ struct HeapItem {
 }
 
 impl Eq for HeapItem {}
+
 impl PartialEq for HeapItem {
     fn eq(&self, other: &Self) -> bool {
         self.sort_value == other.sort_value
     }
 }
+
 impl Ord for HeapItem {
     fn cmp(&self, other: &Self) -> Ordering {
         other.sort_value.cmp(&self.sort_value)
     }
 }
+
 impl PartialOrd for HeapItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+// =============================================================================
+// Polars → arrow-rs conversion via Arrow IPC bridge
+// =============================================================================
+
+/// Discover the arrow-rs schema that Polars will actually produce via IPC,
+/// by doing a trial roundtrip on a 1-row sample of the given DataFrame.
+fn discover_arrow_schema_from_df(df: &DataFrame) -> PolarsResult<Arc<ArrowSchema>> {
+    let small = df.head(Some(1));
+    let mut small_clone = small.clone();
+
+    let mut ipc_buf: Vec<u8> = Vec::new();
+    IpcStreamWriter::new(&mut ipc_buf)
+        .with_compat_level(CompatLevel::oldest())
+        .finish(&mut small_clone)?;
+
+    let cursor = Cursor::new(ipc_buf);
+    let reader =
+        ArrowIpcStreamReader::try_new(cursor, None).map_err(arrow_to_polars_err)?;
+
+    Ok(reader.schema().clone())
+}
+
+/// Convert a rechunked Polars DataFrame into an arrow-rs RecordBatch by
+/// serialising to Arrow IPC in memory and reading back with arrow-rs.w
+fn polars_df_to_record_batch(df: &DataFrame) -> PolarsResult<RecordBatch> {
+    let mut ipc_buf: Vec<u8> = Vec::new();
+    {
+        let mut df_clone = df.clone();
+        IpcStreamWriter::new(&mut ipc_buf)
+            .with_compat_level(CompatLevel::oldest())
+            .finish(&mut df_clone)?;
+    }
+
+    let cursor = Cursor::new(ipc_buf);
+    let reader =
+        ArrowIpcStreamReader::try_new(cursor, None).map_err(arrow_to_polars_err)?;
+
+    let schema = reader.schema();
+
+    let batches: Result<Vec<RecordBatch>, _> = reader.collect();
+    let batches = batches.map_err(arrow_to_polars_err)?;
+
+    if batches.is_empty() {
+        return Err(PolarsError::NoData(
+            "No record batches from IPC conversion".into(),
+        ));
+    }
+
+    if batches.len() == 1 {
+        Ok(batches.into_iter().next().unwrap())
+    } else {
+        arrow::compute::concat_batches(&schema, &batches).map_err(arrow_to_polars_err)
     }
 }
 
@@ -213,7 +294,13 @@ pub fn merge_streaming(
     output_path: &str,
     sort_column: &str,
 ) -> PolarsResult<()> {
-    merge_streaming_with_config(input_files, output_path, sort_column, BATCH_SIZE, OUTPUT_FLUSH_ROWS)
+    merge_streaming_with_config(
+        input_files,
+        output_path,
+        sort_column,
+        BATCH_SIZE,
+        OUTPUT_FLUSH_ROWS,
+    )
 }
 
 pub fn merge_streaming_with_config(
@@ -258,12 +345,13 @@ pub fn merge_streaming_with_config(
         return Ok(());
     }
 
-    // Validate sort column
+    // Validate sort column exists in every active cursor
     for (i, cursor_opt) in cursors.iter().enumerate() {
         if let Some(cursor) = cursor_opt {
             let batch = cursor.current_batch.as_ref().unwrap();
             if !batch.schema().contains(sort_column) {
-                let cols: Vec<_> = batch.schema().iter().map(|(n, _)| n.to_string()).collect();
+                let cols: Vec<_> =
+                    batch.schema().iter().map(|(n, _)| n.to_string()).collect();
                 return Err(PolarsError::ColumnNotFound(
                     format!(
                         "Sort column '{}' not found in file {} (cursor {}). Available: {:?}",
@@ -272,34 +360,58 @@ pub fn merge_streaming_with_config(
                         i,
                         cols
                     )
-                    .into(),
+                        .into(),
                 ));
             }
         }
     }
 
-    // Build output schema WITH ___row_id
     let first_cursor = cursors.iter().find_map(|c| c.as_ref()).unwrap();
-    let mut output_schema = first_cursor
-        .current_batch
-        .as_ref()
-        .unwrap()
-        .schema()
-        .as_ref()
-        .clone();
-    output_schema.insert(ROW_ID_COLUMN_NAME.into(), DataType::Int64);
+    let first_batch = first_cursor.current_batch.as_ref().unwrap();
 
-    println!("Initialized {} active cursors, starting merge", active_count);
+    let base_schema = discover_arrow_schema_from_df(first_batch)?;
 
-    // ── Open batched ParquetWriter ──────────────────────────────────────
+    let mut output_fields: Vec<ArrowField> = base_schema
+        .fields()
+        .iter()
+        .filter(|f| f.name() != ROW_ID_COLUMN_NAME)
+        .map(|f| f.as_ref().clone())
+        .collect();
+
+    output_fields.push(ArrowField::new(
+        ROW_ID_COLUMN_NAME,
+        arrow::datatypes::DataType::Int64,
+        false,
+    ));
+    let output_arrow_schema = Arc::new(ArrowSchema::new(output_fields));
+
+    println!(
+        "Output schema: {:?}",
+        output_arrow_schema
+            .fields()
+            .iter()
+            .map(|f| format!("{}:{:?}", f.name(), f.data_type()))
+            .collect::<Vec<_>>()
+    );
+    println!(
+        "Initialized {} active cursors, starting merge",
+        active_count
+    );
+
+    // ── Open ArrowWriter ────────────────────────────────────────────────
     let output_file = File::create(output_path).map_err(|e| PolarsError::IO {
         error: e.into(),
         msg: None,
     })?;
-    let mut writer = ParquetWriter::new(output_file)
-        .with_compression(ParquetCompression::Zstd(None))
-        .with_row_group_size(Some(output_flush_rows))
-        .batched(&output_schema)?;
+
+    let writer_props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(Default::default()))
+        .set_max_row_group_size(output_flush_rows)
+        .build();
+
+    let mut arrow_writer =
+        ArrowWriter::try_new(output_file, output_arrow_schema.clone(), Some(writer_props))
+            .map_err(parquet_to_polars_err)?;
 
     // ── Seed min-heap ───────────────────────────────────────────────────
     let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(active_count);
@@ -319,13 +431,12 @@ pub fn merge_streaming_with_config(
     let mut total_rows_written = 0usize;
     let sort_col_owned = sort_column.to_string();
 
-    // ── Flush macro ─────────────────────────────────────────────────────
+    // ── Flush helper ────────────────────────────────────────────────────
     macro_rules! flush {
         () => {
             if !output_chunks.is_empty() {
                 let mut df = concat_df(output_chunks.as_slice())?;
                 output_chunks.clear();
-
                 df.rechunk_mut();
 
                 let n = df.height();
@@ -333,8 +444,12 @@ pub fn merge_streaming_with_config(
                 let row_id_series = Series::new(ROW_ID_COLUMN_NAME.into(), row_ids);
                 df.with_column(row_id_series)?;
 
-                writer.write_batch(&df)?;
+                let record_batch = polars_df_to_record_batch(&df)?;
                 drop(df);
+
+                arrow_writer
+                    .write(&record_batch)
+                    .map_err(parquet_to_polars_err)?;
 
                 next_row_id += n as i64;
                 total_rows_written += output_row_count;
@@ -352,9 +467,7 @@ pub fn merge_streaming_with_config(
     while let Some(item) = heap.pop() {
         let file_id = item.file_id;
 
-        // ─────────────────────────────────────────────────────────────
-        // TIER 1: only one cursor left → dump everything, no comparisons
-        // ─────────────────────────────────────────────────────────────
+        // TIER 1: only one cursor left → dump everything
         if heap.is_empty() {
             let cursor = cursors[file_id].as_mut().unwrap();
             loop {
@@ -375,15 +488,13 @@ pub fn merge_streaming_with_config(
             break;
         }
 
-        // ─────────────────────────────────────────────────────────────
         // TIER 2 & 3: multiple cursors active
-        // ─────────────────────────────────────────────────────────────
         let cursor = cursors[file_id].as_mut().unwrap();
 
         loop {
             let heap_top = heap.peek().unwrap().sort_value;
 
-            // ── TIER 2: entire remaining batch fits ─────────────────
+            // TIER 2: entire remaining batch fits
             let last_val = cursor.last_sort_value()?;
             if last_val <= heap_top {
                 let remaining = cursor.batch_height() - cursor.row_idx;
@@ -396,9 +507,8 @@ pub fn merge_streaming_with_config(
                 }
 
                 if !cursor.advance_past_batch()? {
-                    break; // cursor exhausted
+                    break;
                 }
-                // New batch loaded — loop to compare again
                 continue;
             }
 
@@ -434,13 +544,11 @@ pub fn merge_streaming_with_config(
                 flush!();
             }
 
-            // Advance past the emitted run
             cursor.row_idx = run_end;
             if !cursor.advance()? {
-                break; // exhausted
+                break;
             }
 
-            // Re-check: does next value still beat heap?
             let next_val = cursor.current_sort_value()?;
             if next_val > heap_top {
                 heap.push(HeapItem {
@@ -449,13 +557,13 @@ pub fn merge_streaming_with_config(
                 });
                 break;
             }
-            // else: this cursor still wins, continue inner loop
         }
     }
 
     // Final flush
     flush!();
-    writer.finish()?;
+
+    arrow_writer.close().map_err(parquet_to_polars_err)?;
 
     println!("Merge complete: {} total rows written", total_rows_written);
     Ok(())
@@ -468,19 +576,40 @@ pub fn merge_streaming_with_config(
 fn get_sort_value(df: &DataFrame, row: usize, col: &str) -> PolarsResult<i64> {
     let series = df.column(col)?;
     match series.dtype() {
-        DataType::Int64 => series.i64()?.get(row)
+        DataType::Int64 => series
+            .i64()?
+            .get(row)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::Int32 => series.i32()?.get(row).map(|v| v as i64)
+        DataType::Int32 => series
+            .i32()?
+            .get(row)
+            .map(|v| v as i64)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::UInt64 => series.u64()?.get(row).map(|v| v as i64)
+        DataType::UInt64 => series
+            .u64()?
+            .get(row)
+            .map(|v| v as i64)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::UInt32 => series.u32()?.get(row).map(|v| v as i64)
+        DataType::UInt32 => series
+            .u32()?
+            .get(row)
+            .map(|v| v as i64)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::Datetime(_, _) => series.datetime()?.phys.get(row)
+        DataType::Datetime(_, _) => series
+            .datetime()?
+            .phys
+            .get(row)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::Date => series.date()?.phys.get(row).map(|v| v as i64)
+        DataType::Date => series
+            .date()?
+            .phys
+            .get(row)
+            .map(|v| v as i64)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
-        DataType::Duration(_) => series.duration()?.phys.get(row)
+        DataType::Duration(_) => series
+            .duration()?
+            .phys
+            .get(row)
             .ok_or_else(|| PolarsError::NoData("Null sort value".into())),
         other => Err(PolarsError::InvalidOperation(
             format!("Unsupported sort type: {:?}", other).into(),
@@ -497,14 +626,21 @@ fn convert_java_list_to_vec(
     for i in 0..size {
         env.push_local_frame(4)?;
         let obj = env
-            .call_method(&list, "get", "(I)Ljava/lang/Object;", &[(i as i32).into()])?
+            .call_method(
+                &list,
+                "get",
+                "(I)Ljava/lang/Object;",
+                &[(i as i32).into()],
+            )?
             .l()?;
         let jstring = env
             .call_method(&obj, "toString", "()Ljava/lang/String;", &[])?
             .l()?;
         let rust_string: String = env.get_string(&jstring.into())?.into();
         result.push(rust_string);
-        unsafe { env.pop_local_frame(&JObject::null())?; }
+        unsafe {
+            env.pop_local_frame(&JObject::null())?;
+        }
     }
     Ok(result)
 }
