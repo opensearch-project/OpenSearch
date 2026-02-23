@@ -8,20 +8,22 @@
 
 package org.opensearch.index.engine.exec.merge;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
-public class RowIdMapping {
+public final class RowIdMapping {
 
-    Map<RowId, Long> mapping;
+    private final Map<RowId, Long> mapping;
     private final String fileId;
 
     public RowIdMapping(Map<RowId, Long> mapping, String fileId) {
-        this.mapping = mapping;
-        this.fileId = fileId;
+        this.mapping = Collections.unmodifiableMap(Objects.requireNonNull(mapping, "mapping cannot be null"));
+        this.fileId = Objects.requireNonNull(fileId, "fileId cannot be null");
     }
 
     public long getNewRowId(RowId oldRowId) {
-        return mapping.get(oldRowId);
+        return mapping.getOrDefault(oldRowId, -1L);
     }
     public String getFileId() {
         return fileId;

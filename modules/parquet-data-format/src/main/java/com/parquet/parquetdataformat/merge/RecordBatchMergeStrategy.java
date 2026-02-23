@@ -16,14 +16,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
-import org.opensearch.index.engine.exec.merge.RowId;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,11 +51,8 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         String mergedFileName = getMergedFileName(writerGeneration);
 
         try {
-            // Merge files in Rust
-            mergeParquetFilesInRust(filePaths, mergedFilePath);
-
-            // Build row ID mapping
-            Map<RowId, Long> rowIdMapping = new HashMap<>();
+            // Merge files in Rust and get row ID mappings
+            RowIdMapping rowIdMapping = mergeParquetFilesInRust(filePaths, mergedFilePath);
 
             WriterFileSet mergedWriterFileSet =
             WriterFileSet.builder().directory(Path.of(outputDirectory)).addFile(mergedFileName).writerGeneration(writerGeneration).build();
@@ -67,7 +62,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
                 mergedWriterFileSet
             );
 
-            return new MergeResult(new RowIdMapping(rowIdMapping, mergedFileName), mergedWriterFileSetMap);
+            return new MergeResult(rowIdMapping, mergedWriterFileSetMap);
 
         } catch (Exception exception) {
             logger.error(
