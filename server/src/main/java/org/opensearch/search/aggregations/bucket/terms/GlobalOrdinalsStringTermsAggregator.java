@@ -209,18 +209,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         final TermsEnum segmentTermsEnum = segmentTerms.iterator();
         final LongUnaryOperator globalOrdsMapping = valuesSource.globalOrdinalsMapping(ctx);
-        segmentTermsEnum.next();
 
         // Iterate over the ordinals in the segment, look for matches in the global ordinal,
         // and increment bucket count when segment ordinal is contained in global ordinals.
         for (long segmentOrd = 0; segmentOrd < termCount; segmentOrd++) {
+            segmentTermsEnum.next();
             long globalOrd = globalOrdsMapping.applyAsLong(segmentOrd);
             if (acceptedGlobalOrdinals.test(globalOrd)) {
                 ordCountConsumer.accept(globalOrd, segmentTermsEnum.docFreq());
             }
-            segmentTermsEnum.next();
         }
-        // assert segmentTermsEnum is exhausted?
+
+        // Segment terms enum should be fully exhausted after iterating over all the ordinals
+        assert segmentTermsEnum.next() == null : "Segment terms enum must be fully exhausted";
         return true;
     }
 
