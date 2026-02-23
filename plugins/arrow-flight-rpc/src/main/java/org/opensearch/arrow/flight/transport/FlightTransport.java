@@ -74,10 +74,10 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 
-import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_BIND_HOST;
-import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PORTS;
-import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PUBLISH_HOST;
-import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PUBLISH_PORT;
+import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_BIND_HOST;
+import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_PORTS;
+import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_PUBLISH_HOST;
+import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_PUBLISH_PORT;
 
 @SuppressWarnings("removal")
 class FlightTransport extends TcpTransport {
