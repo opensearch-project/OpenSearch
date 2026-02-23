@@ -26,32 +26,56 @@ import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
 /**
- * DefaultSslContextProvider is an implementation of the SslContextProvider interface that provides SSL contexts based on the provided SecureTransportSettingsProvider.
+ * Default {@link SslContextProvider} that wraps TLS contexts in {@link ReloadableSslContext}.
+ * <p>
+ * Each {@link ReloadableSslContext} holds a supplier that calls
+ * {@link SecureTransportSettingsProvider#parameters(Settings)} on every {@code newEngine()} invocation.
+ * Since {@code parameters()} reads from the live {@code SslContextHandler.sslContext} field — the same
+ * field the security plugin's {@code reloadcerts} API replaces — any new TCP connection after a cert
+ * reload automatically uses the updated certificate material. No explicit reload hook or listener is
+ * needed; this is the same mechanism that makes {@code SecureNetty4Transport} work.
  */
 public class DefaultSslContextProvider implements SslContextProvider {
 
-    private final SecureTransportSettingsProvider secureTransportSettingsProvider;
-    private final Settings settings;
+    private final ReloadableSslContext serverSslContext;
+    private final ReloadableSslContext clientSslContext;
 
     /**
-     * Constructor for DefaultSslContextProvider.
-     * @param secureTransportSettingsProvider The SecureTransportSettingsProvider instance.
-     * @param settings The cluster settings.
+     * Creates a new {@link DefaultSslContextProvider} wrapping server and client {@link ReloadableSslContext}
+     * instances built from the given {@link SecureTransportSettingsProvider} and {@link Settings}.
+     *
+     * @param secureTransportSettingsProvider provides TLS parameters (keys, certs, ciphers, protocols)
+     * @param settings node settings used for hostname verification and other transport options
      */
     public DefaultSslContextProvider(SecureTransportSettingsProvider secureTransportSettingsProvider, Settings settings) {
-        this.secureTransportSettingsProvider = secureTransportSettingsProvider;
-        this.settings = settings;
+        SslContext initialServer = buildServerSslContext(secureTransportSettingsProvider, settings);
+        this.serverSslContext = new ReloadableSslContext(
+            initialServer,
+            () -> buildServerSslContext(secureTransportSettingsProvider, settings)
+        );
+
+        SslContext initialClient = buildClientSslContext(secureTransportSettingsProvider, settings);
+        this.clientSslContext = new ReloadableSslContext(
+            initialClient,
+            () -> buildClientSslContext(secureTransportSettingsProvider, settings)
+        );
     }
 
-    // TODO - handle certificates reload
-    /**
-     * Creates and returns the server SSL context based on the provided SecureTransportSettingsProvider.
-     * @return The server SSL context.
-     */
+    /** {@inheritDoc} */
     @Override
     public SslContext getServerSslContext() {
+        return serverSslContext;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public SslContext getClientSslContext() {
+        return clientSslContext;
+    }
+
+    private static SslContext buildServerSslContext(SecureTransportSettingsProvider provider, Settings settings) {
         try {
-            SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
+            SecureTransportSettingsProvider.SecureTransportParameters parameters = provider.parameters(null).get();
             return SslContextBuilder.forServer(parameters.keyManagerFactory().get())
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .clientAuth(ClientAuth.valueOf(parameters.clientAuth().get().toUpperCase(Locale.ROOT)))
@@ -62,9 +86,7 @@ public class DefaultSslContextProvider implements SslContextProvider {
                 .applicationProtocolConfig(
                     new ApplicationProtocolConfig(
                         ApplicationProtocolConfig.Protocol.ALPN,
-                        // NO_ADVERTISE is currently the only mode supported by both OpenSsl and JDK providers.
                         ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                        // ACCEPT is currently the only mode supported by both OpenSsl and JDK providers.
                         ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
                         ApplicationProtocolNames.HTTP_2,
                         ApplicationProtocolNames.HTTP_1_1
@@ -77,15 +99,9 @@ public class DefaultSslContextProvider implements SslContextProvider {
         }
     }
 
-    /**
-    * Returns the client SSL context based on the provided SecureTransportSettingsProvider.
-    * @return The client SSL context.
-    */
-    @Override
-    public SslContext getClientSslContext() {
+    private static SslContext buildClientSslContext(SecureTransportSettingsProvider provider, Settings settings) {
         try {
-            SecureTransportSettingsProvider.SecureTransportParameters parameters = secureTransportSettingsProvider.parameters(null).get();
-
+            SecureTransportSettingsProvider.SecureTransportParameters parameters = provider.parameters(null).get();
             return SslContextBuilder.forClient()
                 .sslProvider(SslProvider.valueOf(parameters.sslProvider().get().toUpperCase(Locale.ROOT)))
                 .protocols(parameters.protocols())
