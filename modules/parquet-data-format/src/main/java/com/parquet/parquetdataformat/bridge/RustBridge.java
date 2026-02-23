@@ -36,6 +36,8 @@ public class RustBridge {
     public static native ParquetFileMetadata getFileMetadata(String file) throws IOException;
     public static native void onSettingsUpdate(NativeSettings nativeSettings) throws IOException;
 
+    public static native void removeSettings(String indexName);
+
     public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
 

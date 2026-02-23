@@ -350,6 +350,24 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_onSe
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_removeSettings(
+    mut env: JNIEnv,
+    _class: JClass,
+    index_name: JString
+) {
+    match env.get_string(&index_name) {
+        Ok(name) => {
+            let name: String = name.into();
+            SETTINGS_STORE.remove(&name);
+            log_info!("[RUST] removeSettings: removed settings for index '{}'", name);
+        }
+        Err(e) => {
+            log_error!("[RUST] removeSettings: failed to read index name: {}", e);
+        }
+    }
+}
+
 /// Reads a NativeSettings Java object into a Rust NativeSettings struct via JNI getters.
 fn read_native_settings(env: &mut JNIEnv, obj: &JObject) -> Result<NativeSettings, Box<dyn std::error::Error>> {
     macro_rules! get_boxed_int {
@@ -591,6 +609,7 @@ mod tests {
         SETTINGS_STORE.insert("test-index".to_string(), NativeSettings {
             compression_type: Some("ZSTD".to_string()),
             compression_level: Some(3),
+            index_name: Some("test-index".to_string()),
             ..Default::default()
         });
         let result = NativeParquetWriter::create_writer(filename.to_string(), "test-index".to_string(), schema_ptr);
@@ -626,7 +645,7 @@ mod tests {
         let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
         let (_schema, schema_ptr) = create_test_ffi_schema();
 
-        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
+        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), "test-index".to_string(), schema_ptr);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
 
@@ -649,7 +668,7 @@ mod tests {
         let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
 
         // Second writer creation for same file should fail
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr);
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
@@ -822,11 +841,13 @@ mod tests {
                 let filename = file_path.to_string_lossy().to_string();
                 let (_schema, schema_ptr) = create_test_ffi_schema();
 
-                *SETTINGS_STORE.lock().unwrap() = NativeSettings {
+                SETTINGS_STORE.insert("test-index".to_string(), NativeSettings {
                     compression_type: Some("ZSTD".to_string()),
+                    index_name: Some("test-index".to_string()),
                     ..Default::default()
-                };
-                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
+                });
+
+                if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                     let _ = NativeParquetWriter::close_writer(filename);
                 }

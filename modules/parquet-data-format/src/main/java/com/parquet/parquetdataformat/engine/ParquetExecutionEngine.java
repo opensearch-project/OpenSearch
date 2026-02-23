@@ -181,6 +181,11 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 
     @Override
     public void close() throws IOException {
+        try {
+            RustBridge.removeSettings(indexSettings.getIndex().getName());
+        } catch (Exception e) {
+            logger.warn("Failed to remove Parquet settings from Rust store for index [{}]", indexSettings.getIndex().getName(), e);
+        }
         arrowBufferPool.close();
     }
 }
