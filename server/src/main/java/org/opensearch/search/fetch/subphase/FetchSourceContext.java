@@ -192,6 +192,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 currentFieldName = parser.currentName();
                 continue; // only field name is required in this iteration
             }
+            if (currentFieldName == null) {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Expected a field name but got a " + token + " in [" + parser.currentName() + "].",
+                    parser.getTokenLocation()
+                );
+            }
             // process field value
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
@@ -240,6 +247,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     );
                 }
             }
+        }
+        if (currentFieldName == null) {
+            // no field names -> empty object; empty object is not allowed
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]",
+                parser.getTokenLocation()
+            );
         }
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
