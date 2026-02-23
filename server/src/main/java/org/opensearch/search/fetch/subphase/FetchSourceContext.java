@@ -161,7 +161,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
             }
-            default ->
+            default -> {
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Expected one of ["
@@ -177,6 +177,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         + "]",
                     parser.getTokenLocation()
                 );
+            }
         }
         // MUST never reach here
     }
@@ -231,7 +232,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         );
                     }
                 }
-                default ->  {
+                default -> {
                     throw new ParsingException(
                         parser.getTokenLocation(),
                         "Unknown key for a " + token + " in [" + currentFieldName + "].",
