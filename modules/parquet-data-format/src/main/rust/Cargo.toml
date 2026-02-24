@@ -13,11 +13,11 @@ path = "src/bin/profiler.rs"
 
 [dependencies]
 
-arrow = { version = "53.0.0", features = ["ffi"] }
+arrow = { version = "58.0.0", features = ["ffi"] }
 
-arrow-array = "53.0.0"
-arrow-schema = "53.0.0"
-arrow-buffer = "53.0.0"
+arrow-array = "58.0.0"
+arrow-schema = "58.0.0"
+arrow-buffer = "58.0.0"
 
 # JNI dependencies
 jni = "0.21"
@@ -42,8 +42,7 @@ log = "0.4"
 vectorized-exec-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
 
 # Parquet support
-parquet = "53.0.0"
-#polars = { version = "0.51.0", features = ["lazy", "parquet", "dtype-datetime"] }
+parquet = { version = "58.0.0", features = ["arrow"] }
 polars = { version = "0.52.0", features = ["lazy", "parquet", "dtype-datetime", "temporal", "timezones", "pivot", "new_streaming", "cum_agg", "ipc_streaming"] }
 polars-core = { version = "0.52.0", features = ["dtype-datetime", "temporal"] }
 polars-expr = { version = "0.52.0", features = ["timezones"] }
@@ -52,6 +51,7 @@ polars-arrow = { version = "0.52.0", features = ["io_ipc"] }
 # Object store for file access
 object_store = "0.11"
 url = "2.0"
+rayon = "1"
 
 # Substrait support
 substrait = "0.47"
@@ -60,15 +60,9 @@ prost = "0.13"
 # Temporary directory support
 tempfile = "3.0"
 
-#jni = "0.21.1"
-#arrow = { version = "53.0.0", features = ["ffi"] }
-#parquet = "53.0.0"
 lazy_static = "1.4.0"
 dashmap = "7.0.0-rc2"
 chrono = "0.4"
-
-#polars-core = "0.52.0"
-
 
 [build-dependencies]
 cbindgen = "0.27"
