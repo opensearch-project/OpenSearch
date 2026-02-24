@@ -3795,10 +3795,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testValidateIngestionSourceSettingsWithFieldMappingOnCurrentVersion() {
         // All nodes on current version with valid mapper_settings — should pass
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(newNode("node1"))
-            .add(newNode("node2"))
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
         Settings settings = Settings.builder()
@@ -3818,15 +3815,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
         );
         DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(newNode("node1"))
-            .add(oldNode)
-            .build();
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
-            .build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping").build();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -3845,9 +3837,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(oldNode).build();
         ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
 
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "default")
-            .build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "default").build();
 
         // Should not throw
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);

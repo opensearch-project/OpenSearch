@@ -71,7 +71,11 @@ public interface IngestionMessageMapper {
                 }
             }
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Unknown ingestion mapper type: %s. Valid values are: default, raw_payload, field_mapping", value)
+                String.format(
+                    Locale.ROOT,
+                    "Unknown ingestion mapper type: %s. Valid values are: default, raw_payload, field_mapping",
+                    value
+                )
             );
         }
     }

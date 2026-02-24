@@ -1312,9 +1312,7 @@ public class MetadataCreateIndexService {
             default:
                 // default and raw_payload mappers don't use mapper_settings
                 if (mapperSettings.isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        "mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]"
-                    );
+                    throw new IllegalArgumentException("mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]");
                 }
                 break;
         }
