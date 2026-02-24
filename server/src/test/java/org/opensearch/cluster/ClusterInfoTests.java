@@ -158,6 +158,67 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         assertTrue(emptyInfo.getNodeProcessStats().isEmpty());
     }
 
+    @SuppressWarnings({ "deprecation", "removal" })
+    public void testConstructorDefaultsResourceAndProcessStatsToEmpty() {
+        Map<String, DiskUsage> leastUsage = randomDiskUsage(1);
+        Map<String, DiskUsage> mostUsage = randomDiskUsage(1);
+        Map<String, Long> shardSizes = randomShardSizes(1);
+        Map<ShardRouting, String> routingToPath = randomRoutingToDataPath(1);
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = randomReservedSpace(1);
+        Map<String, AggregateFileCacheStats> fileCacheStats = randomFileCacheStats(1);
+        Map<String, ProcessStats> processStats = randomProcessStats(1);
+
+        ClusterInfo clusterInfo = new ClusterInfo(
+            leastUsage,
+            mostUsage,
+            shardSizes,
+            routingToPath,
+            reservedSpace,
+            fileCacheStats,
+            processStats
+        );
+
+        assertTrue(clusterInfo.getNodeResourceUsageStats().isEmpty());
+        assertTrue(clusterInfo.getNodeProcessStats().isEmpty());
+    }
+
+    public void testToXContentWithResourceStats() throws Exception {
+        String nodeId = "node1";
+        Map<String, DiskUsage> leastUsage = Map.of(nodeId, new DiskUsage(nodeId, "node1", "/path", 100, 50));
+        Map<String, DiskUsage> mostUsage = Map.of(nodeId, new DiskUsage(nodeId, "node1", "/path", 100, 50));
+        Map<String, NodeResourceUsageStats> resourceStats = Map.of(nodeId, new NodeResourceUsageStats(nodeId, 1000L, 50.0, 60.0, null));
+
+        ClusterInfo clusterInfo = new ClusterInfo(leastUsage, mostUsage, Map.of(), Map.of(), Map.of(), Map.of(), resourceStats, Map.of());
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        clusterInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        String json = builder.toString();
+        assertTrue(json.contains("node_resource_usage_stats"));
+    }
+
+    public void testToXContentWithProcessStats() throws Exception {
+        String nodeId = "node1";
+        Map<String, DiskUsage> leastUsage = Map.of(nodeId, new DiskUsage(nodeId, "node1", "/path", 100, 50));
+        Map<String, DiskUsage> mostUsage = Map.of(nodeId, new DiskUsage(nodeId, "node1", "/path", 100, 50));
+        Map<String, ProcessStats> processStats = Map.of(
+            nodeId,
+            new ProcessStats(System.currentTimeMillis(), 100L, 1000L, new ProcessStats.Cpu((short) 50, 1000L), new ProcessStats.Mem(500L))
+        );
+
+        ClusterInfo clusterInfo = new ClusterInfo(leastUsage, mostUsage, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), processStats);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        clusterInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        String json = builder.toString();
+        assertTrue(json.contains("node_process_stats"));
+    }
+
     private static Map<String, DiskUsage> randomDiskUsage(int numEntries) {
         final Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {

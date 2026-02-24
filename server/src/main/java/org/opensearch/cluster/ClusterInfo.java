@@ -174,7 +174,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             this.nodeResourceUsageStats = Map.of();
         }
 
-        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_5_0)) {
             this.nodeProcessStats = in.readMap(StreamInput::readString, ProcessStats::new);
         } else {
             this.nodeProcessStats = Map.of();
@@ -227,7 +227,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeMap(this.nodeResourceUsageStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
-        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
             out.writeMap(this.nodeProcessStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         }
     }
