@@ -196,6 +196,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             return false;
         }
 
+        long termCount = segmentTerms.size();
+        if (termCount == -1 || termCount > context.termsAggregationMaxPrecomputeCardinality()) {
+            return false;
+        }
+
         NumericDocValues docCountValues = DocValues.getNumeric(ctx.reader(), DocCountFieldMapper.NAME);
         if (docCountValues.nextDoc() != NO_MORE_DOCS) {
             // This segment has at least one document with the _doc_count field.
