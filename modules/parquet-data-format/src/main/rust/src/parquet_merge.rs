@@ -14,8 +14,10 @@ use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::ArrowWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
-
+use arrow::array::{StringArray, Int32Array};
 use crate::{log_info, log_error};
+use jni::objects::{JObjectArray};
+use jni::sys::jboolean;
 
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
@@ -273,12 +275,111 @@ fn catch_unwind<F: FnOnce() -> Result<(), Box<dyn Error>>>(
     std::panic::catch_unwind(AssertUnwindSafe(f))
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn
+Java_com_parquet_parquetdataformat_bridge_RustBridge_verifyMergedFileContents(
+    mut env: JNIEnv,
+    _class: JClass,
+    file_path: JString,
+    expected_records: JObjectArray,
+) -> jboolean {
 
-// Close function
-// #[no_mangle]
-// pub extern "system" fn Java_org_opensearch_arrow_bridge_ArrowRustBridge_close(
-//     _env: JNIEnv,
-//     _class: JClass,
-// ) {
-//     log_info("Closing ArrowRustBridge");
-// }
+    // Convert file_path
+    let file_path: String = match env.get_string(&file_path) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            return 0;
+        }
+    };
+
+    // Convert String[] / List<String>
+    let len = match env.get_array_length(&expected_records) {
+        Ok(l) => l,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            return 0;
+        }
+    };
+
+    let mut records = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let obj = env.get_object_array_element(&expected_records, i).unwrap();
+        let jstr = JString::from(obj);
+        let s: String = env.get_string(&jstr).unwrap().into();
+        records.push(s);
+    }
+
+    // Call real logic
+    match verify_internal(&file_path, &records) {
+        Ok(true) => 1,   // JNI_TRUE
+        Ok(false) => 0,  // JNI_FALSE
+        Err(e) => {
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                format!("Rust error: {e}")
+            );
+            0
+        }
+    }
+}
+
+fn verify_internal(
+    file_path: &str,
+    expected_records: &[String],
+) -> Result<bool, Box<dyn Error>> {
+
+    let file = File::open(file_path)?;
+    let reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+        .build()?;
+
+    let mut actual_records = Vec::new();
+
+    for batch in reader {
+        let batch = batch?;
+
+        for row_idx in 0..batch.num_rows() {
+            let mut record_parts = Vec::new();
+
+            for col_idx in 0..batch.num_columns() {
+                let column = batch.column(col_idx);
+                let value = match column.data_type() {
+                    arrow::datatypes::DataType::Utf8 => {
+                        let arr = column.as_any()
+                            .downcast_ref::<StringArray>()
+                            .unwrap();
+                        arr.value(row_idx).to_string()
+                    }
+                    arrow::datatypes::DataType::Int32 => {
+                        let arr = column.as_any()
+                            .downcast_ref::<Int32Array>()
+                            .unwrap();
+                        arr.value(row_idx).to_string()
+                    }
+                    arrow::datatypes::DataType::Int64 => {
+                        let arr = column.as_any()
+                            .downcast_ref::<Int64Array>()
+                            .unwrap();
+                        arr.value(row_idx).to_string()
+                    }
+                    _ => "unknown".to_string(),
+                };
+                record_parts.push(value);
+            }
+
+            actual_records.push(record_parts.join(","));
+        }
+    }
+
+    println!("Expected records:");
+    for e in expected_records {
+        println!("  {}", e);
+    }
+
+    println!("Actual records:");
+    for a in &actual_records {
+        println!("  {}", a);
+    }
+
+    Ok(expected_records == actual_records)
+}
