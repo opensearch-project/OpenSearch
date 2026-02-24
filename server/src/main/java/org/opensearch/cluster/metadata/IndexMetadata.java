@@ -1004,6 +1004,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Prefix setting for mapper-specific options. These settings are passed to the configured mapper type.
+     * For example, the {@code field_mapping} mapper type uses {@code id_field}, {@code version_field},
+     * and {@code op_type_field} settings.
+     */
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_MAPPER_SETTINGS = Setting.prefixKeySetting(
+        "index.ingestion_source.mapper_settings.",
+        key -> new Setting<>(key, "", (value) -> {
+            return value;
+        }, Property.IndexScope, Property.Final)
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -1261,6 +1273,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
+            final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1272,6 +1285,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setAllActiveIngestion(allActiveIngestionEnabled)
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
+                .setMapperSettings(mapperSettings)
                 .build();
         }
         return null;

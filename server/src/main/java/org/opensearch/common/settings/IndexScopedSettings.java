@@ -290,6 +290,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

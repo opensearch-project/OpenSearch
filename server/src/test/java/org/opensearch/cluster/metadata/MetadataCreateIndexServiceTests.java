@@ -3793,4 +3793,61 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertEquals("field1 store should be from template1", true, field1.get("store"));
     }
 
+    public void testValidateIngestionSourceSettingsWithFieldMappingOnCurrentVersion() {
+        // All nodes on current version — should pass
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("node1"))
+            .add(newNode("node2"))
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .build();
+
+        // Should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsWithFieldMappingOnOldVersion() {
+        // One node on older version — should fail
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(newNode("node1"))
+            .add(oldNode)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("mapper_type [field_mapping] requires all nodes"));
+        assertTrue(e.getMessage().contains(Version.V_3_5_0.toString()));
+    }
+
+    public void testValidateIngestionSourceSettingsWithDefaultMapperType() {
+        // Default mapper type on old nodes — should pass (no version requirement)
+        final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+        );
+        DiscoveryNode oldNode = new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(), roles, Version.V_3_5_0);
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(oldNode).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "default")
+            .build();
+
+        // Should not throw
+        MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
 }

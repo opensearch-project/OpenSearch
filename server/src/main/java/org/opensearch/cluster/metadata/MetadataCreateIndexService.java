@@ -1270,6 +1270,29 @@ public class MetadataCreateIndexService {
     }
 
     /**
+     * Validates ingestion source settings for version compatibility. In a mixed cluster, older nodes may not
+     * recognize newer mapper types (e.g., field_mapping), which would cause failures when those nodes try
+     * to initialize the ingestion engine.
+     */
+    static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings)) {
+            String mapperType = IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings).getName();
+            if ("field_mapping".equals(mapperType)) {
+                Version minNodeVersion = state.nodes().getMinNodeVersion();
+                if (minNodeVersion.before(Version.V_3_6_0)) {
+                    throw new IllegalArgumentException(
+                        "mapper_type [field_mapping] requires all nodes in the cluster to be on version ["
+                            + Version.V_3_6_0
+                            + "] or later, but the minimum node version is ["
+                            + minNodeVersion
+                            + "]"
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Updates index settings to set replication strategy by default based on cluster level settings or remote store
      * node attributes
      * @param settingsBuilder index settings builder to be updated with relevant settings
@@ -1631,6 +1654,7 @@ public class MetadataCreateIndexService {
         validateIndexName(request.index(), state);
         validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
         validateContext(request);
+        validateIngestionSourceSettings(request.settings(), state);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
