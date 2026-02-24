@@ -45,29 +45,36 @@ impl PartialAggregationOptimizer {
         let new_children = new_children?;
 
         if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
-            return match agg.mode() {
-                AggregateMode::Final | AggregateMode::FinalPartitioned => {
-                    // Remove the Final/FinalPartitioned node, preserving the
-                    // repartition/coalesce layers underneath. The Java side
-                    // handles merging partial results across partitions.
-                    Ok(new_children[0].clone())
-                }
-                AggregateMode::Partial => {
-                    plan.with_new_children(new_children)
-                }
-                _ => {
-                    // Single/SinglePartitioned → convert to Partial
-                    let new_agg = AggregateExec::try_new(
-                        AggregateMode::Partial,
-                        agg.group_expr().clone(),
-                        agg.aggr_expr().to_vec(),
-                        agg.filter_expr().to_vec(),
-                        new_children[0].clone(),
-                        new_children[0].schema(),
-                    )?;
-                    Ok(Arc::new(new_agg))
-                }
-            };
+            let needs_partial = agg.aggr_expr().iter().any(|e| {
+                e.fun().name().eq_ignore_ascii_case("approx_distinct")
+            });
+
+            if needs_partial {
+                return match agg.mode() {
+                    AggregateMode::Final | AggregateMode::FinalPartitioned => {
+                        // Remove the Final/FinalPartitioned node, preserving the
+                        // repartition/coalesce layers underneath. The Java side
+                        // handles merging partial results across partitions.
+                        Ok(new_children[0].clone())
+                    }
+                    AggregateMode::Partial => {
+                        plan.with_new_children(new_children)
+                    }
+                    _ => {
+                        // Single/SinglePartitioned → convert to Partial
+                        let new_agg = AggregateExec::try_new(
+                            AggregateMode::Partial,
+                            agg.group_expr().clone(),
+                            agg.aggr_expr().to_vec(),
+                            agg.filter_expr().to_vec(),
+                            new_children[0].clone(),
+                            new_children[0].schema(),
+                        )?;
+                        Ok(Arc::new(new_agg))
+                    }
+                };
+            }
+            return plan.with_new_children(new_children);
         }
 
         // Use original expression's aliases to make the final aliases

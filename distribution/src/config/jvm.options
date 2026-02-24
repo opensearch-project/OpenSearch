@@ -97,6 +97,9 @@ ${error.file}
 # Allow jcmd to attach to the process (required for 'jcmd VM.native_memory' commands)
 -XX:+UnlockDiagnosticVMOptions
 
+-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006
+
+
 # Enabling debug logs for Allocators in Arrow
 -Darrow.memory.debug.allocator=true
 
