@@ -8,15 +8,19 @@
 
 package org.opensearch.search.backpressure;
 
+import org.opensearch.action.search.SearchTask;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SearchBackpressureTestHelpers extends OpenSearchTestCase {
@@ -32,7 +36,23 @@ public class SearchBackpressureTestHelpers extends OpenSearchTestCase {
         long startTimeNanos,
         long taskId
     ) {
-        T task = mock(type);
+        T task;
+
+        // For SearchTask, create a real instance and spy on it since getDescription() is final
+        if (type.equals(SearchTask.class)) {
+            SearchTask realTask = new SearchTask(
+                taskId,
+                "test",
+                "test",
+                () -> "mock_search_task",
+                TaskId.EMPTY_TASK_ID,
+                new HashMap<>()
+            );
+            task = type.cast(spy(realTask));
+        } else {
+            task = mock(type);
+        }
+
         when(task.getTotalResourceStats()).thenReturn(new TaskResourceUsage(cpuUsage, heapUsage));
         when(task.getStartTimeNanos()).thenReturn(startTimeNanos);
         when(task.getId()).thenReturn(randomNonNegativeLong());

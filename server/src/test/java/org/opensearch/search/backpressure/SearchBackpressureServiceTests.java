@@ -131,7 +131,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             new TaskResourceUsageTrackers(),
             taskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -177,7 +178,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             taskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -211,7 +213,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             taskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -266,7 +269,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -362,7 +366,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             new TaskResourceUsageTrackers(),
             taskResourceUsageTrackers,
             mockTaskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -467,7 +472,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             taskResourceUsageTrackers,
             new TaskResourceUsageTrackers(),
             mockTaskManager,
-            workloadGroupService
+            workloadGroupService,
+            null
         );
 
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
@@ -566,7 +572,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 taskResourceUsageTrackers,
                 new TaskResourceUsageTrackers(),
                 mockTaskManager,
-                workloadGroupService
+                workloadGroupService,
+                null
             )
         );
 
@@ -646,7 +653,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 searchTaskTrackers,
                 searchShardTaskTrackers,
                 mockTaskManager,
-                workloadGroupService
+                workloadGroupService,
+                null
             )
         );
         when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
