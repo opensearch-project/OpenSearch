@@ -13,6 +13,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+
 /**
  * Settings related to search backpressure mode and interval
  *
@@ -31,12 +35,13 @@ public class SearchBackpressureSettings {
     /**
      * Defines the interval (in millis) at which the SearchBackpressureService monitors and cancels tasks.
      */
-    private final TimeValue interval;
+    private volatile TimeValue interval;
     public static final Setting<Long> SETTING_INTERVAL_MILLIS = Setting.longSetting(
         "search_backpressure.interval_millis",
         Defaults.INTERVAL_MILLIS,
         1,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -114,6 +119,7 @@ public class SearchBackpressureSettings {
     private final NodeDuressSettings nodeDuressSettings;
     private final SearchTaskSettings searchTaskSettings;
     private final SearchShardTaskSettings searchShardTaskSettings;
+    private final List<Consumer<TimeValue>> intervalListeners = new ArrayList<>();
 
     public SearchBackpressureSettings(Settings settings, ClusterSettings clusterSettings) {
         this.settings = settings;
@@ -123,6 +129,7 @@ public class SearchBackpressureSettings {
         this.searchShardTaskSettings = new SearchShardTaskSettings(settings, clusterSettings);
 
         interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(SETTING_INTERVAL_MILLIS, this::setIntervalMillis);
 
         mode = SETTING_MODE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, this::setMode);
@@ -161,5 +168,25 @@ public class SearchBackpressureSettings {
 
     public void setMode(SearchBackpressureMode mode) {
         this.mode = mode;
+    }
+
+    /**
+     * Sets the interval in milliseconds and notifies all registered listeners.
+     * @param intervalMillis the new interval in milliseconds
+     */
+    private void setIntervalMillis(long intervalMillis) {
+        TimeValue newInterval = new TimeValue(intervalMillis);
+        this.interval = newInterval;
+        for (Consumer<TimeValue> listener : intervalListeners) {
+            listener.accept(newInterval);
+        }
+    }
+
+    /**
+     * Adds a listener that will be notified when the interval setting changes.
+     * @param listener the listener to add
+     */
+    public void addIntervalListener(Consumer<TimeValue> listener) {
+        intervalListeners.add(listener);
     }
 }

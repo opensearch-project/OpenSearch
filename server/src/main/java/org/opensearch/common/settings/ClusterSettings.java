@@ -718,6 +718,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
+                SearchBackpressureSettings.SETTING_INTERVAL_MILLIS,
 
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,

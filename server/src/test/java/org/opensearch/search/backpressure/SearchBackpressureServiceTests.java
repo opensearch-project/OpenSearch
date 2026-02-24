@@ -692,6 +692,52 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testDynamicIntervalRescheduling() throws InterruptedException {
+        TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
+
+        // Create settings with initial interval of 500ms
+        long initialInterval = 500;
+        Settings settings = Settings.builder()
+            .put(SearchBackpressureSettings.SETTING_INTERVAL_MILLIS.getKey(), initialInterval)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        SearchBackpressureSettings sbpSettings = new SearchBackpressureSettings(settings, clusterSettings);
+
+        SearchBackpressureService service = new SearchBackpressureService(
+            sbpSettings,
+            mockTaskResourceTrackingService,
+            threadPool,
+            System::nanoTime,
+            new NodeDuressTrackers(new EnumMap<>(ResourceType.class), resourceCacheExpiryChecker),
+            new TaskResourceUsageTrackers(),
+            new TaskResourceUsageTrackers(),
+            taskManager,
+            workloadGroupService
+        );
+
+        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
+
+        // Start the service - this schedules the initial task
+        service.start();
+
+        // Verify initial interval
+        assertEquals(initialInterval, sbpSettings.getInterval().millis());
+
+        // Update the interval dynamically
+        long newInterval = 2000;
+        Settings newSettings = Settings.builder()
+            .put(SearchBackpressureSettings.SETTING_INTERVAL_MILLIS.getKey(), newInterval)
+            .build();
+        clusterSettings.applySettings(newSettings);
+
+        // Verify the interval was updated
+        assertEquals(newInterval, sbpSettings.getInterval().millis());
+
+        // Clean up
+        service.stop();
+        service.close();
+    }
+
     private SearchBackpressureSettings getBackpressureSettings(String mode, double ratio, double rate, double burst) {
         return spy(
             new SearchBackpressureSettings(

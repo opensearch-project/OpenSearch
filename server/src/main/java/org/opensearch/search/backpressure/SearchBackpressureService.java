@@ -16,6 +16,7 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
@@ -195,6 +196,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         this.settings.getSearchShardTaskSettings().addListener(searchBackpressureStates.get(SearchShardTask.class));
 
         this.taskTrackers = Map.of(SearchTask.class, searchTaskTrackers, SearchShardTask.class, searchShardTaskTrackers);
+
+        // Register listener for dynamic interval changes
+        this.settings.addIntervalListener(this::onIntervalChanged);
     }
 
     void doRun() {
@@ -503,6 +507,29 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     protected void doStop() {
         if (scheduledFuture != null) {
             scheduledFuture.cancel();
+        }
+    }
+
+    /**
+     * Handles dynamic updates to the interval setting by rescheduling the monitoring task.
+     * This is called when the search_backpressure.interval_millis setting is updated at runtime.
+     * @param newInterval the new interval value
+     */
+    private void onIntervalChanged(TimeValue newInterval) {
+        if (lifecycle.started()) {
+            logger.info("Rescheduling search backpressure monitoring task with new interval [{}]", newInterval);
+            // Cancel the existing scheduled task
+            if (scheduledFuture != null) {
+                scheduledFuture.cancel();
+            }
+            // Schedule with the new interval
+            scheduledFuture = threadPool.scheduleWithFixedDelay(() -> {
+                try {
+                    doRun();
+                } catch (Exception e) {
+                    logger.debug("failure in search search backpressure", e);
+                }
+            }, newInterval, ThreadPool.Names.GENERIC);
         }
     }
 
