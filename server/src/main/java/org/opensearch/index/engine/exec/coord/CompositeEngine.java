@@ -1207,7 +1207,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             lastMinRetainedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         }
         return new SoftDeletesPolicy(
-            engineConfig.getGlobalCheckpointSupplier(),
+            translogManager::getLastSyncedGlobalCheckpoint,
             lastMinRetainedSeqNo,
             engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
             engineConfig.retentionLeasesSupplier()
