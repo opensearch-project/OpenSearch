@@ -3794,7 +3794,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     }
 
     public void testValidateIngestionSourceSettingsWithFieldMappingOnCurrentVersion() {
-        // All nodes on current version — should pass
+        // All nodes on current version with valid mapper_settings — should pass
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(newNode("node1"))
             .add(newNode("node2"))
@@ -3803,6 +3803,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .put("index.ingestion_source.mapper_settings.id_field", "user_id")
+            .put("index.ingestion_source.mapper_settings.version_field", "timestamp")
+            .put("index.ingestion_source.mapper_settings.op_type_field", "is_deleted")
             .build();
 
         // Should not throw
@@ -3848,6 +3851,41 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // Should not throw
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
+    }
+
+    public void testValidateIngestionSourceSettingsWithUnknownMapperSettingsKey() {
+        // field_mapping with an unrecognized mapper_settings key — should fail
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .put("index.ingestion_source.mapper_settings.id_feild", "user_id")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("unknown mapper_settings key [id_feild]"));
+        assertTrue(e.getMessage().contains("field_mapping"));
+    }
+
+    public void testValidateIngestionSourceSettingsWithMapperSettingsOnDefaultMapper() {
+        // default mapper type with mapper_settings — should fail
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "default")
+            .put("index.ingestion_source.mapper_settings.id_field", "user_id")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("mapper_settings are not supported for mapper_type [default]"));
     }
 
 }

@@ -14,6 +14,7 @@ import org.opensearch.index.Message;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Interface for mapping ingestion messages to ShardUpdateMessage format.
@@ -23,6 +24,16 @@ import java.util.Locale;
  * validate and drop messages. Validations will be done as part of message processing in the {@link org.opensearch.indices.pollingingest.MessageProcessorRunnable}</p>
  */
 public interface IngestionMessageMapper {
+
+    /** Mapper setting key: source field to use as document _id */
+    String ID_FIELD = "id_field";
+    /** Mapper setting key: source field to use as document _version */
+    String VERSION_FIELD = "version_field";
+    /** Mapper setting key: source field to determine operation type (index vs delete) */
+    String OP_TYPE_FIELD = "op_type_field";
+
+    /** Valid mapper_settings keys for the field_mapping mapper type */
+    Set<String> FIELD_MAPPING_VALID_SETTINGS = Set.of(ID_FIELD, VERSION_FIELD, OP_TYPE_FIELD);
 
     /**
      * Maps and processes an ingestion message to a shard update message.
