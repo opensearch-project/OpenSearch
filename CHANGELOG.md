@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Choose the best performing node when writing with append-only index ([#20065](https://github.com/opensearch-project/OpenSearch/pull/20065))
 - Add security policy to allow `accessUnixDomainSocket` in `transport-grpc` module ([#20463](https://github.com/opensearch-project/OpenSearch/pull/20463), [#20649](https://github.com/opensearch-project/OpenSearch/pull/20649))
 - Add range validations in query builder and field mapper ([#20497](https://github.com/opensearch-project/OpenSearch/issues/20497))
+- Support TLS cert hot-reload for Arrow Flight transport ([#20700](https://github.com/opensearch-project/OpenSearch/pull/20700))
 - [Workload Management] Enhance Scroll API support for autotagging ([#20151](https://github.com/opensearch-project/OpenSearch/pull/20151))
 - Add indices to search request slowlog ([#20588](https://github.com/opensearch-project/OpenSearch/pull/20588))
 
@@ -30,6 +31,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Service does not start on Windows with OpenJDK ([#20615](https://github.com/opensearch-project/OpenSearch/pull/20615))
 - Update RemoteClusterStateCleanupManager to performed batched deletions of stale ClusterMetadataManifests and address deletion timeout issues ([#20566](https://github.com/opensearch-project/OpenSearch/pull/20566))
 - Fix the regression of terms agg optimization at high cardinality ([#20623](https://github.com/opensearch-project/OpenSearch/pull/20623))
+- Leveraging segment-global ordinal mapping for efficient terms aggregation ([#20624](https://github.com/opensearch-project/OpenSearch/pull/20624))
+- Support Docker distribution builds for ppc64le, arm64 and s390x ([#20678](https://github.com/opensearch-project/OpenSearch/pull/20678))
+- Harden detection of HTTP/3 support by ensuring Quic native libraries are available for the target platform ([#20680](https://github.com/opensearch-project/OpenSearch/pull/20680))
+- Fallback to netty client if AWS Crt client is not available on the target platform / architecture ([#20698](https://github.com/opensearch-project/OpenSearch/pull/20698))
+- Fix ShardSearchFailure in transport-grpc ([#20641](https://github.com/opensearch-project/OpenSearch/pull/20641))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
@@ -39,8 +45,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `netty` from 4.2.9.Final to 4.2.10.Final ([#20586](https://github.com/opensearch-project/OpenSearch/pull/20586))
 - Bump `reactor-netty` from 1.3.2 to 1.3.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
 - Bump `reactor` from 3.8.2 to 3.8.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
-- Bump `tj-actions/changed-files` from 47.0.1 to 47.0.2 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638))
 - Bump `com.azure:azure-storage-blob` from 12.31.2 to 12.32.0 ([#19783](https://github.com/opensearch-project/OpenSearch/pull/19783))
+- Bump `org.jruby.jcodings:jcodings` from 1.0.63 to 1.0.64 ([#20713](https://github.com/opensearch-project/OpenSearch/pull/20713))
+- Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.6 ([#20714](https://github.com/opensearch-project/OpenSearch/pull/20714))
+- Bump `tj-actions/changed-files` from 47.0.1 to 47.0.4 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716))
+- Bump `com.nimbusds:nimbus-jose-jwt` from 10.7 to 10.8 ([#20715](https://github.com/opensearch-project/OpenSearch/pull/20715))
 
 ### Removed
 
