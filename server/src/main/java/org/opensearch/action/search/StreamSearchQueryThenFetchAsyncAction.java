@@ -154,6 +154,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             try {
                 shardResultsConsumed.set(true);
                 if (streamResultsReceived.get() == streamResultsConsumeCallback.get()) {
+                    if (streamResultsReceived.get() > 0) {
+                        getSearchRequestContext().setStreamingRequest(true);
+                    }
                     getLogger().debug("Stream results consumption has called back, let shard consumption callback trigger onPhaseDone");
                     onPhaseDone();
                 } else {
@@ -180,6 +183,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         try {
             if (streamResultsReceived.get() == streamResultsConsumeCallback.incrementAndGet()) {
                 if (shardResultsConsumed.get()) {
+                    getSearchRequestContext().setStreamingRequest(true);
                     getLogger().debug("Stream consumption trigger onPhaseDone");
                     onPhaseDone();
                 }
