@@ -5,9 +5,6 @@ use datafusion::common::Result;
 use datafusion::physical_plan::aggregates::{AggregateExec, AggregateMode};
 use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_expr::{PhysicalExpr, expressions::Column};
-use datafusion::physical_plan::aggregates::PhysicalGroupBy;
-use datafusion::functions_aggregate::approx_distinct::approx_distinct_udaf;
-use datafusion::physical_expr::aggregate::AggregateExprBuilder;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -35,47 +32,54 @@ impl PhysicalOptimizerRule for PartialAggregationOptimizer {
 impl PartialAggregationOptimizer {
     pub fn optimize_plan(&self, plan: Arc<dyn ExecutionPlan>) -> Result<Arc<dyn ExecutionPlan>> {
 //         println!("[DEBUG] Before: {}", displayable(plan.as_ref()).indent(true));
-        let result = self.optimize_plan_with_alias(plan, None)?;
+        let result = self.rewrite_plan(plan)?;
 //         println!("[DEBUG] After: {}", displayable(result.as_ref()).indent(true));
         Ok(result)
     }
 
-    fn optimize_plan_with_alias(&self, plan: Arc<dyn ExecutionPlan>, parent_alias: Option<String>) -> Result<Arc<dyn ExecutionPlan>> {
-        // Recursively optimize children first
-        let optimized_children: Result<Vec<_>> = plan.children()
+    fn rewrite_plan(&self, plan: Arc<dyn ExecutionPlan>) -> Result<Arc<dyn ExecutionPlan>> {
+        let new_children: Result<Vec<_>> = plan.children()
             .into_iter()
-            .map(|child| self.optimize_plan_with_alias(Arc::clone(child), parent_alias.clone()))
+            .map(|child| self.rewrite_plan(Arc::clone(child)))
             .collect();
-        let optimized_children = optimized_children?;
+        let new_children = new_children?;
 
-        // Handle AggregateExec: convert to Partial mode only for avg/approx_distinct
         if let Some(agg) = plan.as_any().downcast_ref::<AggregateExec>() {
-            // println!("[DEBUG] Found AggregateExec, mode: {:?}", agg.mode());
-            // println!("[DEBUG] Aggregate output schema: {:?}", agg.schema().fields().iter().map(|f| f.name()).collect::<Vec<_>>());
-            // println!("[DEBUG] Aggregate expressions: {:?}", agg.aggr_expr().iter().map(|e| e.name()).collect::<Vec<_>>());
-
             let needs_partial = agg.aggr_expr().iter().any(|e| {
-                let name = e.fun().name().to_lowercase();
-                name.eq("approx_distinct")
+                e.fun().name().eq_ignore_ascii_case("approx_distinct")
             });
 
-            if needs_partial && !matches!(agg.mode(), &AggregateMode::Partial) {
-                let new_agg = AggregateExec::try_new(
-                    AggregateMode::Partial,
-                    agg.group_expr().clone(),
-                    agg.aggr_expr().to_vec(),
-                    agg.filter_expr().to_vec(),
-                    optimized_children[0].clone(),
-                    optimized_children[0].schema(),
-                )?;
-                return Ok(Arc::new(new_agg));
+            if needs_partial {
+                return match agg.mode() {
+                    AggregateMode::Final | AggregateMode::FinalPartitioned => {
+                        // Remove the Final/FinalPartitioned node, preserving the
+                        // repartition/coalesce layers underneath. The Java side
+                        // handles merging partial results across partitions.
+                        Ok(new_children[0].clone())
+                    }
+                    AggregateMode::Partial => {
+                        plan.with_new_children(new_children)
+                    }
+                    _ => {
+                        // Single/SinglePartitioned → convert to Partial
+                        let new_agg = AggregateExec::try_new(
+                            AggregateMode::Partial,
+                            agg.group_expr().clone(),
+                            agg.aggr_expr().to_vec(),
+                            agg.filter_expr().to_vec(),
+                            new_children[0].clone(),
+                            new_children[0].schema(),
+                        )?;
+                        Ok(Arc::new(new_agg))
+                    }
+                };
             }
-            return plan.with_new_children(optimized_children);
+            return plan.with_new_children(new_children);
         }
 
         // Use original expression's aliases to make the final aliases
         if let Some(proj) = plan.as_any().downcast_ref::<ProjectionExec>() {
-            let new_input = optimized_children[0].clone();
+            let new_input = new_children[0].clone();
             let input_schema = new_input.schema();
 
             let new_exprs: Vec<_> = proj.expr().iter().map(|orig_expr| {
@@ -90,8 +94,6 @@ impl PartialAggregationOptimizer {
             return Ok(Arc::new(ProjectionExec::try_new(new_exprs, new_input)?));
         }
 
-        // For all other nodes, just update with optimized children
-        // println!("[DEBUG] Returning plan with new children: {}", plan.name());
-        plan.with_new_children(optimized_children)
+        plan.with_new_children(new_children)
     }
 }
