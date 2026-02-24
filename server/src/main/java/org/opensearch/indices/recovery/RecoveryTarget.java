@@ -53,6 +53,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardNotRecoveringException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -202,7 +203,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
 
     @Override
     protected void onDone() {
-        assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
+        assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed: " + multiFileWriter.tempFileNames;
         indexShard.postRecovery("peer recovery done");
     }
 
@@ -375,7 +376,22 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             final Store store = store();
             store.incRef();
             try {
-                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                if (indexShard.isOptimizedIndex()) {
+                    // For optimized indices, use format-aware cleanup that handles both Lucene
+                    // and parquet files via CompositeStoreDirectory, ensuring parquet files
+                    // that were just transferred are not incorrectly deleted.
+                    final CompositeStoreDirectory compositeDirectory = store.compositeStoreDirectory();
+                    if (compositeDirectory == null) {
+                        throw new IllegalStateException(
+                            "CompositeStoreDirectory is required for cleanup of optimized index ["
+                                + indexShard.shardId()
+                                + "] but was not available"
+                        );
+                    }
+                    store.cleanupAndVerifyComposite("recovery CleanFilesRequestHandler", sourceMetadata, compositeDirectory);
+                } else {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                }
 
                 // Replicas for segment replication or remote snapshot indices do not create
                 // their own commit points and therefore do not modify the commit user data

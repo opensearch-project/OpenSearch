@@ -69,10 +69,11 @@ public final class FileChunkRequest extends RecoveryTransportRequest {
         content = in.readBytesReference();
         Version writtenBy = Lucene.parseVersionLenient(in.readString(), null);
         assert writtenBy != null;
-        metadata = new StoreFileMetadata(name, length, checksum, writtenBy);
         lastChunk = in.readBoolean();
         totalTranslogOps = in.readVInt();
         sourceThrottleTimeInNanos = in.readLong();
+        String dataFormat = in.readString();
+        metadata = new StoreFileMetadata(name, length, checksum, writtenBy, dataFormat);
     }
 
     public FileChunkRequest(
@@ -143,6 +144,7 @@ public final class FileChunkRequest extends RecoveryTransportRequest {
         out.writeBoolean(lastChunk);
         out.writeVInt(totalTranslogOps);
         out.writeLong(sourceThrottleTimeInNanos);
+        out.writeString(metadata.dataFormat());
     }
 
     @Override

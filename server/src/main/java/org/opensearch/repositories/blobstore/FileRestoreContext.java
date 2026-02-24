@@ -131,7 +131,7 @@ public abstract class FileRestoreContext {
                 throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
             }
 
-            final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
+            final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata, store.indexSettings().isOptimizedIndex());
             for (StoreFileMetadata md : diff.identical) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);

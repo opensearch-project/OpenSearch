@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-final class SoftDeletesPolicy {
+public final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private long localCheckpointOfSafeCommit;
     // This lock count is used to prevent `minRetainedSeqNo` from advancing.
@@ -63,7 +63,7 @@ final class SoftDeletesPolicy {
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
-    SoftDeletesPolicy(
+    public SoftDeletesPolicy(
         final LongSupplier globalCheckpointSupplier,
         final long minRetainedSeqNo,
         final long retentionOperations,
@@ -81,14 +81,14 @@ final class SoftDeletesPolicy {
      * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
      * See {@link org.opensearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
      */
-    synchronized void setRetentionOperations(long retentionOperations) {
+    public synchronized void setRetentionOperations(long retentionOperations) {
         this.retentionOperations = retentionOperations;
     }
 
     /**
      * Sets the local checkpoint of the current safe commit
      */
-    synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
+    public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
             throw new IllegalArgumentException(
                 "Local checkpoint can't go backwards; "
@@ -108,7 +108,7 @@ final class SoftDeletesPolicy {
      * make sure that all operations that are being retained will be retained until the lock is released.
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
-    synchronized Releasable acquireRetentionLock() {
+    public synchronized Releasable acquireRetentionLock() {
         assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         retentionLockCount++;
         final AtomicBoolean released = new AtomicBoolean();
@@ -128,7 +128,7 @@ final class SoftDeletesPolicy {
      * Returns the min seqno that is retained in the Lucene index.
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
-    synchronized long getMinRetainedSeqNo() {
+    public synchronized long getMinRetainedSeqNo() {
         /*
          * When an engine is flushed, we need to provide it the latest collection of retention leases even when the soft deletes policy is
          * locked for peer recovery.

@@ -48,6 +48,7 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.SoftDeletesPolicy;
 import org.opensearch.index.engine.VersionValue;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.engine.exec.FileStats;
@@ -204,6 +205,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
     // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
+
+    // Policy that controls sequence number retention for peer-recovery and querying history changes
+    private final SoftDeletesPolicy softDeletesPolicy;
+
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     protected final CatalogSnapshotManager catalogSnapshotManager;
     private ReleasableRef<CatalogSnapshot> lastCommitedCatalogSnapshotRef;
@@ -217,6 +222,19 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         ShardPath shardPath,
         BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
         TranslogEventListener translogEventListener
+    ) {
+        this(engineConfig, mapperService, pluginsService, indexSettings, shardPath, localCheckpointTrackerSupplier, translogEventListener, true);
+    }
+
+    public CompositeEngine(
+        EngineConfig engineConfig,
+        MapperService mapperService,
+        PluginsService pluginsService,
+        IndexSettings indexSettings,
+        ShardPath shardPath,
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+        TranslogEventListener translogEventListener,
+        boolean deleteUnreferencedFiles
     ) {
         this.logger = Loggers.getLogger(CompositeEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
@@ -299,9 +317,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
 
-            System.out.println("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
-
-            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
+            logger.debug("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
             this.engine = new CompositeIndexingExecutionEngine(
                 mapperService,
                 pluginsService,
@@ -309,8 +325,11 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.incrementAndGet(),
                 indexSettings
             );
+            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
+            // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
+
             //Initialize CatalogSnapshotManager before loadWriterFiles to ensure stale files are cleaned up before loading
-            this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath);
+
             try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotReleasableRef = catalogSnapshotManager.acquireSnapshot()) {
                 CatalogSnapshot loadedSnapshot = catalogSnapshotReleasableRef.getRef();
                 this.engine.loadWriterFiles(loadedSnapshot);
@@ -325,6 +344,14 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             this.maxSeqNoOfUpdatesOrDeletes =
                 new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translogManager.getMaxSeqNo()));
+
+            softDeletesPolicy = newSoftDeletesPolicy();
+
+            // Wire up softDeletesPolicy to the CombinedDeletionPolicy so that onCommit
+            // correctly updates the safe commit checkpoint for peer recovery and translog trimming.
+            if (committerRef instanceof LuceneCommitEngine) {
+                ((LuceneCommitEngine) committerRef).setSoftDeletesPolicy(softDeletesPolicy);
+            }
 
             this.indexingStrategyPlanner = new IndexingStrategyPlanner(
                 engineConfig,
@@ -703,9 +730,14 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return translogManager.getLastSyncedGlobalCheckpoint();
     }
 
+    /**
+     * Returns the minimum sequence number that is retained.
+     * Delegates to SoftDeletesPolicy which handles retention lock coordination and
+     * calculation based on retention leases, global checkpoint, and safe commit.
+     */
     @Override
     public long getMinRetainedSeqNo() {
-        return -1;
+        return softDeletesPolicy.getMinRetainedSeqNo();
     }
 
     @Override
@@ -883,14 +915,33 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return null;
     }
 
+    /**
+     * Returns the number of history operations in the specified sequence number range.
+     * For CompositeEngine, history is tracked in translog since we don't maintain soft-deleted documents.
+     */
     @Override
     public int countNumberOfHistoryOperations(String source, long fromSeqNo, long toSeqNumber) throws IOException {
-        return 0;
+        ensureOpen();
+        // For CompositeEngine, count operations from translog since we don't have soft-deleted docs
+        try (Translog.Snapshot snapshot = translogManager.newChangesSnapshot(fromSeqNo, toSeqNumber, false)) {
+            int count = 0;
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                if (op.seqNo() >= fromSeqNo && op.seqNo() <= toSeqNumber) {
+                    count++;
+                }
+            }
+            return count;
+        }
     }
 
+    /**
+     * Returns true if this engine has all operations from the given starting sequence number.
+     * For CompositeEngine, this checks if the minimum retained sequence number is at or before the starting seq no.
+     */
     @Override
     public boolean hasCompleteOperationHistory(String reason, long startingSeqNo) {
-        return false;
+        return getMinRetainedSeqNo() <= startingSeqNo;
     }
 
     @Override
@@ -1004,13 +1055,15 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
                         // Create commitData with checkpoint information BEFORE serializing CatalogSnapshot
                         // This ensures CatalogSnapshot.userData contains the correct checkpoint values
-                        final Map<String, String> commitData = new HashMap<>(7);
+                        final Map<String, String> commitData = new HashMap<>(8);
                         commitData.put(Translog.TRANSLOG_UUID_KEY, translogManager.getTranslogUUID());
                         commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                         commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                         commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                         commitData.put(HISTORY_UUID_KEY, historyUUID);
                         commitData.put(LAST_COMPOSITE_WRITER_GEN_KEY, Long.toString(lastWriterGeneration));
+                        // Persist MIN_RETAINED_SEQNO to enable proper restoration after restart
+                        commitData.put(Engine.MIN_RETAINED_SEQNO, Long.toString(softDeletesPolicy.getMinRetainedSeqNo()));
 
                         // Copy checkpoint data to CatalogSnapshot.userData BEFORE serialization
                         // This preserves checkpoint state for recovery scenarios (e.g., replica promotion)
@@ -1025,6 +1078,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                             catalogSnapshotToFlush
                         );
                         logger.trace("finished commit for flush");
+
                         if (lastCommitedCatalogSnapshotRef != null && lastCommitedCatalogSnapshotRef.getRef() != null)
                             lastCommitedCatalogSnapshotRef.close();
                         lastCommitedCatalogSnapshotRef = catalogSnapshotToFlushRef;
@@ -1113,6 +1167,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Override
     public void onSettingsChanged(TimeValue translogRetentionAge, ByteSizeValue translogRetentionSize, long softDeletesRetentionOps) {
         mergeScheduler.refreshConfig();
+        // Update soft deletes retention operations when settings change
+        softDeletesPolicy.setRetentionOperations(softDeletesRetentionOps);
     }
 
     @Override
@@ -1134,14 +1190,45 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return compositeEngineCommitter.getSafeCommitInfo();
     }
 
+    /**
+     * Creates a new SoftDeletesPolicy, loading minRetainedSeqNo from commit data to preserve across restarts.
+     * This is critical for proper peer recovery and retention lease handling.
+     */
+    private SoftDeletesPolicy newSoftDeletesPolicy() {
+        final Map<String, String> commitUserData = readLastCommittedData();
+        final long lastMinRetainedSeqNo;
+        if (commitUserData.containsKey(Engine.MIN_RETAINED_SEQNO)) {
+            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(Engine.MIN_RETAINED_SEQNO));
+        } else if (commitUserData.containsKey(SequenceNumbers.MAX_SEQ_NO)) {
+            // If MIN_RETAINED_SEQNO is not present but MAX_SEQ_NO is, use max_seq_no + 1
+            // This is the same behavior as InternalEngine for backward compatibility
+            lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
+        } else {
+            // No commit data available (fresh index), start with NO_OPS_PERFORMED
+            lastMinRetainedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        return new SoftDeletesPolicy(
+            translogManager::getLastSyncedGlobalCheckpoint,
+            lastMinRetainedSeqNo,
+            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
+            engineConfig.retentionLeasesSupplier()
+        );
+    }
+
     @Override
     public TranslogManager translogManager() {
         return translogManager;
     }
 
+    /**
+     * Acquires a lock on history retention to prevent trimming of translog operations needed for peer recovery.
+     * Delegates to SoftDeletesPolicy which handles the retention lock coordination.
+     * When held, it prevents minRetainedSeqNo from advancing, ensuring that all operations after the safe commit's
+     * local checkpoint will be retained for the duration of the recovery.
+     */
     @Override
     public Closeable acquireHistoryRetentionLock() {
-        return null;
+        return softDeletesPolicy.acquireRetentionLock();
     }
 
     @Override

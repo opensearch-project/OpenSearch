@@ -35,6 +35,7 @@ package org.opensearch.indices.recovery;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.RateLimiter;
@@ -63,6 +64,8 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.RecoveryEngineException;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngineCatalogSnapshot;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
@@ -71,6 +74,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.CompositeStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
@@ -81,12 +85,7 @@ import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -396,6 +395,50 @@ public abstract class RecoverySourceHandler {
     }
 
     /**
+     * Builds a format-aware {@link Store.MetadataSnapshot} for the given {@link IndexCommit}.
+     * <p>
+     * For optimized indices (e.g., parquet), this method deserializes the {@link CatalogSnapshot}
+     * from the commit's user data and uses {@link Store.MetadataSnapshot.LoadedMetadata#loadMetadata}
+     * with the {@link CompositeStoreDirectory} to include parquet file metadata (with correct checksums,
+     * sizes, and dataFormat). For regular indices, it falls back to the standard
+     * {@link Store#getMetadata(IndexCommit)} behavior.
+     *
+     * @param snapshot the IndexCommit to build metadata from
+     * @return a MetadataSnapshot containing metadata for all files (Lucene and parquet for optimized indices)
+     * @throws IOException if an I/O error occurs during metadata construction
+     */
+    protected Store.MetadataSnapshot getRecoverySourceMetadata(IndexCommit snapshot) throws IOException {
+        if (shard.isOptimizedIndex()) {
+            final String serialized = snapshot.getUserData().get(CompositeEngineCatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            final CatalogSnapshot catalogSnapshot = CompositeEngineCatalogSnapshot.deserializeFromString(serialized);
+            final CompositeStoreDirectory compositeDir = shard.store().compositeStoreDirectory();
+            final Store.MetadataSnapshot.LoadedMetadata loadedMetadata = Store.MetadataSnapshot.loadMetadata(
+                catalogSnapshot,
+                compositeDir,
+                logger
+            );
+
+            // The CatalogSnapshot only contains format-specific files (e.g., parquet).
+            // segments_N lives in the Lucene directory and must be included so it gets
+            // transferred to the replica during peer recovery.
+            final Map<String, StoreFileMetadata> combined = new HashMap<>(loadedMetadata.fileMetadata);
+            final Store.MetadataSnapshot luceneMetadata = shard.store().getMetadata(snapshot);
+            for (Map.Entry<String, StoreFileMetadata> entry : luceneMetadata.asMap().entrySet()) {
+                if (entry.getKey().startsWith(IndexFileNames.SEGMENTS)) {
+                    combined.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // Use commit user data from the Lucene commit which has the full set of
+            // checkpoint keys (translog UUID, local checkpoint, max seq no, etc.)
+            final Map<String, String> commitUserData = new HashMap<>(luceneMetadata.getCommitUserData());
+
+            return new Store.MetadataSnapshot(combined, commitUserData, loadedMetadata.numDocs);
+        }
+        return shard.store().getMetadata(snapshot);
+    }
+
+    /**
      * Perform phase1 of the recovery operations. Once this {@link IndexCommit}
      * snapshot has been performed no commit operations (files being fsync'd)
      * are effectively allowed on this index until all recovery phases are done
@@ -417,21 +460,28 @@ public abstract class RecoverySourceHandler {
             StopWatch stopWatch = new StopWatch().start();
             final Store.MetadataSnapshot recoverySourceMetadata;
             try {
-                recoverySourceMetadata = store.getMetadata(snapshot);
+                recoverySourceMetadata = getRecoverySourceMetadata(snapshot);
             } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 shard.failShard("recovery", ex);
                 throw ex;
             }
-            for (String name : snapshot.getFileNames()) {
-                final StoreFileMetadata md = recoverySourceMetadata.get(name);
-                if (md == null) {
-                    logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
-                    throw new CorruptIndexException(
-                        "Snapshot differs from actual index - maybe index was removed metadata has "
-                            + recoverySourceMetadata.asMap().size()
-                            + " files",
-                        name
-                    );
+            // For optimized indices, the metadata is built from the CatalogSnapshot which includes
+            // files across all data formats (Lucene + parquet). The IndexCommit.getFileNames() only
+            // returns Lucene commit files, which may not all be present in the CatalogSnapshot's
+            // metadata (e.g., the segments_N file). Skip this validation for optimized indices since
+            // the metadata source is the CatalogSnapshot, not the Lucene commit.
+            if (!shard.isOptimizedIndex()) {
+                for (String name : snapshot.getFileNames()) {
+                    final StoreFileMetadata md = recoverySourceMetadata.get(name);
+                    if (md == null) {
+                        logger.info("Snapshot differs from actual index for file: {} meta: {}", name, recoverySourceMetadata.asMap());
+                        throw new CorruptIndexException(
+                            "Snapshot differs from actual index - maybe index was removed metadata has "
+                                + recoverySourceMetadata.asMap().size()
+                                + " files",
+                            name
+                        );
+                    }
                 }
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
@@ -448,7 +498,7 @@ public abstract class RecoverySourceHandler {
                 // Generate a "diff" of all the identical, different, and missing
                 // segment files on the target node, using the existing files on
                 // the source node
-                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
+                final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot(), shard.isOptimizedIndex() );
                 for (StoreFileMetadata md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
                     phase1ExistingFileSizes.add(md.length());
