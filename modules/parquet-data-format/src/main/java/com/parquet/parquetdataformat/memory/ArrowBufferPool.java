@@ -1,6 +1,7 @@
 package com.parquet.parquetdataformat.memory;
 
 import com.parquet.parquetdataformat.ParquetDataFormatPlugin;
+import com.parquet.parquetdataformat.ParquetSettings;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
@@ -67,7 +68,7 @@ public class ArrowBufferPool implements Closeable {
 
     private static long getMaxAllocationInBytes(Settings settings) {
         long totalAvailableSystemMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        RatioValue maxAllocationPercentage = RatioValue.parseRatioValue(settings.get(ParquetDataFormatPlugin.INDEX_MAX_NATIVE_ALLOCATION.getKey(), ParquetDataFormatPlugin.DEFAULT_MAX_NATIVE_ALLOCATION));
+        RatioValue maxAllocationPercentage = RatioValue.parseRatioValue(settings.get(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), ParquetSettings.DEFAULT_MAX_NATIVE_ALLOCATION));
         return (long) (totalAvailableSystemMemory * maxAllocationPercentage.getAsRatio());
     }
 }

@@ -18,13 +18,15 @@ import java.util.List;
 public class ParquetMergeExecutor extends ParquetMerger {
 
     private final ParquetMergeStrategy strategy;
+    private final String indexName;
 
-    public ParquetMergeExecutor(CompactionStrategy compactionStrategy) {
+    public ParquetMergeExecutor(CompactionStrategy compactionStrategy, String indexName) {
         this.strategy = ParquetMergeStrategyFactory.getStrategy(compactionStrategy);
+        this.indexName = indexName;
     }
 
     @Override
     public MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration) {
-        return strategy.mergeParquetFiles(fileMetadataList, writerGeneration);
+        return strategy.mergeParquetFiles(fileMetadataList, writerGeneration, indexName);
     }
 }

@@ -28,7 +28,7 @@ public interface DataSourcePlugin {
         return Optional.empty();
     }
 
-    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath);
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings);
 
     FormatStoreDirectory<?> createFormatStoreDirectory(
         IndexSettings indexSettings,

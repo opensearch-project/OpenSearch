@@ -6,20 +6,18 @@ use std::error::Error;
 use std::any::Any;
 use std::sync::Arc;
 use std::panic::AssertUnwindSafe;
-use parquet::basic::Compression;
-use parquet::file::properties::WriterProperties;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::arrow_writer::ArrowWriter;
 use arrow::array::{Int64Array, ArrayRef};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatch;
-use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::arrow::arrow_writer::ArrowWriter;
 use crate::rate_limited_writer::RateLimitedWriter;
 
-use crate::{log_info, log_error};
+use crate::{log_info, log_error, SETTINGS_STORE};
+use crate::writer_properties_builder::WriterPropertiesBuilder;
 
 // Constants
 const READER_BATCH_SIZE: usize = 8192;
-const WRITER_BATCH_SIZE: usize = 8192;
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
 
 // Custom error types
@@ -60,6 +58,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
     _class: JClass,
     input_files: JObject,
     output_file: JString,
+    index_name: JString,
 ) -> jint {
     let result = catch_unwind(|| {
         let input_files_vec = convert_java_list_to_vec(&mut env, input_files)
@@ -70,9 +69,14 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
             .map_err(|e| format!("Failed to get output file string: {}", e))?
             .into();
 
-        log_info!("Starting merge of {} files to {}", input_files_vec.len(), output_path);
+        let index_name: String = env
+            .get_string(&index_name)
+            .map_err(|e| format!("Failed to get index name string: {}", e))?
+            .into();
 
-        process_parquet_files(&input_files_vec, &output_path)?;
+        log_info!("Starting merge of {} files to {} for index '{}'", input_files_vec.len(), output_path, index_name);
+
+        process_parquet_files(&input_files_vec, &output_path, &index_name)?;
 
         log_info!("Merge completed successfully");
         Ok(())
@@ -96,7 +100,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 }
 
 // Main processing function
-pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Result<(), Box<dyn Error>> {
+pub fn process_parquet_files(input_files: &[String], output_path: &str, index_name: &str) -> Result<(), Box<dyn Error>> {
     // Validate input
     validate_input(input_files)?;
 
@@ -105,7 +109,7 @@ pub fn process_parquet_files(input_files: &[String], output_path: &str) -> Resul
     log_info!("Schema read successfully: {:?}", schema);
 
     // Create writer
-    let mut writer = create_writer(output_path, schema.clone())?;
+    let mut writer = create_writer(output_path, schema.clone(), index_name)?;
 
     // Process files
     let stats = process_files(input_files, &schema, &mut writer)?;
@@ -149,11 +153,12 @@ fn read_schema_from_file(file_path: &str) -> Result<SchemaRef, Box<dyn Error>> {
 }
 
 // Writer creation
-fn create_writer(output_path: &str, schema: SchemaRef) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
-    let props = WriterProperties::builder()
-        .set_write_batch_size(WRITER_BATCH_SIZE)
-        .set_compression(Compression::ZSTD(Default::default()))
-        .build();
+fn create_writer(output_path: &str, schema: SchemaRef, index_name: &str) -> Result<ArrowWriter<RateLimitedWriter<File>>, Box<dyn Error>> {
+    let config = SETTINGS_STORE
+        .get(index_name)
+        .map(|r| r.clone())
+        .unwrap_or_default();
+    let props = WriterPropertiesBuilder::build(&config);
 
     let out_file = File::create(output_path)
         .map_err(|e| ParquetMergeError::WriterCreationError(format!("Failed to create output file: {}", e)))?;

@@ -38,7 +38,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
         LogManager.getLogger(RecordBatchMergeStrategy.class);
 
     @Override
-    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration) {
+    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration, String indexName) {
 
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
@@ -54,7 +54,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
         try {
             // Merge files in Rust
-            mergeParquetFilesInRust(filePaths, mergedFilePath);
+            mergeParquetFilesInRust(filePaths, mergedFilePath, indexName);
 
             // Build row ID mapping
             Map<RowId, Long> rowIdMapping = new HashMap<>();

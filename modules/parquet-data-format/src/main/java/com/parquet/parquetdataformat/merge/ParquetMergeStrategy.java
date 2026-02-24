@@ -20,6 +20,6 @@ public interface ParquetMergeStrategy {
     /**
      * Performs the actual Parquet merge.
      */
-    MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration);
+    MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration, String indexName);
 
 }

@@ -40,12 +40,14 @@ public class VSRManager implements AutoCloseable {
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
     private final Schema schema;
     private final String fileName;
+    private final String indexName;
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
 
 
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool arrowBufferPool) {
+    public VSRManager(String fileName, String indexName, Schema schema, ArrowBufferPool arrowBufferPool) {
         this.fileName = fileName;
+        this.indexName = indexName;
         this.schema = schema;
 
         // Create VSR pool
@@ -61,7 +63,7 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         try {
             try (ArrowExport export = managedVSR.get().exportSchema()) {
-                writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+                writer = new NativeParquetWriter(fileName, indexName, export.getSchemaAddress());
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);

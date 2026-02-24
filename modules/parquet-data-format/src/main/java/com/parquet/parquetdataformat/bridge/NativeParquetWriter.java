@@ -26,9 +26,9 @@ public class NativeParquetWriter implements Closeable {
      * @param schemaAddress Arrow C Data Interface schema pointer
      * @throws IOException if writer creation fails
      */
-    public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
+    public NativeParquetWriter(String filePath, String indexName, long schemaAddress) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress);
+        RustBridge.createWriter(filePath, indexName, schemaAddress);
     }
 
     /**

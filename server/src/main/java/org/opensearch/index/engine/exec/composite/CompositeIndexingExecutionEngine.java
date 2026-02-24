@@ -15,6 +15,7 @@ import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
@@ -49,7 +50,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         MapperService mapperService,
         PluginsService pluginsService,
         ShardPath shardPath,
-        long initialWriterGeneration
+        long initialWriterGeneration,
+        IndexSettings indexSettings
     ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         List<DataFormat> dataFormats = new ArrayList<>();
@@ -59,7 +61,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
                 .findAny()
                 .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
             dataFormats.add(plugin.getDataFormat());
-            delegates.add(plugin.indexingEngine(mapperService, shardPath));
+            delegates.add(plugin.indexingEngine(mapperService, shardPath, indexSettings));
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }
