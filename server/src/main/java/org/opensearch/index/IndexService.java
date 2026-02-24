@@ -81,6 +81,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -112,6 +113,7 @@ import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
 import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.plugins.DataSourcePlugin;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchEnginePlugin;
@@ -1098,6 +1100,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             return false;
         }
         return mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+    }
+
+    public void verifyMappings() {
+        if (indexSettings.isOptimizedIndex()) {
+            mapperService.documentMapper().mappers().forEach(mapper -> {
+                if (mapper instanceof MetadataFieldMapper) {
+                    return;
+                }
+                pluginsService.filterPlugins(DataSourcePlugin.class)
+                    .forEach(plugin -> plugin.canSupportFieldType(mapper));
+            });
+        }
     }
 
     private class StoreCloseListener implements Store.OnClose {

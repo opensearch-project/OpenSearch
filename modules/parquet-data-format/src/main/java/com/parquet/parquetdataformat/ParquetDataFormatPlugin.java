@@ -27,6 +27,7 @@ import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatStoreDirectory;
 import org.opensearch.index.store.GenericStoreDirectory;
@@ -107,6 +108,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
+    }
+
+    @Override
+    public void canSupportFieldType(Mapper mapper) {
+        ArrowSchemaBuilder.canCreateParquetField(mapper);
     }
 
     @Override
