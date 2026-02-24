@@ -106,6 +106,8 @@
 "Put distinguishable multi-wildcard templates at the same priority":
   - skip:
       features: allowed_warnings
+      version: " - 3.5.99"
+      reason: "template overlap check was relaxed in 3.6"
 
   - do:
       allowed_warnings:
