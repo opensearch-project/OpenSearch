@@ -13,7 +13,9 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Interface for mapping ingestion messages to ShardUpdateMessage format.
@@ -77,12 +79,26 @@ public interface IngestionMessageMapper {
      * @return the mapper instance
      */
     static IngestionMessageMapper create(String mapperTypeString, int shardId) {
+        return create(mapperTypeString, shardId, Collections.emptyMap());
+    }
+
+    /**
+     * Factory method to create a mapper instance based on type string and mapper settings.
+     *
+     * @param mapperTypeString the type of mapper to create as a string
+     * @param shardId the shard ID
+     * @param mapperSettings mapper-specific settings
+     * @return the mapper instance
+     */
+    static IngestionMessageMapper create(String mapperTypeString, int shardId, Map<String, Object> mapperSettings) {
         MapperType mapperType = MapperType.fromString(mapperTypeString);
         switch (mapperType) {
             case DEFAULT:
                 return new DefaultIngestionMessageMapper();
             case RAW_PAYLOAD:
                 return new RawPayloadIngestionMessageMapper(shardId);
+            case FIELD_MAPPING:
+                return new FieldMappingIngestionMessageMapper(mapperSettings);
             default:
                 throw new IllegalArgumentException("Unknown mapper type: " + mapperType);
         }

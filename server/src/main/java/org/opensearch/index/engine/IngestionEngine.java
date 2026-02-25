@@ -147,6 +147,7 @@ public class IngestionEngine extends InternalEngine {
             .blockingQueueSize(ingestionSource.getBlockingQueueSize())
             .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .mapperType(ingestionSource.getMapperType())
+            .mapperSettings(ingestionSource.getMapperSettings())
             .build();
         registerStreamPollerListener();
 
