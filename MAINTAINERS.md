@@ -44,16 +44,16 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 ## Emeritus
 
-| Maintainer               | GitHub ID                                   | Affiliation |
-| ------------------------ | ------------------------------------------- | ----------- |
-| Megha Sai Kavikondala    | [meghasaik](https://github.com/meghasaik)   | Amazon      |
-| Xue Zhou                 | [xuezhou25](https://github.com/xuezhou25)   | Amazon      |
-| Kartik Ganesh            | [kartg](https://github.com/kartg)           | Amazon      |
-| Abbas Hussain            | [abbashus](https://github.com/abbashus)     | Meta        |
-| Himanshu Setia           | [setiah](https://github.com/setiah)         | Amazon      |
-| Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)   | Amazon      |
-| Rabi Panda               | [adnapibar](https://github.com/adnapibar)   | Independent |
-| Tianli Feng              | [tlfeng](https://github.com/tlfeng)         | Amazon      |
-| Suraj Singh              | [dreamer-89](https://github.com/dreamer-89) | Amazon      |
-| Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)         | Independent |
-| Vacha Shah               | [VachaShah](https://github.com/VachaShah)   | Independent |
+| Maintainer               | GitHub ID                                   |
+| ------------------------ | ------------------------------------------- |
+| Megha Sai Kavikondala    | [meghasaik](https://github.com/meghasaik)   |
+| Xue Zhou                 | [xuezhou25](https://github.com/xuezhou25)   |
+| Kartik Ganesh            | [kartg](https://github.com/kartg)           |
+| Abbas Hussain            | [abbashus](https://github.com/abbashus)     |
+| Himanshu Setia           | [setiah](https://github.com/setiah)         |
+| Ryan Bogan               | [ryanbogan](https://github.com/ryanbogan)   |
+| Rabi Panda               | [adnapibar](https://github.com/adnapibar)   |
+| Tianli Feng              | [tlfeng](https://github.com/tlfeng)         |
+| Suraj Singh              | [dreamer-89](https://github.com/dreamer-89) |
+| Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)         |
+| Vacha Shah               | [VachaShah](https://github.com/VachaShah)   |
