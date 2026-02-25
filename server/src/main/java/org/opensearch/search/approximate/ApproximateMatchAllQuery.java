@@ -11,6 +11,7 @@ package org.opensearch.search.approximate;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.opensearch.index.mapper.ConstantFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -52,6 +53,10 @@ public class ApproximateMatchAllQuery extends ApproximateQuery {
                 && !primarySortField.fieldName().equals(FieldSortBuilder.ID_FIELD_NAME)) {
                 MappedFieldType mappedFieldType = context.getQueryShardContext().fieldMapper(primarySortField.fieldName());
                 if (mappedFieldType == null) {
+                    return false;
+                }
+                // Constant field types (e.g., _index) do not support range queries
+                if (mappedFieldType instanceof ConstantFieldType) {
                     return false;
                 }
                 Query rangeQuery = mappedFieldType.rangeQuery(null, null, false, false, null, null, null, context.getQueryShardContext());
