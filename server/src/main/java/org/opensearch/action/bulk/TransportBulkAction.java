@@ -120,6 +120,7 @@ import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -723,6 +724,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final DocStatusStats docStatusStats = new DocStatusStats();
             String nodeId = clusterService.localNode().getId();
 
+            final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
+
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
@@ -737,20 +740,50 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                final long startTimeNanos = relativeTime();
+                final long shardStartTimeNanos = relativeTime();
                 final ShardRouting primary = routingTable.shardRoutingTable(shardId).primaryShard();
-                String targetNodeId = primary != null ? primary.currentNodeId() : null;
+                final String targetNodeId = primary != null ? primary.currentNodeId() : null;
                 IndexMetadata indexMetaData = clusterState.metadata().index(shardId.getIndexName());
-                boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
+                final boolean bulkAdaptiveShardSelectionEnabled = indexMetaData.isAppendOnlyIndex()
                     && indexMetaData.bulkAdaptiveShardSelectionEnabled();
 
-                // Add the shard level accounting for coordinating and supply the listener
-                final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
-                final Releasable releasable = indexingPressureService.markCoordinatingOperationStarted(
-                    shardId,
-                    bulkShardRequest::ramBytesUsed,
-                    isOnlySystem
-                );
+                // Define the failure handler that can be reused for both pressure check failures and execution failures
+                final Consumer<Exception> onShardFailure = (Exception e) -> {
+                    // create failures for all relevant requests
+                    for (BulkItemRequest request : requests) {
+                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                        final DocWriteRequest<?> docWriteRequest = request.request();
+                        final BulkItemResponse bulkItemResponse = new BulkItemResponse(
+                            request.id(),
+                            docWriteRequest.opType(),
+                            new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
+                        );
+
+                        docStatusStats.inc(bulkItemResponse.status());
+                        responses.set(request.id(), bulkItemResponse);
+                    }
+
+                    if (counter.decrementAndGet() == 0) {
+                        indicesService.addDocStatusStats(docStatusStats);
+                        listener.onResponse(
+                            new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
+                        );
+                    }
+                };
+
+                // Try to acquire shard-level indexing pressure permit
+                final Releasable releasable;
+                try {
+                    releasable = indexingPressureService.markCoordinatingOperationStarted(
+                        shardId,
+                        bulkShardRequest::ramBytesUsed,
+                        isOnlySystem
+                    );
+                } catch (Exception e) {
+                    // If pressure check fails, treat it as a shard-level failure.
+                    onShardFailure.accept(e);
+                    continue;
+                }
 
                 final Span span = tracer.startSpan(SpanBuilder.from("bulkShardAction", nodeId, bulkShardRequest));
                 boolean incrementedConnections = false;
@@ -777,7 +810,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                         nodeMetricsCollector.addNodeStatistics(
                                             targetNodeId,
                                             bulkShardResponse.getNodeQueueSize(),
-                                            relativeTime() - startTimeNanos,
+                                            relativeTime() - shardStartTimeNanos,
                                             bulkShardResponse.getServiceTimeEWMAInNanos()
                                         );
                                     }
@@ -798,23 +831,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    // create failures for all relevant requests
-                                    for (BulkItemRequest request : requests) {
-                                        final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
-                                        final DocWriteRequest<?> docWriteRequest = request.request();
-                                        final BulkItemResponse bulkItemResponse = new BulkItemResponse(
-                                            request.id(),
-                                            docWriteRequest.opType(),
-                                            new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)
-                                        );
-
-                                        docStatusStats.inc(bulkItemResponse.status());
-                                        responses.set(request.id(), bulkItemResponse);
-                                    }
-
-                                    if (counter.decrementAndGet() == 0) {
-                                        finishHim();
-                                    }
+                                    onShardFailure.accept(e);
                                 }
 
                                 private void finishHim() {
@@ -842,7 +859,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
                     span.setError(e);
                     span.endSpan();
-                    throw e;
+                    // Treat execution failures as shard-level failures rather than failing the entire bulk request
+                    onShardFailure.accept(e);
                 }
             }
             bulkRequest = null; // allow memory for bulk request items to be reclaimed before all items have been completed
