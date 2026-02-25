@@ -86,27 +86,10 @@ public class TypeParsers {
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
-        if (meta.size() > 5) {
-            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
-        }
-        for (String key : meta.keySet()) {
-            if (key.codePointCount(0, key.length()) > 20) {
-                throw new MapperParsingException(
-                    "[meta] keys can't be longer than 20 chars, but got [" + key + "] for field [" + name + "]"
-                );
-            }
-        }
         for (Object value : meta.values()) {
-            if (value instanceof String) {
-                String sValue = (String) value;
-                if (sValue.codePointCount(0, sValue.length()) > 50) {
-                    throw new MapperParsingException(
-                        "[meta] values can't be longer than 50 chars, but got [" + value + "] for field [" + name + "]"
-                    );
-                }
-            } else if (value == null) {
+            if (value == null) {
                 throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
-            } else {
+            } else if (!(value instanceof String)) {
                 throw new MapperParsingException(
                     "[meta] values can only be strings, but got "
                         + value.getClass().getSimpleName()
