@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
@@ -100,6 +102,9 @@ public class NRTReplicationEngine extends Engine {
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
                 this.readerManager.addListener(listener);
             }
+            // Wire up a warmer listener to trigger index warming
+            // when new segments arrive via segment replication
+            this.readerManager.addListener(new WarmerRefreshListener(logger, isClosed, engineConfig, this.readerManager));
             final Map<String, String> userData = this.lastCommittedSegmentInfos.getUserData();
             final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
             translogManagerRef = new WriteOnlyTranslogManager(
@@ -559,5 +564,57 @@ public class NRTReplicationEngine extends Engine {
             DirectoryReader.open(store.directory(), engineConfig.getLeafSorter()),
             Lucene.SOFT_DELETES_FIELD
         );
+    }
+
+    /**
+     * A {@link ReferenceManager.RefreshListener} that warms new segments when the reader is refreshed
+     * during segment replication. This ensures index warming (e.g., loading global ordinals via
+     * {@link Engine.Warmer}) occurs on NRT replica shards, consistent with the warming behavior
+     * in {@link InternalEngine} used by NRT primary shards.
+     *
+     * @opensearch.internal
+     */
+    static final class WarmerRefreshListener implements ReferenceManager.RefreshListener {
+        private final Engine.Warmer warmer;
+        private final Logger logger;
+        private final AtomicBoolean isEngineClosed;
+        private final NRTReplicationReaderManager readerManager;
+
+        WarmerRefreshListener(
+            Logger logger,
+            AtomicBoolean isEngineClosed,
+            EngineConfig engineConfig,
+            NRTReplicationReaderManager readerManager
+        ) {
+            this.warmer = engineConfig.getWarmer();
+            this.logger = logger;
+            this.isEngineClosed = isEngineClosed;
+            this.readerManager = readerManager;
+        }
+
+        @Override
+        public void beforeRefresh() throws IOException {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh && warmer != null) {
+                try {
+                    OpenSearchDirectoryReader reader = readerManager.acquire();
+                    try {
+                        warmer.warm(reader);
+                    } catch (Exception e) {
+                        if (isEngineClosed.get() == false) {
+                            logger.warn("failed to warm reader replica", e);
+                        }
+                    } finally {
+                        readerManager.release(reader);
+                    }
+                } catch (IOException e) {
+                    if (isEngineClosed.get() == false) {
+                        logger.warn("failed to acquire reader for warming on replica", e);
+                    }
+                }
+            }
+        }
     }
 }
