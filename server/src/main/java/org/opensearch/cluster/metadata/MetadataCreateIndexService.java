@@ -107,6 +107,7 @@ import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.pollingingest.mappers.FieldMappingIngestionMessageMapper;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -1299,12 +1300,12 @@ public class MetadataCreateIndexService {
                 }
                 // Validate mapper_settings keys
                 for (String key : mapperSettings.keySet()) {
-                    if (IngestionMessageMapper.FIELD_MAPPING_VALID_SETTINGS.contains(key) == false) {
+                    if (FieldMappingIngestionMessageMapper.VALID_SETTINGS.contains(key) == false) {
                         throw new IllegalArgumentException(
                             "unknown mapper_settings key ["
                                 + key
                                 + "] for mapper_type [field_mapping]. Valid keys are: "
-                                + IngestionMessageMapper.FIELD_MAPPING_VALID_SETTINGS
+                                + FieldMappingIngestionMessageMapper.VALID_SETTINGS
                         );
                     }
                 }
