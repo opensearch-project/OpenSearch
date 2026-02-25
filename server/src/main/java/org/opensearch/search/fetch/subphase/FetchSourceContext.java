@@ -182,7 +182,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         // MUST never reach here
     }
 
-    private static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
+    public static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
