@@ -43,6 +43,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.TransportAddress;
@@ -149,6 +150,8 @@ public final class ExternalTestCluster extends TestCluster {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
         }
+
+        clientSettingsBuilder.put(FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG, true);
         Settings clientSettings = clientSettingsBuilder.build();
         MockNode node = new MockNode(clientSettings, pluginInfos, null, true);
         Client client = clientWrapper.apply(node.client());

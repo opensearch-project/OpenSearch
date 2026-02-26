@@ -40,6 +40,7 @@ import org.opensearch.index.store.Store;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -346,12 +347,12 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
             public CriteriaBasedIndexWriterLookup tryAcquire() {
                 boolean locked = lock.tryLock();
                 if (locked) {
-                    assert addCurrentThread();
                     if (lookup.isClosed()) {
-                        this.close();
+                        lock.unlock();
                         return null;
                     }
 
+                    assert addCurrentThread();
                     return lookup;
                 } else {
                     return null;
@@ -543,16 +544,22 @@ public class CompositeIndexWriter implements DocumentIndexWriter {
     private void refreshDocumentsForParentDirectory(CriteriaBasedIndexWriterLookup oldMap) throws IOException {
         final Map<String, CompositeIndexWriter.DisposableIndexWriter> markForRefreshIndexWritersMap = oldMap.criteriaBasedIndexWriterMap;
         deletePreviousVersionsForUpdatedDocuments();
-        Directory directoryToCombine;
+        final List<Directory> directoryToCombine = new ArrayList<>();
+        final List<Path> childDirectoryPaths = new ArrayList<>();
+        final AtomicLong pendingNumDocsByOldChildWriter = new AtomicLong();
         for (CompositeIndexWriter.DisposableIndexWriter childDisposableWriter : markForRefreshIndexWritersMap.values()) {
-            directoryToCombine = childDisposableWriter.getIndexWriter().getDirectory();
+            directoryToCombine.add(childDisposableWriter.getIndexWriter().getDirectory());
             childDisposableWriter.getIndexWriter().close();
-            long pendingNumDocsByOldChildWriter = childDisposableWriter.getIndexWriter().getPendingNumDocs();
-            accumulatingIndexWriter.addIndexes(directoryToCombine);
-            Path childDirectoryPath = getLocalFSDirectory(directoryToCombine).getDirectory();
+            pendingNumDocsByOldChildWriter.addAndGet(childDisposableWriter.getIndexWriter().getPendingNumDocs());
+            Path childDirectoryPath = getLocalFSDirectory(childDisposableWriter.getIndexWriter().getDirectory()).getDirectory();
+            childDirectoryPaths.add(childDirectoryPath);
+        }
+
+        if (!directoryToCombine.isEmpty()) {
+            accumulatingIndexWriter.addIndexes(directoryToCombine.toArray(new Directory[0]));
             IOUtils.closeWhileHandlingException(directoryToCombine);
-            childWriterPendingNumDocs.addAndGet(-pendingNumDocsByOldChildWriter);
-            IOUtils.rm(childDirectoryPath);
+            childWriterPendingNumDocs.addAndGet(-pendingNumDocsByOldChildWriter.get());
+            IOUtils.rm(childDirectoryPaths.toArray(new Path[0]));
         }
 
         deleteDummyTombstoneEntry();

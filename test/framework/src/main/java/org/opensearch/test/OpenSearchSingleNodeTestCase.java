@@ -275,6 +275,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         plugins.add(MockScriptService.TestPlugin.class);
 
         plugins.add(MockTelemetryPlugin.class);
+        plugins.add(OpenSearchIntegTestCase.ContextAwareIndexPlugin.class);
         Node node = new MockNode(
             settingsBuilder.build(),
             plugins.stream()
@@ -486,6 +487,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         }
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
         featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.CONTEXT_AWARE_MIGRATION_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
