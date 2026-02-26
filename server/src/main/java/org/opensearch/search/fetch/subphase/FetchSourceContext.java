@@ -55,7 +55,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-// ISSUE-20612 Source Validation
 /**
  * Context used to fetch the {@code _source}.
  *

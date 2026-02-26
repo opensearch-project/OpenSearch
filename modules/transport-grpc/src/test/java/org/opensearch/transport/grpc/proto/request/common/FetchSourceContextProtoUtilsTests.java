@@ -19,7 +19,6 @@ import org.opensearch.protobufs.StringArray;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchTestCase;
 
-// ISSUE-20612 Source Validation
 public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
 
     public void testParseFromProtoRequestWithBoolValue() {
