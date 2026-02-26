@@ -365,6 +365,8 @@ tasks.named("thirdPartyAudit").configure {
             'org.apache.lucene.facet.DrillSideways',
             'org.apache.lucene.facet.DrillSideways$Result',
             'org.apache.lucene.facet.FacetResult',
+            'org.apache.lucene.facet.FacetsCollector',
+            'org.apache.lucene.facet.FacetsCollector$MatchingDocs',
             'org.apache.lucene.facet.FacetsConfig',
             'org.apache.lucene.facet.FacetsConfig$DimConfig',
             'org.apache.lucene.facet.LabelAndValue',
