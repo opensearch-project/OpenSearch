@@ -84,6 +84,8 @@ import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.ByteBuffer;
@@ -102,6 +104,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -1195,6 +1198,88 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
             .get();
         assertHitCount(searchResponse, 3L);
         assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmap64DocValuesQuery() throws Exception {
+        assertAcked(
+            prepareCreate("employees").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    .field("index", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("employees").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees").setId("3").setSource("employee_id", new long[] { 1000000000001L, 3000000000003L }),
+            client().prepareIndex("employees").setId("4").setSource("employee_id", 4000000000004L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(4000000000004L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        bitmap.serializePortable(dos);
+        dos.close();
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        // directly building the terms query builder, so pass in the bitmap value as BytesArray
+        SearchResponse searchResponse = client().prepareSearch("employees")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmap64IndexAndDocValues() throws Exception {
+        assertAcked(
+            prepareCreate("employees2").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    // Both index and doc values enabled (default)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        indexRandom(
+            true,
+            client().prepareIndex("employees2").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees2").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees2").setId("3").setSource("employee_id", 3000000000003L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(3000000000003L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (DataOutputStream dos = new DataOutputStream(bos)) {
+            bitmap.serializePortable(dos);
+        }
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        SearchResponse searchResponse = client().prepareSearch("employees2")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "3");
     }
 
     public void testTermsLookupFilter() throws Exception {

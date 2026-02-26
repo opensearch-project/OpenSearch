@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.x]
 ### Added
+- Add bitmap64 query support ([#20606](https://github.com/opensearch-project/OpenSearch/pull/20606))
 - Add ProfilingWrapper interface for plugin access to delegates in profiling decorators ([#20607](https://github.com/opensearch-project/OpenSearch/pull/20607))
 - Support expected cluster name with validation in CCS Sniff mode ([#20532](https://github.com/opensearch-project/OpenSearch/pull/20532))
 - Choose the best performing node when writing with append-only index ([#20065](https://github.com/opensearch-project/OpenSearch/pull/20065))
