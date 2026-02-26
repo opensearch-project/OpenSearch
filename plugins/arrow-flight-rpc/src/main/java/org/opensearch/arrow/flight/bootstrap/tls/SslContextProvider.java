@@ -12,24 +12,16 @@ import io.netty.handler.ssl.SslContext;
 
 /**
  * Provider interface for SSL/TLS context configuration in OpenSearch Flight.
- * This interface defines methods for managing SSL contexts for both server and client-side
- * Flight communications.
  */
 public interface SslContextProvider {
 
     /**
-     * Gets the SSL context configuration for the Flight server.
-     * This context is used to secure incoming connections to the Flight server.
-     *
-     * @return SslContext configured for server-side TLS
+     * Gets the SSL context for the Flight server.
      */
     SslContext getServerSslContext();
 
     /**
-     * Gets the SSL context configuration for Flight clients.
-     * This context is used when making outbound connections to other Flight servers.
-     *
-     * @return SslContext configured for client-side TLS
+     * Gets the SSL context for Flight clients.
      */
     SslContext getClientSslContext();
 }
