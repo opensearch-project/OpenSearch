@@ -70,7 +70,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
 
-    private static final String AMBIGUOUS_FIELD_MESSAGE = "The same entry cannot be both included and excluded in _source.";
+    private static final String AMBIGUOUS_FIELD_MESSAGE = "The same entry [{}] cannot be both included and excluded in _source.";
 
     private final boolean fetchSource;
     private final String[] includes;
@@ -81,6 +81,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        validateAmbiguousFields();
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -91,6 +92,20 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
+        validateAmbiguousFields();
+    }
+
+    /**
+     * The same entry cannot be both included and excluded in _source.
+     * Since the constructors are public, this validation is required to be called in the constructor.
+     * */
+    private void validateAmbiguousFields() {
+        Set<String> includeSet = new HashSet<>(Arrays.asList(this.includes));
+        for (String exclude : this.excludes) {
+            if (includeSet.contains(exclude)) {
+                throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, exclude);
+            }
+        }
     }
 
     @Override
