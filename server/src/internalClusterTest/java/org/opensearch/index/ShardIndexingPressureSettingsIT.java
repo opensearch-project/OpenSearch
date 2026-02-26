@@ -44,6 +44,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.instanceOf;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 @SuppressForbidden(reason = "Need to fix: https://github.com/opensearch-project/OpenSearch/issues/14331")
@@ -270,16 +271,19 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
                 .build()
         );
 
-        // Any node receiving the request will end up rejecting request due to node level limit breached
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> {
-            if (randomBoolean()) {
-                client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-            } else if (randomBoolean()) {
-                client(primaryName).bulk(bulkRequest).actionGet();
-            } else {
-                client(replicaName).bulk(bulkRequest).actionGet();
-            }
-        });
+        // Any node receiving the request will end up rejecting request due to shard-level limit breached.
+        // After the change to handle shard indexing pressure failures as item-level failures,
+        // the bulk request returns a BulkResponse with failures instead of throwing an exception.
+        BulkResponse rejectedResponse;
+        if (randomBoolean()) {
+            rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+        } else if (randomBoolean()) {
+            rejectedResponse = client(primaryName).bulk(bulkRequest).actionGet();
+        } else {
+            rejectedResponse = client(replicaName).bulk(bulkRequest).actionGet();
+        }
+        assertTrue(rejectedResponse.hasFailures());
+        assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
     }
 
     public void testShardIndexingPressureEnforcedEnabledDisabledSetting() throws Exception {
@@ -337,7 +341,11 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         Thread.sleep(25);
 
         // This request breaches the threshold and hence will be rejected
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
+        // After the change to handle shard indexing pressure failures as item-level failures,
+        // the bulk request returns a BulkResponse with failures instead of throwing an exception.
+        BulkResponse rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+        assertTrue(rejectedResponse.hasFailures());
+        assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
         assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
         assertEquals(
             1,
@@ -409,7 +417,11 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         waitForTwoOutstandingRequests(coordinatingShardTracker);
 
         // This request breaches the threshold and hence will be rejected
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
+        // After the change to handle shard indexing pressure failures as item-level failures,
+        // the bulk request returns a BulkResponse with failures instead of throwing an exception.
+        rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+        assertTrue(rejectedResponse.hasFailures());
+        assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
         // new rejection added to the actual rejection count
         assertEquals(2, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
@@ -636,13 +648,17 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         Thread.sleep(25);
 
         // This request breaches the threshold and hence will be rejected
+        // After the change to handle shard indexing pressure failures as item-level failures,
+        // the bulk request returns a BulkResponse with failures instead of throwing an exception.
         if (randomBoolean) {
             ShardIndexingPressureTracker coordinatingShardTracker = internalCluster().getInstance(
                 IndexingPressureService.class,
                 coordinatingOnlyNode
             ).getShardIndexingPressure().getShardIndexingPressureTracker(shardId);
             waitForTwoOutstandingRequests(coordinatingShardTracker);
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
+            BulkResponse rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+            assertTrue(rejectedResponse.hasFailures());
+            assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
             assertEquals(1, coordinatingShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
             assertEquals(
                 1,
@@ -655,7 +671,9 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
                 .getShardIndexingPressure()
                 .getShardIndexingPressureTracker(shardId);
             waitForTwoOutstandingRequests(primaryShardTracker);
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> client(primaryName).bulk(bulkRequest).actionGet());
+            BulkResponse rejectedResponse = client(primaryName).bulk(bulkRequest).actionGet();
+            assertTrue(rejectedResponse.hasFailures());
+            assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
             assertEquals(1, primaryShardTracker.getCoordinatingOperationTracker().getRejectionTracker().getTotalRejections());
             assertEquals(
                 1,
@@ -805,11 +823,16 @@ public class ShardIndexingPressureSettingsIT extends OpenSearchIntegTestCase {
         successFuture.actionGet();
 
         // This request breaches the threshold and hence will be rejected
+        // After the change to handle shard indexing pressure failures as item-level failures,
+        // the bulk request returns a BulkResponse with failures instead of throwing an exception.
+        BulkResponse rejectedResponse;
         if (randomBoolean) {
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> client(coordinatingOnlyNode).bulk(bulkRequest).actionGet());
+            rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
         } else {
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> client(primaryName).bulk(bulkRequest).actionGet());
+            rejectedResponse = client(primaryName).bulk(bulkRequest).actionGet();
         }
+        assertTrue(rejectedResponse.hasFailures());
+        assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
         // Update the outstanding threshold setting to see no rejections
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
