@@ -10,7 +10,7 @@ package org.opensearch.index.codec;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -60,7 +60,7 @@ public class PerFieldMappingPostingFormatCodecTests extends OpenSearchTestCase {
         assertFalse("Fuzzy set should be disabled", isEnabled);
 
         PerFieldMappingPostingFormatCodec codec = new PerFieldMappingPostingFormatCodec(
-            Lucene103Codec.Mode.BEST_SPEED,
+            Lucene104Codec.Mode.BEST_SPEED,
             mapperService,
             logger
         );
@@ -87,7 +87,7 @@ public class PerFieldMappingPostingFormatCodecTests extends OpenSearchTestCase {
         when(mapperService.fieldType(IdFieldMapper.NAME)).thenReturn(mockFieldType);
 
         PerFieldMappingPostingFormatCodec codec = new PerFieldMappingPostingFormatCodec(
-            Lucene103Codec.Mode.BEST_SPEED,
+            Lucene104Codec.Mode.BEST_SPEED,
             mapperService,
             logger
         );
