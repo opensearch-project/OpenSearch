@@ -26,6 +26,11 @@ import java.util.Map;
  */
 public interface IngestionMessageMapper {
 
+    /** Operation type value for index operations */
+    String OP_TYPE_INDEX = "index";
+    /** Operation type value for delete operations */
+    String OP_TYPE_DELETE = "delete";
+
     /**
      * Maps and processes an ingestion message to a shard update message.
      *
