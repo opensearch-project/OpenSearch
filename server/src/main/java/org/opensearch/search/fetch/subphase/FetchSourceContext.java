@@ -51,11 +51,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-// ISSUE-20612 Source Validation
 /**
  * Context used to fetch the {@code _source}.
  *
@@ -92,7 +92,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
-        validateAmbiguousFields();
     }
 
     /**
@@ -170,7 +169,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                String[] includes = parseSourceArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
+                String[] includes = parseSourceFieldArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
@@ -189,8 +188,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         + XContentParser.Token.START_OBJECT
                         + "] but found ["
                         + token
-                        + "]",
-                    parser.getTokenLocation()
+                        + "]"
                 );
             }
         }
@@ -202,6 +200,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
         String currentFieldName = null;
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected a " + XContentParser.Token.START_OBJECT + " but got a " + token + " in [" + parser.currentName() + "]."
+            );
+        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -210,24 +214,20 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             if (currentFieldName == null) {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "Expected a field name but got a " + token + " in [" + parser.currentName() + "].",
-                    parser.getTokenLocation()
+                    "Expected a field name but got a " + token + " in [" + parser.currentName() + "]."
                 );
             }
             // process field value
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceArray(parser, INCLUDES_FIELD, excludes);
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceArray(parser, EXCLUDES_FIELD, includes);
-                    }
-                    else {
+                        includes = parseSourceFieldArray(parser, INCLUDES_FIELD, excludes);
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludes = parseSourceFieldArray(parser, EXCLUDES_FIELD, includes);
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation()
+                            "Unknown key for a " + token + " in [" + currentFieldName + "]."
                         );
                     }
                 }
@@ -235,18 +235,16 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         String includeEntry = parser.text();
                         if (excludes.contains(includeEntry)) {
-                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, includeEntry);
+                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, includeEntry);
                         }
                         includes = Collections.singleton(includeEntry);
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         String excludeEntry = parser.text();
                         if (includes.contains(excludeEntry)) {
-                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
+                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
                         }
                         excludes = Collections.singleton(excludeEntry);
-                    }
-                    else {
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "]."
@@ -254,48 +252,41 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     }
                 }
                 default -> {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                        parser.getTokenLocation()
-                    );
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
             }
         }
-        if (currentFieldName == null) {
-            // no field names -> empty object; empty object is not allowed
+        if (includes.isEmpty() && excludes.isEmpty()) {
+            // no valid field names -> empty or unrecognized fields; not allowed
             throw new ParsingException(
                 parser.getTokenLocation(),
-                "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]",
-                parser.getTokenLocation()
+                "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]"
             );
         }
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
-    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField, Set<String> opposite) throws IOException {
-        Set<String> sourceArr = new HashSet<>(); // include or exclude lists
+    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField, Set<String> opposite)
+        throws IOException {
+        Set<String> sourceArr = new LinkedHashSet<>(); // include or exclude lists, LinkedHashSet preserves the order of fields
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 String entry = parser.text();
                 if (opposite != null && opposite.contains(entry)) {
-                    throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, entry);
+                    throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, entry);
                 }
                 sourceArr.add(entry);
-            }
-            else {
+            } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
-                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "].",
-                    parser.getTokenLocation()
+                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "]."
                 );
             }
         }
         if (sourceArr.isEmpty()) {
             throw new ParsingException(
                 parser.getTokenLocation(),
-                "Expected at least one value for an array of [" + parseField.getPreferredName() + "]",
-                parser.getTokenLocation()
+                "Expected at least one value for an array of [" + parseField.getPreferredName() + "]"
             );
         }
         return sourceArr;
@@ -303,14 +294,25 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fetchSource) {
-            builder.startObject();
-            builder.array(INCLUDES_FIELD.getPreferredName(), includes);
-            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
-            builder.endObject();
-        } else {
+        if (!fetchSource) {
+            // do not fetch source
             builder.value(false);
+            return builder;
         }
+        if (includes.length == 0 && excludes.length == 0) {
+            // no empty arrays
+            builder.value(true);
+            return builder;
+        }
+
+        builder.startObject();
+        if (includes.length > 0) {
+            builder.array(INCLUDES_FIELD.getPreferredName(), includes);
+        }
+        if (excludes.length > 0) {
+            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
+        }
+        builder.endObject();
         return builder;
     }
 
