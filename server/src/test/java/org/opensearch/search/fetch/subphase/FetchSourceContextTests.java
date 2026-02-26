@@ -261,4 +261,19 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
             assertEquals("The same entry [BBB] cannot be both included and excluded in _source.", result.getMessage());
         }
     }
+
+    public void testParseSourceObjectInvalidInput() throws IOException {
+        final XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject().field("_source", true).endObject();
+        final XContentParser parser = createSourceParser(source);
+
+        ParsingException result = expectThrows(
+            ParsingException.class,
+            () ->FetchSourceContext.parseSourceObject(parser)
+        );
+        assertEquals(
+            "Expected a START_OBJECT but got a VALUE_BOOLEAN in [_source].",
+             result.getMessage()
+        );
+    }
 }

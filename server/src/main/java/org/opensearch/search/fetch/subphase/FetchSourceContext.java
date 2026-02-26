@@ -202,6 +202,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
         String currentFieldName = null;
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected a " + XContentParser.Token.START_OBJECT + " but got a " + token + " in [" + parser.currentName() + "]."
+            );
+        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
