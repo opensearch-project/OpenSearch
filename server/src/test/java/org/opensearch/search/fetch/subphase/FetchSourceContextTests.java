@@ -212,5 +212,53 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
             );
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
+        {
+            final XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("_source")
+                .startObject()
+                .field("includes").value("AAA")
+                .field("excludes").startArray().value("AAA").value("BBB").endArray()
+                .endObject()
+                .endObject();
+            final XContentParser parser = createSourceParser(source);
+
+            OpenSearchException result = expectThrows(OpenSearchException.class,
+                () -> FetchSourceContext.fromXContent(parser)
+            );
+            assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
+        }
+        {
+            final XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("_source")
+                .startObject()
+                .field("includes").startArray().value("AAA").value("BBB").endArray()
+                .field("excludes").value("AAA")
+                .endObject()
+                .endObject();
+            final XContentParser parser = createSourceParser(source);
+
+            OpenSearchException result = expectThrows(OpenSearchException.class,
+                () -> FetchSourceContext.fromXContent(parser)
+            );
+            assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
+        }
+        {
+            final XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("_source")
+                .startObject()
+                .field("includes").startArray().value("AAA").value("BBB").endArray()
+                .field("excludes").startArray().value("BBB").value("AAA").endArray()
+                .endObject()
+                .endObject();
+            final XContentParser parser = createSourceParser(source);
+
+            OpenSearchException result = expectThrows(OpenSearchException.class,
+                () -> FetchSourceContext.fromXContent(parser)
+            );
+            assertEquals("The same entry [BBB] cannot be both included and excluded in _source.", result.getMessage());
+        }
     }
 }
