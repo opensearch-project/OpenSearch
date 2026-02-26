@@ -20,7 +20,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.FailedShard;
@@ -403,7 +402,7 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
             // Skip allocation for closed index shards - for new shards and already-batched shards whose index subsequently closed
-            if (shardRouting.unassignedInfo() != null && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CLOSED) {
+            if (shardRouting.isClosedIndexShard()) {
                 return;
             }
             if ((currentBatchedShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {

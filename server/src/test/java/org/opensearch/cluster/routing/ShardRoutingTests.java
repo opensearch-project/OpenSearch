@@ -313,6 +313,33 @@ public class ShardRoutingTests extends OpenSearchTestCase {
         assertFalse(activeReplicaShard1.primary());
     }
 
+    public void testIsClosedIndexShard() {
+        ShardRouting closedShard = TestShardRouting.newShardRouting(
+            "test",
+            0,
+            null,
+            null,
+            false,
+            ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "index closed")
+        );
+        assertTrue(closedShard.isClosedIndexShard());
+
+        ShardRouting createdShard = TestShardRouting.newShardRouting(
+            "test",
+            0,
+            null,
+            null,
+            false,
+            ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created")
+        );
+        assertFalse(createdShard.isClosedIndexShard());
+
+        ShardRouting startedShard = TestShardRouting.newShardRouting("test", 0, "node1", true, ShardRoutingState.STARTED);
+        assertFalse(startedShard.isClosedIndexShard());
+    }
+
     public void testExpectedSize() throws IOException {
         final int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {

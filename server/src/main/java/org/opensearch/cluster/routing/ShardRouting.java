@@ -956,4 +956,11 @@ public class ShardRouting implements Writeable, ToXContentObject {
         }
         return false;
     }
+
+    public boolean isClosedIndexShard() {
+        if (unassignedInfo != null) {
+            return unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CLOSED;
+        }
+        return false;
+    }
 }

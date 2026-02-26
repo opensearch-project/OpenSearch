@@ -43,7 +43,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.FailedShard;
@@ -182,7 +181,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     ) {
         assert shardRouting.unassigned();
         // Skip allocation for closed index shards
-        if (shardRouting.unassignedInfo() != null && shardRouting.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CLOSED) {
+        if (shardRouting.isClosedIndexShard()) {
             return;
         }
         if (shardRouting.primary()) {
