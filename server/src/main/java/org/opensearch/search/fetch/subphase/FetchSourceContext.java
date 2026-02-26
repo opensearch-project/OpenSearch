@@ -224,11 +224,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         includes = parseSourceArray(parser, INCLUDES_FIELD, excludes);
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = parseSourceArray(parser, EXCLUDES_FIELD, includes);
-                    }
-                    else {
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -243,15 +241,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, includeEntry);
                         }
                         includes = Collections.singleton(includeEntry);
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         String excludeEntry = parser.text();
                         if (includes.contains(excludeEntry)) {
                             throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
                         }
                         excludes = Collections.singleton(excludeEntry);
-                    }
-                    else {
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -288,8 +284,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, entry);
                 }
                 sourceArr.add(entry);
-            }
-            else {
+            } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "].",
