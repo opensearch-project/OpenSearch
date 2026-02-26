@@ -958,7 +958,7 @@ public class ShardRouting implements Writeable, ToXContentObject {
     }
 
     public boolean isClosedIndexShard() {
-        if (unassignedInfo != null) {
+        if (unassigned() && unassignedInfo != null) {
             return unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CLOSED;
         }
         return false;

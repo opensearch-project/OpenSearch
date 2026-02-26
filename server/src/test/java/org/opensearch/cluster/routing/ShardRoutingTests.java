@@ -338,6 +338,17 @@ public class ShardRoutingTests extends OpenSearchTestCase {
 
         ShardRouting startedShard = TestShardRouting.newShardRouting("test", 0, "node1", true, ShardRoutingState.STARTED);
         assertFalse(startedShard.isClosedIndexShard());
+
+        ShardRouting initializingShard = TestShardRouting.newShardRouting(
+            "test",
+            0,
+            "node1",
+            null,
+            false,
+            ShardRoutingState.INITIALIZING,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "index closed")
+        );
+        assertFalse(initializingShard.isClosedIndexShard());
     }
 
     public void testExpectedSize() throws IOException {
