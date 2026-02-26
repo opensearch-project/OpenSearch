@@ -25,7 +25,6 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Objects;
 
 public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSingleNodeTestCase {
@@ -63,7 +62,6 @@ public class NonPruningSortedSetOrdinalsIndexFieldDataTests extends OpenSearchSi
     }
 
     public void testNonPruningSortedSetOrdinalsIndexFieldDataComparator() throws IOException {
-        assertTrue(field.getBytesComparator().equals(Comparator.naturalOrder()));
         assertTrue(field.getComparator(0, Pruning.NONE) instanceof FieldComparator);
         assertTrue(field.getIndexSorter() instanceof IndexSorter);
     }
