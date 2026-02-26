@@ -14,6 +14,7 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportAdapterProvider;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
@@ -94,6 +95,19 @@ public interface SecureTransportSettingsProvider {
          * @return instance of {@link TrustManagerFactory}
          */
         Optional<TrustManagerFactory> trustManagerFactory();
+    }
+
+    /**
+     * If supported, returns the live in-memory {@link SSLContext} for the transport layer.
+     * Unlike {@link #buildSecureServerTransportEngine}, this returns the context itself so callers
+     * can wrap it once (e.g. in a Netty {@code JdkSslContext}) and call {@code newEngine()} per
+     * connection — picking up reloaded certs without reading files.
+     * @param settings settings
+     * @return if supported, the live {@link SSLContext} for the transport layer
+     * @throws SSLException if the context cannot be fetched
+     */
+    default Optional<SSLContext> buildSecureTransportContext(Settings settings) throws SSLException {
+        return Optional.empty();
     }
 
     /**
