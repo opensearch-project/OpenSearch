@@ -8,7 +8,7 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
@@ -31,7 +31,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INGESTION_SOURCE_POL
 /**
  * Class encapsulating the configuration of an ingestion source.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class IngestionSource {
     private final String type;
     private final PointerInitReset pointerInitReset;
@@ -196,7 +196,7 @@ public class IngestionSource {
     /**
      * Class encapsulating the configuration of a pointer initialization.
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class PointerInitReset {
         private final StreamPoller.ResetState type;
         private final String value;
@@ -237,7 +237,7 @@ public class IngestionSource {
      * Builder for {@link IngestionSource}.
      *
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class Builder {
         private String type;
         private PointerInitReset pointerInitReset;

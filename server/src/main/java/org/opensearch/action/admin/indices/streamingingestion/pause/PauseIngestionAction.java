@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 /**
  * Transport action for pausing ingestion.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class PauseIngestionAction extends ActionType<PauseIngestionResponse> {
 

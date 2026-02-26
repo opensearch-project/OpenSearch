@@ -8,12 +8,12 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  *  A message ingested from the ingestion source that contains an index operation
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface Message<T> {
     T getPayload();
 
