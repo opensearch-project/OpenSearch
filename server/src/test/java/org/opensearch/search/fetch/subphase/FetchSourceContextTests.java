@@ -33,6 +33,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+// ISSUE-20612 Source Validation
 public class FetchSourceContextTests extends OpenSearchTestCase {
 
     public void testFetchSource() throws IOException {
