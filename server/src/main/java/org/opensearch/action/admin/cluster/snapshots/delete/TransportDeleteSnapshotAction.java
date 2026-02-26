@@ -32,6 +32,8 @@
 
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -55,6 +57,7 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class TransportDeleteSnapshotAction extends TransportClusterManagerNodeAction<DeleteSnapshotRequest, AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportDeleteSnapshotAction.class);
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -100,6 +103,21 @@ public class TransportDeleteSnapshotAction extends TransportClusterManagerNodeAc
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        snapshotsService.deleteSnapshots(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
+        if (request.waitForCompletion()) {
+            snapshotsService.deleteSnapshots(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
+        } else {
+            snapshotsService.deleteSnapshots(request, new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    logger.debug("Snapshot deletion completed");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("Snapshot deletion failed after returning response to client", e);
+                }
+            });
+            listener.onResponse(new AcknowledgedResponse(true));
+        }
     }
 }

@@ -415,4 +415,72 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> created {} in [{}]", snapshotNames, repoName);
         return snapshotNames;
     }
+
+    public void testDeleteSnapshotWithWaitForCompletion() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "fs", repoPath);
+
+        final String indexName = "test-index";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String snapshotName = "test-snapshot";
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
+
+        logger.info("--> deleting snapshot with wait_for_completion=true");
+        long startTime = System.currentTimeMillis();
+        AcknowledgedResponse deleteResponse = client().admin()
+            .cluster()
+            .prepareDeleteSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        long duration = System.currentTimeMillis() - startTime;
+        
+        assertAcked(deleteResponse);
+        logger.info("--> snapshot deletion completed in {}ms", duration);
+        
+        // Verify snapshot is actually deleted
+        assertEquals(0, getRepositoryData(repoName).getSnapshotIds().size());
+    }
+
+    public void testDeleteSnapshotWithoutWaitForCompletion() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "fs", repoPath);
+
+        final String indexName = "test-index";
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+
+        final String snapshotName = "test-snapshot";
+        logger.info("--> creating snapshot");
+        CreateSnapshotResponse createResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
+
+        logger.info("--> deleting snapshot with wait_for_completion=false (async)");
+        long startTime = System.currentTimeMillis();
+        AcknowledgedResponse deleteResponse = client().admin()
+            .cluster()
+            .prepareDeleteSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(false)
+            .get();
+        long duration = System.currentTimeMillis() - startTime;
+        
+        assertAcked(deleteResponse);
+        logger.info("--> snapshot deletion request returned in {}ms (async)", duration);
+        
+        // Wait for the snapshot to actually be deleted
+        assertBusy(() -> assertEquals(0, getRepositoryData(repoName).getSnapshotIds().size()), 30, TimeUnit.SECONDS);
+    }
 }
