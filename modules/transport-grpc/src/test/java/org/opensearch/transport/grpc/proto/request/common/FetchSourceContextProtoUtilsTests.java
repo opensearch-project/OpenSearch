@@ -368,10 +368,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Exception when attempting to convert to FetchSourceContext
-        final OpenSearchException e = expectThrows(
-            OpenSearchException.class,
-            () -> FetchSourceContextProtoUtils.fromProto(sourceConfig)
-        );
+        final OpenSearchException e = expectThrows(OpenSearchException.class, () -> FetchSourceContextProtoUtils.fromProto(sourceConfig));
 
         assertEquals("The same entry [theSameEntry] cannot be both included and excluded in _source.", e.getMessage());
     }
