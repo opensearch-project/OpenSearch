@@ -77,11 +77,15 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.search.query.Bitmap64DocValuesQuery;
+import org.opensearch.search.query.Bitmap64IndexQuery;
 import org.opensearch.search.query.BitmapDocValuesQuery;
 import org.opensearch.search.query.BitmapIndexQuery;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -93,6 +97,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -1021,6 +1026,48 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         NumberType type = randomValueOtherThan(NumberType.INTEGER, () -> randomFrom(NumberType.values()));
         ft = new NumberFieldMapper.NumberFieldType("field", type);
         NumberFieldType finalFt = ft;
+        assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap));
+    }
+
+    public void testBitmapQuery64() throws IOException {
+        Roaring64NavigableMap r = new Roaring64NavigableMap();
+        byte[] array;
+
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream(); DataOutputStream dos = new DataOutputStream(bos)) {
+            r.serializePortable(dos);
+            dos.flush();
+            array = bos.toByteArray();
+        }
+
+        BytesArray bitmap = new BytesArray(array);
+
+        NumberFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+
+        assertEquals(
+            new IndexOrDocValuesQuery(new Bitmap64IndexQuery("field", r), new Bitmap64DocValuesQuery("field", r)),
+            ft.bitmapQuery(bitmap)
+        );
+
+        ft = new NumberFieldType("field", NumberType.LONG, false, false, true, true, true, null, Collections.emptyMap());
+        assertEquals(new Bitmap64DocValuesQuery("field", r), ft.bitmapQuery(bitmap));
+
+        ft = new NumberFieldType("field", NumberType.LONG, true, false, false, false, true, null, Collections.emptyMap());
+        assertEquals(new Bitmap64IndexQuery("field", r), ft.bitmapQuery(bitmap));
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig());
+        DirectoryReader reader = DirectoryReader.open(w);
+
+        assertEquals(new MatchNoDocsQuery(), ft.bitmapQuery(bitmap).rewrite(newSearcher(reader)));
+
+        reader.close();
+        w.close();
+        dir.close();
+
+        NumberType type = randomValueOtherThan(NumberType.LONG, () -> randomFrom(NumberType.values()));
+        ft = new NumberFieldMapper.NumberFieldType("field", type);
+        NumberFieldType finalFt = ft;
+
         assertThrows(IllegalArgumentException.class, () -> finalFt.bitmapQuery(bitmap));
     }
 

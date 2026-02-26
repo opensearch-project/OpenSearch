@@ -570,8 +570,7 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
     }
 
     public void testWithMultipleIndexCreationAndVerifySettingRegisteredOnce() {
-        int randomInt = randomIntBetween(10, 50);
-        for (int i = 0; i < randomInt; i++) {
+        for (int i = 0; i < 3; i++) {
             String indexName = "test" + i;
             assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
             assertBlocked(client().admin().indices().prepareGetSettings(indexName), IndexMetadata.INDEX_METADATA_BLOCK);

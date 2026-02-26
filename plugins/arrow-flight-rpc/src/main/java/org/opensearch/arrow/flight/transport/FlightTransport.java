@@ -60,8 +60,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -91,7 +89,6 @@ class FlightTransport extends TcpTransport {
     private volatile FlightServer flightServer;
     private final SslContextProvider sslContextProvider;
     private FlightProducer flightProducer;
-    private final ConcurrentMap<String, ClientHolder> flightClients = new ConcurrentHashMap<>();
     private final EventLoopGroup bossEventLoopGroup;
     private final EventLoopGroup workerEventLoopGroup;
     private final ExecutorService serverExecutor;
@@ -111,9 +108,6 @@ class FlightTransport extends TcpTransport {
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
         "flight-server-header-middleware"
     );
-
-    private record ClientHolder(Location location, FlightClient flightClient, HeaderContext context) {
-    }
 
     public FlightTransport(
         Settings settings,
@@ -140,7 +134,6 @@ class FlightTransport extends TcpTransport {
         this.threadPool = threadPool;
         this.namedWriteableRegistry = namedWriteableRegistry;
 
-        // Create Flight event loop group for request processing
         int eventLoopCount = ServerConfig.getEventLoopThreads();
         this.flightEventLoopGroup = new ExecutorService[eventLoopCount];
         for (int i = 0; i < eventLoopCount; i++) {
@@ -220,7 +213,6 @@ class FlightTransport extends TcpTransport {
                 boundAddresses.clear();
                 locations.clear();
 
-                // Try to bind all addresses on the same port
                 for (InetAddress hostAddress : hostAddresses) {
                     InetSocketAddress socketAddress = new InetSocketAddress(hostAddress, portNumber);
                     boundAddresses.add(socketAddress);
@@ -231,7 +223,6 @@ class FlightTransport extends TcpTransport {
                     locations.add(location);
                 }
 
-                // Create single FlightServer with all locations
                 ServerHeaderMiddleware.Factory factory = new ServerHeaderMiddleware.Factory();
                 OSFlightServer.Builder builder = OSFlightServer.builder()
                     .allocator(serverAllocator)
@@ -276,10 +267,6 @@ class FlightTransport extends TcpTransport {
                 flightServer = null;
             }
             serverAllocator.close();
-            for (ClientHolder holder : flightClients.values()) {
-                holder.flightClient().close();
-            }
-            flightClients.clear();
             clientAllocator.close();
             rootAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
@@ -311,51 +298,53 @@ class FlightTransport extends TcpTransport {
 
     @Override
     protected TcpServerChannel bind(String name, InetSocketAddress address) {
-        return null; // we don't need to bind anything here
+        return null;
     }
 
     @Override
     protected TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-        String nodeId = node.getId();
-        ClientHolder holder = flightClients.computeIfAbsent(nodeId, id -> {
-            TransportAddress publishAddress = node.getStreamAddress();
-            String address = publishAddress.getAddress();
-            int flightPort = publishAddress.address().getPort();
-            // TODO: check feasibility of GRPC_DOMAIN_SOCKET for local connections
-            // This would require server to addListener on GRPC_DOMAIN_SOCKET
-            Location location = sslContextProvider != null
-                ? Location.forGrpcTls(address, flightPort)
-                : Location.forGrpcInsecure(address, flightPort);
-            HeaderContext context = new HeaderContext();
-            ClientHeaderMiddleware.Factory factory = new ClientHeaderMiddleware.Factory(context, getVersion());
-            FlightClient client = OSFlightClient.builder()
-                // TODO configure initial and max reservation setting per client
-                .allocator(clientAllocator)
-                .location(location)
-                .channelType(ServerConfig.clientChannelType())
-                .eventLoopGroup(workerEventLoopGroup)
-                .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
-                .executor(clientExecutor)
-                .intercept(factory)
-                .build();
-            return new ClientHolder(location, client, context);
-        });
-        FlightClientChannel channel = new FlightClientChannel(
-            boundAddress,
-            holder.flightClient(),
-            node,
-            holder.location(),
-            holder.context(),
-            DEFAULT_PROFILE,
-            getResponseHandlers(),
-            threadPool,
-            this.inboundHandler.getMessageListener(),
-            namedWriteableRegistry,
-            statsCollector,
-            config
-        );
+        TransportAddress publishAddress = node.getStreamAddress();
+        String address = publishAddress.getAddress();
+        int flightPort = publishAddress.address().getPort();
+        Location location = sslContextProvider != null
+            ? Location.forGrpcTls(address, flightPort)
+            : Location.forGrpcInsecure(address, flightPort);
 
-        return channel;
+        HeaderContext context = new HeaderContext();
+        ClientHeaderMiddleware.Factory factory = new ClientHeaderMiddleware.Factory(context, getVersion());
+        FlightClient client = OSFlightClient.builder()
+            .allocator(clientAllocator)
+            .location(location)
+            .channelType(ServerConfig.clientChannelType())
+            .eventLoopGroup(workerEventLoopGroup)
+            .sslContext(sslContextProvider != null ? sslContextProvider.getClientSslContext() : null)
+            .executor(clientExecutor)
+            .intercept(factory)
+            .build();
+
+        try {
+            return new FlightClientChannel(
+                boundAddress,
+                client,
+                node,
+                location,
+                context,
+                DEFAULT_PROFILE,
+                getResponseHandlers(),
+                threadPool,
+                this.inboundHandler.getMessageListener(),
+                namedWriteableRegistry,
+                statsCollector,
+                config
+            );
+        } catch (Exception e) {
+            try {
+                client.close();
+            } catch (Exception ce) {
+                e.addSuppressed(ce);
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -422,9 +411,7 @@ class FlightTransport extends TcpTransport {
         }
     }
 
-    /**
-     * Gets the next executor for round-robin distribution
-     */
+    /** Returns the next executor from the pool using round-robin assignment. */
     public ExecutorService getNextFlightExecutor() {
         return flightEventLoopGroup[nextExecutorIndex.getAndIncrement() % flightEventLoopGroup.length];
     }

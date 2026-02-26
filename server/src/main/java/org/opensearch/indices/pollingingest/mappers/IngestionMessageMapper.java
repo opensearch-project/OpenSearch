@@ -40,7 +40,8 @@ public interface IngestionMessageMapper {
     @ExperimentalApi
     enum MapperType {
         DEFAULT("default"),
-        RAW_PAYLOAD("raw_payload");
+        RAW_PAYLOAD("raw_payload"),
+        FIELD_MAPPING("field_mapping");
 
         private final String name;
 
@@ -59,7 +60,11 @@ public interface IngestionMessageMapper {
                 }
             }
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Unknown ingestion mapper type: %s. Valid values are: default, raw_payload", value)
+                String.format(
+                    Locale.ROOT,
+                    "Unknown ingestion mapper type: %s. Valid values are: default, raw_payload, field_mapping",
+                    value
+                )
             );
         }
     }

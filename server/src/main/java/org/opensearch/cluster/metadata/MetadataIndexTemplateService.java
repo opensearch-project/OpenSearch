@@ -1617,7 +1617,7 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAsterisk(indexPattern) == false) {
                 validationErrors.add(
                     "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );

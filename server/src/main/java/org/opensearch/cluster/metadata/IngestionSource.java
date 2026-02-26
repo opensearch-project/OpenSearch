@@ -15,6 +15,7 @@ import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -43,6 +44,7 @@ public class IngestionSource {
     private final boolean allActiveIngestion;
     private final TimeValue pointerBasedLagUpdateInterval;
     private final IngestionMessageMapper.MapperType mapperType;
+    private final Map<String, Object> mapperSettings;
 
     private IngestionSource(
         String type,
@@ -55,7 +57,8 @@ public class IngestionSource {
         int blockingQueueSize,
         boolean allActiveIngestion,
         TimeValue pointerBasedLagUpdateInterval,
-        IngestionMessageMapper.MapperType mapperType
+        IngestionMessageMapper.MapperType mapperType,
+        Map<String, Object> mapperSettings
     ) {
         this.type = type;
         this.pointerInitReset = pointerInitReset;
@@ -68,6 +71,7 @@ public class IngestionSource {
         this.allActiveIngestion = allActiveIngestion;
         this.pointerBasedLagUpdateInterval = pointerBasedLagUpdateInterval;
         this.mapperType = mapperType;
+        this.mapperSettings = mapperSettings != null ? Collections.unmodifiableMap(mapperSettings) : Collections.emptyMap();
     }
 
     public String getType() {
@@ -114,6 +118,10 @@ public class IngestionSource {
         return mapperType;
     }
 
+    public Map<String, Object> getMapperSettings() {
+        return mapperSettings;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -129,7 +137,8 @@ public class IngestionSource {
             && Objects.equals(blockingQueueSize, ingestionSource.blockingQueueSize)
             && Objects.equals(allActiveIngestion, ingestionSource.allActiveIngestion)
             && Objects.equals(pointerBasedLagUpdateInterval, ingestionSource.pointerBasedLagUpdateInterval)
-            && Objects.equals(mapperType, ingestionSource.mapperType);
+            && Objects.equals(mapperType, ingestionSource.mapperType)
+            && Objects.equals(mapperSettings, ingestionSource.mapperSettings);
     }
 
     @Override
@@ -145,7 +154,8 @@ public class IngestionSource {
             blockingQueueSize,
             allActiveIngestion,
             pointerBasedLagUpdateInterval,
-            mapperType
+            mapperType,
+            mapperSettings
         );
     }
 
@@ -178,6 +188,8 @@ public class IngestionSource {
             + ", mapperType='"
             + mapperType
             + '\''
+            + ", mapperSettings="
+            + mapperSettings
             + '}';
     }
 
@@ -240,6 +252,7 @@ public class IngestionSource {
             Settings.EMPTY
         );
         private IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.getDefault(Settings.EMPTY);
+        private Map<String, Object> mapperSettings = new HashMap<>();
 
         public Builder(String type) {
             this.type = type;
@@ -255,6 +268,7 @@ public class IngestionSource {
             this.allActiveIngestion = ingestionSource.allActiveIngestion;
             this.pointerBasedLagUpdateInterval = ingestionSource.pointerBasedLagUpdateInterval;
             this.mapperType = ingestionSource.mapperType;
+            this.mapperSettings = new HashMap<>(ingestionSource.mapperSettings);
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -312,6 +326,11 @@ public class IngestionSource {
             return this;
         }
 
+        public Builder setMapperSettings(Map<String, Object> mapperSettings) {
+            this.mapperSettings = mapperSettings;
+            return this;
+        }
+
         public IngestionSource build() {
             return new IngestionSource(
                 type,
@@ -324,7 +343,8 @@ public class IngestionSource {
                 blockingQueueSize,
                 allActiveIngestion,
                 pointerBasedLagUpdateInterval,
-                mapperType
+                mapperType,
+                mapperSettings
             );
         }
 

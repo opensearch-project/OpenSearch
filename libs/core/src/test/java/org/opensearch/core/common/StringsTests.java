@@ -125,4 +125,38 @@ public class StringsTests extends OpenSearchTestCase {
         assertFalse(Strings.isDigits("123.4"));
         assertFalse(Strings.isDigits("123f"));
     }
+
+    public void testValidFileNameExcludingSlash() {
+        // Valid cases - no invalid chars
+        assertTrue(Strings.validFileNameExcludingSlash("validfile"));
+        assertTrue(Strings.validFileNameExcludingSlash("file123"));
+        assertTrue(Strings.validFileNameExcludingSlash("file-name.txt"));
+
+        // Valid cases - relative slashes are allowed
+        assertTrue(Strings.validFileNameExcludingSlash("path/to/file"));
+        assertTrue(Strings.validFileNameExcludingSlash("path\\to\\file"));
+        assertTrue(Strings.validFileNameExcludingSlash("mixed/path\\file"));
+
+        // Invalid cases - absolute paths must be rejected
+        assertFalse(Strings.validFileNameExcludingSlash("/absolute/path"));
+        assertFalse(Strings.validFileNameExcludingSlash("\\absolute\\path"));
+
+        // Invalid cases - path traversal must be rejected
+        assertFalse(Strings.validFileNameExcludingSlash("../etc/passwd"));
+        assertFalse(Strings.validFileNameExcludingSlash("path/../../etc/passwd"));
+        assertFalse(Strings.validFileNameExcludingSlash("path\\..\\..\\secret"));
+
+        // Invalid cases - other invalid chars should still fail
+        assertFalse(Strings.validFileNameExcludingSlash("file*name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file?name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file\"name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file<name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file>name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file|name"));
+        assertFalse(Strings.validFileNameExcludingSlash("file name"));  // space
+        assertFalse(Strings.validFileNameExcludingSlash("file,name"));  // comma
+
+        // Edge case - path with invalid char
+        assertFalse(Strings.validFileNameExcludingSlash("path/to/file*name"));
+    }
 }
