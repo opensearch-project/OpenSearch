@@ -91,7 +91,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
-        validateAmbiguousFields();
     }
 
     /**
