@@ -10,7 +10,6 @@ package org.opensearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Map;
 
@@ -19,7 +18,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-@PublicApi(since = "3.6.0")
+
 public final class VirtualShardRoutingHelper {
 
     private VirtualShardRoutingHelper() {}
