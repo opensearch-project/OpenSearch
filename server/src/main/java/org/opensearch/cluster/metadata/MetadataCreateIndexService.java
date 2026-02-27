@@ -1321,7 +1321,7 @@ public class MetadataCreateIndexService {
                 if (hasDeleteValue && hasCreateValue) {
                     String deleteVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.DELETE_VALUE);
                     String createVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.CREATE_VALUE);
-                    if (deleteVal.equals(createVal)) {
+                    if (deleteVal != null && deleteVal.equals(createVal)) {
                         throw new IllegalArgumentException(
                             "op_type_field.delete_value ["
                                 + deleteVal
