@@ -51,10 +51,7 @@ public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase 
         Map<String, Object> settings = Map.of(FieldMappingIngestionMessageMapper.ID_FIELD, "user_id");
         FieldMappingIngestionMessageMapper mapper = new FieldMappingIngestionMessageMapper(settings);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> mapMessage(mapper, "{\"name\": \"alice\"}")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapMessage(mapper, "{\"name\": \"alice\"}"));
         assertTrue(e.getMessage().contains("configured id_field [user_id] is missing from the message"));
     }
 
