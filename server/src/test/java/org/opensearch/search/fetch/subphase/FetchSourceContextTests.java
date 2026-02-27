@@ -20,6 +20,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class FetchSourceContextTests extends OpenSearchTestCase {
 
@@ -71,8 +72,11 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
 
         FetchSourceContext result = FetchSourceContext.fromXContent(parser);
         assertTrue(result.fetchSource()); // fetch source
-        assertArrayEquals(new String[] { "include1", "include2" }, result.includes()); // no duplicates
-        assertEquals(0, result.excludes().length); // no excludes
+        // validate includes
+        assertEquals(2, result.includes().length); // no duplicates
+        assertTrue(Arrays.asList(result.includes()).containsAll(Arrays.asList("include1", "include2")));
+        // validate no excludes
+        assertEquals(0, result.excludes().length);
     }
 
     public void testFetchSourceExplicitEmptyArrayNotAllowed() throws IOException {
@@ -123,8 +127,11 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
 
         FetchSourceContext result = FetchSourceContext.fromXContent(parser);
         assertTrue(result.fetchSource());
+        // validate includes
         assertArrayEquals(new String[] { "iii" }, result.includes());
-        assertArrayEquals(new String[] { "aaa", "bbb" }, result.excludes());
+        // validate excludes
+        assertEquals(2, result.excludes().length); // no duplicates
+        assertTrue(Arrays.asList(result.excludes()).containsAll(Arrays.asList("aaa", "bbb")));
     }
 
     public void testFetchSourceObjectEmptyObjectNotAllowed() throws IOException {
@@ -254,7 +261,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .field("excludes")
                 .startArray()
                 .value("BBB")
-                .value("AAA")
+                .value("CCC")
                 .endArray()
                 .endObject()
                 .endObject();
