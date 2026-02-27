@@ -795,6 +795,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+                        if (indexSettings.isSegRepLocalEnabled() && this.checkpointPublisher != null) {
+                            // Force publish checkpoint so replicas catch up to segments that existed before
+                            // the node restart. Without this, the internal refresh during engine construction
+                            // may have already opened the latest reader, causing subsequent external refreshes
+                            // to see no change and never trigger CheckpointRefreshListener.
+                            updateReplicationCheckpoint();
+                            checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
+                        }
                         postActivatePrimaryMode();
                     }
                 } else {
@@ -2291,6 +2299,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+        // Force update and publish checkpoint so replicas learn about segments that existed
+        // before the engine reset. See resetEngineToGlobalCheckpoint() in updateShardState()
+        // promotion path for the same pattern.
+        updateReplicationCheckpoint();
     }
 
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
