@@ -217,7 +217,12 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
             Settings.EMPTY
         );
         SearchSlowLog log1 = new SearchSlowLog(settings1);
-        int numberOfLoggersBefore = context.getLoggers().size();
+
+        // Capture the slow log logger names that exist after the first SearchSlowLog is created
+        long slowLoggerCountBefore = context.getLoggers()
+            .stream()
+            .filter(l -> l.getName().startsWith(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX))
+            .count();
 
         SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
         IndexSettings settings2 = new IndexSettings(
@@ -226,8 +231,13 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         );
         SearchSlowLog log2 = new SearchSlowLog(settings2);
 
-        int numberOfLoggersAfter = context.getLoggers().size();
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+        // The slow log loggers should be reused — no new ones added for the second SearchSlowLog
+        long slowLoggerCountAfter = context.getLoggers()
+            .stream()
+            .filter(l -> l.getName().startsWith(SearchSlowLog.INDEX_SEARCH_SLOWLOG_PREFIX))
+            .count();
+        assertThat(slowLoggerCountBefore, Matchers.greaterThan(0L));
+        assertThat(slowLoggerCountAfter, equalTo(slowLoggerCountBefore));
     }
 
     private IndexMetadata createIndexMetadata(SlowLogLevel level, String index, String uuid) {
