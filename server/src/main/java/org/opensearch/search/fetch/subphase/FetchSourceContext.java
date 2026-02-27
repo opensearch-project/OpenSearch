@@ -255,8 +255,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
             }
         }
-        if (currentFieldName == null) {
-            // no field names -> empty object; empty object is not allowed
+        if (includes.isEmpty() && excludes.isEmpty()) {
+            // no valid field names -> empty or unrecognized fields; not allowed
             throw new ParsingException(
                 parser.getTokenLocation(),
                 "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]"
