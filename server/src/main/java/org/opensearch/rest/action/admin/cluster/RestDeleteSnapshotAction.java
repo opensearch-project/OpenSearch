@@ -76,7 +76,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
             request.paramAsTime("cluster_manager_timeout", deleteSnapshotRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(deleteSnapshotRequest, request, deprecationLogger, getName());
-        deleteSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
+        deleteSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", true));
         return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }
