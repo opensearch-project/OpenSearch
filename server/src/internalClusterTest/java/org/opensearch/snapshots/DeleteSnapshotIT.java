@@ -480,7 +480,10 @@ public class DeleteSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(deleteResponse);
         logger.info("--> snapshot deletion request returned in {}ms (async)", duration);
         
-        // Wait for the snapshot to actually be deleted
+        // Verify snapshot still exists immediately after async request
+        assertTrue(getRepositoryData(repoName).getSnapshotIds().size() > 0);
+        
+        // Users can poll Get Snapshot API to check when deletion completes
         assertBusy(() -> assertEquals(0, getRepositoryData(repoName).getSnapshotIds().size()), 30, TimeUnit.SECONDS);
     }
 }
