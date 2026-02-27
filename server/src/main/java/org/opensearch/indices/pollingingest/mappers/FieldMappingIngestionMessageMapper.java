@@ -32,12 +32,15 @@ import static org.opensearch.indices.pollingingest.MessageProcessorRunnable.SOUR
  * <p>Mapper settings:
  * <ul>
  *   <li>{@code id_field} — source field to use as document {@code _id}. If absent, ID is auto-generated.</li>
- *   <li>{@code version_field} — source field to use as document {@code _version} with external versioning.</li>
+ *   <li>{@code version_field} — source field to use as document {@code _version} with external versioning.
+ *       If configured, the field must be present in every message.</li>
  *   <li>{@code op_type_field} — source field to determine operation type.</li>
- *   <li>{@code op_type_field.delete_value} — the value of {@code op_type_field} that indicates a delete operation.
- *       If not configured, the field is parsed as a boolean ({@code true}/{@code "true"} → delete).
- *       If configured, the field value is compared as a string: match → delete, no match → index.</li>
+ *   <li>{@code op_type_field.delete_value} — the value of {@code op_type_field} that indicates a delete operation.</li>
+ *   <li>{@code op_type_field.create_value} — the value of {@code op_type_field} that indicates a create operation.</li>
  * </ul>
+ *
+ * <p>Operation type resolution: if the field value matches {@code delete_value} → delete,
+ * if it matches {@code create_value} → create, otherwise → index (default).
  */
 public class FieldMappingIngestionMessageMapper implements IngestionMessageMapper {
 
@@ -45,13 +48,17 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
     public static final String ID_FIELD = "id_field";
     /** Mapper setting key: source field to use as document _version */
     public static final String VERSION_FIELD = "version_field";
-    /** Mapper setting key: source field to determine operation type (index vs delete) */
+    /** Mapper setting key: source field to determine operation type */
     public static final String OP_TYPE_FIELD = "op_type_field";
     /** Mapper setting key: the value of op_type_field that indicates a delete operation */
     public static final String DELETE_VALUE = "op_type_field.delete_value";
+    /** Mapper setting key: the value of op_type_field that indicates a create operation */
+    public static final String CREATE_VALUE = "op_type_field.create_value";
 
     /** Valid mapper_settings keys for this mapper type */
-    public static final Set<String> VALID_SETTINGS = Set.of(ID_FIELD, VERSION_FIELD, OP_TYPE_FIELD, DELETE_VALUE);
+    public static final Set<String> VALID_SETTINGS = Set.of(ID_FIELD, VERSION_FIELD, OP_TYPE_FIELD, DELETE_VALUE, CREATE_VALUE);
+
+    private static final String OP_TYPE_CREATE = "create";
 
     @Nullable
     private final String idField;
@@ -61,18 +68,26 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
     private final String opTypeField;
     @Nullable
     private final String deleteValue;
+    @Nullable
+    private final String createValue;
 
     /**
      * Creates a FieldMappingIngestionMessageMapper from mapper settings.
      *
-     * @param mapperSettings the mapper settings map containing id_field, version_field, op_type_field,
-     *                       and optionally op_type_field.delete_value
+     * @param mapperSettings the mapper settings map
      */
     public FieldMappingIngestionMessageMapper(Map<String, Object> mapperSettings) {
         this.idField = mapperSettings != null ? (String) mapperSettings.get(ID_FIELD) : null;
         this.versionField = mapperSettings != null ? (String) mapperSettings.get(VERSION_FIELD) : null;
         this.opTypeField = mapperSettings != null ? (String) mapperSettings.get(OP_TYPE_FIELD) : null;
         this.deleteValue = mapperSettings != null ? (String) mapperSettings.get(DELETE_VALUE) : null;
+        this.createValue = mapperSettings != null ? (String) mapperSettings.get(CREATE_VALUE) : null;
+
+        if (deleteValue != null && createValue != null && deleteValue.equals(createValue)) {
+            throw new IllegalArgumentException(
+                "op_type_field.delete_value [" + deleteValue + "] and op_type_field.create_value [" + createValue + "] cannot be the same"
+            );
+        }
     }
 
     @Override
@@ -107,19 +122,14 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
         }
 
         // Extract _op_type
+        // The op_type_field value is matched against delete_value and create_value to determine the operation type.
+        // If neither delete_value nor create_value is configured, the field is still removed from _source but
+        // the operation type defaults to index.
         if (opTypeField != null && rawPayload.containsKey(opTypeField)) {
             Object val = rawPayload.remove(opTypeField);
             validateScalar(opTypeField, val);
             String stringVal = String.valueOf(val).trim();
-            boolean isDelete;
-            if (deleteValue != null) {
-                // Compare against configured delete value
-                isDelete = deleteValue.equals(stringVal);
-            } else {
-                // Default: parse as boolean
-                isDelete = Boolean.parseBoolean(stringVal);
-            }
-            payloadMap.put(OP_TYPE, isDelete ? OP_TYPE_DELETE : OP_TYPE_INDEX);
+            payloadMap.put(OP_TYPE, resolveOpType(stringVal));
         } else {
             payloadMap.put(OP_TYPE, OP_TYPE_INDEX);
         }
@@ -128,6 +138,20 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
         payloadMap.put(SOURCE, rawPayload);
 
         return new ShardUpdateMessage(pointer, message, payloadMap, autoGeneratedIdTimestamp);
+    }
+
+    /**
+     * Resolves the operation type from the field value.
+     * If the value matches delete_value → delete, if it matches create_value → create, otherwise → index.
+     */
+    private String resolveOpType(String fieldValue) {
+        if (deleteValue != null && deleteValue.equals(fieldValue)) {
+            return OP_TYPE_DELETE;
+        }
+        if (createValue != null && createValue.equals(fieldValue)) {
+            return OP_TYPE_CREATE;
+        }
+        return OP_TYPE_INDEX;
     }
 
     /**
