@@ -235,13 +235,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         String includeEntry = parser.text();
                         if (excludes.contains(includeEntry)) {
-                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, includeEntry);
+                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, includeEntry);
                         }
                         includes = Collections.singleton(includeEntry);
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         String excludeEntry = parser.text();
                         if (includes.contains(excludeEntry)) {
-                            throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
+                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
                         }
                         excludes = Collections.singleton(excludeEntry);
                     } else {
@@ -252,10 +252,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     }
                 }
                 default -> {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "]."
-                    );
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
             }
         }
@@ -275,7 +272,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 String entry = parser.text();
                 if (opposite != null && opposite.contains(entry)) {
-                    throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, entry);
+                    throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, entry);
                 }
                 sourceArr.add(entry);
             } else {
