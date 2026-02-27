@@ -3878,4 +3878,38 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("mapper_settings are not supported for mapper_type [default]"));
     }
 
+    public void testValidateIngestionSourceSettingsDeleteValueWithoutOpTypeField() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .put("index.ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("requires op_type_field to be configured"));
+    }
+
+    public void testValidateIngestionSourceSettingsDeleteAndCreateValueSame() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+        ClusterState state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).build();
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INGESTION_SOURCE_MAPPER_TYPE, "field_mapping")
+            .put("index.ingestion_source.mapper_settings.op_type_field", "action")
+            .put("index.ingestion_source.mapper_settings.op_type_field.delete_value", "REMOVE")
+            .put("index.ingestion_source.mapper_settings.op_type_field.create_value", "REMOVE")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataCreateIndexService.validateIngestionSourceSettings(settings, state)
+        );
+        assertTrue(e.getMessage().contains("cannot be the same"));
+    }
+
 }

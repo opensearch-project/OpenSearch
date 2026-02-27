@@ -256,6 +256,22 @@ public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase 
         assertTrue(e.getMessage().contains("cannot be the same"));
     }
 
+    public void testDeleteValueWithoutOpTypeField_ThrowsException() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(FieldMappingIngestionMessageMapper.DELETE_VALUE, "true");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FieldMappingIngestionMessageMapper(settings));
+        assertTrue(e.getMessage().contains("requires op_type_field to be configured"));
+    }
+
+    public void testCreateValueWithoutOpTypeField_ThrowsException() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put(FieldMappingIngestionMessageMapper.CREATE_VALUE, "INSERT");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FieldMappingIngestionMessageMapper(settings));
+        assertTrue(e.getMessage().contains("requires op_type_field to be configured"));
+    }
+
     // --- All fields configured together ---
 
     public void testAllFieldsConfigured() {

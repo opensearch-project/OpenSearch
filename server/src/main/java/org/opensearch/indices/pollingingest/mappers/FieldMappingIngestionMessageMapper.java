@@ -81,6 +81,11 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
         this.deleteValue = mapperSettings != null ? (String) mapperSettings.get(DELETE_VALUE) : null;
         this.createValue = mapperSettings != null ? (String) mapperSettings.get(CREATE_VALUE) : null;
 
+        if ((deleteValue != null || createValue != null) && opTypeField == null) {
+            throw new IllegalArgumentException(
+                "op_type_field.delete_value or op_type_field.create_value requires op_type_field to be configured"
+            );
+        }
         if (deleteValue != null && createValue != null && deleteValue.equals(createValue)) {
             throw new IllegalArgumentException(
                 "op_type_field.delete_value [" + deleteValue + "] and op_type_field.create_value [" + createValue + "] cannot be the same"

@@ -1309,6 +1309,28 @@ public class MetadataCreateIndexService {
                         );
                     }
                 }
+                // Validate cross-key dependencies
+                boolean hasDeleteValue = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.DELETE_VALUE);
+                boolean hasCreateValue = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.CREATE_VALUE);
+                boolean hasOpTypeField = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.OP_TYPE_FIELD);
+                if ((hasDeleteValue || hasCreateValue) && hasOpTypeField == false) {
+                    throw new IllegalArgumentException(
+                        "op_type_field.delete_value or op_type_field.create_value requires op_type_field to be configured"
+                    );
+                }
+                if (hasDeleteValue && hasCreateValue) {
+                    String deleteVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.DELETE_VALUE);
+                    String createVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.CREATE_VALUE);
+                    if (deleteVal.equals(createVal)) {
+                        throw new IllegalArgumentException(
+                            "op_type_field.delete_value ["
+                                + deleteVal
+                                + "] and op_type_field.create_value ["
+                                + createVal
+                                + "] cannot be the same"
+                        );
+                    }
+                }
                 break;
             default:
                 // default and raw_payload mappers don't use mapper_settings
