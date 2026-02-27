@@ -252,10 +252,7 @@ public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase 
         settings.put(FieldMappingIngestionMessageMapper.DELETE_VALUE, "REMOVE");
         settings.put(FieldMappingIngestionMessageMapper.CREATE_VALUE, "REMOVE");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FieldMappingIngestionMessageMapper(settings)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FieldMappingIngestionMessageMapper(settings));
         assertTrue(e.getMessage().contains("cannot be the same"));
     }
 
