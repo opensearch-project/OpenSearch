@@ -58,8 +58,6 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
     /** Valid mapper_settings keys for this mapper type */
     public static final Set<String> VALID_SETTINGS = Set.of(ID_FIELD, VERSION_FIELD, OP_TYPE_FIELD, DELETE_VALUE, CREATE_VALUE);
 
-    private static final String OP_TYPE_CREATE = "create";
-
     @Nullable
     private final String idField;
     @Nullable
