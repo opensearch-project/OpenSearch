@@ -13,7 +13,6 @@
 
 package org.opensearch.search.fetch.subphase;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -201,7 +200,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            OpenSearchException result = expectThrows(OpenSearchException.class, () -> FetchSourceContext.fromXContent(parser));
+            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -220,7 +219,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            OpenSearchException result = expectThrows(OpenSearchException.class, () -> FetchSourceContext.fromXContent(parser));
+            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -239,7 +238,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            OpenSearchException result = expectThrows(OpenSearchException.class, () -> FetchSourceContext.fromXContent(parser));
+            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -261,7 +260,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            OpenSearchException result = expectThrows(OpenSearchException.class, () -> FetchSourceContext.fromXContent(parser));
+            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [BBB] cannot be both included and excluded in _source.", result.getMessage());
         }
     }
