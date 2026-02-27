@@ -180,7 +180,9 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.rest.action.admin.indices.RestHunspellCacheInvalidateAction;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -1670,6 +1672,10 @@ public class Node implements Closeable {
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
+
+            // Add for hunspell invalidation cache testing:
+            HunspellService hunspellService = analysisModule.getHunspellService();
+            restController.registerHandler(new RestHunspellCacheInvalidateAction(hunspellService));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it

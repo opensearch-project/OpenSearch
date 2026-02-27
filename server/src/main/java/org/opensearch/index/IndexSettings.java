@@ -917,6 +917,13 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    public static final Setting<String> INDEX_REF_PATH_SETTING = Setting.simpleString(
+        "index.ref_path",
+        "",
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -974,6 +981,7 @@ public final class IndexSettings {
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
     private volatile boolean derivedSourceEnabledForTranslog;
+    private volatile String refPath;
 
     /**
      * The maximum age of a retention lease before it is considered expired.
@@ -1168,6 +1176,7 @@ public final class IndexSettings {
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.allowDerivedField = scopedSettings.get(ALLOW_DERIVED_FIELDS);
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
+        this.refPath = scopedSettings.get(INDEX_REF_PATH_SETTING);
         this.translogReadForward = INDEX_TRANSLOG_READ_FORWARD_SETTING.get(settings);
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
@@ -1381,6 +1390,7 @@ public final class IndexSettings {
             this::setRemoteStoreTranslogRepository
         );
         scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_REF_PATH_SETTING, this::setRefPath);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2000,6 +2010,14 @@ public final class IndexSettings {
 
     public boolean getStarTreeIndexEnabled() {
         return isStarTreeIndexEnabled;
+    }
+
+    private void setRefPath(String refPath){
+        this.refPath = refPath;
+    }
+
+    public String getRefPath(){
+        return refPath;
     }
 
     /**

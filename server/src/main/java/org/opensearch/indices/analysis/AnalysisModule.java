@@ -119,7 +119,7 @@ public final class AnalysisModule {
         );
     }
 
-    HunspellService getHunspellService() {
+    public HunspellService getHunspellService() {
         return hunspellService;
     }
 
@@ -161,7 +161,7 @@ public final class AnalysisModule {
         tokenFilters.register(
             "hunspell",
             requiresAnalysisSettings(
-                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService)
+                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService, env)
             )
         );
 
