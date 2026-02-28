@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.engine.exec.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.exec.text.TextDF;
 
 @ExperimentalApi
@@ -23,27 +24,6 @@ public interface DataFormat {
 
     void configureStore();
 
-    static class LuceneDataFormat implements DataFormat {
-        @Override
-        public Setting<Settings> dataFormatSettings() {
-            return null;
-        }
-
-        @Override
-        public Setting<Settings> clusterLeveldataFormatSettings() {
-            return null;
-        }
-
-        @Override
-        public String name() {
-            return "";
-        }
-
-        @Override
-        public void configureStore() {
-
-        }
-    }
 
     DataFormat LUCENE = new LuceneDataFormat();
 

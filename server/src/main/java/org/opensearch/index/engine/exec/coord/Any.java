@@ -54,4 +54,12 @@ public class Any implements DataFormat {
             dataFormat.configureStore();
         }
     }
+
+    @Override
+    public String toString() {
+        return "Any{" +
+            "dataFormats=" + dataFormats +
+            ", primaryDataFormat=" + primaryDataFormat +
+            '}';
+    }
 }

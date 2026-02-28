@@ -82,7 +82,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, boolean isPrimary, ShardPath shardPath, IndexSettings indexSettings) {
         return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath, indexSettings);
     }
 
@@ -107,6 +107,12 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
     @Override
     public DataFormat getDataFormat() {
         return new ParquetDataFormat();
+    }
+
+    // In case of Parquet with multi-datasource, it will act as source of truth
+    @Override
+    public boolean isPrimary() {
+        return true;
     }
 
     @Override

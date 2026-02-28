@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.engine.exec.coord.Segment;
 
 import java.util.Collections;
@@ -26,7 +28,6 @@ import org.opensearch.index.engine.exec.Writer;
 import org.opensearch.index.engine.exec.coord.Any;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeDataFormatWriterPool;
-import org.opensearch.index.engine.exec.text.TextEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.DataSourcePlugin;
@@ -46,6 +47,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final AtomicLong writerGeneration;
     private final List<IndexingExecutionEngine<?>> delegates = new ArrayList<>();
 
+    private static final Logger logger = LogManager.getLogger(CompositeIndexingExecutionEngine.class);
+
     public CompositeIndexingExecutionEngine(
         MapperService mapperService,
         PluginsService pluginsService,
@@ -54,24 +57,29 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         IndexSettings indexSettings
     ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
+        List<DataSourcePlugin> dataSourcePlugins = pluginsService.filterPlugins(DataSourcePlugin.class)
+            .stream().toList();
+        if (dataSourcePlugins.isEmpty()) throw new IllegalStateException("No data formats found, can't initialise Engine");
+
+        boolean singlePlugin = dataSourcePlugins.size() == 1;
+        DataFormat primaryDataFormat = singlePlugin
+            ? dataSourcePlugins.getFirst().getDataFormat()
+            : getAndEnsureOnlyOnePrimaryEngine(dataSourcePlugins);
+
         List<DataFormat> dataFormats = new ArrayList<>();
-        try {
-            DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
-                .stream()
-                .findAny()
-                .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
+        for (DataSourcePlugin plugin : dataSourcePlugins) {
             dataFormats.add(plugin.getDataFormat());
-            delegates.add(plugin.indexingEngine(mapperService, shardPath, indexSettings));
-        } catch (NullPointerException e) {
-            delegates.add(new TextEngine());
+            delegates.add(plugin.indexingEngine(mapperService, singlePlugin || plugin.isPrimary(), shardPath, indexSettings));
         }
-        this.dataFormat = new Any(dataFormats, dataFormats.getFirst());
-        this.dataFormatWriterPool =
-            new CompositeDataFormatWriterPool(
-                () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
-                LinkedList::new,
-                Runtime.getRuntime().availableProcessors()
-            );
+        this.dataFormat = new Any(dataFormats, primaryDataFormat);
+
+        logger.debug("Registered dataformats: {}", this.dataFormat);
+        this.dataFormatWriterPool = new CompositeDataFormatWriterPool(
+            () -> new CompositeDataFormatWriter(this, writerGeneration.getAndIncrement()),
+            LinkedList::new,
+            Runtime.getRuntime().availableProcessors()
+        );
+
     }
 
     @Override
@@ -190,6 +198,16 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     public long getNativeBytesUsed() {
         return delegates.stream().mapToLong(IndexingExecutionEngine::getNativeBytesUsed).sum();
+    }
+
+    private DataFormat getAndEnsureOnlyOnePrimaryEngine(List<DataSourcePlugin> plugins) {
+        List<DataSourcePlugin> primaries = plugins.stream().filter(DataSourcePlugin::isPrimary).toList();
+        if (primaries.size() != 1) {
+            throw new IllegalStateException(
+                "Exactly one DataSourcePlugin must be primary, but found: " + primaries.size()
+            );
+        }
+        return primaries.getFirst().getDataFormat();
     }
 
     @Override

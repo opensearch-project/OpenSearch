@@ -8,6 +8,7 @@
 
 package com.parquet.parquetdataformat.fields.core.data;
 
+import org.opensearch.index.engine.exec.FieldRole;
 import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
@@ -55,5 +56,10 @@ public class BooleanParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public FieldRole getFieldRole() {
+        return FieldRole.PRIMARY;
     }
 }

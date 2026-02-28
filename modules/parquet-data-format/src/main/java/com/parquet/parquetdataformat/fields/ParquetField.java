@@ -11,6 +11,7 @@ package com.parquet.parquetdataformat.fields;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.exec.FieldRole;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.Objects;
@@ -108,6 +109,8 @@ public abstract class ParquetField {
      * @return the complete field type definition including metadata, never null
      */
     public abstract FieldType getFieldType();
+
+    public abstract FieldRole getFieldRole();
 
     /**
      * Provides a string representation of this ParquetField for debugging purposes.

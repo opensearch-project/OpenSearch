@@ -62,7 +62,7 @@ public final class ArrowFieldRegistry {
         // Register core data fields
         registerPlugin(new CoreDataFieldPlugin(), "CoreDataFields");
 
-        // REgister metadata fields
+        // Register metadata fields
         registerPlugin(new MetadataFieldPlugin(), "MetadataFields");
     }
     /**

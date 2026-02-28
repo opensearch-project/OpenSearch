@@ -8,6 +8,7 @@
 
 package com.parquet.parquetdataformat.fields.core.data.number;
 
+import org.opensearch.index.engine.exec.FieldRole;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.TinyIntVector;
@@ -54,5 +55,10 @@ public class ByteParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public FieldRole getFieldRole() {
+        return FieldRole.PRIMARY;
     }
 }

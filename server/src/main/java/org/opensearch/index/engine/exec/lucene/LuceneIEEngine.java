@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.lucene;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
@@ -32,7 +33,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-public class LuceneIEEngine implements IndexingExecutionEngine<DataFormat.LuceneDataFormat> {
+public class LuceneIEEngine implements IndexingExecutionEngine<LuceneDataFormat> {
 
     private final InternalEngine internalEngine;
 

@@ -28,7 +28,7 @@ public interface DataSourcePlugin {
         return Optional.empty();
     }
 
-    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings);
+    <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, boolean isPrimary, ShardPath shardPath, IndexSettings indexSettings);
 
     FormatStoreDirectory<?> createFormatStoreDirectory(
         IndexSettings indexSettings,
@@ -38,4 +38,10 @@ public interface DataSourcePlugin {
     BlobContainer createBlobContainer(BlobStore blobStore, BlobPath blobPath) throws IOException;
 
     DataFormat getDataFormat();
+
+    // This is used to resolve the conflicts in case of multi-datasource plugins
+    // In case we have single plugin, it should not consider this value and go with considering the only DataSource as primary
+    default boolean isPrimary() {
+        return false;
+    }
 }
