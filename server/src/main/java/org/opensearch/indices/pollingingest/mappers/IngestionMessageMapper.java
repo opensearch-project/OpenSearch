@@ -92,9 +92,7 @@ public interface IngestionMessageMapper {
                 break;
             default:
                 if (mapperSettings != null && mapperSettings.isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        "mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]"
-                    );
+                    throw new IllegalArgumentException("mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]");
                 }
                 break;
         }
