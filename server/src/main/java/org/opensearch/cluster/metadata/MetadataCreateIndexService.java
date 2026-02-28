@@ -107,7 +107,6 @@ import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.indices.pollingingest.mappers.FieldMappingIngestionMessageMapper;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
@@ -1285,60 +1284,22 @@ public class MetadataCreateIndexService {
         IngestionMessageMapper.MapperType mapperType = IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
         Map<String, Object> mapperSettings = IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
 
-        switch (mapperType) {
-            case FIELD_MAPPING:
-                // Version check for mixed cluster compatibility
-                Version minNodeVersion = state.nodes().getMinNodeVersion();
-                if (minNodeVersion.before(Version.V_3_6_0)) {
-                    throw new IllegalArgumentException(
-                        "mapper_type [field_mapping] requires all nodes in the cluster to be on version ["
-                            + Version.V_3_6_0
-                            + "] or later, but the minimum node version is ["
-                            + minNodeVersion
-                            + "]"
-                    );
-                }
-                // Validate mapper_settings keys
-                for (String key : mapperSettings.keySet()) {
-                    if (FieldMappingIngestionMessageMapper.VALID_SETTINGS.contains(key) == false) {
-                        throw new IllegalArgumentException(
-                            "unknown mapper_settings key ["
-                                + key
-                                + "] for mapper_type [field_mapping]. Valid keys are: "
-                                + FieldMappingIngestionMessageMapper.VALID_SETTINGS
-                        );
-                    }
-                }
-                // Validate cross-key dependencies
-                boolean hasDeleteValue = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.DELETE_VALUE);
-                boolean hasCreateValue = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.CREATE_VALUE);
-                boolean hasOpTypeField = mapperSettings.containsKey(FieldMappingIngestionMessageMapper.OP_TYPE_FIELD);
-                if ((hasDeleteValue || hasCreateValue) && hasOpTypeField == false) {
-                    throw new IllegalArgumentException(
-                        "op_type_field.delete_value or op_type_field.create_value requires op_type_field to be configured"
-                    );
-                }
-                if (hasDeleteValue && hasCreateValue) {
-                    String deleteVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.DELETE_VALUE);
-                    String createVal = (String) mapperSettings.get(FieldMappingIngestionMessageMapper.CREATE_VALUE);
-                    if (deleteVal != null && deleteVal.equals(createVal)) {
-                        throw new IllegalArgumentException(
-                            "op_type_field.delete_value ["
-                                + deleteVal
-                                + "] and op_type_field.create_value ["
-                                + createVal
-                                + "] cannot be the same"
-                        );
-                    }
-                }
-                break;
-            default:
-                // default and raw_payload mappers don't use mapper_settings
-                if (mapperSettings.isEmpty() == false) {
-                    throw new IllegalArgumentException("mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]");
-                }
-                break;
+        // Version check for mixed cluster compatibility
+        if (mapperType == IngestionMessageMapper.MapperType.FIELD_MAPPING) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_6_0)) {
+                throw new IllegalArgumentException(
+                    "mapper_type [field_mapping] requires all nodes in the cluster to be on version ["
+                        + Version.V_3_6_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
         }
+
+        // Settings validation to the mapper
+        IngestionMessageMapper.validateSettings(mapperType, mapperSettings);
     }
 
     /**

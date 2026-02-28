@@ -79,6 +79,28 @@ public interface IngestionMessageMapper {
     }
 
     /**
+     * Validates mapper settings for the given mapper type.
+     *
+     * @param mapperType the mapper type
+     * @param mapperSettings the mapper settings to validate
+     * @throws IllegalArgumentException if validation fails
+     */
+    static void validateSettings(MapperType mapperType, Map<String, Object> mapperSettings) {
+        switch (mapperType) {
+            case FIELD_MAPPING:
+                FieldMappingIngestionMessageMapper.validateSettings(mapperSettings);
+                break;
+            default:
+                if (mapperSettings != null && mapperSettings.isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        "mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]"
+                    );
+                }
+                break;
+        }
+    }
+
+    /**
      * Factory method to create a mapper instance based on type string.
      *
      * @param mapperTypeString the type of mapper to create as a string

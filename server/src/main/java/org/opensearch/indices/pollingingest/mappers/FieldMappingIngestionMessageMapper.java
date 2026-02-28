@@ -12,6 +12,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.util.RequestUtils;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.indices.pollingingest.IngestionUtils;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 
@@ -75,20 +76,46 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
      * @param mapperSettings the mapper settings map
      */
     public FieldMappingIngestionMessageMapper(Map<String, Object> mapperSettings) {
+        validateSettings(mapperSettings);
         this.idField = mapperSettings != null ? (String) mapperSettings.get(ID_FIELD) : null;
         this.versionField = mapperSettings != null ? (String) mapperSettings.get(VERSION_FIELD) : null;
         this.opTypeField = mapperSettings != null ? (String) mapperSettings.get(OP_TYPE_FIELD) : null;
         this.deleteValue = mapperSettings != null ? (String) mapperSettings.get(DELETE_VALUE) : null;
         this.createValue = mapperSettings != null ? (String) mapperSettings.get(CREATE_VALUE) : null;
+    }
 
-        if ((deleteValue != null || createValue != null) && opTypeField == null) {
+    /**
+     * Validates mapper settings for the field_mapping mapper type.
+     * Checks that all keys are recognized, delete/create values require op_type_field,
+     * and delete and create values are not the same.
+     *
+     * @param mapperSettings the mapper settings to validate
+     * @throws IllegalArgumentException if validation fails
+     */
+    public static void validateSettings(Map<String, Object> mapperSettings) {
+        if (mapperSettings == null || mapperSettings.isEmpty()) {
+            return;
+        }
+        // Validate keys
+        for (String key : mapperSettings.keySet()) {
+            if (VALID_SETTINGS.contains(key) == false) {
+                throw new IllegalArgumentException(
+                    "unknown mapper_settings key [" + key + "] for mapper_type [field_mapping]. Valid keys are: " + VALID_SETTINGS
+                );
+            }
+        }
+        // Validate cross-key dependencies
+        boolean hasOpTypeField = mapperSettings.containsKey(OP_TYPE_FIELD);
+        String deleteVal = (String) mapperSettings.get(DELETE_VALUE);
+        String createVal = (String) mapperSettings.get(CREATE_VALUE);
+        if ((deleteVal != null || createVal != null) && hasOpTypeField == false) {
             throw new IllegalArgumentException(
                 "op_type_field.delete_value or op_type_field.create_value requires op_type_field to be configured"
             );
         }
-        if (deleteValue != null && createValue != null && deleteValue.equals(createValue)) {
+        if (deleteVal != null && createVal != null && deleteVal.equals(createVal)) {
             throw new IllegalArgumentException(
-                "op_type_field.delete_value [" + deleteValue + "] and op_type_field.create_value [" + createValue + "] cannot be the same"
+                "op_type_field.delete_value [" + deleteVal + "] and op_type_field.create_value [" + createVal + "] cannot be the same"
             );
         }
     }
@@ -124,7 +151,7 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
             }
             Object versionValue = rawPayload.remove(versionField);
             validateScalar(versionField, versionValue);
-            payloadMap.put("_version", String.valueOf(versionValue).trim());
+            payloadMap.put(VersionFieldMapper.NAME, String.valueOf(versionValue).trim());
         }
 
         // Extract _op_type
