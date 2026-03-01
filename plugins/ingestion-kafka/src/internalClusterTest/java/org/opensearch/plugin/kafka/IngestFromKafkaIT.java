@@ -1091,4 +1091,256 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             .getPollingIngestStats();
         assertEquals(1L, stats.getMessageProcessorStats().totalProcessedCount());
     }
+
+    public void testKafkaIngestionWithFieldMappingMapper() {
+        // Produce raw JSON messages (no _id/_source/_op_type envelope)
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"is_deleted\": \"false\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+
+            // Verify document IDs are extracted from user_id field
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+            assertTrue(docs.containsKey("abc"));
+            assertTrue(docs.containsKey("def"));
+
+            // Verify _source does not contain extracted metadata fields
+            Map<String, Object> aliceDoc = docs.get("abc");
+            assertEquals("alice", aliceDoc.get("name"));
+            assertEquals(30, aliceDoc.get("age"));
+            assertFalse("user_id should be removed from _source", aliceDoc.containsKey("user_id"));
+            assertFalse("timestamp should be removed from _source", aliceDoc.containsKey("timestamp"));
+            assertFalse("is_deleted should be removed from _source", aliceDoc.containsKey("is_deleted"));
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_DeleteOperation() {
+        // Produce an index message followed by a delete message for the same document
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 200, \"is_deleted\": \"true\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        // Both messages processed, but the delete should remove the document
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(0L));
+
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertNotNull(stats);
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_VersionConflict() {
+        // Produce messages out of order: newer version first, then older version
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v2\", \"age\": 31, \"timestamp\": 200, \"is_deleted\": \"false\"}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v1\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "is_deleted")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "true")
+                .build(),
+            mapping
+        );
+
+        // Both messages processed, but the older version should be rejected
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+
+            // The newer version (v2) should win
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertEquals("alice_v2", source.get("name"));
+            assertEquals(31, source.get("age"));
+
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_CreateOperation() {
+        // Produce messages with create op type
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"action\": \"INSERT\"}");
+        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"action\": \"UPDATE\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "action")
+                .put("ingestion_source.mapper_settings.op_type_field.create_value", "INSERT")
+                .build(),
+            mapping
+        );
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            // Both documents indexed — INSERT as create, UPDATE as index (default)
+            assertTrue(docs.containsKey("abc"));
+            assertTrue(docs.containsKey("def"));
+            // action field should be removed from _source
+            assertFalse(docs.get("abc").containsKey("action"));
+            assertFalse(docs.get("def").containsKey("action"));
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_OnlyIdField() {
+        // Produce raw messages — only id_field configured, no version or op_type
+        produceData("{\"doc_id\": \"101\", \"title\": \"hello\", \"score\": 42}");
+        produceData("{\"doc_id\": \"102\", \"title\": \"world\", \"score\": 99}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "doc_id")
+                .build(),
+            "{\"properties\":{\"title\":{\"type\": \"text\"},\"score\":{\"type\": \"integer\"}}}"
+        );
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(2L));
+
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            // Verify IDs extracted from doc_id
+            assertTrue(docs.containsKey("101"));
+            assertTrue(docs.containsKey("102"));
+
+            // doc_id removed from source, content fields preserved
+            assertFalse(docs.get("101").containsKey("doc_id"));
+            assertEquals("hello", docs.get("101").get("title"));
+            assertEquals(42, docs.get("101").get("score"));
+        });
+    }
+
+    public void testKafkaIngestionWithFieldMappingMapper_CustomDeleteValue() {
+        // Produce messages with Y/N convention for deletes
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 300, \"expired\": \"Y\"}");
+
+        internalCluster().startNode();
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.mapper_type", "field_mapping")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
+                .put("ingestion_source.mapper_settings.version_field", "timestamp")
+                .put("ingestion_source.mapper_settings.op_type_field", "expired")
+                .put("ingestion_source.mapper_settings.op_type_field.delete_value", "Y")
+                .build(),
+            mapping
+        );
+
+        // abc indexed then deleted, def remains
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            assertThat(response.getHits().getTotalHits().value(), is(1L));
+
+            // Only bob should remain
+            assertEquals("def", response.getHits().getAt(0).getId());
+            assertEquals("bob", response.getHits().getAt(0).getSourceAsMap().get("name"));
+            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("expired"));
+
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(3L));
+        });
+    }
 }
