@@ -114,6 +114,10 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    /**
+     * Identifies if OpenSearch should automatically release read-only blocks on indices
+     * when disk usage falls below the threshold.
+     */
     public static final Setting<Boolean> CLUSTER_READ_BLOCK_AUTO_RELEASE = Setting.boolSetting(
         "cluster.blocks.read.auto_release",
         true,
@@ -436,6 +440,9 @@ public class DiskThresholdSettings {
         return createIndexBlockAutoReleaseEnabled;
     }
 
+    /**
+     * Returns true if auto-release of read-only blocks is enabled.
+     */
     public boolean isReadBlockAutoReleaseEnabled() {
         return readBlockAutoReleaseEnabled;
     }

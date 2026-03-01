@@ -493,6 +493,9 @@ public class DiskThresholdMonitor {
             .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
+    /**
+     * Handles releasing or blocking read access to indices based on disk threshold status.
+     */
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
         final Set<String> indicesToReleaseReadBlock;
         if (diskThresholdSettings.isReadBlockAutoReleaseEnabled()) {
