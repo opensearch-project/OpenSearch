@@ -18,7 +18,7 @@ use datafusion::{
     datasource::physical_plan::parquet::{ParquetAccessPlan, RowGroupAccess},
     datasource::physical_plan::ParquetSource,
     execution::cache::cache_manager::CacheManagerConfig,
-    execution::cache::cache_unit::DefaultListFilesCache,
+    execution::cache::DefaultListFilesCache,
     execution::cache::CacheAccessor,
     execution::context::SessionContext,
     execution::runtime_env::RuntimeEnvBuilder,
@@ -31,6 +31,7 @@ use datafusion_datasource::PartitionedFile;
 use datafusion_datasource::file_groups::FileGroup;
 use datafusion_datasource::file_scan_config::FileScanConfigBuilder;
 use datafusion_datasource::source::DataSourceExec;
+use datafusion_datasource::TableSchema;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::{Plan, extensions::simple_extension_declaration::MappingType};
 use object_store::ObjectMeta;
@@ -121,7 +122,11 @@ pub async fn execute_query_with_cross_rt_stream(
     );
 
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    list_file_cache.put(table_path.prefix(), object_meta);
+    let table_scoped_path = datafusion::execution::cache::TableScopedPath {
+        table: None,
+        path: table_path.prefix().clone(),
+    };
+    list_file_cache.put(&table_scoped_path, object_meta);
 
     let runtimeEnv = &runtime.runtime_env;
 
@@ -361,15 +366,18 @@ pub async fn execute_fetch_phase(
     );
 
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
-    list_file_cache.put(table_path.prefix(), object_meta);
+    let table_scoped_path = datafusion::execution::cache::TableScopedPath {
+        table: None,
+        path: table_path.prefix().clone(),
+    };
+    list_file_cache.put(&table_scoped_path, object_meta);
 
     let runtime_env = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
-                         .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())
+                .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())
                 .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache().clone()))
                 .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache()),
-
         )
         .build()?;
 
@@ -414,7 +422,12 @@ pub async fn execute_fetch_phase(
         .collect();
 
     let file_group = FileGroup::new(partitioned_files);
-    let file_source = Arc::new(ParquetSource::default());
+
+    let table_schema = datafusion_datasource::table_schema::TableSchema::new(
+        parquet_schema.clone(),
+        vec![Arc::new(Field::new(ROW_BASE_FIELD_NAME, DataType::Int64, false))],
+    );
+    let file_source = Arc::new(ParquetSource::new(table_schema));
 
     let mut projection_index = vec![];
     for field_name in projections.iter() {
@@ -435,17 +448,15 @@ pub async fn execute_fetch_phase(
 
     let file_scan_config = FileScanConfigBuilder::new(
         ObjectStoreUrl::local_filesystem(),
-        parquet_schema.clone(),
         file_source,
     )
-    .with_table_partition_cols(vec![Field::new(ROW_BASE_FIELD_NAME, DataType::Int64, false)])
-    .with_projection_indices(Some(projection_index.clone()))
+    .with_projection_indices(Some(projection_index.clone()))?
     .with_file_group(file_group)
     .build();
 
     let parquet_exec = DataSourceExec::from_data_source(file_scan_config.clone());
 
-    let projection_exprs = build_projection_exprs(file_scan_config.projected_schema())
+    let projection_exprs = build_projection_exprs(file_scan_config.projected_schema()?)
         .expect("Failed to build projection expressions");
 
     let projection_exec = Arc::new(ProjectionExec::try_new(projection_exprs, parquet_exec)

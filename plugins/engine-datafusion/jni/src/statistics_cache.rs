@@ -433,7 +433,7 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
         result
     }
 
-    fn remove(&mut self, k: &Path) -> Option<Arc<Statistics>> {
+    fn remove(&self, k: &Path) -> Option<Arc<Statistics>> {
         let key = k.to_string();
 
         // Actually remove from the underlying cache
@@ -494,6 +494,13 @@ impl CacheAccessor<Path, Arc<Statistics>> for CustomStatisticsCache {
             "CustomStatisticsCache({})",
             self.policy_name().unwrap_or_else(|_| "unknown".to_string())
         )
+    }
+}
+
+impl datafusion::execution::cache::cache_manager::FileStatisticsCache for CustomStatisticsCache {
+    fn list_entries(&self) -> std::collections::HashMap<object_store::path::Path, datafusion::execution::cache::cache_manager::FileStatisticsCacheEntry> {
+        // Return empty map — this is used for introspection only
+        std::collections::HashMap::new()
     }
 }
 

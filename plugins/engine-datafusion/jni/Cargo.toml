@@ -61,6 +61,9 @@ num_cpus = "1.16"
 object_store = { workspace = true }
 url = { workspace = true }
 
+# Liquid Cache for byte-level caching
+liquid-cache-datafusion-local = { workspace = true }
+
 # Substrait support
 substrait = { workspace = true }
 

@@ -63,7 +63,7 @@ impl CustomCacheManager {
 
         // Add statistics cache if available - use CustomStatisticsCache directly
         if let Some(stats_cache) = &self.statistics_cache {
-            config = config.with_files_statistics_cache(Some(stats_cache.clone() as FileStatisticsCache));
+            config = config.with_files_statistics_cache(Some(stats_cache.clone() as Arc<dyn FileStatisticsCache>));
         } else {
             // Default statistics cache if none set
             let default_stats = Arc::new(DefaultFileStatisticsCache::default());

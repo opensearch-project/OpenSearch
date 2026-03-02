@@ -948,7 +948,7 @@ pub struct ListingTable {
     schema_source: SchemaSource,
     options: ListingOptions,
     definition: Option<String>,
-    collected_statistics: FileStatisticsCache,
+    collected_statistics: Arc<dyn FileStatisticsCache>,
     constraints: Constraints,
     column_defaults: HashMap<String, Expr>,
     /// Optional [`SchemaAdapterFactory`] for creating schema adapters
@@ -1020,7 +1020,7 @@ impl ListingTable {
     /// multiple times in the same session.
     ///
     /// If `None`, creates a new [`DefaultFileStatisticsCache`] scoped to this query.
-    pub fn with_cache(mut self, cache: Option<FileStatisticsCache>) -> Self {
+    pub fn with_cache(mut self, cache: Option<Arc<dyn FileStatisticsCache>>) -> Self {
         self.collected_statistics =
             cache.unwrap_or_else(|| Arc::new(DefaultFileStatisticsCache::default()));
         self
@@ -1098,7 +1098,15 @@ impl ListingTable {
 
     /// Creates a file source and applies schema adapter factory if available
     fn create_file_source_with_schema_adapter(&self) -> Result<Arc<dyn FileSource>> {
-        let mut source = self.options.format.file_source();
+        let table_schema = datafusion_datasource::table_schema::TableSchema::new(
+            self.file_schema.clone(),
+            self.options
+                .table_partition_cols
+                .iter()
+                .map(|(name, dt)| Arc::new(Field::new(name, dt.clone(), false)) as _)
+                .collect(),
+        );
+        let mut source = self.options.format.file_source(table_schema);
         // Apply schema adapter to source if available
         //
         // The source will use this SchemaAdapter to adapt data batches as they flow up the plan.
@@ -1309,16 +1317,14 @@ impl TableProvider for ListingTable {
                 state,
                 FileScanConfigBuilder::new(
                     object_store_url,
-                    Arc::clone(&self.file_schema),
                     file_source,
                 )
                 .with_file_groups(partitioned_file_lists)
                 .with_constraints(self.constraints.clone())
                 .with_statistics(statistics)
-                .with_projection_indices(projection.cloned())
+                .with_projection_indices(projection.cloned())?
                 .with_limit(limit)
                 .with_output_ordering(output_ordering)
-                .with_table_partition_cols(table_partition_cols)
                 .with_expr_adapter(self.expr_adapter_factory.clone())
                 .build(),
             )
