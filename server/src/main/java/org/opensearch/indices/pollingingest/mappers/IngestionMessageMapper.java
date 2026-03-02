@@ -13,7 +13,9 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.indices.pollingingest.ShardUpdateMessage;
 
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Interface for mapping ingestion messages to ShardUpdateMessage format.
@@ -23,6 +25,13 @@ import java.util.Locale;
  * validate and drop messages. Validations will be done as part of message processing in the {@link org.opensearch.indices.pollingingest.MessageProcessorRunnable}</p>
  */
 public interface IngestionMessageMapper {
+
+    /** Operation type value for index operations */
+    String OP_TYPE_INDEX = "index";
+    /** Operation type value for delete operations */
+    String OP_TYPE_DELETE = "delete";
+    /** Operation type value for create operations */
+    String OP_TYPE_CREATE = "create";
 
     /**
      * Maps and processes an ingestion message to a shard update message.
@@ -70,6 +79,26 @@ public interface IngestionMessageMapper {
     }
 
     /**
+     * Validates mapper settings for the given mapper type.
+     *
+     * @param mapperType the mapper type
+     * @param mapperSettings the mapper settings to validate
+     * @throws IllegalArgumentException if validation fails
+     */
+    static void validateSettings(MapperType mapperType, Map<String, Object> mapperSettings) {
+        switch (mapperType) {
+            case FIELD_MAPPING:
+                FieldMappingIngestionMessageMapper.validateSettings(mapperSettings);
+                break;
+            default:
+                if (mapperSettings != null && mapperSettings.isEmpty() == false) {
+                    throw new IllegalArgumentException("mapper_settings are not supported for mapper_type [" + mapperType.getName() + "]");
+                }
+                break;
+        }
+    }
+
+    /**
      * Factory method to create a mapper instance based on type string.
      *
      * @param mapperTypeString the type of mapper to create as a string
@@ -77,12 +106,26 @@ public interface IngestionMessageMapper {
      * @return the mapper instance
      */
     static IngestionMessageMapper create(String mapperTypeString, int shardId) {
+        return create(mapperTypeString, shardId, Collections.emptyMap());
+    }
+
+    /**
+     * Factory method to create a mapper instance based on type string and mapper settings.
+     *
+     * @param mapperTypeString the type of mapper to create as a string
+     * @param shardId the shard ID
+     * @param mapperSettings mapper-specific settings
+     * @return the mapper instance
+     */
+    static IngestionMessageMapper create(String mapperTypeString, int shardId, Map<String, Object> mapperSettings) {
         MapperType mapperType = MapperType.fromString(mapperTypeString);
         switch (mapperType) {
             case DEFAULT:
                 return new DefaultIngestionMessageMapper();
             case RAW_PAYLOAD:
                 return new RawPayloadIngestionMessageMapper(shardId);
+            case FIELD_MAPPING:
+                return new FieldMappingIngestionMessageMapper(mapperSettings);
             default:
                 throw new IllegalArgumentException("Unknown mapper type: " + mapperType);
         }
