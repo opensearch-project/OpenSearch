@@ -9,14 +9,17 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.cluster.metadata.IngestionSource;
+import org.opensearch.common.Nullable;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
+import org.opensearch.ingest.IngestService;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Engine Factory implementation used with streaming ingestion.
@@ -24,9 +27,16 @@ import java.util.Objects;
 public class IngestionEngineFactory implements EngineFactory {
 
     private final IngestionConsumerFactory ingestionConsumerFactory;
+    @Nullable
+    private final Supplier<IngestService> ingestServiceSupplier;
 
     public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory) {
+        this(ingestionConsumerFactory, null);
+    }
+
+    public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory, Supplier<IngestService> ingestServiceSupplier) {
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
+        this.ingestServiceSupplier = ingestServiceSupplier;
     }
 
     /**
@@ -39,9 +49,11 @@ public class IngestionEngineFactory implements EngineFactory {
         IngestionSource ingestionSource = config.getIndexSettings().getIndexMetadata().getIngestionSource();
         boolean isAllActiveIngestion = ingestionSource != null && ingestionSource.isAllActiveIngestionEnabled();
 
+        IngestService ingestService = ingestServiceSupplier != null ? ingestServiceSupplier.get() : null;
+
         if (isAllActiveIngestion) {
             // use ingestion engine on both primary and replica in all-active mode
-            IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory);
+            IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService);
             ingestionEngine.start();
             return ingestionEngine;
         }
@@ -52,7 +64,7 @@ public class IngestionEngineFactory implements EngineFactory {
             return new NRTReplicationEngine(config);
         }
 
-        IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory);
+        IngestionEngine ingestionEngine = new IngestionEngine(config, ingestionConsumerFactory, ingestService);
         ingestionEngine.start();
         return ingestionEngine;
     }

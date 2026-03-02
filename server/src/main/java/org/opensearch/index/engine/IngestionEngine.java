@@ -19,6 +19,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardPointer;
@@ -60,11 +61,22 @@ public class IngestionEngine extends InternalEngine {
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final DocumentMapperForType documentMapperForType;
+    @Nullable
+    private final IngestService ingestService;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
     public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
+        this(engineConfig, ingestionConsumerFactory, null);
+    }
+
+    public IngestionEngine(
+        EngineConfig engineConfig,
+        IngestionConsumerFactory ingestionConsumerFactory,
+        @Nullable IngestService ingestService
+    ) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
+        this.ingestService = ingestService;
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
         registerDynamicIndexSettingsHandlers();
     }
