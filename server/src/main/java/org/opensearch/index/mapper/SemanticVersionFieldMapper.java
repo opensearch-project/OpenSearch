@@ -61,6 +61,8 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
     }
 
     private final Map<String, String> meta;
+    private final SemanticVersion nullValue;
+    private final String nullValueAsString;
 
     protected SemanticVersionFieldMapper(
         String simpleName,
@@ -68,10 +70,13 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        Map<String, String> meta
+        Map<String, String> meta,
+        Builder builder
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.meta = meta;
+        this.nullValue = builder.parseNullValue();
+        this.nullValueAsString = builder.nullValue.getValue();
     }
 
     @Override
@@ -87,6 +92,12 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).isSearchable, true).alwaysSerialize();
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).isStored, false);
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toMapper(m).nullValueAsString, null)
+            .acceptsNull();
+
+        private static SemanticVersionFieldMapper toMapper(FieldMapper m) {
+            return (SemanticVersionFieldMapper) m;
+        }
 
         private static SemanticVersionFieldType toType(FieldMapper m) {
             return (SemanticVersionFieldType) ((ParametrizedFieldMapper) m).mappedFieldType;
@@ -96,12 +107,26 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
             super(name);
         }
 
+        Builder nullValue(String nullValue) {
+            this.nullValue.setValue(nullValue);
+            return this;
+        }
+
+        private SemanticVersion parseNullValue() {
+            String nullValueAsString = nullValue.getValue();
+            if (nullValueAsString == null) {
+                return null;
+            }
+            return SemanticVersion.parse(nullValueAsString);
+        }
+
         @Override
         protected List<Parameter<?>> getParameters() {
             List<Parameter<?>> parameters = new ArrayList<>();
             parameters.add(indexed);
             parameters.add(hasDocValues);
             parameters.add(stored);
+            parameters.add(nullValue);
             parameters.add(meta);
             return parameters;
         }
@@ -122,11 +147,13 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
                     meta.getValue(),
                     indexed.getValue(),
                     hasDocValues.getValue(),
-                    stored.getValue()
+                    stored.getValue(),
+                    parseNullValue()
                 ),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                meta.getValue()
+                meta.getValue(),
+                this
             );
         }
     }
@@ -144,13 +171,15 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
         private final boolean isSearchable;
         private final boolean hasDocValues;
         private final boolean isStored;
+        private final SemanticVersion nullValue;
 
         public SemanticVersionFieldType(
             String name,
             Map<String, String> meta,
             boolean isSearchable,
             boolean hasDocValues,
-            boolean isStored
+            boolean isStored,
+            SemanticVersion nullValue
         ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.meta = meta;
@@ -158,6 +187,7 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
             this.isSearchable = isSearchable;
             this.hasDocValues = hasDocValues;
             this.isStored = isStored;
+            this.nullValue = nullValue;
         }
 
         @Override
@@ -327,7 +357,7 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new SourceValueFetcher(name(), context, format) {
+            return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     return value.toString();
@@ -352,6 +382,9 @@ public class SemanticVersionFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String value = context.parser().textOrNull();
+        if (value == null) {
+            value = nullValueAsString;
+        }
         if (value == null) {
             return;
         }

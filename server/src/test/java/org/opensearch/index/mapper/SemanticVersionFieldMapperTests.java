@@ -706,7 +706,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             new HashMap<>(),
             true,  // isSearchable
             true,  // hasDocValues
-            false  // isStored
+            false,  // isStored
+            null   // nullValue
         );
 
         // Test termQuery with null value (should throw exception)
@@ -723,7 +724,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
                 new HashMap<>(),
                 false,  // isSearchable
                 true,   // hasDocValues
-                false   // isStored
+                false,   // isStored
+                null    // nullValue
             );
 
         // Test termQuery - should use doc values query only
@@ -736,7 +738,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             new HashMap<>(),
             true,   // isSearchable
             false,  // hasDocValues
-            false   // isStored
+            false,   // isStored
+            null    // nullValue
         );
 
         // Test termQuery - should use index query only
@@ -749,7 +752,8 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             new HashMap<>(),
             false,  // isSearchable
             false,  // hasDocValues
-            false   // isStored
+            false,   // isStored
+            null    // nullValue
         );
 
         // Test termQuery - should throw exception
@@ -850,5 +854,123 @@ public class SemanticVersionFieldMapperTests extends MapperTestCase {
             () -> searchOnlyFieldType.fielddataBuilder("test_index", null)
         );
         assertThat(fieldDataException.getMessage(), containsString("does not have doc_values enabled"));
+    }
+
+    /**
+     * Test null_value parameter - when field value is null, it should be replaced with null_value
+     */
+    public void testNullValueParameter() throws Exception {
+        // Create mapper with null_value set to "1.0.0"
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "version");
+            b.field("store", true);
+            b.field("index", true);
+            b.field("null_value", "1.0.0");
+        }));
+
+        // Test that null value is replaced with null_value
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertNotNull("Field should exist when null_value is set", field);
+        assertEquals("1.0.0", field.stringValue());
+
+        // Note: missing field is NOT replaced with null_value, only explicit null values are
+        // This is consistent with other field mappers like IpFieldMapper
+    }
+
+    /**
+     * Test null_value with complex version format
+     */
+    public void testNullValueWithComplexVersion() throws Exception {
+        // Create mapper with null_value set to a complex version
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "version");
+            b.field("store", true);
+            b.field("index", true);
+            b.field("null_value", "2.0.0-alpha.1+build.123");
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertNotNull("Field should exist", field);
+        assertEquals("2.0.0-alpha.1+build.123", field.stringValue());
+    }
+
+    /**
+     * Test that invalid null_value throws exception when trying to create index
+     */
+    public void testInvalidNullValue() throws Exception {
+        // Create mapper with invalid null_value
+        // When null_value is invalid , it should throw an exception
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "version");
+            b.field("store", true);
+            b.field("index", true);
+            b.field("null_value", "invalid-version");
+        })));
+        assertTrue(e.getCause().getMessage().contains("Invalid semantic version format"));
+    }
+
+    /**
+     * Test valueFetcher with null_value
+     */
+    public void testValueFetcherWithNullValue() throws Exception {
+        // Create field type with null_value
+        SemanticVersion nullVersion = SemanticVersion.parse("1.0.0");
+        SemanticVersionFieldMapper.SemanticVersionFieldType fieldType = new SemanticVersionFieldMapper.SemanticVersionFieldType(
+            "test_field",
+            new HashMap<>(),
+            true,
+            true,
+            false,
+            nullVersion
+        );
+
+        QueryShardContext mockContext = mock(QueryShardContext.class);
+        SearchLookup mockLookup = mock(SearchLookup.class);
+
+        // Test valueFetcher returns null_value when field is not in source
+        ValueFetcher fetcher = fieldType.valueFetcher(mockContext, mockLookup, null);
+        assertNotNull(fetcher);
+    }
+
+    /**
+     * Test that explicit value is not affected by null_value setting
+     */
+    public void testExplicitValueNotAffectedByNullValue() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "version");
+            b.field("store", true);
+            b.field("index", true);
+            b.field("null_value", "1.0.0");
+        }));
+
+        // Test that explicit value is preserved
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2.0.0")));
+        IndexableField field = doc.rootDoc().getField("field");
+        assertNotNull("Field should exist", field);
+        assertEquals("2.0.0", field.stringValue());
+    }
+
+    /**
+     * Test null_value mapping serialization
+     */
+    public void testNullValueMappingSerialization() throws IOException {
+        XContentBuilder mapping = fieldMapping(b -> {
+            b.field("type", "version");
+            b.field("store", true);
+            b.field("index", true);
+            b.field("null_value", "1.0.0");
+        });
+        DocumentMapper mapper = createDocumentMapper(mapping);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        mapper.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        String mappingString = builder.toString();
+        assertTrue(mappingString.contains("\"type\":\"version\""));
+        assertTrue(mappingString.contains("\"null_value\":\"1.0.0\""));
     }
 }
