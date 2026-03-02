@@ -14,12 +14,10 @@ use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use arrow::array::{
-    Array, ArrayRef, AsArray, Int64Array, RecordBatch,
-};
+use arrow::array::{Array, ArrayRef, AsArray, Int64Array, RecordBatch};
 use arrow::compute::concat_batches;
 use arrow::datatypes::{
     DataType as ArrowDataType, Date32Type, Date64Type, DurationMicrosecondType,
@@ -31,6 +29,7 @@ use arrow::datatypes::{
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::{ArrowRowGroupWriterFactory, compute_leaves};
 use parquet::basic::{Compression, Repetition};
+use parquet::file::metadata::ParquetMetaData;
 use parquet::file::properties::WriterProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::file::writer::SerializedFileWriter;
@@ -39,9 +38,13 @@ use parquet::schema::types::Type;
 use rayon::prelude::*;
 use rayon::ThreadPool;
 
+use tokio::runtime::Runtime;
+use tokio::sync::{mpsc as tokio_mpsc, oneshot};
+use tokio::task::JoinHandle;
+
 const ROW_ID_COLUMN_NAME: &str = "___row_id";
-const BATCH_SIZE: usize = 50_000;
-const OUTPUT_FLUSH_ROWS: usize = 100_000;
+const BATCH_SIZE: usize = 1_00_000;
+const OUTPUT_FLUSH_ROWS: usize = 1_000_000;
 const RAYON_NUM_THREADS: usize = 4;
 
 // =============================================================================
@@ -61,6 +64,152 @@ fn get_merge_pool() -> &'static ThreadPool {
 }
 
 // =============================================================================
+// Process-wide shared Tokio runtime for IO — lazily initialized, lives forever
+// =============================================================================
+
+static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+fn get_io_runtime() -> &'static Runtime {
+    IO_RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .thread_name("parquet-io")
+            .enable_all()
+            .build()
+            .expect("Failed to build tokio IO runtime")
+    })
+}
+
+// =============================================================================
+// IO task protocol (tokio channels)
+// =============================================================================
+
+enum IoCommand {
+    /// Fully-encoded column chunks for one row group — append + close.
+    WriteRowGroup(Vec<parquet::arrow::arrow_writer::ArrowColumnChunk>),
+    /// Shut down: flush footer, close file, send back metadata.
+    Close(oneshot::Sender<MergeResult<ParquetMetaData>>),
+}
+
+/// Drain remaining commands on error so senders don't hang forever.
+async fn drain_on_error(rx: &mut tokio_mpsc::Receiver<IoCommand>, msg: &str) {
+    while let Some(cmd) = rx.recv().await {
+        if let IoCommand::Close(reply) = cmd {
+            let _ = reply.send(Err(MergeError::Logic(
+                format!("Prior IO write failed: {msg}"),
+            )));
+        }
+    }
+}
+
+/// Spawn a tokio task that owns the `SerializedFileWriter`.
+///
+/// Each blocking file-system operation runs inside `spawn_blocking`.
+/// The key optimisation: we do NOT await `spawn_blocking` immediately.
+/// Instead we hold the `JoinHandle` and loop back to `rx.recv()` so the
+/// merge loop can send the next encoded row group while the current one
+/// is still being written to disk.  We only await the in-flight handle
+/// when we need the writer back (i.e. for the next write or for close).
+///
+/// This gives genuine pipeline parallelism:
+///   merge loop:  [encode RG1][encode RG2][encode RG3]
+///   io task:                 [write RG1 ][write RG2 ][write RG3]
+fn spawn_io_task(
+    writer: SerializedFileWriter<File>,
+) -> tokio_mpsc::Sender<IoCommand> {
+    // Buffer of 2: merge loop can prepare one row group ahead while
+    // the IO task is still flushing the previous one.
+    let (tx, mut rx) = tokio_mpsc::channel::<IoCommand>(2);
+
+    get_io_runtime().spawn(async move {
+        let mut writer: Option<SerializedFileWriter<File>> = Some(writer);
+        let mut in_flight: Option<JoinHandle<MergeResult<SerializedFileWriter<File>>>> =
+            None;
+
+        while let Some(cmd) = rx.recv().await {
+            match cmd {
+                IoCommand::WriteRowGroup(chunks) => {
+                    // Collect previous write if still in flight
+                    if let Some(handle) = in_flight.take() {
+                        match handle.await {
+                            Ok(Ok(w)) => writer = Some(w),
+                            Ok(Err(e)) => {
+                                let msg = format!("{e}");
+                                eprintln!("IO write error: {e}");
+                                drain_on_error(&mut rx, &msg).await;
+                                return;
+                            }
+                            Err(e) => {
+                                let msg = format!("{e}");
+                                eprintln!("IO spawn_blocking panicked: {e}");
+                                drain_on_error(&mut rx, &msg).await;
+                                return;
+                            }
+                        }
+                    }
+
+                    // Start new write — DON'T await yet
+                    let w = writer.take().unwrap();
+                    in_flight = Some(tokio::task::spawn_blocking({
+                        let mut w = w;
+                        move || {
+                            let mut rg_writer = w.next_row_group()?;
+                            for chunk in chunks {
+                                chunk.append_to_row_group(&mut rg_writer)?;
+                            }
+                            rg_writer.close()?;
+                            Ok(w)
+                        }
+                    }));
+
+                    // Immediately loop back to rx.recv() —
+                    // merge loop can send next row group while
+                    // this write is still going to disk
+                }
+
+                IoCommand::Close(reply) => {
+                    // Drain in-flight write first
+                    if let Some(handle) = in_flight.take() {
+                        match handle.await {
+                            Ok(Ok(w)) => writer = Some(w),
+                            Ok(Err(e)) => {
+                                let _ = reply.send(Err(e));
+                                return;
+                            }
+                            Err(e) => {
+                                let _ = reply.send(Err(MergeError::Logic(
+                                    format!("IO panic during final write: {e}"),
+                                )));
+                                return;
+                            }
+                        }
+                    }
+
+                    let w = writer.take().unwrap();
+                    let result = tokio::task::spawn_blocking({
+                        let mut w = w;
+                        move || {
+                            w.close().map_err(MergeError::from)
+                        }
+                    })
+                        .await;
+
+                    let _ = match result {
+                        Ok(r) => reply.send(r),
+                        Err(e) => reply.send(Err(MergeError::Logic(
+                            format!("Close panicked: {e}"),
+                        ))),
+                    };
+                    return;
+                }
+            }
+        }
+    });
+
+    tx
+}
+
+// =============================================================================
 // Timing accumulator
 // =============================================================================
 
@@ -71,7 +220,7 @@ struct MergeTimings {
     concat_batches: Duration,
     append_row_id: Duration,
     parallel_encode: Duration,
-    rg_append_close: Duration,
+    io_send: Duration,
     writer_close: Duration,
     heap_ops: Duration,
     sort_value_lookups: Duration,
@@ -100,7 +249,7 @@ impl MergeTimings {
             concat_batches: Duration::ZERO,
             append_row_id: Duration::ZERO,
             parallel_encode: Duration::ZERO,
-            rg_append_close: Duration::ZERO,
+            io_send: Duration::ZERO,
             writer_close: Duration::ZERO,
             heap_ops: Duration::ZERO,
             sort_value_lookups: Duration::ZERO,
@@ -139,7 +288,7 @@ impl MergeTimings {
         );
         println!();
 
-        println!("--- READ (arrow-rs ParquetRecordBatchReader::next) ---");
+        println!("--- READ (one-shot prefetch tasks on merge pool) ---");
         println!(
             "  parquet_read:           {:>10.3}s  ({} calls, {} rows)",
             self.parquet_read.as_secs_f64(),
@@ -163,7 +312,7 @@ impl MergeTimings {
         );
         println!();
 
-        println!("--- FLUSH (concat + row_id + parallel encode + rg close) ---");
+        println!("--- FLUSH (concat + row_id + parallel encode + io send) ---");
         println!(
             "  concat_batches:         {:>10.3}s  ({} concats, {} rows)",
             self.concat_batches.as_secs_f64(),
@@ -182,8 +331,8 @@ impl MergeTimings {
             self.total_rows_written
         );
         println!(
-            "  rg_append_close:        {:>10.3}s",
-            self.rg_append_close.as_secs_f64()
+            "  io_send:                {:>10.3}s  (backpressure wait)",
+            self.io_send.as_secs_f64()
         );
         if self.total_rows_written > 0 && self.parallel_encode.as_secs_f64() > 0.0 {
             println!(
@@ -192,7 +341,7 @@ impl MergeTimings {
             );
         }
         let flush_total =
-            self.concat_batches + self.append_row_id + self.parallel_encode + self.rg_append_close;
+            self.concat_batches + self.append_row_id + self.parallel_encode + self.io_send;
         println!(
             "  flush total:            {:>10.3}s  ({} flushes)",
             flush_total.as_secs_f64(),
@@ -200,7 +349,7 @@ impl MergeTimings {
         );
         println!();
 
-        println!("--- CLOSE (SerializedFileWriter::close — flush footer) ---");
+        println!("--- CLOSE (IO task flush footer) ---");
         println!(
             "  writer_close:           {:>10.3}s",
             self.writer_close.as_secs_f64()
@@ -225,7 +374,7 @@ impl MergeTimings {
             + self.concat_batches
             + self.append_row_id
             + self.parallel_encode
-            + self.rg_append_close
+            + self.io_send
             + self.writer_close
             + self.heap_ops
             + self.sort_value_lookups;
@@ -250,17 +399,50 @@ impl MergeTimings {
         println!();
 
         println!("--- PERCENTAGE BREAKDOWN ---");
-        println!("  file_open_and_init:     {:>6.1}%", self.file_open_and_init.as_secs_f64() / t * 100.0);
-        println!("  parquet_read:           {:>6.1}%", self.parquet_read.as_secs_f64() / t * 100.0);
-        println!("  take_slice:             {:>6.1}%", self.take_slice.as_secs_f64() / t * 100.0);
-        println!("  concat_batches:         {:>6.1}%", self.concat_batches.as_secs_f64() / t * 100.0);
-        println!("  append_row_id:          {:>6.1}%", self.append_row_id.as_secs_f64() / t * 100.0);
-        println!("  parallel_encode:        {:>6.1}%", self.parallel_encode.as_secs_f64() / t * 100.0);
-        println!("  rg_append_close:        {:>6.1}%", self.rg_append_close.as_secs_f64() / t * 100.0);
-        println!("  writer_close:           {:>6.1}%", self.writer_close.as_secs_f64() / t * 100.0);
-        println!("  heap_ops:               {:>6.1}%", self.heap_ops.as_secs_f64() / t * 100.0);
-        println!("  sort_lookups:           {:>6.1}%", self.sort_value_lookups.as_secs_f64() / t * 100.0);
-        println!("  unaccounted:            {:>6.1}%", unaccounted.as_secs_f64() / t * 100.0);
+        println!(
+            "  file_open_and_init:     {:>6.1}%",
+            self.file_open_and_init.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  parquet_read:           {:>6.1}%",
+            self.parquet_read.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  take_slice:             {:>6.1}%",
+            self.take_slice.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  concat_batches:         {:>6.1}%",
+            self.concat_batches.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  append_row_id:          {:>6.1}%",
+            self.append_row_id.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  parallel_encode:        {:>6.1}%",
+            self.parallel_encode.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  io_send:                {:>6.1}%",
+            self.io_send.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  writer_close:           {:>6.1}%",
+            self.writer_close.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  heap_ops:               {:>6.1}%",
+            self.heap_ops.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  sort_lookups:           {:>6.1}%",
+            self.sort_value_lookups.as_secs_f64() / t * 100.0
+        );
+        println!(
+            "  unaccounted:            {:>6.1}%",
+            unaccounted.as_secs_f64() / t * 100.0
+        );
         println!("======================================================================");
         println!();
     }
@@ -294,13 +476,19 @@ impl std::fmt::Display for MergeError {
 impl std::error::Error for MergeError {}
 
 impl From<arrow::error::ArrowError> for MergeError {
-    fn from(e: arrow::error::ArrowError) -> Self { MergeError::Arrow(e) }
+    fn from(e: arrow::error::ArrowError) -> Self {
+        MergeError::Arrow(e)
+    }
 }
 impl From<parquet::errors::ParquetError> for MergeError {
-    fn from(e: parquet::errors::ParquetError) -> Self { MergeError::Parquet(e) }
+    fn from(e: parquet::errors::ParquetError) -> Self {
+        MergeError::Parquet(e)
+    }
 }
 impl From<std::io::Error> for MergeError {
-    fn from(e: std::io::Error) -> Self { MergeError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        MergeError::Io(e)
+    }
 }
 
 // =============================================================================
@@ -313,7 +501,6 @@ fn build_parquet_root_schema(first_input_path: &str) -> MergeResult<Arc<Type>> {
     let input_schema_descr = reader.metadata().file_metadata().schema_descr_ptr();
     let input_root = input_schema_descr.root_schema();
 
-    // Collect fields, filtering out any existing ___row_id
     let mut parquet_fields: Vec<Arc<Type>> = Vec::new();
     for field in input_root.get_fields() {
         if field.name() != ROW_ID_COLUMN_NAME {
@@ -321,7 +508,6 @@ fn build_parquet_root_schema(first_input_path: &str) -> MergeResult<Arc<Type>> {
         }
     }
 
-    // Append ___row_id as INT64 REQUIRED
     let row_id_type =
         Type::primitive_type_builder(ROW_ID_COLUMN_NAME, parquet::basic::Type::INT64)
             .with_repetition(Repetition::REQUIRED)
@@ -336,11 +522,15 @@ fn build_parquet_root_schema(first_input_path: &str) -> MergeResult<Arc<Type>> {
 }
 
 // =============================================================================
-// FileCursor — streams RecordBatches from a parquet file using arrow-rs
+// FileCursor — one-shot prefetch on shared merge pool
 // =============================================================================
 
 struct FileCursor {
-    reader: parquet::arrow::arrow_reader::ParquetRecordBatchReader,
+    reader: Arc<Mutex<parquet::arrow::arrow_reader::ParquetRecordBatchReader>>,
+    prefetch_rx: std::sync::mpsc::Receiver<Option<MergeResult<RecordBatch>>>,
+    prefetch_tx: std::sync::mpsc::SyncSender<Option<MergeResult<RecordBatch>>>,
+    prefetch_pending: bool,
+
     current_batch: Option<RecordBatch>,
     row_idx: usize,
     file_id: usize,
@@ -392,27 +582,17 @@ impl FileCursor {
             .with_projection(projection)
             .build()?;
 
-        timings.file_open_and_init += t0.elapsed();
-        timings.file_open_count += 1;
-
-        // Read first batch
-        let t1 = Instant::now();
-        let batch = match reader.next() {
-            Some(Ok(b)) if b.num_rows() > 0 => {
-                timings.parquet_read += t1.elapsed();
-                timings.parquet_read_count += 1;
-                timings.total_rows_read += b.num_rows();
-                b
-            }
+        let first_batch = match reader.next() {
+            Some(Ok(b)) if b.num_rows() > 0 => b,
             Some(Err(e)) => return Err(e.into()),
             _ => {
-                timings.parquet_read += t1.elapsed();
-                timings.parquet_read_count += 1;
+                timings.file_open_and_init += t0.elapsed();
+                timings.file_open_count += 1;
                 return Ok(None);
             }
         };
 
-        let sort_col_idx = batch
+        let sort_col_idx = first_batch
             .schema()
             .fields()
             .iter()
@@ -424,32 +604,81 @@ impl FileCursor {
                 ))
             })?;
 
-        Ok(Some(Self {
+        timings.file_open_and_init += t0.elapsed();
+        timings.file_open_count += 1;
+        timings.total_rows_read += first_batch.num_rows();
+        timings.parquet_read_count += 1;
+
+        let (prefetch_tx, prefetch_rx) =
+            std::sync::mpsc::sync_channel::<Option<MergeResult<RecordBatch>>>(1);
+
+        let reader = Arc::new(Mutex::new(reader));
+
+        let mut cursor = Self {
             reader,
-            current_batch: Some(batch),
+            prefetch_rx,
+            prefetch_tx,
+            prefetch_pending: false,
+            current_batch: Some(first_batch),
             row_idx: 0,
             file_id,
             sort_col_idx,
             sort_col_type,
-        }))
+        };
+
+        cursor.start_prefetch();
+
+        Ok(Some(cursor))
+    }
+
+    fn start_prefetch(&mut self) {
+        if self.prefetch_pending {
+            return;
+        }
+        self.prefetch_pending = true;
+
+        let reader = Arc::clone(&self.reader);
+        let tx = self.prefetch_tx.clone();
+
+        get_merge_pool().spawn(move || {
+            let mut reader = reader.lock().unwrap();
+            let result = match reader.next() {
+                Some(Ok(batch)) if batch.num_rows() > 0 => Some(Ok(batch)),
+                Some(Err(e)) => Some(Err(MergeError::Arrow(e))),
+                _ => None,
+            };
+            let _ = tx.send(result);
+        });
     }
 
     fn load_next_batch(&mut self, timings: &mut MergeTimings) -> MergeResult<bool> {
         self.current_batch = None;
         let t0 = Instant::now();
-        match self.reader.next() {
-            Some(Ok(batch)) if batch.num_rows() > 0 => {
+
+        match self.prefetch_rx.recv() {
+            Ok(Some(Ok(batch))) => {
                 timings.parquet_read += t0.elapsed();
                 timings.parquet_read_count += 1;
                 timings.total_rows_read += batch.num_rows();
                 self.current_batch = Some(batch);
                 self.row_idx = 0;
+                self.prefetch_pending = false;
+                self.start_prefetch();
                 Ok(true)
             }
-            Some(Err(e)) => Err(e.into()),
-            _ => {
+            Ok(Some(Err(e))) => {
+                self.prefetch_pending = false;
+                Err(e)
+            }
+            Ok(None) => {
                 timings.parquet_read += t0.elapsed();
                 timings.parquet_read_count += 1;
+                self.prefetch_pending = false;
+                Ok(false)
+            }
+            Err(_) => {
+                timings.parquet_read += t0.elapsed();
+                self.prefetch_pending = false;
                 Ok(false)
             }
         }
@@ -457,14 +686,18 @@ impl FileCursor {
 
     #[inline]
     fn current_sort_value_raw(&self) -> MergeResult<i64> {
-        let batch = self.current_batch.as_ref()
+        let batch = self
+            .current_batch
+            .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
         get_sort_value(batch, self.row_idx, self.sort_col_idx, &self.sort_col_type)
     }
 
     #[inline]
     fn current_sort_value(&self, timings: &mut MergeTimings) -> MergeResult<i64> {
-        let batch = self.current_batch.as_ref()
+        let batch = self
+            .current_batch
+            .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
         let t0 = Instant::now();
         let val = get_sort_value(batch, self.row_idx, self.sort_col_idx, &self.sort_col_type)?;
@@ -475,7 +708,9 @@ impl FileCursor {
 
     #[inline]
     fn last_sort_value(&self, timings: &mut MergeTimings) -> MergeResult<i64> {
-        let batch = self.current_batch.as_ref()
+        let batch = self
+            .current_batch
+            .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
         let t0 = Instant::now();
         let val = get_sort_value(
@@ -495,12 +730,7 @@ impl FileCursor {
     }
 
     #[inline]
-    fn take_slice(
-        &self,
-        start: usize,
-        len: usize,
-        timings: &mut MergeTimings,
-    ) -> RecordBatch {
+    fn take_slice(&self, start: usize, len: usize, timings: &mut MergeTimings) -> RecordBatch {
         let t0 = Instant::now();
         let slice = self.current_batch.as_ref().unwrap().slice(start, len);
         timings.take_slice += t0.elapsed();
@@ -678,7 +908,13 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 }
 
 // =============================================================================
-// STREAMING K-WAY MERGE with parallel column encoding via rayon
+// STREAMING K-WAY MERGE
+//   - Merge pool (rayon):  one-shot prefetch + parallel column encoding
+//   - IO task   (tokio):   sequential disk writes via deferred spawn_blocking
+//
+// Pipeline overlap:
+//   merge loop:  [encode RG1][encode RG2][encode RG3]
+//   io task:                 [write RG1 ][write RG2 ][write RG3]
 // =============================================================================
 
 pub fn merge_streaming(
@@ -709,11 +945,10 @@ pub fn merge_streaming_with_config(
     let total_start = Instant::now();
     let mut timings = MergeTimings::new();
 
-    // Eagerly initialise the shared pool (first caller pays init cost)
     let pool = get_merge_pool();
 
     println!(
-        "Starting streaming merge of {} files (shared rayon pool: {} threads)",
+        "Starting streaming merge of {} files (merge pool: {} threads, tokio IO runtime)",
         input_files.len(),
         pool.current_num_threads()
     );
@@ -755,7 +990,6 @@ pub fn merge_streaming_with_config(
         .unwrap();
     let input_schema = first_batch.schema();
 
-    // Data schema (without ___row_id) — used for concat_batches
     let data_fields: Vec<ArrowField> = input_schema
         .fields()
         .iter()
@@ -764,7 +998,6 @@ pub fn merge_streaming_with_config(
         .collect();
     let data_schema = Arc::new(ArrowSchema::new(data_fields.clone()));
 
-    // Output arrow schema = data + ___row_id (for ArrowRowGroupWriterFactory)
     let mut output_fields = data_fields;
     output_fields.push(ArrowField::new(
         ROW_ID_COLUMN_NAME,
@@ -773,7 +1006,6 @@ pub fn merge_streaming_with_config(
     ));
     let output_schema = Arc::new(ArrowSchema::new(output_fields));
 
-    // Parquet schema read from input file + ___row_id appended
     let parquet_root = build_parquet_root_schema(&input_files[first_active_idx])?;
 
     println!(
@@ -781,7 +1013,7 @@ pub fn merge_streaming_with_config(
         active_count
     );
 
-    // ── Open SerializedFileWriter (low-level for parallel encoding) ─────
+    // ── Open writer and spawn tokio IO task ─────────────────────────────
     let output_file = File::create(output_path)?;
 
     let writer_props = Arc::new(
@@ -792,8 +1024,13 @@ pub fn merge_streaming_with_config(
             .build(),
     );
 
-    let mut writer =
+    let writer =
         SerializedFileWriter::new(output_file, parquet_root, writer_props.clone())?;
+
+    let rg_writer_factory =
+        ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());
+
+    let io_tx = spawn_io_task(writer);
 
     let mut row_group_index: usize = 0;
 
@@ -816,11 +1053,15 @@ pub fn merge_streaming_with_config(
     let mut output_row_count: usize = 0;
     let mut next_row_id: i64 = 0;
 
-    // ── Flush: concat → row_id → parallel encode → write row group ──────
+    // ── Flush macro ─────────────────────────────────────────────────────
+    // Uses `io_tx.blocking_send()` — blocks the calling (merge-loop) thread
+    // until the tokio IO task is ready to accept the next command.
+    // With channel buffer of 2 + deferred await inside the IO task, the
+    // merge loop can keep encoding the next row group while the previous
+    // one is still being written to disk.
     macro_rules! flush {
         () => {
             if !output_chunks.is_empty() {
-                // 1. Concat all buffered slices into one contiguous RecordBatch
                 let t_concat = Instant::now();
                 let merged = concat_batches(&data_schema, &output_chunks)?;
                 output_chunks.clear();
@@ -830,21 +1071,13 @@ pub fn merge_streaming_with_config(
 
                 let n = merged.num_rows();
 
-                // 2. Append ___row_id column
                 let with_id =
                     append_row_id(&merged, next_row_id, &output_schema, &mut timings)?;
                 drop(merged);
 
-                // 3. Create per-column writers for this row group
-                let col_writers = {
-                    let factory = ArrowRowGroupWriterFactory::new(
-                        &writer,
-                        output_schema.clone(),
-                    );
-                    factory.create_column_writers(row_group_index)?
-                };
+                let col_writers =
+                    rg_writer_factory.create_column_writers(row_group_index)?;
 
-                // 4. Compute leaf columns and pair with writers
                 let mut leaves_and_writers = Vec::new();
                 {
                     let mut writer_iter = col_writers.into_iter();
@@ -864,7 +1097,6 @@ pub fn merge_streaming_with_config(
                     }
                 }
 
-                // 5. Encode ALL columns in parallel on the shared pool
                 let t_encode = Instant::now();
                 let chunk_results: Vec<
                     Result<
@@ -883,16 +1115,18 @@ pub fn merge_streaming_with_config(
                 timings.parallel_encode += t_encode.elapsed();
                 timings.encode_count += 1;
 
-                // 6. Open row group, append encoded chunks, close
-                let t_rg = Instant::now();
-                let mut rg_writer = writer.next_row_group()?;
-
-                for chunk_result in chunk_results {
-                    let chunk = chunk_result?;
-                    chunk.append_to_row_group(&mut rg_writer)?;
+                let mut encoded_chunks = Vec::with_capacity(chunk_results.len());
+                for r in chunk_results {
+                    encoded_chunks.push(r?);
                 }
-                rg_writer.close()?;
-                timings.rg_append_close += t_rg.elapsed();
+
+                let t_send = Instant::now();
+                io_tx
+                    .blocking_send(IoCommand::WriteRowGroup(encoded_chunks))
+                    .map_err(|_| {
+                        MergeError::Logic("IO task died unexpectedly".into())
+                    })?;
+                timings.io_send += t_send.elapsed();
 
                 row_group_index += 1;
                 next_row_id += n as i64;
@@ -944,7 +1178,6 @@ pub fn merge_streaming_with_config(
             let heap_top = heap.peek().unwrap().sort_value;
             timings.heap_ops += t0.elapsed();
 
-            // TIER 2: entire remaining batch fits
             let last_val = cursor.last_sort_value(&mut timings)?;
             if last_val <= heap_top {
                 let remaining = cursor.batch_height() - cursor.row_idx;
@@ -963,7 +1196,6 @@ pub fn merge_streaming_with_config(
                 continue;
             }
 
-            // TIER 3: binary search for cut point
             let run_start = cursor.row_idx;
             let batch_h = cursor.batch_height();
             let batch = cursor.current_batch.as_ref().unwrap();
@@ -1023,8 +1255,20 @@ pub fn merge_streaming_with_config(
     // Final flush
     flush!();
 
+    // ── Close IO task ───────────────────────────────────────────────────
     let t_close = Instant::now();
-    let _metadata = writer.close()?;
+    let (reply_tx, reply_rx) = oneshot::channel::<MergeResult<ParquetMetaData>>();
+
+    io_tx
+        .blocking_send(IoCommand::Close(reply_tx))
+        .map_err(|_| MergeError::Logic("IO task died before close".into()))?;
+
+    drop(io_tx);
+
+    let _metadata = reply_rx
+        .blocking_recv()
+        .map_err(|_| MergeError::Logic("IO task died during close".into()))??;
+
     timings.writer_close = t_close.elapsed();
 
     let total_elapsed = total_start.elapsed();
