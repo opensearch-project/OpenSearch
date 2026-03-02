@@ -184,7 +184,7 @@ final class IndexShardOperationPermits implements Closeable {
                         .addTag(SHARD_ID_TAG, String.valueOf(shardId.getId()))
                         .addTag(OPERATION_TAG, operationType);
                     if (phase != null) {
-                        tags.addTag(PHASE_TAG, phase);
+                        tags = tags.addTag(PHASE_TAG, phase);
                     }
                     blockingDurationHistogram.record(durationMs, tags);
                 }

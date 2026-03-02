@@ -76,7 +76,7 @@ public final class SearchBackpressureMetrics {
         for (String limitType : limitTypes) {
             Tags tags = Tags.create().addTag(TASK_TYPE_TAG, taskTypeTag).addTag(LIMIT_TYPE_TAG, limitType);
             if (shardInfo != null) {
-                tags.addTag(INDEX_TAG, shardInfo.indexName).addTag(SHARD_ID_TAG, shardInfo.shardId);
+                tags = tags.addTag(INDEX_TAG, shardInfo.indexName).addTag(SHARD_ID_TAG, shardInfo.shardId);
             }
             cancellationCountCounter.add(1.0, tags);
         }
