@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -168,7 +169,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                String[] includes = parseSourceArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
+                String[] includes = parseSourceFieldArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
@@ -220,9 +221,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceArray(parser, INCLUDES_FIELD, excludes);
+                        includes = parseSourceFieldArray(parser, INCLUDES_FIELD, excludes);
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceArray(parser, EXCLUDES_FIELD, includes);
+                        excludes = parseSourceFieldArray(parser, EXCLUDES_FIELD, includes);
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -265,8 +266,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
-    private static Set<String> parseSourceArray(XContentParser parser, ParseField parseField, Set<String> opposite) throws IOException {
-        Set<String> sourceArr = new HashSet<>(); // include or exclude lists
+    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField, Set<String> opposite) throws IOException {
+        Set<String> sourceArr = new LinkedHashSet<>(); // include or exclude lists, LinkedHashSet preserves the order of fields
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 String entry = parser.text();
