@@ -19,7 +19,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.ingest.IngestService;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardPointer;
@@ -41,6 +40,7 @@ import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.ingest.IngestService;
 
 import java.io.IOException;
 import java.util.HashMap;
