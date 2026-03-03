@@ -48,7 +48,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 25
           
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
