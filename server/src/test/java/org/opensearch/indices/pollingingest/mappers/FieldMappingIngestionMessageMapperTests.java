@@ -127,6 +127,28 @@ public class FieldMappingIngestionMessageMapperTests extends OpenSearchTestCase 
         assertTrue(e.getMessage().contains("configured version_field [timestamp] is missing from the message"));
     }
 
+    public void testVersionFieldNonNumeric_ThrowsException() {
+        Map<String, Object> settings = Map.of(FieldMappingIngestionMessageMapper.VERSION_FIELD, "version");
+        FieldMappingIngestionMessageMapper mapper = new FieldMappingIngestionMessageMapper(settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapMessage(mapper, "{\"version\": \"abc\", \"name\": \"alice\"}")
+        );
+        assertTrue(e.getMessage().contains("version_field [version] must be a numeric value"));
+    }
+
+    public void testVersionFieldBoolean_ThrowsException() {
+        Map<String, Object> settings = Map.of(FieldMappingIngestionMessageMapper.VERSION_FIELD, "version");
+        FieldMappingIngestionMessageMapper mapper = new FieldMappingIngestionMessageMapper(settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapMessage(mapper, "{\"version\": true, \"name\": \"alice\"}")
+        );
+        assertTrue(e.getMessage().contains("version_field [version] must be a numeric value"));
+    }
+
     // --- Op type field tests (delete_value) ---
 
     public void testDeleteValueConfigured_MatchesDelete() {

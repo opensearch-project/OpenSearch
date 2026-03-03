@@ -151,7 +151,15 @@ public class FieldMappingIngestionMessageMapper implements IngestionMessageMappe
             }
             Object versionValue = rawPayload.remove(versionField);
             validateScalar(versionField, versionValue);
-            payloadMap.put(VersionFieldMapper.NAME, String.valueOf(versionValue).trim());
+            String versionStr = String.valueOf(versionValue).trim();
+            try {
+                Long.parseLong(versionStr);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                    "version_field [" + versionField + "] must be a numeric value, but found: " + versionStr
+                );
+            }
+            payloadMap.put(VersionFieldMapper.NAME, versionStr);
         }
 
         // Extract _op_type
