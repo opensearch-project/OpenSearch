@@ -266,7 +266,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
-    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField, Set<String> opposite) throws IOException {
+    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField, Set<String> opposite)
+        throws IOException {
         Set<String> sourceArr = new LinkedHashSet<>(); // include or exclude lists, LinkedHashSet preserves the order of fields
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -293,14 +294,25 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (fetchSource) {
-            builder.startObject();
-            builder.array(INCLUDES_FIELD.getPreferredName(), includes);
-            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
-            builder.endObject();
-        } else {
+        if (!fetchSource) {
+            // do not fetch source
             builder.value(false);
+            return builder;
         }
+        if (includes.length == 0 && excludes.length == 0) {
+            // no empty arrays
+            builder.value(true);
+            return builder;
+        }
+
+        builder.startObject();
+        if (includes.length > 0) {
+            builder.array(INCLUDES_FIELD.getPreferredName(), includes);
+        }
+        if (excludes.length > 0) {
+            builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
+        }
+        builder.endObject();
         return builder;
     }
 
