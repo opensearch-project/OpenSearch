@@ -1161,6 +1161,7 @@ public class Node implements Closeable {
                     ).toArray(SearchRequestOperationsListener[]::new)
                 );
 
+            HunspellService hunspellService = analysisModule.getHunspellService();
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -1174,7 +1175,8 @@ public class Node implements Closeable {
                 usageService,
                 systemIndices,
                 identityService,
-                extensionsManager
+                extensionsManager,
+                hunspellService
             );
             modules.add(actionModule);
 
@@ -1672,10 +1674,6 @@ public class Node implements Closeable {
                 taskManagerClientOptional.ifPresent(value -> b.bind(TaskManagerClient.class).toInstance(value));
             });
             injector = modules.createInjector();
-
-            // Add for hunspell invalidation cache testing:
-            HunspellService hunspellService = analysisModule.getHunspellService();
-            restController.registerHandler(new RestHunspellCacheInvalidateAction(hunspellService));
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
             // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it

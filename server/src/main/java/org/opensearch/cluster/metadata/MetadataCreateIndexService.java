@@ -1685,7 +1685,6 @@ public class MetadataCreateIndexService {
 
     List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
-        validationErrors.addAll(validateRefPath(settings, env.configDir()));
         return validationErrors;
     }
 
@@ -1715,38 +1714,6 @@ public class MetadataCreateIndexService {
             );
             searchReplicaValidationError.ifPresent(validationErrors::add);
         }
-        return validationErrors;
-    }
-     /**
-     * Validates the ref_path setting if present.
-     * Checks that the path format is valid and the directory exists.
-     *
-     * @param settings the index settings
-     * @param configDir the config directory path
-     * @return a list containing validation errors or an empty list if valid
-     */
-    private List<String> validateRefPath(Settings settings, Path configDir) {
-        List<String> validationErrors = new ArrayList<>();
-        String refPath = settings.get(IndexSettings.INDEX_REF_PATH_SETTING.getKey());
-        
-        if (refPath != null && !refPath.isEmpty()) {
-            try {
-                // Validate format: should be in packages/<package_id> format
-                if (!refPath.startsWith("packages/")) {
-                    validationErrors.add("ref_path [" + refPath + "] must start with 'packages/'");
-                    return validationErrors;
-                }
-                
-                // Resolve and check if path exists
-                Path resolvedPath = configDir.resolve(refPath).normalize();
-                if (!Files.isDirectory(resolvedPath)) {
-                    validationErrors.add("ref_path [" + refPath + "] does not exist or is not a directory");
-                }
-            } catch (Exception e) {
-                validationErrors.add("invalid ref_path [" + refPath + "]: " + e.getMessage());
-            }
-        }
-        
         return validationErrors;
     }
 

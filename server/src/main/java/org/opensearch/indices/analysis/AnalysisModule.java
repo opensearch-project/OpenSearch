@@ -161,7 +161,7 @@ public final class AnalysisModule {
         tokenFilters.register(
             "hunspell",
             requiresAnalysisSettings(
-                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService, env)
+                (indexSettings, env, name, settings) -> new HunspellTokenFilterFactory(indexSettings, name, settings, hunspellService)
             )
         );
 

@@ -43,7 +43,7 @@ import java.util.Locale;
 
 /**
  * The token filter factory for the hunspell analyzer
- * * 
+ * 
  * Supports hot-reload when used with {@code updateable: true} setting.
  * The dictionary is loaded from either:
  * <ul>
@@ -77,7 +77,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean longestOnly;
     private final AnalysisMode analysisMode;
 
-    public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService, Environment env) {
+    public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService) {
         super(indexSettings, name, settings);
         // Check for updateable flag - enables hot-reload support (same pattern as SynonymTokenFilterFactory)
         boolean updateable = settings.getAsBoolean("updateable", false);
@@ -106,7 +106,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             }
             
             // Load from package directory: config/packages/{ref_path}/hunspell/{locale}/
-            dictionary = hunspellService.getDictionaryFromPackage(refPath, locale, env);
+            dictionary = hunspellService.getDictionaryFromPackage(refPath, locale);
             if (dictionary == null) {
                 throw new IllegalArgumentException(
                     String.format(Locale.ROOT, 
