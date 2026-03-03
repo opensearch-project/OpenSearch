@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `log4j` from 2.21.0 to 2.25.3 ([#20308](https://github.com/opensearch-project/OpenSearch/pull/20308))
 - Bump netty from 4.1.25.Final to 4.1.31.Final ([#20744](https://github.com/opensearch-project/OpenSearch/pull/20744))
+- Bump shadow-gradle-plugin from 8.1.1 to 8.3.10 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
 
 ### Deprecated
 
