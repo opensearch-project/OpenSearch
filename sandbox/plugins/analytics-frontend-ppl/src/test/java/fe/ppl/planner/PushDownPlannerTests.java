@@ -32,10 +32,10 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.fe.ppl.planner.EngineCapabilities;
-import org.opensearch.fe.ppl.planner.EngineExecutor;
-import org.opensearch.fe.ppl.planner.PushDownPlanner;
-import org.opensearch.fe.ppl.planner.rel.OpenSearchBoundaryTableScan;
+import org.opensearch.analytics.backend.EngineCapabilities;
+import org.opensearch.fe.planner.PlanExecutor;
+import org.opensearch.fe.planner.PushDownPlanner;
+import org.opensearch.fe.planner.rel.OpenSearchBoundaryTableScan;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -50,7 +50,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
     private RelOptCluster cluster;
     private RexBuilder rexBuilder;
     private RelOptTable table;
-    private EngineExecutor engineExecutor;
+    private PlanExecutor planExecutor;
     private JavaTypeFactoryImpl typeFactory;
 
     @Override
@@ -87,7 +87,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
         table = catalogReader.getTable(List.of("test_table"));
         assertNotNull("Table should be found in catalog", table);
 
-        engineExecutor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        planExecutor = (fragment, ctx) -> Linq4j.emptyEnumerable();
     }
 
     /**
@@ -98,7 +98,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
      */
     public void testScanOnlyQueryProducesBoundaryNodeWithScanFragment() {
         EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, engineExecutor);
+        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
@@ -120,7 +120,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
      */
     public void testScanFilterQueryProducesBoundaryNodeWithFilterFragment() {
         EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, engineExecutor);
+        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
@@ -153,7 +153,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
      */
     public void testMixedQueryKeepsUnsupportedProjectAboveBoundary() {
         EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, engineExecutor);
+        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 

@@ -10,10 +10,10 @@ package fe.ppl.action;
 
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.fe.ppl.action.RestUnifiedPPLAction;
-import org.opensearch.fe.ppl.action.UnifiedPPLExecuteAction;
-import org.opensearch.fe.ppl.action.UnifiedPPLRequest;
-import org.opensearch.fe.ppl.action.UnifiedPPLResponse;
+import org.opensearch.fe.action.RestUnifiedPPLAction;
+import org.opensearch.fe.action.UnifiedPPLExecuteAction;
+import org.opensearch.fe.action.UnifiedPPLRequest;
+import org.opensearch.fe.action.UnifiedPPLResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;

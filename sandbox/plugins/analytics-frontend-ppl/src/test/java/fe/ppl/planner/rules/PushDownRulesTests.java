@@ -34,11 +34,11 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.fe.ppl.planner.EngineCapabilities;
-import org.opensearch.fe.ppl.planner.EngineExecutor;
-import org.opensearch.fe.ppl.planner.rel.OpenSearchBoundaryTableScan;
-import org.opensearch.fe.ppl.planner.rules.AbsorbFilterRule;
-import org.opensearch.fe.ppl.planner.rules.BoundaryTableScanRule;
+import org.opensearch.analytics.backend.EngineCapabilities;
+import org.opensearch.fe.planner.PlanExecutor;
+import org.opensearch.fe.planner.rel.OpenSearchBoundaryTableScan;
+import org.opensearch.fe.planner.rules.AbsorbFilterRule;
+import org.opensearch.fe.planner.rules.BoundaryTableScanRule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -54,7 +54,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
     private RelOptCluster cluster;
     private RexBuilder rexBuilder;
     private RelOptTable table;
-    private EngineExecutor engineExecutor;
+    private PlanExecutor planExecutor;
 
     @Override
     public void setUp() throws Exception {
@@ -86,7 +86,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
         table = catalogReader.getTable(List.of("test_table"));
         assertNotNull("Table should be found in catalog", table);
 
-        engineExecutor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        planExecutor = (fragment, ctx) -> Linq4j.emptyEnumerable();
     }
 
     // --- BoundaryTableScanRule tests (ConverterRule, uses VolcanoPlanner) ---
@@ -99,7 +99,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         LogicalTableScan scan = LogicalTableScan.create(volcanoCluster, table, List.of());
 
-        volcanoPlanner.addRule(BoundaryTableScanRule.create(engineExecutor));
+        volcanoPlanner.addRule(BoundaryTableScanRule.create(planExecutor));
         volcanoPlanner.setRoot(volcanoPlanner.changeTraits(scan, scan.getTraitSet().replace(EnumerableConvention.INSTANCE)));
 
         RelNode result = volcanoPlanner.findBestExp();
@@ -117,7 +117,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         LogicalTableScan scan = LogicalTableScan.create(volcanoCluster, table, List.of());
 
-        volcanoPlanner.addRule(BoundaryTableScanRule.create(engineExecutor));
+        volcanoPlanner.addRule(BoundaryTableScanRule.create(planExecutor));
         volcanoPlanner.setRoot(volcanoPlanner.changeTraits(scan, scan.getTraitSet().replace(EnumerableConvention.INSTANCE)));
 
         RelNode result = volcanoPlanner.findBestExp();
@@ -141,7 +141,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         // Create a boundary node wrapping the scan (simulates BoundaryTableScanRule output)
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, engineExecutor);
+        OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, planExecutor);
 
         // Build: value > 10 (supported condition)
         JavaTypeFactoryImpl typeFactory = new JavaTypeFactoryImpl();
@@ -181,7 +181,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         // Create a boundary node wrapping the scan
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, engineExecutor);
+        OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, planExecutor);
 
         // Build: (value + 1) > 10 — PLUS is not in default supported functions
         JavaTypeFactoryImpl typeFactory = new JavaTypeFactoryImpl();

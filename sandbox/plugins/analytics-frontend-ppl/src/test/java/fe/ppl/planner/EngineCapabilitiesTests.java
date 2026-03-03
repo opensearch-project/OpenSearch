@@ -29,7 +29,7 @@ import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.fe.ppl.planner.EngineCapabilities;
+import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

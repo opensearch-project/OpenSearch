@@ -7,49 +7,27 @@
  */
 
 /*
- * Runtime module for the query engine.
- * Provides scheduler, driver, transport actions, and operator implementations.
- * Depends on libs/query-engine-framework for types and interfaces.
+ * Analytics engine hub plugin. Implements ExtensiblePlugin to discover
+ * and wire query front-ends, back-ends, and executor implementations.
+ * This is the stable plugin name that all extending plugins bind to.
  */
-
-opensearchplugin {
-  description = 'Query engine runtime module: scheduler, driver, operators, transport.'
-  classname = 'org.opensearch.fe.ppl.DefaultQueryEnginePlugin'
-}
 
 def calciteVersion = '1.41.0'
 
+opensearchplugin {
+  description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'
+  classname = 'org.opensearch.analytics.BaseAnalyticsPlugin'
+}
+
 dependencies {
+  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, EngineCapabilities, etc.)
+  api project(':sandbox:libs:analytics-framework')
+
+  // Calcite for OpenSearchSchemaBuilder
   implementation "org.apache.calcite:calcite-core:${calciteVersion}"
-  implementation "org.apache.calcite:calcite-linq4j:${calciteVersion}"
-  implementation "org.apache.calcite.avatica:avatica-core:1.27.0"
-  implementation "com.google.guava:guava:${versions.guava}"
-  runtimeOnly "com.google.guava:failureaccess:1.0.2"
-
-  // Calcite runtime dependencies
-  runtimeOnly "org.jooq:joou-java-6:0.9.4"
-  runtimeOnly "com.jayway.jsonpath:json-path:2.9.0"
-  runtimeOnly "org.codehaus.janino:janino:3.1.12"
-  runtimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
-  runtimeOnly "org.apache.commons:commons-math3:3.6.1"
-  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
-  runtimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
-  runtimeOnly 'com.esri.geometry:esri-geometry-api:2.2.4'
-
-  compileOnly 'org.checkerframework:checker-qual:3.43.0'
 }
 
-configurations.all {
-  resolutionStrategy {
-    force 'com.google.guava:guava:33.4.0-jre'
-    force 'com.google.guava:failureaccess:1.0.2'
-    force 'com.google.errorprone:error_prone_annotations:2.36.0'
-    force 'org.checkerframework:checker-qual:3.43.0'
-  }
-}
-
-// Suppress -Werror and annotation warnings from Arrow dependency jars
+// Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars
 tasks.withType(JavaCompile).configureEach {
   doFirst {
     options.compilerArgs.removeAll(['-Werror'])

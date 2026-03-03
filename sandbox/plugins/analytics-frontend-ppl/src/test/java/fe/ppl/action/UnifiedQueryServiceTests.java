@@ -9,14 +9,22 @@
 package fe.ppl.action;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.fe.ppl.action.UnifiedPPLResponse;
-import org.opensearch.fe.ppl.action.UnifiedQueryService;
-import org.opensearch.fe.ppl.planner.PushDownPlanner;
+import org.opensearch.fe.action.UnifiedPPLResponse;
+import org.opensearch.fe.action.UnifiedQueryService;
+import org.opensearch.fe.planner.PushDownPlanner;
+import org.opensearch.analytics.spi.SchemaProvider;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,6 +34,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -188,7 +197,7 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
     }
 
     private UnifiedQueryService createTestService(PreparedStatement mockStatement) {
-        return new UnifiedQueryService(mockPlanner) {
+        return new UnifiedQueryService(mockPlanner, testSchemaProvider()) {
             @Override
             protected PreparedStatement compileAndPrepare(UnifiedQueryContext context, RelNode mixedPlan) {
                 return mockStatement;
@@ -197,7 +206,7 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
     }
 
     private UnifiedQueryService createTestServiceWithContextTracking(PreparedStatement mockStatement, AtomicBoolean contextClosed) {
-        return new UnifiedQueryService(mockPlanner) {
+        return new UnifiedQueryService(mockPlanner, testSchemaProvider()) {
             @Override
             protected PreparedStatement compileAndPrepare(UnifiedQueryContext context, RelNode mixedPlan) {
                 return mockStatement;
@@ -234,6 +243,51 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
                     contextClosed.set(true);
                 }
             }
+        };
+    }
+
+    /**
+     * Builds a SchemaProvider that creates a Calcite schema from ClusterState,
+     * replicating the mapping logic without depending on the engine plugin.
+     */
+    @SuppressWarnings("unchecked")
+    private SchemaProvider testSchemaProvider() {
+        return cs -> {
+            ClusterState state = (ClusterState) cs;
+            CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
+            SchemaPlus schemaPlus = rootSchema.plus();
+            for (Map.Entry<String, IndexMetadata> entry : state.metadata().indices().entrySet()) {
+                String indexName = entry.getKey();
+                MappingMetadata mapping = entry.getValue().mapping();
+                if (mapping == null) continue;
+                Map<String, Object> properties = (Map<String, Object>) mapping.sourceAsMap().get("properties");
+                if (properties == null) continue;
+                schemaPlus.add(indexName, new AbstractTable() {
+                    @Override
+                    public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+                        RelDataTypeFactory.Builder builder = typeFactory.builder();
+                        for (Map.Entry<String, Object> f : properties.entrySet()) {
+                            Map<String, Object> fp = (Map<String, Object>) f.getValue();
+                            String ft = (String) fp.get("type");
+                            if (ft == null || "nested".equals(ft) || "object".equals(ft)) continue;
+                            SqlTypeName sqlType;
+                            switch (ft) {
+                                case "keyword": case "text": case "ip": sqlType = SqlTypeName.VARCHAR; break;
+                                case "long": sqlType = SqlTypeName.BIGINT; break;
+                                case "integer": sqlType = SqlTypeName.INTEGER; break;
+                                case "double": sqlType = SqlTypeName.DOUBLE; break;
+                                case "float": sqlType = SqlTypeName.FLOAT; break;
+                                case "boolean": sqlType = SqlTypeName.BOOLEAN; break;
+                                case "date": sqlType = SqlTypeName.TIMESTAMP; break;
+                                default: sqlType = SqlTypeName.VARCHAR; break;
+                            }
+                            builder.add(f.getKey(), typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
+                        }
+                        return builder.build();
+                    }
+                });
+            }
+            return schemaPlus;
         };
     }
 

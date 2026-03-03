@@ -15,7 +15,8 @@ def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
 
 opensearchplugin {
   description = 'Calcite-based query planning plugin with native execution across OpenSearch data nodes.'
-  classname = 'org.opensearch.fe.ppl.PPLFrontEndPlugin'
+  classname = 'org.opensearch.fe.PPLFrontEndPlugin'
+  extendedPlugins = ['analytics-engine']
 }
 
 repositories {
@@ -34,6 +35,9 @@ repositories {
 }
 
 dependencies {
+  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, EngineCapabilities, etc.)
+  api project(':sandbox:libs:analytics-framework')
+
   // Arrow Flight streaming transport
   api project(':plugins:arrow-flight-rpc')
 
@@ -81,8 +85,10 @@ dependencies {
   // ANTLR runtime (required by sql/ppl for PPL grammar parsing)
   implementation "org.antlr:antlr4-runtime:4.13.2"
 
-  // Real query-engine module for integration tests
+  // Query engine hub plugin for integration tests
   internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+  // Query executor plugin for integration tests
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine-executor')
 }
 
 configurations.all {

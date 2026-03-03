@@ -215,8 +215,6 @@ import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
-import org.opensearch.plugins.AnalyticsBackEndPlugin;
-import org.opensearch.plugins.AnalyticsFrontEndPlugin;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -237,7 +235,6 @@ import org.opensearch.plugins.PersistentTaskPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.plugins.QueryEnginePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
@@ -1128,55 +1125,6 @@ public class Node implements Closeable {
 
             // Add the telemetryAwarePlugin components to the existing pluginComponents collection.
             pluginComponents.addAll(telemetryAwarePluginComponents);
-
-            // Discover DQE implementation and wire with back-ends and front-ends
-            List<QueryEnginePlugin> analyticsEngines = pluginsService.filterPlugins(QueryEnginePlugin.class);
-            if (analyticsEngines.isEmpty()) {
-                logger.warn("No engine implementation found; query execution disabled");
-            } else {
-                if (analyticsEngines.size() > 1) {
-                    logger.warn("Multiple implementations found; using first: {}", analyticsEngines.get(0).getClass().getName());
-                }
-                QueryEnginePlugin engine = analyticsEngines.get(0);
-
-                // Wire DQE with back-ends
-                Collection<AnalyticsBackEndPlugin> backEnds = pluginsService.filterPlugins(AnalyticsBackEndPlugin.class);
-                Collection<Object> analyticsEngineComponents = engine.createComponents(
-                    client,
-                    clusterService,
-                    threadPool,
-                    resourceWatcherService,
-                    scriptService,
-                    xContentRegistry,
-                    environment,
-                    nodeEnvironment,
-                    namedWriteableRegistry,
-                    clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get,
-                    backEnds
-                );
-                pluginComponents.addAll(analyticsEngineComponents);
-
-                Collection<AnalyticsFrontEndPlugin> frontEnds = pluginsService.filterPlugins(AnalyticsFrontEndPlugin.class);
-                for (AnalyticsFrontEndPlugin frontEnd : frontEnds) {
-                    pluginComponents.addAll(
-                        frontEnd.createComponents(
-                            client,
-                            clusterService,
-                            threadPool,
-                            resourceWatcherService,
-                            scriptService,
-                            xContentRegistry,
-                            environment,
-                            nodeEnvironment,
-                            namedWriteableRegistry,
-                            clusterModule.getIndexNameExpressionResolver(),
-                            repositoriesServiceReference::get,
-                            engine.getExecutor()
-                        )
-                    );
-                }
-            }
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);

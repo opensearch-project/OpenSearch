@@ -1,0 +1,30 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Shared Calcite/Arrow types for the analytics engine plugins.
+ * Contains EngineBridge, EngineCapabilities, QueryPlanExecutor, SchemaProvider.
+ * Plugins depend on this; the /modules SPI layer does NOT.
+ */
+
+def calciteVersion = '1.41.0'
+
+dependencies {
+  api "org.apache.calcite:calcite-core:${calciteVersion}"
+  api "org.apache.arrow:arrow-vector:${versions.arrow}"
+  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+}
+
+// Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars
+tasks.withType(JavaCompile).configureEach {
+  doFirst {
+    options.compilerArgs.removeAll(['-Werror'])
+    options.compilerArgs.removeIf { it.startsWith('-Xlint') || it.startsWith('-Xdoclint') }
+    options.compilerArgs << '-Xlint:none'
+  }
+}
