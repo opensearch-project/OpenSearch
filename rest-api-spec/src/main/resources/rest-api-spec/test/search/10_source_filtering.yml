@@ -35,6 +35,64 @@ setup:
   - is_false: hits.hits.0._source
 
 ---
+"_source as an empty object":
+  - skip:
+      version: " - 3.5.0"
+      reason: "validation was added later"
+  - do:
+      search: { body: { _source: {  }, query: { match_all: {} } } }
+      catch: bad_request
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "Expected at least one of [includes] or [excludes]" }
+
+---
+"_source as an empty includes array":
+  - skip:
+      version: " - 3.5.0"
+      reason: "validation was added later"
+  - do:
+      search: { body: { _source: [], query: { match_all: {} } } }
+      catch: bad_request
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "Expected at least one value for an array of [includes]" }
+
+---
+"_source with an empty excludes array":
+  - skip:
+      version: " - 3.5.0"
+      reason: "validation was added later"
+  - do:
+      search:
+        body:
+          _source:
+            includes: [ include.field1, include.field2 ]
+            excludes: []
+          query: { match_all: {} }
+      catch: bad_request
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "Expected at least one value for an array of [excludes]" }
+
+---
+"_source with an ambiguous field":
+  - skip:
+      version: " - 3.5.0"
+      reason: "validation was added later"
+  - do:
+      search:
+        body:
+          _source:
+            includes: [ include.field1, include.field2 ]
+            excludes: [ include.field1 ]
+          query: { match_all: {} }
+      catch: bad_request
+  - match: { status: 400 }
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "The same entry [include.field1] cannot be both included and excluded in _source." }
+
+---
 "no filtering":
   - do: { search: { body: { query: { match_all: {} } } } }
   - length:   { hits.hits: 1  }
