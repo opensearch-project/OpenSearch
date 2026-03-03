@@ -32,7 +32,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
-public class StreamNumericTermsAggregator extends TermsAggregator implements Streamable {
+public class StreamNumericTermsAggregator extends TermsAggregator {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;

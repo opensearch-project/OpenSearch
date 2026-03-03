@@ -16,7 +16,6 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.Streamable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
@@ -29,7 +28,7 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public class StreamCardinalityAggregator extends CardinalityAggregator implements Streamable {
+public class StreamCardinalityAggregator extends CardinalityAggregator {
 
     private Collector streamCollector;
 
