@@ -52,7 +52,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index");
+        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index", null);
     }
 
     public void testGetIndexOperation() throws IOException {

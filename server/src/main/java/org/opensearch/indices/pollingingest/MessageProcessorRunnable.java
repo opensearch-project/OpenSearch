@@ -25,6 +25,7 @@ import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.engine.VersionConflictEngineException;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.ParseContext;
@@ -82,9 +83,26 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy
     ) {
+        this(blockingQueue, engine, errorStrategy, null);
+    }
+
+    /**
+     * Constructor with IngestService for pipeline support.
+     *
+     * @param blockingQueue the blocking queue to poll messages from
+     * @param engine the ingestion engine
+     * @param errorStrategy the error strategy/policy to use
+     * @param ingestService the ingest service for pipeline execution, or null if pipelines are not enabled
+     */
+    public MessageProcessorRunnable(
+        BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
+        IngestionEngine engine,
+        IngestionErrorStrategy errorStrategy,
+        @Nullable IngestService ingestService
+    ) {
         this(
             blockingQueue,
-            new MessageProcessor(engine),
+            new MessageProcessor(engine, ingestService),
             errorStrategy,
             engine.config().getShardId().getIndexName(),
             engine.config().getShardId().getId()
@@ -116,19 +134,27 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     static class MessageProcessor {
         private final IngestionEngine engine;
         private final String index;
+        @Nullable
+        private final IngestService ingestService;
 
         MessageProcessor(IngestionEngine engine) {
-            this(engine, engine.config().getIndexSettings().getIndex().getName());
+            this(engine, null);
+        }
+
+        MessageProcessor(IngestionEngine engine, @Nullable IngestService ingestService) {
+            this(engine, engine.config().getIndexSettings().getIndex().getName(), ingestService);
         }
 
         /**
          *  visible for testing
          * @param engine the ingestion engine
          * @param index the index name
+         * @param ingestService the ingest service for pipeline execution
          */
-        MessageProcessor(IngestionEngine engine, String index) {
+        MessageProcessor(IngestionEngine engine, String index, @Nullable IngestService ingestService) {
             this.engine = engine;
             this.index = index;
+            this.ingestService = ingestService;
         }
 
         /**

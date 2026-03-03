@@ -67,7 +67,8 @@ public interface IngestionErrorStrategy {
     @PublicApi(since = "3.6.0")
     enum ErrorStage {
         POLLING,
-        PROCESSING
+        PROCESSING,
+        PIPELINE
     }
 
 }

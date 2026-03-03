@@ -22,6 +22,7 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
 import java.util.Collections;
@@ -107,14 +108,22 @@ public class DefaultStreamPoller implements StreamPoller {
         int blockingQueueSize,
         long pointerBasedLagUpdateIntervalMs,
         IngestionMessageMapper.MapperType mapperType,
-        Map<String, Object> mapperSettings
+        Map<String, Object> mapperSettings,
+        @Nullable IngestService ingestService
     ) {
         this(
             startPointer,
             consumerFactory,
             consumerClientId,
             shardId,
-            new PartitionedBlockingQueueContainer(numProcessorThreads, shardId, ingestionEngine, errorStrategy, blockingQueueSize),
+            new PartitionedBlockingQueueContainer(
+                numProcessorThreads,
+                shardId,
+                ingestionEngine,
+                errorStrategy,
+                blockingQueueSize,
+                ingestService
+            ),
             resetState,
             resetValue,
             errorStrategy,
@@ -608,6 +617,8 @@ public class DefaultStreamPoller implements StreamPoller {
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
+        @Nullable
+        private IngestService ingestService;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -716,6 +727,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set ingest service for pipeline execution
+         */
+        public Builder ingestService(@Nullable IngestService ingestService) {
+            this.ingestService = ingestService;
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -735,7 +754,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 blockingQueueSize,
                 pointerBasedLagUpdateIntervalMs,
                 mapperType,
-                mapperSettings
+                mapperSettings,
+                ingestService
             );
         }
     }
