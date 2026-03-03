@@ -14,7 +14,8 @@ import org.opensearch.action.ActionType;
  * Action type for invalidating Hunspell dictionary cache.
  * 
  * This action requires cluster admin permissions when the security plugin is enabled.
- * The action name "cluster:admin/hunspell/cache/clear" maps to IAM policies for authorization.
+ * The action name "cluster:admin/hunspell/cache/clear" should be added to the cluster_permissions
+ * section of a role definition for authorization.
  *
  * @opensearch.internal
  */

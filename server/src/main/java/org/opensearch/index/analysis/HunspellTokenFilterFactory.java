@@ -35,7 +35,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.analysis.HunspellService;
 
@@ -95,15 +94,9 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
                 );
             }
             
-            // Validate ref_path is just package ID (no slashes allowed)
-            if (refPath.contains("/")) {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, 
-                        "ref_path should contain only the package ID, not a full path. Got: [%s]. " +
-                        "Use ref_path for package ID and locale for the dictionary locale.", 
-                        refPath)
-                );
-            }
+            // Validate ref_path and locale are safe package/locale identifiers
+            validatePackageIdentifier(refPath, "ref_path");
+            validatePackageIdentifier(locale, "locale");
             
             // Load from package directory: config/packages/{ref_path}/hunspell/{locale}/
             dictionary = hunspellService.getDictionaryFromPackage(refPath, locale);
@@ -117,6 +110,8 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if (locale != null) {
             // Traditional locale-based loading (backward compatible)
             // Loads from config/hunspell/{locale}/
+            // Validate locale to prevent path traversal and cache key ambiguity
+            validatePackageIdentifier(locale, "locale");
             dictionary = hunspellService.getDictionary(locale);
             if (dictionary == null) {
                 throw new IllegalArgumentException(
@@ -154,6 +149,60 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public boolean longestOnly() {
         return longestOnly;
+    }
+
+    /**
+     * Validates that a package identifier or locale is safe and doesn't contain
+     * path traversal sequences, separators, or other dangerous characters.
+     * 
+     * @param value The value to validate (package ID or locale)
+     * @param paramName The parameter name for error messages
+     * @throws IllegalArgumentException if validation fails
+     */
+    private static void validatePackageIdentifier(String value, String paramName) {
+        if (value == null || value.isEmpty()) {
+            return; // Null/empty handled elsewhere
+        }
+        
+        // Reject path traversal attempts
+        if (value.equals(".") || value.equals("..") || 
+            value.contains("./") || value.contains("../") ||
+            value.contains("\\.") || value.contains("\\..") ||
+            value.startsWith(".") || value.endsWith(".")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, 
+                    "Invalid %s: [%s]. Path traversal sequences (., ..) are not allowed.", 
+                    paramName, value)
+            );
+        }
+        
+        // Reject any path separators (Unix and Windows)
+        if (value.contains("/") || value.contains("\\")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, 
+                    "Invalid %s: [%s]. Path separators (/, \\) are not allowed. " +
+                    "Use ref_path for package ID and locale for dictionary locale.", 
+                    paramName, value)
+            );
+        }
+        
+        // Reject cache key separator to prevent cache key injection
+        if (value.contains(":")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, 
+                    "Invalid %s: [%s]. Colon (:) is not allowed as it is used as cache key separator.", 
+                    paramName, value)
+            );
+        }
+        
+        // Reject null bytes (security)
+        if (value.contains("\0")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, 
+                    "Invalid %s: [%s]. Null bytes are not allowed.", 
+                    paramName, value)
+            );
+        }
     }
 
 }

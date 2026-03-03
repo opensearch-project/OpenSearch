@@ -181,8 +181,7 @@ public class HunspellService {
             try {
                 return loadDictionaryFromPackage(packageId, locale);
             } catch (Exception e) {
-                logger.error("Failed to load hunspell dictionary for package [{}] locale [{}]: {}", 
-                            packageId, locale, e.getMessage());
+
                 throw new IllegalStateException(
                     String.format(Locale.ROOT, 
                         "Failed to load hunspell dictionary for package [%s] locale [%s]", 
@@ -193,21 +192,37 @@ public class HunspellService {
 
     /**
      * Loads a hunspell dictionary from a package directory.
-     * Auto-detects the hunspell subdirectory within the package.
+     * Expects hunspell files at: config/packages/{packageId}/hunspell/{locale}/
+     * 
+     * @param packageId The package identifier
+     * @param locale The locale (e.g., "en_US")
+     * @return The loaded Dictionary
+     * @throws Exception if loading fails
      */
     private Dictionary loadDictionaryFromPackage(String packageId, String locale) throws Exception {
-        // Resolve package directory: config/packages/{packageId}/
-        Path packageDir = env.configDir()
-            .resolve("packages")
-            .resolve(packageId);
+        // Resolve packages base directory: config/packages/
+        Path packagesBaseDir = env.configDir().resolve("packages");
         
-        // Security check: ensure path is under config directory (prevent path traversal attacks)
+        // Resolve package directory: config/packages/{packageId}/
+        Path packageDir = packagesBaseDir.resolve(packageId);
+        
+        // Security check: ensure path stays under config/packages/ (prevent path traversal attacks)
         // Both paths must be converted to absolute and normalized before comparison
-        Path configDirAbsolute = env.configDir().toAbsolutePath().normalize();
+        Path packagesBaseDirAbsolute = packagesBaseDir.toAbsolutePath().normalize();
         Path packageDirAbsolute = packageDir.toAbsolutePath().normalize();
-        if (!packageDirAbsolute.startsWith(configDirAbsolute)) {
+        if (!packageDirAbsolute.startsWith(packagesBaseDirAbsolute)) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "Package path must be under config directory. Package: [%s]", packageId)
+                String.format(Locale.ROOT, 
+                    "Package path must be under config/packages directory. Package: [%s]", packageId)
+            );
+        }
+        
+        // Additional check: ensure the resolved package directory is exactly one level under packages/
+        // This prevents packageId=".." or "foo/../bar" from escaping
+        if (!packageDirAbsolute.getParent().equals(packagesBaseDirAbsolute)) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, 
+                    "Invalid package ID: [%s]. Package ID cannot contain path traversal sequences.", packageId)
             );
         }
         

@@ -80,15 +80,9 @@ public class HunspellCacheInvalidateResponse extends ActionResponse implements T
         builder.startObject();
         builder.field("acknowledged", acknowledged);
         builder.field("invalidated_count", invalidatedCount);
-        if (packageId != null) {
-            builder.field("package_id", packageId);
-        }
-        if (locale != null) {
-            builder.field("locale", locale);
-        }
-        if (cacheKey != null) {
-            builder.field("cache_key", cacheKey);
-        }
+        builder.field("package_id", packageId);
+        builder.field("locale", locale);
+        builder.field("cache_key", cacheKey);
         builder.endObject();
         return builder;
     }

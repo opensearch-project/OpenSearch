@@ -127,7 +127,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         // Test getDictionaryFromPackage
-        Dictionary dictionary = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary dictionary = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
         assertThat(dictionary, notNullValue());
     }
 
@@ -145,14 +145,14 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         // First call - loads from disk
-        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
         assertThat(dict1, notNullValue());
 
         // Verify cache key is present
         assertTrue(hunspellService.getCachedDictionaryKeys().contains("pkg-1234:en_US"));
 
         // Second call - should return cached instance
-        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
         assertSame("Should return same cached instance", dict1, dict2);
     }
 
@@ -175,8 +175,8 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         // Load both packages
-        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
-        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-5678", "en_US", environment);
+        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
+        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-5678", "en_US");
 
         assertThat(dict1, notNullValue());
         assertThat(dict2, notNullValue());
@@ -202,7 +202,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         // Load dictionary
-        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary dict1 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
         assertTrue(hunspellService.getCachedDictionaryKeys().contains("pkg-1234:en_US"));
 
         // Invalidate using full cache key
@@ -211,7 +211,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         assertFalse(hunspellService.getCachedDictionaryKeys().contains("pkg-1234:en_US"));
 
         // Reload after invalidation - should get new instance
-        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary dict2 = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
         assertNotSame("Should be different instance after invalidation", dict1, dict2);
     }
 
@@ -239,7 +239,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            hunspellService.getDictionaryFromPackage("nonexistent-pkg", "en_US", environment);
+            hunspellService.getDictionaryFromPackage("nonexistent-pkg", "en_US");
         });
         assertTrue(e.getMessage().contains("Failed to load hunspell dictionary for package"));
     }
@@ -267,7 +267,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         // Load traditional dictionary
         Dictionary traditionalDict = hunspellService.getDictionary("en_US");
         // Load package-based dictionary  
-        Dictionary packageDict = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US", environment);
+        Dictionary packageDict = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
 
         assertThat(traditionalDict, notNullValue());
         assertThat(packageDict, notNullValue());

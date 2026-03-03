@@ -144,7 +144,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             usageService,
             null,
             new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
-            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+            new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of())),
+            null
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -200,10 +201,11 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
-                null,
-                null,
-                null
-            );
+            null,
+            null,
+            null,
+            null
+        );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -251,10 +253,11 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
-                null,
-                null,
-                null
-            );
+            null,
+            null,
+            null,
+            null
+        );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(

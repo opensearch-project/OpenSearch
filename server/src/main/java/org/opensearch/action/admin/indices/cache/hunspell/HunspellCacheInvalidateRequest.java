@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.cache.hunspell;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
@@ -57,12 +58,52 @@ public class HunspellCacheInvalidateRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        if (!invalidateAll && packageId == null && cacheKey == null) {
-            ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError("Either 'package_id', 'cache_key', or 'invalidate_all' must be specified");
+        ActionRequestValidationException e = null;
+        
+        // Reject empty/blank strings with clear error messages
+        if (packageId != null && !Strings.hasText(packageId)) {
+            e = new ActionRequestValidationException();
+            e.addValidationError("'package_id' cannot be empty or blank");
+        }
+        if (locale != null && !Strings.hasText(locale)) {
+            if (e == null) e = new ActionRequestValidationException();
+            e.addValidationError("'locale' cannot be empty or blank");
+        }
+        if (cacheKey != null && !Strings.hasText(cacheKey)) {
+            if (e == null) e = new ActionRequestValidationException();
+            e.addValidationError("'cache_key' cannot be empty or blank");
+        }
+        
+        // If any blank validation errors, return early
+        if (e != null) {
             return e;
         }
-        return null;
+        
+        // Count how many modes are specified
+        int modeCount = 0;
+        if (invalidateAll) modeCount++;
+        if (packageId != null) modeCount++;
+        if (cacheKey != null) modeCount++;
+        
+        if (modeCount == 0) {
+            e = new ActionRequestValidationException();
+            e.addValidationError("Either 'package_id', 'cache_key', or 'invalidate_all' must be specified");
+        } else if (modeCount > 1) {
+            e = new ActionRequestValidationException();
+            if (invalidateAll && (packageId != null || cacheKey != null)) {
+                e.addValidationError("'invalidate_all' cannot be combined with 'package_id' or 'cache_key'");
+            } else {
+                e.addValidationError("Only one of 'package_id' or 'cache_key' can be specified, not both");
+            }
+        }
+        
+        // locale is only valid with package_id
+        if (locale != null && packageId == null) {
+            if (e == null) e = new ActionRequestValidationException();
+            e.addValidationError("'locale' can only be specified together with 'package_id'");
+        }
+        
+        return e;
     }
 
     public String getPackageId() {

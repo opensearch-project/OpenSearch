@@ -138,7 +138,9 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.opensearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInfoAction;
 import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateAction;
+import org.opensearch.action.admin.indices.cache.hunspell.TransportHunspellCacheInfoAction;
 import org.opensearch.action.admin.indices.cache.hunspell.TransportHunspellCacheInvalidateAction;
 import org.opensearch.action.admin.indices.close.CloseIndexAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -732,6 +734,7 @@ public class ActionModule extends AbstractModule {
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
+        actions.register(HunspellCacheInfoAction.INSTANCE, TransportHunspellCacheInfoAction.class);
         actions.register(HunspellCacheInvalidateAction.INSTANCE, TransportHunspellCacheInvalidateAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
@@ -1085,9 +1088,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetIngestionStateAction());
 
         // Hunspell cache management API
-        if (hunspellService != null) {
-            registerHandler.accept(new RestHunspellCacheInvalidateAction(hunspellService));
-        }
+        registerHandler.accept(new RestHunspellCacheInvalidateAction());
     }
 
     @Override
