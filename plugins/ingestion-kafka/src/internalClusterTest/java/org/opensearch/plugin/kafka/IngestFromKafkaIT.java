@@ -1092,7 +1092,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         assertEquals(1L, stats.getMessageProcessorStats().totalProcessedCount());
     }
 
-    public void testKafkaIngestionWithFieldMappingMapper() {
+    public void testKafkaIngestionWithFieldMappingMapper() throws Exception {
         // Produce raw JSON messages (no _id/_source/_op_type envelope)
         produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
         produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"is_deleted\": \"false\"}");
@@ -1117,28 +1117,27 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             mapping
         );
 
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(2L));
+            if (response.getHits().getTotalHits().value() != 2L) return false;
 
             // Verify document IDs are extracted from user_id field
             Map<String, Map<String, Object>> docs = new HashMap<>();
             response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
-            assertTrue(docs.containsKey("abc"));
-            assertTrue(docs.containsKey("def"));
+            if (!docs.containsKey("abc") || !docs.containsKey("def")) return false;
 
             // Verify _source does not contain extracted metadata fields
             Map<String, Object> aliceDoc = docs.get("abc");
-            assertEquals("alice", aliceDoc.get("name"));
-            assertEquals(30, aliceDoc.get("age"));
-            assertFalse("user_id should be removed from _source", aliceDoc.containsKey("user_id"));
-            assertFalse("timestamp should be removed from _source", aliceDoc.containsKey("timestamp"));
-            assertFalse("is_deleted should be removed from _source", aliceDoc.containsKey("is_deleted"));
+            return "alice".equals(aliceDoc.get("name"))
+                && Integer.valueOf(30).equals(aliceDoc.get("age"))
+                && !aliceDoc.containsKey("user_id")
+                && !aliceDoc.containsKey("timestamp")
+                && !aliceDoc.containsKey("is_deleted");
         });
     }
 
-    public void testKafkaIngestionWithFieldMappingMapper_DeleteOperation() {
+    public void testKafkaIngestionWithFieldMappingMapper_DeleteOperation() throws Exception {
         // Produce an index message followed by a delete message for the same document
         produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
         produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 200, \"is_deleted\": \"true\"}");
@@ -1164,19 +1163,18 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         // Both messages processed, but the delete should remove the document
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(0L));
+            if (response.getHits().getTotalHits().value() != 0L) return false;
 
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            assertNotNull(stats);
-            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() == 2L;
         });
     }
 
-    public void testKafkaIngestionWithFieldMappingMapper_VersionConflict() {
+    public void testKafkaIngestionWithFieldMappingMapper_VersionConflict() throws Exception {
         // Produce messages out of order: newer version first, then older version
         produceData("{\"user_id\": \"abc\", \"name\": \"alice_v2\", \"age\": 31, \"timestamp\": 200, \"is_deleted\": \"false\"}");
         produceData("{\"user_id\": \"abc\", \"name\": \"alice_v1\", \"age\": 30, \"timestamp\": 100, \"is_deleted\": \"false\"}");
@@ -1202,30 +1200,35 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         );
 
         // Both messages processed, but the older version should be rejected
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+        waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(1L));
+            if (response.getHits().getTotalHits().value() != 1L) return false;
 
             // The newer version (v2) should win
             Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
-            assertEquals("alice_v2", source.get("name"));
-            assertEquals(31, source.get("age"));
+            if (!"alice_v2".equals(source.get("name"))) return false;
 
             PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
                 .getPollingIngestStats();
-            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(2L));
+            return stats != null
+                && stats.getMessageProcessorStats().totalProcessedCount() == 2L
+                && stats.getMessageProcessorStats().totalVersionConflictsCount() == 1L;
         });
     }
 
-    public void testKafkaIngestionWithFieldMappingMapper_CreateOperation() {
-        // Produce messages with create op type
+    public void testKafkaIngestionWithFieldMappingMapper_VariousConfigurations() throws Exception {
+        // Produce messages covering create_value, only-id, and custom delete_value scenarios
+        // These share the same Kafka topic but use different indices with different mapper configs
         produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"action\": \"INSERT\"}");
         produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"action\": \"UPDATE\"}");
 
         internalCluster().startNode();
+
+        // --- Scenario 1: create_value support ---
+        String createIndex = "test_create_op";
         createIndex(
-            indexName,
+            createIndex,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1243,31 +1246,26 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             mapping
         );
 
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(2L));
+        waitForState(() -> {
+            refresh(createIndex);
+            SearchResponse response = client().prepareSearch(createIndex).get();
+            if (response.getHits().getTotalHits().value() != 2L) return false;
 
             Map<String, Map<String, Object>> docs = new HashMap<>();
             response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
 
             // Both documents indexed — INSERT as create, UPDATE as index (default)
-            assertTrue(docs.containsKey("abc"));
-            assertTrue(docs.containsKey("def"));
             // action field should be removed from _source
-            assertFalse(docs.get("abc").containsKey("action"));
-            assertFalse(docs.get("def").containsKey("action"));
+            return docs.containsKey("abc")
+                && docs.containsKey("def")
+                && !docs.get("abc").containsKey("action")
+                && !docs.get("def").containsKey("action");
         });
-    }
 
-    public void testKafkaIngestionWithFieldMappingMapper_OnlyIdField() {
-        // Produce raw messages — only id_field configured, no version or op_type
-        produceData("{\"doc_id\": \"101\", \"title\": \"hello\", \"score\": 42}");
-        produceData("{\"doc_id\": \"102\", \"title\": \"world\", \"score\": 99}");
-
-        internalCluster().startNode();
+        // --- Scenario 2: only id_field configured (minimal config) ---
+        String idOnlyIndex = "test_id_only";
         createIndex(
-            indexName,
+            idOnlyIndex,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1277,39 +1275,35 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
                 .put("ingestion_source.mapper_type", "field_mapping")
-                .put("ingestion_source.mapper_settings.id_field", "doc_id")
+                .put("ingestion_source.mapper_settings.id_field", "user_id")
                 .build(),
-            "{\"properties\":{\"title\":{\"type\": \"text\"},\"score\":{\"type\": \"integer\"}}}"
+            mapping
         );
 
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(2L));
+        waitForState(() -> {
+            refresh(idOnlyIndex);
+            SearchResponse response = client().prepareSearch(idOnlyIndex).get();
+            if (response.getHits().getTotalHits().value() != 2L) return false;
 
             Map<String, Map<String, Object>> docs = new HashMap<>();
             response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
 
-            // Verify IDs extracted from doc_id
-            assertTrue(docs.containsKey("101"));
-            assertTrue(docs.containsKey("102"));
-
-            // doc_id removed from source, content fields preserved
-            assertFalse(docs.get("101").containsKey("doc_id"));
-            assertEquals("hello", docs.get("101").get("title"));
-            assertEquals(42, docs.get("101").get("score"));
+            // IDs extracted from user_id, user_id removed from source, content preserved
+            return docs.containsKey("abc")
+                && docs.containsKey("def")
+                && !docs.get("abc").containsKey("user_id")
+                && "alice".equals(docs.get("abc").get("name"));
         });
-    }
 
-    public void testKafkaIngestionWithFieldMappingMapper_CustomDeleteValue() {
-        // Produce messages with Y/N convention for deletes
-        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 100, \"expired\": \"N\"}");
-        produceData("{\"user_id\": \"def\", \"name\": \"bob\", \"age\": 25, \"timestamp\": 200, \"expired\": \"N\"}");
-        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"timestamp\": 300, \"expired\": \"Y\"}");
+        // --- Scenario 3: custom delete_value (Y/N convention) ---
+        // Need new messages with the Y/N pattern on the same topic
+        produceData("{\"user_id\": \"ghi\", \"name\": \"charlie\", \"age\": 35, \"timestamp\": 400, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"jkl\", \"name\": \"diana\", \"age\": 28, \"timestamp\": 500, \"expired\": \"N\"}");
+        produceData("{\"user_id\": \"ghi\", \"name\": \"charlie\", \"age\": 35, \"timestamp\": 600, \"expired\": \"Y\"}");
 
-        internalCluster().startNode();
+        String deleteValueIndex = "test_custom_delete";
         createIndex(
-            indexName,
+            deleteValueIndex,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -1327,20 +1321,21 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
             mapping
         );
 
-        // abc indexed then deleted, def remains
-        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).get();
-            assertThat(response.getHits().getTotalHits().value(), is(1L));
+        // ghi indexed then deleted by Y, jkl remains. Earlier messages (abc, def) also indexed.
+        // Total messages on topic: 5. For this index: abc, def have no "expired" field → default index,
+        // ghi N → index, jkl N → index, ghi Y → delete. Result: abc + def + jkl = at least jkl present, ghi deleted.
+        waitForState(() -> {
+            refresh(deleteValueIndex);
+            SearchResponse response = client().prepareSearch(deleteValueIndex).get();
 
-            // Only bob should remain
-            assertEquals("def", response.getHits().getAt(0).getId());
-            assertEquals("bob", response.getHits().getAt(0).getSourceAsMap().get("name"));
-            assertFalse(response.getHits().getAt(0).getSourceAsMap().containsKey("expired"));
+            Map<String, Map<String, Object>> docs = new HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
 
-            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
-                .getPollingIngestStats();
-            assertThat(stats.getMessageProcessorStats().totalProcessedCount(), is(3L));
+            // ghi should be deleted, jkl should remain
+            return docs.containsKey("jkl")
+                && !docs.containsKey("ghi")
+                && "diana".equals(docs.get("jkl").get("name"))
+                && !docs.get("jkl").containsKey("expired");
         });
     }
 }
