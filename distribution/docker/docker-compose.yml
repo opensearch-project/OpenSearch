@@ -20,7 +20,7 @@ services:
        - "FIPS_GENERATE_TRUSTSTORE=${FIPS_GENERATE_TRUSTSTORE}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
-       - ./build/logs/1:/usr/share/opensearch/logs
+       - ./build/logs/1:/usr/share/wazuh-indexer/logs
     ports:
       - "9200"
     ulimits:
@@ -46,7 +46,7 @@ services:
        - "FIPS_GENERATE_TRUSTSTORE=${FIPS_GENERATE_TRUSTSTORE}"
     volumes:
        - ./build/repo:/tmp/opensearch-repo
-       - ./build/logs/2:/usr/share/opensearch/logs
+       - ./build/logs/2:/usr/share/wazuh-indexer/logs
     ports:
       - "9200"
     ulimits:

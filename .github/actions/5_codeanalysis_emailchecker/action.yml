@@ -1,0 +1,19 @@
+name: "Commit Author Email Checker"
+description: "Check if commit author email belongs to allowed domains"
+inputs:
+  email_domain:
+    description: "Comma-separated list of allowed email domains (e.g. @wazuh.com,@users.noreply.github.com)"
+    required: true
+  github_token:
+    description: "GitHub token to access commits"
+    required: true
+  error_on_fail:
+    description: "If true, workflow fails on invalid email"
+    required: false
+    default: 'false'
+outputs:
+  is_valid:
+    description: "Whether all commit emails are valid"
+runs:
+  using: 'node20'
+  main: '../emailchecker.js'

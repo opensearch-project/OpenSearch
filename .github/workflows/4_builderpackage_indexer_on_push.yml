@@ -1,0 +1,26 @@
+name: (4.x) Build packages (on push)
+
+# This workflow runs when any of the following occur:
+# - when a pull request is created or updated that targets a branch starting with >= "4.13.*"
+
+on:
+  pull_request:
+    branches:
+      - 4.1[3-9].*
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  call-build-workflow:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/4_builderpackage_indexer.yml
+    secrets: inherit
+    with:
+      id: ${{ github.ref }}

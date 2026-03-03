@@ -38,7 +38,7 @@ apply plugin: 'com.netflix.nebula.maven-publish'
 
 base {
   group = "org.opensearch.distribution.integ-test-zip"
-  archivesName = "opensearch"
+  archivesName = "wazuh-indexer"
 }
 
 integTest {

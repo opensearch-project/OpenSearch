@@ -1,0 +1,26 @@
+name: (5.x) Build Docker image (on push)
+
+# This workflow runs when any of the following occur:
+# - Push
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  call-docker-workflow:
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      packages: read
+    uses: ./.github/workflows/5_builderpackage_docker.yml
+    secrets: inherit
+    with:
+      id: ${{ github.ref }}
+      plugins_ref: ${{ github.event.repository.default_branch }}

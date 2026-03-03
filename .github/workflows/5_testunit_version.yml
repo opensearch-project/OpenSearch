@@ -1,0 +1,17 @@
+name: (5.x) Check version file
+permissions:
+  contents: read
+
+on:
+  push:
+    paths:
+      - "VERSION.json"
+
+jobs:
+  check-version:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check version
+        run: bash build-scripts/check-version.sh

@@ -12,4 +12,12 @@
 *.p12 binary
 *.ttf binary
 *.txt text=auto
-CHANGELOG.md merge=union
+
+# Image
+*.ai -text
+*.gif -text
+*.jpg -text
+*.jpeg -text
+*.png -text
+*.psd -text
+*.tga -text

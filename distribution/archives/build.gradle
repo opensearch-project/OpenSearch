@@ -32,9 +32,16 @@ import org.opensearch.gradle.JavaPackageType
 
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
+
 CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String platform, String architecture, JavaPackageType java) {
   return copySpec {
-    into("opensearch-${version}") {
+    def commandLine = ['/bin/bash', 'product_version.sh']
+    def execProcess = new ProcessBuilder(commandLine)
+        .directory(new File('./build-scripts'))
+        .start()
+    def version = new String(execProcess.getInputStream().readAllBytes(), "UTF-8").trim()
+    execProcess.waitFor()
+    into("wazuh-indexer-${version}") {
       into('lib') {
         with libFiles()
       }
@@ -83,6 +90,9 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
           }
           pluginsDir.getParent()
         }
+      }
+      into('') {
+        with versionFile()
       }
       from(rootProject.projectDir) {
         include 'README.md'

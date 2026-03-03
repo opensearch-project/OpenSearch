@@ -123,7 +123,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             String expandedDistConfiguration = "expanded-" + projectName;
             bwcProject.getConfigurations().create(expandedDistConfiguration);
             bwcProject.getArtifacts().add(expandedDistConfiguration, distributionProject.getExpandedDistDirectory(), artifact -> {
-                artifact.setName("opensearch");
+                artifact.setName("wazuh-indexer");
                 artifact.builtBy(buildBwcTask);
                 artifact.setType("directory");
             });
@@ -132,7 +132,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
         String artifactFileName = distributionProject.getDistFile().getName();
-        String artifactName = "opensearch";
+        String artifactName = "wazuh-indexer";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
         int archIndex = artifactFileName.indexOf("x64");
@@ -269,7 +269,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     baseDir
                         + "/"
                         + name
-                        + "/build/distributions/opensearch-min"
+                        + "/build/distributions/wazuh-indexer-min"
                         + separator
                         + version
                         + "-SNAPSHOT"
@@ -280,7 +280,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 this.distFile = new File(
                     checkoutDir,
-                    baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
+                    baseDir + "/" + name + "/build/distributions/wazuh-indexer-" + version + "-SNAPSHOT" + classifier + "." + extension
                 );
             }
             // we only ported this down to the 7.x branch.

@@ -1,0 +1,203 @@
+# Wazuh monitoring and statistics index permissions
+manage_wazuh_index:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - "wazuh-*"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "read"
+    - "delete"
+    - "manage"
+    - "index"
+  tenant_permissions: []
+  static: false
+
+# Wazuh roles for security configuration
+
+stateful-read:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+stateful-write:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+stateful-delete:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-states-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "delete"
+  tenant_permissions: []
+  static: true
+
+stateless-read:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-alerts*"
+        - "wazuh-archives*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+stateless-write:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-alerts*"
+        - "wazuh-archives*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+metrics-read:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-monitoring*"
+        - "wazuh-statistics*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "read"
+  tenant_permissions: []
+  static: true
+
+metrics-write:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "wazuh-monitoring*"
+        - "wazuh-statistics*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "index"
+  tenant_permissions: []
+  static: true
+
+sample-data-management:
+  reserved: true
+  cluster_permissions: []
+  index_permissions:
+    - index_patterns:
+        - "*-sample-*"
+      dls: ""
+      fls: []
+      masked_fields: []
+      allowed_actions:
+        - "data_access"
+        - "manage"
+  tenant_permissions: []
+  static: true
+
+# Role to grant read access to ML related indices. Used to configure the AI assistant from the UI.
+ml_config_read:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - ".plugins-ml-model"
+    - ".plugins-ml-connector"
+    - ".plugins-ml-agent"
+    - ".plugins-ml-config"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "read"
+    - "system:admin/system_index"
+  tenant_permissions: []
+  static: false
+
+# Role to grant write access to ML related indices. Used to configure the AI assistant from the UI.
+ml_config_write:
+  reserved: true
+  hidden: false
+  cluster_permissions: []
+  index_permissions:
+  - index_patterns:
+    - ".plugins-ml-config"
+    dls: ""
+    fls: []
+    masked_fields: []
+    allowed_actions:
+    - "write"
+    - "system:admin/system_index"
+  tenant_permissions: []
+  static: false
+
+# Roles for Content Manager plugin subscription management
+cm_subscription_read:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/subscription_get"
+  index_permissions: []
+  tenant_permissions: []
+  static: true
+
+cm_subscription_write:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/subscription_post"
+    - "plugin:content_manager/subscription_delete"
+  index_permissions: []
+  tenant_permissions: []
+  static: true
+
+cm_update:
+  reserved: true
+  hidden: false
+  cluster_permissions:
+    - "plugin:content_manager/update"
+  index_permissions: []
+  tenant_permissions: []
+  static: true

@@ -1,0 +1,117 @@
+#!/bin/bash
+
+# Copyright Wazuh Indexer Contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Wazuh Indexer Contributors require contributions made to
+# this file be licensed under the Apache-2.0 license or a
+# compatible open source license.
+
+# deb wazuh-indexer postinst script
+
+set -e
+
+echo "Running Wazuh Indexer Post-Installation Script"
+
+name="wazuh-indexer"
+product_dir=/usr/share/${name}
+config_dir=/etc/${name}
+certs_dir=${config_dir}/certs
+data_dir=/var/lib/${name}
+log_dir=/var/log/${name}
+pid_dir=/run/${name}
+state_file=${config_dir}/.was_active
+
+# Set owner
+chown -R ${name}:${name} ${product_dir}
+chown -R ${name}:${name} ${config_dir}
+chown -R ${name}:${name} ${log_dir}
+chown -R ${name}:${name} ${data_dir}
+chown -R ${name}:${name} ${pid_dir}
+
+# Change permissions for Wazuh Engine
+ENGINE_DIR="${product_dir}/engine"
+
+if [ -d "$ENGINE_DIR" ]; then
+    find "$ENGINE_DIR" -type d -exec chmod 750 {} +
+    find "$ENGINE_DIR" -type f -exec chmod 640 {} +
+
+    # Set executable permissions
+    [ -f "$ENGINE_DIR/run_engine.sh" ] && chmod 750 "$ENGINE_DIR/run_engine.sh"
+    [ -f "$ENGINE_DIR/bin/wazuh-engine" ] && chmod 750 "$ENGINE_DIR/bin/wazuh-engine"
+
+    # Set sockets directory permissions
+    [ -d "$ENGINE_DIR/sockets" ] && chmod 750 "$ENGINE_DIR/sockets"
+fi
+
+# Reload systemctl daemon
+if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemctl daemon-reload > /dev/null 2>&1
+fi
+
+# Reload other configs
+if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemctl restart systemd-sysctl.service || true
+fi
+
+if command -v systemd-tmpfiles > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+    systemd-tmpfiles --create ${name}.conf > /dev/null 2>&1
+fi
+
+# Check if the script is executed on upgrade
+if [ -n "$2" ]; then
+    if [ -f ${state_file}  ]; then
+        echo "Restarting ${name}.service because it was active before upgrade"
+        rm -f ${state_file}
+        if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+            systemctl restart ${name}.service > /dev/null 2>&1
+        elif command -v service > /dev/null 2>&1; then
+            service ${name} restart > /dev/null 2>&1
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            /etc/init.d/${name} restart > /dev/null 2>&1
+        fi
+    else
+        echo "### NOT restarting ${name} service after upgrade"
+        echo "### You can start ${name} service by executing"
+        if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+            echo " sudo systemctl start ${name}.service"
+        elif command -v service > /dev/null 2>&1; then
+            echo " sudo service ${name} start"
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            echo " sudo /etc/init.d/${name} start"
+        fi
+    fi
+else
+    # Messages
+    if command -v systemctl > /dev/null 2>&1 && systemctl > /dev/null 2>&1; then
+        echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using systemd"
+        echo " sudo systemctl daemon-reload"
+        echo " sudo systemctl enable ${name}.service"
+        echo "### You can start ${name} service by executing"
+        echo " sudo systemctl start ${name}.service"
+    else
+        if command -v chkconfig > /dev/null 2>&1; then
+            echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using chkconfig"
+            echo " sudo chkconfig --add ${name}"
+        elif command -v update-rc.d > /dev/null 2>&1; then
+            echo "### NOT starting on installation, please execute the following statements to configure ${name} service to start automatically using update-rc.d"
+            echo " sudo update-rc.d ${name} defaults 95 10"
+        fi
+        if command -v service > /dev/null 2>&1; then
+            echo "### You can start ${name} service by executing"
+            echo " sudo service ${name} start"
+        elif command -v /etc/init.d/${name} > /dev/null 2>&1; then
+            echo "### You can start ${name} service by executing"
+            echo " sudo /etc/init.d/${name} start"
+        fi
+    fi
+    # Create the certs directory and if required, install demo certificates.
+    if [ "$GENERATE_CERTS" = "true" ] && [ -f "${product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh" ]; then
+        echo "### Installing ${name} demo certificates in ${certs_dir}"
+        echo " See demo certs creation log at ${log_dir}/install_demo_certificates.log"
+        bash "${product_dir}/plugins/opensearch-security/tools/install-demo-certificates.sh" >"${log_dir}/install_demo_certificates.log" 2>&1
+        yes | ${product_dir}/jdk/bin/keytool -trustcacerts -keystore ${product_dir}/jdk/lib/security/cacerts -importcert -alias wazuh-root-ca -file ${certs_dir}/root-ca.pem > /dev/null 2>&1
+    fi
+fi
+
+exit 0
