@@ -10,6 +10,10 @@ subprojects {
   /*
    * All subprojects are java projects using OpenSearch's standard build
    * tools.
+   *
+   * Sandbox libs should NOT depend on other sandbox libs.
+   * This keeps the dependency graph flat, mirroring the enforcement
+   * in the root libs/build.gradle.
    */
   apply plugin: 'opensearch.build'
 }

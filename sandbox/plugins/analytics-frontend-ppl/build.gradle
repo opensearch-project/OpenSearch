@@ -24,14 +24,7 @@ repositories {
     name = 'OpenSearch Snapshots'
     url = 'https://ci.opensearch.org/ci/dbc/snapshots/maven/'
   }
-  maven {
-    name = 'JitPack'
-    url = 'https://jitpack.io'
-    content {
-      // Only resolve the okhttp-aws-signer transitive dep from JitPack
-      includeGroup 'com.github.babbel'
-    }
-  }
+
 }
 
 dependencies {
@@ -74,12 +67,14 @@ dependencies {
   }
   implementation("org.opensearch.query:unified-query-common:${sqlUnifiedQueryVersion}") {
     exclude group: 'org.opensearch'
+    exclude group: 'com.github.babbel'
   }
   implementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
     exclude group: 'org.opensearch'
   }
   implementation("org.opensearch.query:unified-query-protocol:${sqlUnifiedQueryVersion}") {
     exclude group: 'org.opensearch'
+    exclude group: 'com.github.babbel' // okhttp-aws-signer — not needed, avoids JitPack dependency
   }
 
   // ANTLR runtime (required by sql/ppl for PPL grammar parsing)
@@ -92,6 +87,10 @@ dependencies {
 }
 
 configurations.all {
+  // Globally exclude okhttp-aws-signer — transitive from unified-query-common,
+  // only published on JitPack, not needed for PPL parsing/planning
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
   resolutionStrategy {
     force 'com.google.guava:guava:33.4.0-jre'
     force 'com.google.guava:failureaccess:1.0.2'
