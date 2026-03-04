@@ -53,6 +53,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexRoutingTable;
+import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
@@ -88,6 +89,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -98,6 +100,7 @@ import static org.opensearch.action.bulk.TransportBulkAction.prohibitCustomRouti
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
+import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -471,4 +474,106 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         }
         return indexRoutingTable.build();
     }
+
+    /**
+     * Test that verifies when shard-level indexing pressure check fails in doRun(),
+     * the failure is handled gracefully and the bulk response contains failures for that shard.
+     */
+    public void testDoRunHandlesShardIndexingPressureFailure() throws Exception {
+        // Create a new transport service to avoid handler conflicts
+        CapturingTransport newCapturingTransport = new CapturingTransport();
+        TransportService newTransportService = newCapturingTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet(),
+            NoopTracer.INSTANCE
+        );
+        newTransportService.start();
+        newTransportService.acceptIncomingRequests();
+
+        // Create IndexingPressureService that always throws on shard-level coordinating check
+        final String expectedErrorMessage = "Shard indexing pressure limit exceeded";
+        IndexingPressureService throwingPressureService = new IndexingPressureService(Settings.EMPTY, clusterService) {
+            @Override
+            public org.opensearch.common.lease.Releasable markCoordinatingOperationStarted(
+                ShardId shardId,
+                LongSupplier bytes,
+                boolean forceExecution
+            ) {
+                throw new OpenSearchRejectedExecutionException(expectedErrorMessage);
+            }
+        };
+
+        // Create TransportBulkAction with the throwing pressure service
+        TransportBulkAction testAction = new TransportBulkAction(
+            threadPool,
+            newTransportService,
+            clusterService,
+            createIngestServiceWithProcessors(Collections.emptyMap()),
+            null,  // shardBulkAction - will throw NPE if we get past pressure check, but we won't
+            null,
+            new ActionFilters(Collections.emptySet()),
+            new Resolver(),
+            new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(), new SystemIndices(emptyMap())),
+            throwingPressureService,
+            mock(IndicesService.class),
+            new SystemIndices(emptyMap()),
+            NoopTracer.INSTANCE
+        ) {
+            @Override
+            protected boolean needToCheck() {
+                return false;  // Skip auto-create index logic
+            }
+        };
+
+        // Set up cluster state with an index so requests resolve to shards
+        String indexName = "test-index";
+        org.opensearch.core.index.Index index = new org.opensearch.core.index.Index(indexName, "test-uuid");
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            )
+            .build();
+
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node", true, ShardRoutingState.STARTED));
+
+        Metadata metadata = Metadata.builder().put(indexMetadata, false).build();
+        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder.build()).build();
+
+        ClusterState newClusterState = ClusterState.builder(clusterService.state()).metadata(metadata).routingTable(routingTable).build();
+
+        // Update cluster state using the utility method
+        setState(clusterService.getClusterApplierService(), newClusterState);
+
+        // Create bulk request
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(emptyMap()));
+        bulkRequest.add(new IndexRequest(indexName).id("2").source(emptyMap()));
+
+        // Execute the bulk action
+        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        ActionTestUtils.execute(testAction, null, bulkRequest, future);
+
+        // Get the response
+        BulkResponse response = future.actionGet();
+        assertNotNull(response);
+
+        // Verify all items failed with the expected error
+        BulkItemResponse[] items = response.getItems();
+        assertEquals(2, items.length);
+        for (BulkItemResponse item : items) {
+            assertTrue("Item should be failed due to pressure rejection", item.isFailed());
+            assertThat(item.getFailure().getCause().getMessage(), equalTo(expectedErrorMessage));
+        }
+
+        newTransportService.close();
+    }
+
 }

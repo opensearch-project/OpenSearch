@@ -328,15 +328,16 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
                 assertEquals(0, coordinatingShardTracker.getReplicaOperationTracker().getStatsTracker().getCurrentBytes());
             });
 
-            expectThrows(OpenSearchRejectedExecutionException.class, () -> {
-                if (randomBoolean()) {
-                    client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
-                } else if (randomBoolean()) {
-                    client(primaryName).bulk(bulkRequest).actionGet();
-                } else {
-                    client(replicaName).bulk(bulkRequest).actionGet();
-                }
-            });
+            BulkResponse rejectedResponse;
+            if (randomBoolean()) {
+                rejectedResponse = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
+            } else if (randomBoolean()) {
+                rejectedResponse = client(primaryName).bulk(bulkRequest).actionGet();
+            } else {
+                rejectedResponse = client(replicaName).bulk(bulkRequest).actionGet();
+            }
+            assertTrue(rejectedResponse.hasFailures());
+            assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
             replicaRelease.close();
 
@@ -444,10 +445,10 @@ public class ShardIndexingPressureIT extends OpenSearchIntegTestCase {
             });
 
             // Large request on a shard with already large occupancy is rejected
-            expectThrows(
-                OpenSearchRejectedExecutionException.class,
-                () -> { client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet(); }
-            );
+            // Shard indexing pressure failures are returned as item-level failures.
+            BulkResponse rejectedResponse = client(coordinatingOnlyNode).bulk(largeBulkRequest).actionGet();
+            assertTrue(rejectedResponse.hasFailures());
+            assertThat(rejectedResponse.getItems()[0].getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
             replicaRelease.close();
             successFuture.actionGet();
