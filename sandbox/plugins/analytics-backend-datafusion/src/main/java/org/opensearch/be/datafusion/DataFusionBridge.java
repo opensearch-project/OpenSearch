@@ -14,6 +14,8 @@ import org.opensearch.analytics.backend.EngineBridge;
 /**
  * DataFusion EngineBridge implementation.
  * Uses a byte[] representing serialized plan to execute.
+ * // TODO : we need a stateful engine, not just a bridge, evaluate
+ * // switch to SearchExecEngine
  */
 public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
     // S=byte[] (Substrait), H=Long (stream pointer), L=RelNode (logical plan)

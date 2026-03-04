@@ -123,6 +123,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.exec.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -146,6 +147,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
@@ -169,6 +171,7 @@ import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -424,6 +427,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier;
 
     @Override
     protected void doStart() {
@@ -609,6 +613,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
+        this.dataFormatRegistrySupplier = (shardPath) -> new DataFormatRegistry(
+            pluginsService.filterPlugins(SearchAnalyticsBackEndPlugin.class),
+            shardPath
+        );
     }
 
     @InternalApi
@@ -1109,6 +1117,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
+
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
@@ -1136,7 +1145,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            dataFormatRegistrySupplier
         );
     }
 

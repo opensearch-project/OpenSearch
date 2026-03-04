@@ -15,6 +15,7 @@
 def calciteVersion = '1.41.0'
 
 dependencies {
+  compileOnly project(':server')
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
@@ -35,7 +36,7 @@ dependencies {
 
 testingConventions.enabled = false
 
-// analytics-framework does not depend on server
+// analytics-framework depends on server for SearchAnalyticsBackEndPlugin SPI
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
   failOnMissingClasses = false

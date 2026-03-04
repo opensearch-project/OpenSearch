@@ -74,6 +74,7 @@ import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.exec.DataFormatRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -741,7 +742,8 @@ public final class IndexModule {
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -814,7 +816,8 @@ public final class IndexModule {
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
-                clusterMergeSchedulerConfig
+                clusterMergeSchedulerConfig,
+                dataFormatRegistrySupplier
             );
             success = true;
             return indexService;

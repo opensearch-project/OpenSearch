@@ -78,6 +78,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.exec.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -209,6 +210,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
     private final IndexStorePlugin.StoreFactory storeFactory;
+    private final CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier;
 
     @InternalApi
     public IndexService(
@@ -255,7 +257,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -366,6 +369,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 startIndexLevelRefreshTask();
             }
         }
+        this.dataFormatRegistrySupplier = dataFormatRegistrySupplier;
     }
 
     @InternalApi
@@ -454,7 +458,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             s -> {},
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            null
         );
     }
 
@@ -775,6 +780,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directoryFactory
             );
             eventListener.onStoreCreated(shardId);
+            DataFormatRegistry dataFormatRegistry = dataFormatRegistrySupplier.apply(path);
             indexShard = new IndexShard(
                 routing,
                 this.indexSettings,
@@ -813,7 +819,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 refreshMutex,
                 clusterService.getClusterApplierService(),
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
-                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
+                dataFormatRegistry
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
