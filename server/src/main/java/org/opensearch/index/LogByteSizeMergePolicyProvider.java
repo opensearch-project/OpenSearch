@@ -57,7 +57,7 @@ public class LogByteSizeMergePolicyProvider implements MergePolicyProvider {
     public static final ByteSizeValue DEFAULT_MIN_MERGE = new ByteSizeValue(16, ByteSizeUnit.MB);
     public static final int DEFAULT_MERGE_FACTOR = 10;
 
-    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(512, ByteSizeUnit.MB);
 
     public static final ByteSizeValue DEFAULT_MAX_MERGE_SEGMENT_FORCE_MERGE = new ByteSizeValue(Long.MAX_VALUE);
 

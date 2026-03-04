@@ -28,7 +28,7 @@ public class NativeParquetWriter implements Closeable {
      */
     public NativeParquetWriter(String filePath, String indexName, long schemaAddress) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, indexName, schemaAddress);
+        RustBridge.createWriter(filePath, schemaAddress, "temp");
     }
 
     /**

@@ -8,9 +8,9 @@
 
 package com.parquet.parquetdataformat.merge;
 
-import org.opensearch.index.engine.exec.WriterFileSet;
+
+import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.merge.MergeResult;
-import java.util.List;
 
 /**
  * Interface defining a Parquet merge strategy.
@@ -20,6 +20,6 @@ public interface ParquetMergeStrategy {
     /**
      * Performs the actual Parquet merge.
      */
-    MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration, String indexName);
+    MergeResult mergeParquetFiles(MergeInput mergeInput);
 
 }
