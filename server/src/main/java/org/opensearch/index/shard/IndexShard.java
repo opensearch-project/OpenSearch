@@ -129,6 +129,7 @@ import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.CompositeEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineConfig;
@@ -315,6 +316,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
+    private final AtomicReference<CompositeEngine> currentCompositeEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
 
@@ -2198,6 +2200,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+    }
+
+    /**
+     * Returns the current CompositeEngine, or null if no optimized index is active.
+     */
+    public CompositeEngine getCompositeEngine() {
+        return currentCompositeEngineReference.get();
+    }
+
+    /**
+     * Sets the CompositeEngine for this shard (called during shard initialization for optimized indexes).
+     */
+    public void setCompositeEngine(CompositeEngine compositeEngine) {
+        currentCompositeEngineReference.set(compositeEngine);
     }
 
     private void markSearcherAccessed() {
