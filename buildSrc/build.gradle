@@ -111,6 +111,12 @@ dependencies {
   api "commons-io:commons-io:${props.getProperty('commonsio')}"
   api "net.java.dev.jna:jna:5.14.0"
   api 'com.gradleup.shadow:shadow-gradle-plugin:8.3.10'
+  constraints {
+    api('org.codehaus.plexus:plexus-utils') {
+      version { strictly '3.5.1' }
+      because 'plexus-utils 4.x is incompatible with Java 11'
+    }
+  }
   api 'org.jdom:jdom2:2.0.6.1'
   api "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${props.getProperty('kotlin')}"
   api 'de.thetaphi:forbiddenapis:3.8'
