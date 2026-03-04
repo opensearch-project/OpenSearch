@@ -72,7 +72,7 @@ static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 fn get_io_runtime() -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
+            .worker_threads(2)
             .thread_name("parquet-io")
             .enable_all()
             .build()

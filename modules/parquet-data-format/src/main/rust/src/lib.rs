@@ -38,14 +38,15 @@ lazy_static! {
     static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
     static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
     static ref PROPS_MANAGER: DashMap<String, WriterProperties> = DashMap::new();
+    static ref SORT_COL_MANAGER: DashMap<String, String> = DashMap::new();
 }
 
 struct NativeParquetWriter;
 
 impl NativeParquetWriter {
 
-    fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] create_writer called for file: {}, schema_address: {}", filename, schema_address);
+    fn create_writer(filename: String, schema_address: i64, sort_column: String) -> Result<(), Box<dyn std::error::Error>> {
+        log_info!("[RUST] create_writer called for file: {}, schema_address: {}, sort_column: {}", filename, schema_address, sort_column);
 
         if (schema_address as *mut u8).is_null() {
             log_error!("[RUST] ERROR: Invalid schema address (null pointer) for file: {}, schema_address: {}", filename, schema_address);
@@ -81,9 +82,9 @@ impl NativeParquetWriter {
             .set_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
             .build();
 
-        // Store properties and original filename for later use in sorting
+        // Store properties and sort column for later use in sorting
         PROPS_MANAGER.insert(temp_filename.clone(), props.clone());
-        PROPS_MANAGER.insert(format!("{}_original", temp_filename), WriterProperties::builder().build()); // Store original filename as a marker
+        SORT_COL_MANAGER.insert(temp_filename.clone(), sort_column);
 
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
         WRITER_MANAGER.insert(temp_filename, Arc::new(Mutex::new(writer)));
@@ -196,7 +197,14 @@ impl NativeParquetWriter {
     }
 
     fn sort_and_rewrite_parquet(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("[RUST] Sorting parquet file by timestamp: {}", filename);
+        log_info!("[RUST] Sorting parquet file: {}", filename);
+
+        // Get sort column name from manager
+        let sort_column = SORT_COL_MANAGER.remove(filename)
+            .map(|(_, col)| col)
+            .ok_or("Sort column not found for file")?;
+
+        log_info!("[RUST] shailesh Using sort column: {}", sort_column);
 
         // Use stored properties from create_writer or fallback to reading from file
         let props = if let Some((_, stored_props)) = PROPS_MANAGER.remove(filename) {
@@ -212,8 +220,7 @@ impl NativeParquetWriter {
             if let Some(row_group) = metadata.row_groups().get(0) {
                 for (col_idx, column_chunk) in row_group.columns().iter().enumerate() {
                     let compression = column_chunk.compression();
-                    let encoding = column_chunk.encodings().get(0).copied().unwrap_or(parquet::basic::Encoding::PLAIN);
-
+                    let encoding = column_chunk.encodings().next().unwrap_or(parquet::basic::Encoding::PLAIN);
                     props_builder = props_builder
                         .set_column_compression(ColumnPath::new(vec![format!("column_{}", col_idx)]), compression)
                         .set_column_encoding(ColumnPath::new(vec![format!("column_{}", col_idx)]), encoding);
@@ -227,13 +234,13 @@ impl NativeParquetWriter {
         const MAX_MEMORY_SIZE: u64 = 32 * 1024 * 1024; // 32MB threshold
 
         if file_size <= MAX_MEMORY_SIZE {
-            Self::sort_small_file(filename, props)
+            Self::sort_small_file(filename, props, &sort_column)
         } else {
-            Self::sort_large_file(filename, props)
+            Self::sort_large_file(filename, props, &sort_column)
         }
     }
 
-    fn sort_small_file(filename: &str, props: WriterProperties) -> Result<(), Box<dyn std::error::Error>> {
+    fn sort_small_file(filename: &str, props: WriterProperties, sort_column: &str) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] Using in-memory sort for small file: {}", filename);
 
         let file = File::open(filename)?;
@@ -253,8 +260,8 @@ impl NativeParquetWriter {
         let schema = batches[0].schema();
         let combined_batch = arrow::compute::concat_batches(&schema, &batches)?;
 
-        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "EventDate")
-            .ok_or("timestamp column not found")?;
+        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == sort_column)
+            .ok_or("sort column not found")?;
 
         let timestamp_array = combined_batch.column(timestamp_col_idx);
         let sort_indices = sort_to_indices(timestamp_array, None, None)?;
@@ -273,7 +280,7 @@ impl NativeParquetWriter {
         Ok(())
     }
 
-    fn sort_large_file(filename: &str, props: WriterProperties) -> Result<(), Box<dyn std::error::Error>> {
+    fn sort_large_file(filename: &str, props: WriterProperties, sort_column: &str) -> Result<(), Box<dyn std::error::Error>> {
         log_info!("[RUST] Using streaming sort for large file: {}", filename);
 
         let file = File::open(filename)?;
@@ -289,8 +296,8 @@ impl NativeParquetWriter {
             let batch = batch_result?;
             let schema = batch.schema();
 
-            let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "EventDate")
-                .ok_or("timestamp column not found")?;
+            let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == sort_column)
+                .ok_or("sort column not found")?;
 
             let timestamp_array = batch.column(timestamp_col_idx);
             let sort_indices = sort_to_indices(timestamp_array, None, None)?;
@@ -321,7 +328,7 @@ impl NativeParquetWriter {
         log_info!("[RUST] Created {} temp files, now merging", batch_count);
 
         // Merge temp files using streaming merge
-        let merged_batch = Self::merge_temp_files(temp_files)?;
+        let merged_batch = Self::merge_temp_files(temp_files, sort_column)?;
 
         Self::write_sorted_file(filename, &merged_batch, merged_batch.schema(), props)?;
         std::fs::remove_file(filename)?;
@@ -329,7 +336,7 @@ impl NativeParquetWriter {
         Ok(())
     }
 
-    fn merge_temp_files(temp_files: Vec<std::path::PathBuf>) -> Result<RecordBatch, Box<dyn std::error::Error>> {
+    fn merge_temp_files(temp_files: Vec<std::path::PathBuf>, sort_column: &str) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         if temp_files.len() == 1 {
             let file = File::open(&temp_files[0])?;
             let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -362,8 +369,8 @@ impl NativeParquetWriter {
         let schema = all_batches[0].schema();
         let combined = arrow::compute::concat_batches(&schema, &all_batches)?;
 
-        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == "EventDate")
-            .ok_or("timestamp column not found")?;
+        let timestamp_col_idx = schema.fields().iter().position(|f| f.name() == sort_column)
+            .ok_or("sort column not found")?;
 
         let timestamp_array = combined.column(timestamp_col_idx);
         let sort_indices = sort_to_indices(timestamp_array, None, None)?;
@@ -502,10 +509,12 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
-    schema_address: jlong
+    schema_address: jlong,
+    sort_column: JString
 ) -> jint {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
+    let sort_col: String = env.get_string(&sort_column).expect("Couldn't get sort column!").into();
+    match NativeParquetWriter::create_writer(filename, schema_address as i64, sort_col) {
         Ok(_) => 0,
         Err(_) => -1,
     }
@@ -642,7 +651,7 @@ mod tests {
 
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr);
+        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr, "id".to_string());
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -687,7 +696,7 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let result = NativeParquetWriter::create_writer(filename, 0);
+        let result = NativeParquetWriter::create_writer(filename, 0, "id".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
@@ -698,7 +707,7 @@ mod tests {
         let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
 
         // Second writer creation for same file should fail
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr, "id".to_string());
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
