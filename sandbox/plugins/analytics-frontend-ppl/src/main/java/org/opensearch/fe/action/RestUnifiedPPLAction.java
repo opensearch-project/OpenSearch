@@ -40,12 +40,11 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  */
 public class RestUnifiedPPLAction extends BaseRestHandler {
 
-    public static final String ROUTE_PATH = "/_plugins/_query_engine/_unified/ppl";
-    public static final int DEFAULT_MAX_QUERY_LENGTH = 10_000;
+    public static final String ROUTE_PATH = "/_plugins/_analytics_engine/ppl";
 
     @Override
     public String getName() {
-        return "unified_ppl_action";
+        return "ppl_action";
     }
 
     @Override
@@ -71,12 +70,6 @@ public class RestUnifiedPPLAction extends BaseRestHandler {
         String query = queryObj.toString();
         if (query.isEmpty()) {
             throw new IllegalArgumentException("The [query] field must not be empty");
-        }
-
-        if (query.length() > DEFAULT_MAX_QUERY_LENGTH) {
-            throw new IllegalArgumentException(
-                "The [query] field exceeds the maximum allowed length of " + DEFAULT_MAX_QUERY_LENGTH + " characters"
-            );
         }
 
         UnifiedPPLRequest pplRequest = new UnifiedPPLRequest(query);

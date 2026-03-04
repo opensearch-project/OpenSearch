@@ -57,7 +57,6 @@ public class BaseAnalyticsPlugin extends Plugin implements ExtensiblePlugin {
 
     private final List<QueryPlanExecutorPlugin> executorPlugins = new ArrayList<>();
     private final List<AnalyticsBackEndPlugin> backEnds = new ArrayList<>();
-    private final List<AnalyticsFrontEndPlugin> frontEnds = new ArrayList<>();
 
     // Lazy references populated in createComponents, resolved by Guice providers
     private final AtomicReference<QueryPlanExecutor> executorRef = new AtomicReference<>();
@@ -67,7 +66,6 @@ public class BaseAnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     public void loadExtensions(ExtensionLoader loader) {
         executorPlugins.addAll(loader.loadExtensions(QueryPlanExecutorPlugin.class));
         backEnds.addAll(loader.loadExtensions(AnalyticsBackEndPlugin.class));
-        frontEnds.addAll(loader.loadExtensions(AnalyticsFrontEndPlugin.class));
 
         if (executorPlugins.isEmpty()) {
             logger.warn("No QueryPlanExecutorPlugin found; query engine disabled");

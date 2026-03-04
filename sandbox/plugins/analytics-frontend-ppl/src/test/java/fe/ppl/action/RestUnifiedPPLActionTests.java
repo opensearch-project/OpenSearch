@@ -102,21 +102,6 @@ public class RestUnifiedPPLActionTests extends RestActionTestCase {
     }
 
     /**
-     * Test oversized query field returns HTTP 400.
-     */
-    public void testOversizedQueryFieldReturnsError() {
-        // Create a query that exceeds the max length
-        String longQuery = "source=" + "a".repeat(RestUnifiedPPLAction.DEFAULT_MAX_QUERY_LENGTH);
-        String jsonBody = "{\"query\": \"" + longQuery + "\"}";
-        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath(RestUnifiedPPLAction.ROUTE_PATH)
-            .withContent(new BytesArray(jsonBody), MediaTypeRegistry.JSON)
-            .build();
-
-        dispatchRequest(request);
-    }
-
-    /**
      * Test response JSON format contains required fields.
      */
     public void testResponseJsonContainsRequiredFields() throws Exception {
