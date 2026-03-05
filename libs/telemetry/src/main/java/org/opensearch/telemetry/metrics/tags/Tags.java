@@ -26,8 +26,10 @@ import java.util.Objects;
 @ExperimentalApi
 public final class Tags {
 
-    /** Empty tags singleton. */
-    public static final Tags EMPTY = new Tags(new String[0], new Object[0], computeHash(new String[0], new Object[0]));
+    private static final String[] EMPTY_KEYS = new String[0];
+    private static final Object[] EMPTY_VALUES = new Object[0];
+
+    public static final Tags EMPTY = new Tags(EMPTY_KEYS, EMPTY_VALUES, 1);
 
     private final String[] keys;
     private final Object[] values;
@@ -40,15 +42,10 @@ public final class Tags {
     }
 
     // -----------------------------------------------------------------------
-    // Immutable factories
+    // Factories
     // -----------------------------------------------------------------------
 
-    /**
-     * Creates a single-tag instance.
-     * @param key tag key
-     * @param value tag value
-     * @return immutable Tags
-     */
+    /** Creates an immutable Tags with one key-value pair. */
     public static Tags of(String key, Object value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
@@ -57,14 +54,7 @@ public final class Tags {
         return new Tags(k, v, computeHash(k, v));
     }
 
-    /**
-     * Creates a two-tag instance.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
-     * @return immutable Tags
-     */
+    /** Creates an immutable Tags with two key-value pairs. */
     public static Tags of(String k1, Object v1, String k2, Object v2) {
         Objects.requireNonNull(k1, "k1 must not be null");
         Objects.requireNonNull(v1, "v1 must not be null");
@@ -86,16 +76,7 @@ public final class Tags {
         return new Tags(keys, values, computeHash(keys, values));
     }
 
-    /**
-     * Creates a three-tag instance.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
-     * @param k3 third key
-     * @param v3 third value
-     * @return immutable Tags
-     */
+    /** Creates an immutable Tags with three key-value pairs. */
     public static Tags of(String k1, Object v1, String k2, Object v2, String k3, Object v3) {
         Objects.requireNonNull(k1, "k1 must not be null");
         Objects.requireNonNull(v1, "v1 must not be null");
@@ -106,20 +87,8 @@ public final class Tags {
         return fromPairs(new String[] { k1, k2, k3 }, new Object[] { v1, v2, v3 }, 3);
     }
 
-    /**
-     * Creates a four-tag instance.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
-     * @param k3 third key
-     * @param v3 third value
-     * @param k4 fourth key
-     * @param v4 fourth value
-     * @return immutable Tags
-     */
-    public static Tags of(String k1, Object v1, String k2, Object v2,
-                           String k3, Object v3, String k4, Object v4) {
+    /** Creates an immutable Tags with four key-value pairs. */
+    public static Tags of(String k1, Object v1, String k2, Object v2, String k3, Object v3, String k4, Object v4) {
         Objects.requireNonNull(k1, "k1 must not be null");
         Objects.requireNonNull(v1, "v1 must not be null");
         Objects.requireNonNull(k2, "k2 must not be null");
@@ -132,9 +101,7 @@ public final class Tags {
     }
 
     /**
-     * Creates Tags from interleaved key-value pairs.
-     * @param keyValues interleaved key-value pairs (String values only); must be even length
-     * @return immutable Tags
+     * Creates Tags from interleaved key-value pairs; must be even length.
      */
     public static Tags of(String... keyValues) {
         if (keyValues == null || keyValues.length == 0) return EMPTY;
@@ -152,51 +119,55 @@ public final class Tags {
     }
 
     /**
-     * Merges two Tags via merge-sort on their sorted arrays. On key collision, {@code b} wins.
-     * @param a first tags (may be null)
-     * @param b second tags (may be null); values take precedence on key collision
-     * @return merged immutable Tags
+     * Merges two Tags. On key collision, {@code b} wins. Either argument may be null.
      */
     public static Tags concat(Tags a, Tags b) {
         if (a == null || a.keys.length == 0) return (b != null) ? b : EMPTY;
         if (b == null || b.keys.length == 0) return a;
 
-        int aLen = a.keys.length, bLen = b.keys.length;
-        String[] mk = new String[aLen + bLen];
-        Object[] mv = new Object[aLen + bLen];
-        int ai = 0, bi = 0, w = 0;
+        int thisLength = a.keys.length;
+        int otherLength = b.keys.length;
+        String[] mergedKeys = new String[thisLength + otherLength];
+        Object[] mergedValues = new Object[thisLength + otherLength];
+        int thisIndex = 0, otherIndex = 0, sortedIndex = 0;
 
-        while (ai < aLen && bi < bLen) {
-            int cmp = a.keys[ai].compareTo(b.keys[bi]);
+        while (thisIndex < thisLength && otherIndex < otherLength) {
+            int cmp = a.keys[thisIndex].compareTo(b.keys[otherIndex]);
             if (cmp < 0) {
-                mk[w] = a.keys[ai];
-                mv[w] = a.values[ai];
-                ai++;
+                mergedKeys[sortedIndex] = a.keys[thisIndex];
+                mergedValues[sortedIndex] = a.values[thisIndex];
+                thisIndex++;
             } else if (cmp > 0) {
-                mk[w] = b.keys[bi];
-                mv[w] = b.values[bi];
-                bi++;
+                mergedKeys[sortedIndex] = b.keys[otherIndex];
+                mergedValues[sortedIndex] = b.values[otherIndex];
+                otherIndex++;
             } else {
-                mk[w] = b.keys[bi];
-                mv[w] = b.values[bi];
-                ai++;
-                bi++;
+                mergedKeys[sortedIndex] = b.keys[otherIndex];
+                mergedValues[sortedIndex] = b.values[otherIndex];
+                thisIndex++;
+                otherIndex++;
             }
-            w++;
+            sortedIndex++;
         }
-        while (ai < aLen) { mk[w] = a.keys[ai]; mv[w] = a.values[ai]; ai++; w++; }
-        while (bi < bLen) { mk[w] = b.keys[bi]; mv[w] = b.values[bi]; bi++; w++; }
+        int thisRemaining = thisLength - thisIndex;
+        if (thisRemaining > 0) {
+            System.arraycopy(a.keys, thisIndex, mergedKeys, sortedIndex, thisRemaining);
+            System.arraycopy(a.values, thisIndex, mergedValues, sortedIndex, thisRemaining);
+            sortedIndex += thisRemaining;
+        }
+        int otherRemaining = otherLength - otherIndex;
+        if (otherRemaining > 0) {
+            System.arraycopy(b.keys, otherIndex, mergedKeys, sortedIndex, otherRemaining);
+            System.arraycopy(b.values, otherIndex, mergedValues, sortedIndex, otherRemaining);
+            sortedIndex += otherRemaining;
+        }
 
-        String[] keys = (w == mk.length) ? mk : Arrays.copyOf(mk, w);
-        Object[] values = (w == mv.length) ? mv : Arrays.copyOf(mv, w);
+        String[] keys = (sortedIndex == mergedKeys.length) ? mergedKeys : Arrays.copyOf(mergedKeys, sortedIndex);
+        Object[] values = (sortedIndex == mergedValues.length) ? mergedValues : Arrays.copyOf(mergedValues, sortedIndex);
         return new Tags(keys, values, computeHash(keys, values));
     }
 
-    /**
-     * Creates Tags from a {@code Map<String, String>}.
-     * @param map tag key-value pairs
-     * @return immutable Tags
-     */
+    /** Creates Tags from a map. */
     public static Tags fromMap(Map<String, String> map) {
         if (map == null || map.isEmpty()) return EMPTY;
         String[] keys = map.keySet().toArray(new String[0]);
@@ -212,35 +183,20 @@ public final class Tags {
     // Accessors
     // -----------------------------------------------------------------------
 
-    /**
-     * Returns the number of tags.
-     * @return tag count
-     */
     public int size() {
         return keys.length;
     }
 
-    /**
-     * Returns the key at the given index.
-     * @param i index
-     * @return key
-     */
     public String getKey(int i) {
         return keys[i];
     }
 
-    /**
-     * Returns the value at the given index.
-     * @param i index
-     * @return value
-     */
     public Object getValue(int i) {
         return values[i];
     }
 
     /**
-     * Converts all values to String. Intended for flush-time, not the hot path.
-     * @return mutable map of String keys to String values
+     * Converts to a String-valued map. Intended for flush-time, not the hot path.
      */
     public Map<String, String> toMap() {
         if (keys.length == 0) return Collections.emptyMap();
@@ -251,10 +207,7 @@ public final class Tags {
         return map;
     }
 
-    /**
-     * Returns an unmodifiable map preserving original value types.
-     * @return unmodifiable map of tags
-     */
+    /** Returns an unmodifiable map preserving original value types. */
     public Map<String, ?> getTagsMap() {
         if (keys.length == 0) return Collections.emptyMap();
         Map<String, Object> map = new HashMap<>(keys.length);
@@ -298,65 +251,41 @@ public final class Tags {
     }
 
     // -----------------------------------------------------------------------
-    // Deprecated API — returns new instances; fluent chains work unchanged.
+    // Deprecated API
     // -----------------------------------------------------------------------
 
-    /**
-     * Returns an empty Tags instance.
-     * @return empty Tags
-     * @deprecated Use {@link #EMPTY} instead.
-     */
+    /** @deprecated Use {@link #EMPTY} instead. */
     @Deprecated
     public static Tags create() {
         return EMPTY;
     }
 
-    /**
-     * Returns a new Tags with the given String tag appended.
-     * @param key tag key
-     * @param value tag value
-     * @return new Tags with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
-     */
+    /** @deprecated Use {@link #of} or {@link #concat} instead. */
     @Deprecated
     public Tags addTag(String key, String value) {
+        Objects.requireNonNull(key, "key cannot be null");
         Objects.requireNonNull(value, "value cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
     }
 
-    /**
-     * Returns a new Tags with the given long tag appended.
-     * @param key tag key
-     * @param value tag value
-     * @return new Tags with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
-     */
+    /** @deprecated Use {@link #of} or {@link #concat} instead. */
     @Deprecated
     public Tags addTag(String key, long value) {
+        Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
     }
 
-    /**
-     * Returns a new Tags with the given double tag appended.
-     * @param key tag key
-     * @param value tag value
-     * @return new Tags with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
-     */
+    /** @deprecated Use {@link #of} or {@link #concat} instead. */
     @Deprecated
     public Tags addTag(String key, double value) {
+        Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
     }
 
-    /**
-     * Returns a new Tags with the given boolean tag appended.
-     * @param key tag key
-     * @param value tag value
-     * @return new Tags with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
-     */
+    /** @deprecated Use {@link #of} or {@link #concat} instead. */
     @Deprecated
     public Tags addTag(String key, boolean value) {
+        Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
     }
 

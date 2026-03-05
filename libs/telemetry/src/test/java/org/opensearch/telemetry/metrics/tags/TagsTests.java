@@ -124,6 +124,67 @@ public class TagsTests extends OpenSearchTestCase {
         assertSame(Tags.EMPTY, Tags.concat(null, null));
     }
 
+    public void testConcatPartialOverlapMergesAndDeduplicates() {
+        Tags a = Tags.of("a", "1", "c", "3");
+        Tags b = Tags.of("b", "2", "c", "4");
+        Tags merged = Tags.concat(a, b);
+        assertEquals(3, merged.size());
+        assertEquals("a", merged.getKey(0));
+        assertEquals("1", merged.getValue(0));
+        assertEquals("b", merged.getKey(1));
+        assertEquals("2", merged.getValue(1));
+        assertEquals("c", merged.getKey(2));
+        assertEquals("4", merged.getValue(2));
+    }
+
+    public void testConcatInterleavedNoOverlap() {
+        Tags a = Tags.of("a", "1", "c", "3", "e", "5");
+        Tags b = Tags.of("b", "2", "d", "4");
+        Tags merged = Tags.concat(a, b);
+        assertEquals(5, merged.size());
+        assertEquals("a", merged.getKey(0));
+        assertEquals("b", merged.getKey(1));
+        assertEquals("c", merged.getKey(2));
+        assertEquals("d", merged.getKey(3));
+        assertEquals("e", merged.getKey(4));
+    }
+
+    public void testConcatFullOverlapBWins() {
+        Tags a = Tags.of("a", "old_a", "b", "old_b");
+        Tags b = Tags.of("a", "new_a", "b", "new_b");
+        Tags merged = Tags.concat(a, b);
+        assertEquals(2, merged.size());
+        assertEquals("new_a", merged.getValue(0));
+        assertEquals("new_b", merged.getValue(1));
+    }
+
+    public void testConcatLargeRemainderPath() {
+        Tags a = Tags.of("z", "26");
+        Tags b = Tags.of("a", "1", "b", "2", "c", "3", "d", "4");
+        Tags merged = Tags.concat(a, b);
+        assertEquals(5, merged.size());
+        assertEquals("a", merged.getKey(0));
+        assertEquals("d", merged.getKey(3));
+        assertEquals("z", merged.getKey(4));
+        assertEquals("26", merged.getValue(4));
+    }
+
+    public void testConcatHashConsistency() {
+        Tags viaOf = Tags.of("a", "1", "b", "2");
+        Tags viaConcat = Tags.concat(Tags.of("a", "1"), Tags.of("b", "2"));
+        assertEquals(viaOf, viaConcat);
+        assertEquals(viaOf.hashCode(), viaConcat.hashCode());
+    }
+
+    public void testConcatResultIsSorted() {
+        Tags a = Tags.of("x", "1");
+        Tags b = Tags.of("a", "2", "m", "3");
+        Tags merged = Tags.concat(a, b);
+        for (int i = 0; i < merged.size() - 1; i++) {
+            assertTrue(merged.getKey(i).compareTo(merged.getKey(i + 1)) < 0);
+        }
+    }
+
     // --- fromMap ---
 
     public void testFromMapRoundTrips() {
