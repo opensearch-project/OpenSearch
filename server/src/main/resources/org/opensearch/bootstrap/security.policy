@@ -198,4 +198,5 @@ grant {
 
   // needed by log rolling
   permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "localeServiceProvider";
 };
