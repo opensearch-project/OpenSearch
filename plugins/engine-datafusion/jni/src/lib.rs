@@ -80,6 +80,7 @@ use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
 mod eviction_policy;
+mod liquid_cache;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
@@ -248,7 +249,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     memory_pool_limit: jlong,
     cache_manager_ptr: jlong,
     spill_dir: JString,
-    spill_limit: jlong
+    spill_limit: jlong,
+    liquid_cache_size: jlong,
 ) -> jlong {
     let spill_dir: String = match env.get_string(&spill_dir) {
         Ok(path) => path.into(),
@@ -285,11 +287,31 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         }
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_cache_manager(cache_manager_config)
-        .with_memory_pool(memory_pool.clone())
-        .with_disk_manager_builder(builder)
-        .build().unwrap();
+    // Initialize Liquid Cache if size > 0, otherwise use standard RuntimeEnv
+    let runtime_env = if liquid_cache_size > 0 {
+        match liquid_cache::LiquidOnlyRuntime::init(liquid_cache_size as u64) {
+            Ok(liquid_runtime) => {
+                log_info!("[LiquidCache] Initialized with size: {} bytes", liquid_cache_size);
+                let liquid_env = liquid_runtime.runtime_env();
+                (*liquid_env).clone()
+            }
+            Err(e) => {
+                log_error!("[LiquidCache] Initialization failed: {}", e);
+                let _ = env.throw_new(
+                    "java/lang/RuntimeException",
+                    format!("Failed to initialize liquid cache: {}", e),
+                );
+                return 0;
+            }
+        }
+    } else {
+        log_info!("[LiquidCache] Disabled (size = 0)");
+        RuntimeEnvBuilder::new()
+            .with_cache_manager(cache_manager_config)
+            .with_memory_pool(memory_pool.clone())
+            .with_disk_manager_builder(builder)
+            .build().unwrap()
+    };
 
     let runtime = DataFusionRuntime {
         runtime_env,

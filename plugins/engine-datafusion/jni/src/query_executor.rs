@@ -114,6 +114,10 @@ pub async fn execute_query_with_cross_rt_stream(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
+    use vectorized_exec_spi::log_info;
+    
+    log_info!("[LiquidCache] Query execution starting for table: {}", table_name);
+    
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
             .iter()
@@ -130,6 +134,8 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let runtimeEnv = &runtime.runtime_env;
 
+    // Use the runtime_env from lib.rs which already has Liquid Cache configured
+    // We only need to add the list_file_cache for this specific query
     let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default()
@@ -141,7 +147,7 @@ pub async fn execute_query_with_cross_rt_stream(
         .build() {
         Ok(env) => env,
         Err(e) => {
-            error!("Failed to build runtime env: {}", e);
+            error!("[LiquidCache] Failed to build runtime env: {}", e);
             return Err(e);
         }
     };
@@ -353,6 +359,10 @@ pub async fn execute_fetch_phase(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
+    use vectorized_exec_spi::log_info;
+    
+    log_info!("[LiquidCache] Fetch phase starting for {} row IDs", row_ids.len());
+    
     // Create optimized Parquet access plans for targeted row retrieval
     // This converts absolute row IDs back to file-relative positions and creates
     // efficient access patterns for each file's row groups
@@ -372,7 +382,8 @@ pub async fn execute_fetch_phase(
     };
     list_file_cache.put(&table_scoped_path, object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    // Use the runtime_env from lib.rs which already has Liquid Cache configured
+    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
                 .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())
