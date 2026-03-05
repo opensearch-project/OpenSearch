@@ -11,6 +11,10 @@ package org.opensearch.datafusion;
 import com.parquet.parquetdataformat.ParquetDataFormatPlugin;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.*;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.action.search.SearchRequest;
@@ -20,6 +24,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -67,11 +72,14 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 import static org.opensearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.opensearch.common.unit.TimeValue.timeValueMinutes;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -162,7 +170,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
             Index index = new Index("index-7", "index-7");
             final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
             ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
-            DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.CSV.getName(), "generation-1.parquet")), service, shardPath);
+            DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, List.of(new FileMetadata(DataFormat.PARQUET.getName(), "generation-1.parquet")), service, shardPath);
             datafusionSearcher = engine.acquireSearcher("search");
 
             byte[] protoContent;
@@ -300,7 +308,7 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         Index index = new Index("index-7", "index-7");
         final Path path = Path.of(resourceUrl.toURI()).resolve("index-7").resolve("0");
         ShardPath shardPath = new ShardPath(false, path, path, new ShardId(index, 0));
-        DatafusionEngine engine = new DatafusionEngine(DataFormat.CSV, List.of(new FileMetadata(DataFormat.CSV.toString(), "generation-1.parquet"), new FileMetadata(DataFormat.CSV.toString(), "generation-2.parquet")), service, shardPath);
+        DatafusionEngine engine = new DatafusionEngine(DataFormat.PARQUET, List.of(new FileMetadata(DataFormat.PARQUET.toString(), "generation-1.parquet"), new FileMetadata(DataFormat.PARQUET.toString(), "generation-2.parquet")), service, shardPath);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).source(new SearchSourceBuilder().size(9).fetchSource(List.of("message").toArray(String[]::new), null));
         ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
             OriginalIndices.NONE,
