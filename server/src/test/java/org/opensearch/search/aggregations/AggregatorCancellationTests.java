@@ -188,13 +188,13 @@ public class AggregatorCancellationTests extends AggregatorTestCase {
 
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            InternalAggregation internalAggregation = new InternalSum(name(), 0.0, DocValueFormat.RAW, metadata());
+            InternalAggregation internalAggregation = new InternalSum(name(), 0.0, 0L, DocValueFormat.RAW, metadata());
             return new InternalAggregation[] { internalAggregation };
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalSum(name(), 0.0, DocValueFormat.RAW, metadata());
+            return new InternalSum(name(), 0.0, 0L, DocValueFormat.RAW, metadata());
         }
     }
 }

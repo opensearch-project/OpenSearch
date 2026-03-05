@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move pull-based ingestion classes from experimental to publicAPI ([#20704](https://github.com/opensearch-project/OpenSearch/pull/20704))
 
 ### Fixed
+- Fix sum aggregation to return `"value": null` instead of `"value": 0.0` when all documents have null/missing field values ([#17581](https://github.com/opensearch-project/OpenSearch/pull/17581))
 - Fix flaky test failures in ShardsLimitAllocationDeciderIT ([#20375](https://github.com/opensearch-project/OpenSearch/pull/20375))
 - Prevent criteria update for context aware indices ([#20250](https://github.com/opensearch-project/OpenSearch/pull/20250))
 - Update EncryptedBlobContainer to adhere limits while listing blobs in specific sort order if wrapped blob container supports ([#20514](https://github.com/opensearch-project/OpenSearch/pull/20514))

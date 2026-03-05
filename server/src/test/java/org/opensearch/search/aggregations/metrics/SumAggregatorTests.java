@@ -110,6 +110,19 @@ public class SumAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testAllNullFieldValues() throws IOException {
+        testAggregation(new MatchAllDocsQuery(), iw -> {
+            // Documents exist but none have the aggregation field — equivalent to all-null values.
+            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 10)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 20)));
+            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 30)));
+        }, sum -> {
+            assertEquals(0d, sum.getValue(), 0d);
+            assertEquals(0L, sum.getCount());
+            assertFalse(AggregationInspectionHelper.hasValue(sum));
+        });
+    }
+
     public void testNumericDocValues() throws IOException {
         testAggregation(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));

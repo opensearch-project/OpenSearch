@@ -45,6 +45,8 @@ import java.io.IOException;
  */
 public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implements Sum {
 
+    private boolean hasValue = true;
+
     @Override
     public double getValue() {
         return value();
@@ -57,8 +59,8 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), value);
-        if (valueAsString != null) {
+        builder.field(CommonFields.VALUE.getPreferredName(), hasValue ? value : null);
+        if (hasValue && valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
         }
         return builder;
@@ -67,7 +69,26 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
     private static final ObjectParser<ParsedSum, Void> PARSER = new ObjectParser<>(ParsedSum.class.getSimpleName(), true, ParsedSum::new);
 
     static {
-        declareSingleValueFields(PARSER, Double.NEGATIVE_INFINITY);
+        // Unlike sibling Parsed* classes, we cannot use declareSingleValueFields() here.
+        // That helper uses a sentinel double (e.g. POSITIVE_INFINITY) to represent null,
+        // but POSITIVE_INFINITY is a legitimate sum result (e.g. summing Double.MAX_VALUE
+        // values). We need a custom parser that tracks null via a boolean flag instead.
+        declareAggregationFields(PARSER);
+        PARSER.declareField((agg, val) -> {
+            if (val == null) {
+                agg.hasValue = false;
+                agg.value = Double.POSITIVE_INFINITY;
+            } else {
+                agg.hasValue = true;
+                agg.value = val;
+            }
+        }, (parser, context) -> {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER || parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return parser.doubleValue();
+            }
+            return null;
+        }, CommonFields.VALUE, ObjectParser.ValueType.DOUBLE_OR_NULL);
+        PARSER.declareString(ParsedSingleValueNumericMetricsAggregation::setValueAsString, CommonFields.VALUE_AS_STRING);
     }
 
     public static ParsedSum fromXContent(XContentParser parser, final String name) {

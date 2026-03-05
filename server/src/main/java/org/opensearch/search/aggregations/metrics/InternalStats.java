@@ -235,7 +235,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             builder.nullField(Fields.MIN);
             builder.nullField(Fields.MAX);
             builder.nullField(Fields.AVG);
-            builder.field(Fields.SUM, 0.0d);
+            builder.nullField(Fields.SUM);
         }
         otherStatsToXContent(builder, params);
         return builder;
