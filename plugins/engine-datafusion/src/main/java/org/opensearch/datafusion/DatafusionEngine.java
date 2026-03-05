@@ -221,7 +221,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
-            long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
+            long streamPointer = datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).join();
             stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation

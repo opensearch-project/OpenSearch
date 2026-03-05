@@ -161,13 +161,9 @@ impl CustomCacheManager {
             // Remove from statistics cache
             if let Some(cache) = &self.statistics_cache {
                 let path = Path::from(file_path.clone());
-                // Use contains_key to check if the entry exists before attempting removal
-                if cache.contains_key(&path) {
-                    // Since we can't call remove directly on Arc<CustomStatisticsCache>,
-                    // we need to use the thread-safe DashMap operations
-                    if cache.inner().remove(&path).is_some() {
-                        any_removed = true;
-                    }
+                // Use the CacheAccessor remove method to properly update memory tracking
+                if cache.remove(&path).is_some() {
+                    any_removed = true;
                 }
             }
 
@@ -217,6 +213,25 @@ impl CustomCacheManager {
         }
 
         found
+    }
+
+    /// Check if a file exists in a specific cache type
+    pub fn contains_file_by_type(&self, file_path: &str, cache_type: &str) -> bool {
+        match cache_type {
+            crate::cache::CACHE_TYPE_METADATA => {
+                create_object_meta_from_file(file_path)
+                    .ok()
+                    .and_then(|metas| metas.first().cloned())
+                    .and_then(|meta| self.file_metadata_cache.as_ref()?.get(&meta))
+                    .is_some()
+            }
+            crate::cache::CACHE_TYPE_STATS => {
+                self.statistics_cache
+                    .as_ref()
+                    .map_or(false, |cache| cache.contains_key(&Path::from(file_path)))
+            }
+            _ => false
+        }
     }
 
     /// Update the file metadata cache size limit
