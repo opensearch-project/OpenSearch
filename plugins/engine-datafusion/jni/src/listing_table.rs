@@ -56,7 +56,7 @@ use datafusion_datasource::{
     file::FileSource,
     file_groups::FileGroup,
     file_scan_config::{FileScanConfig, FileScanConfigBuilder},
-    schema_adapter::{DefaultSchemaAdapterFactory, SchemaAdapter, SchemaAdapterFactory},
+    schema_adapter::SchemaAdapterFactory,
 };
 use datafusion_expr::{dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType};
 use futures::future::err;
@@ -1085,17 +1085,6 @@ impl ListingTable {
     }
 
     /// Creates a schema adapter for mapping between file and table schemas
-    ///
-    /// Uses the configured schema adapter factory if available, otherwise falls back
-    /// to the default implementation.
-    fn create_schema_adapter(&self) -> Box<dyn SchemaAdapter> {
-        let table_schema = self.schema();
-        match &self.schema_adapter_factory {
-            Some(factory) => factory.create_with_projected_schema(Arc::clone(&table_schema)),
-            None => DefaultSchemaAdapterFactory::from_schema(Arc::clone(&table_schema)),
-        }
-    }
-
     /// Creates a file source and applies schema adapter factory if available
     fn create_file_source_with_schema_adapter(&self) -> Result<Arc<dyn FileSource>> {
         let table_schema = datafusion_datasource::table_schema::TableSchema::new(
@@ -1475,17 +1464,22 @@ impl ListingTable {
             inexact_stats,
         )?;
 
-        let schema_adapter = self.create_schema_adapter();
-        let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
-
-        stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
-        file_groups.iter_mut().try_for_each(|file_group| {
-            if let Some(stat) = file_group.statistics_mut() {
-                stat.column_statistics =
-                    schema_mapper.map_column_statistics(&stat.column_statistics)?;
-            }
-            Ok::<_, DataFusionError>(())
-        })?;
+        // Only map statistics if schema_adapter_factory is explicitly set
+        // In DataFusion 52.1, SchemaAdapter has been removed and replaced with PhysicalExprAdapterFactory
+        // Statistics mapping is now optional and only done when explicitly configured
+        if let Some(factory) = &self.schema_adapter_factory {
+            let schema_adapter = factory.create_with_projected_schema(self.schema());
+            let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
+            
+            stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
+            file_groups.iter_mut().try_for_each(|file_group| {
+                if let Some(stat) = file_group.statistics_mut() {
+                    stat.column_statistics = schema_mapper.map_column_statistics(&stat.column_statistics)?;
+                }
+                Ok::<_, DataFusionError>(())
+            })?;
+        }
+        
         Ok((file_groups, stats))
     }
 
