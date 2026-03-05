@@ -63,6 +63,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix ShardSearchFailure in transport-grpc ([#20641](https://github.com/opensearch-project/OpenSearch/pull/20641))
 - Fix TLS cert hot-reload for Arrow Flight transport ([#20732](https://github.com/opensearch-project/OpenSearch/pull/20732))
 - delegate getMin/getMax methods for ExitableTerms ([#20775](https://github.com/opensearch-project/OpenSearch/pull/20775))
+- Fix misleading heap usage cancellation message in SearchBackpressureService ([#20779](https://github.com/opensearch-project/OpenSearch/pull/20779))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
@@ -78,6 +79,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `tj-actions/changed-files` from 47.0.1 to 47.0.4 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.7 to 10.8 ([#20715](https://github.com/opensearch-project/OpenSearch/pull/20715))
 - Bump OpenTelemetry to 1.59.0 and OpenTelemetry Semconv to 1.40.0 ([#20737](https://github.com/opensearch-project/OpenSearch/pull/20737))
+- Bump `ch.qos.logback:logback-classic` from 1.5.27 to 1.5.32 ([#20761](https://github.com/opensearch-project/OpenSearch/pull/20761))
 - Bump `actions/upload-artifact` from 6 to 7 ([#20762](https://github.com/opensearch-project/OpenSearch/pull/20762))
 
 ### Removed
