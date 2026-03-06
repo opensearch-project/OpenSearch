@@ -13,12 +13,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.VersionType;
@@ -33,14 +35,23 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntConsumer;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -137,6 +148,13 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
         @Nullable
         private final IngestService ingestService;
 
+        // TODO: consider making this configurable via index settings if use cases with slow processors arise
+        private static final long PIPELINE_EXECUTION_TIMEOUT_SECONDS = 30;
+
+        // Cached pipeline names — resolved lazily on first document
+        private volatile String resolvedFinalPipeline;
+        private volatile boolean pipelinesResolved = false;
+
         MessageProcessor(IngestionEngine engine) {
             this(engine, null);
         }
@@ -155,6 +173,132 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             this.engine = engine;
             this.index = index;
             this.ingestService = ingestService;
+        }
+
+        /**
+         * Resolves pipeline names from index settings. Called lazily on first document and cached.
+         * Also registers a dynamic settings listener for final_pipeline updates.
+         * Phase 2: only final_pipeline (NOT default_pipeline).
+         */
+        private void resolvePipelineNames() {
+            if (pipelinesResolved) {
+                return;
+            }
+            IndexSettings indexSettings = engine.config().getIndexSettings();
+            updateFinalPipeline(IndexSettings.FINAL_PIPELINE.get(indexSettings.getSettings()));
+
+            // Register dynamic settings listener for final_pipeline updates
+            indexSettings.getScopedSettings()
+                .addSettingsUpdateConsumer(IndexSettings.FINAL_PIPELINE, this::updateFinalPipeline);
+
+            pipelinesResolved = true;
+        }
+
+        /**
+         * Updates the cached final pipeline name. Called on initial resolution and on dynamic settings change.
+         */
+        private void updateFinalPipeline(String finalPipeline) {
+            if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipeline)) {
+                resolvedFinalPipeline = null;
+            } else {
+                resolvedFinalPipeline = finalPipeline;
+            }
+        }
+
+        /**
+         * Returns true if any pipelines are configured for this index.
+         */
+        private boolean hasPipelines() {
+            resolvePipelineNames();
+            return resolvedFinalPipeline != null;
+        }
+
+        /**
+         * Executes final_pipeline on the source map synchronously using CompletableFuture to bridge
+         * IngestService's async callback API.
+         *
+         * @param id document ID
+         * @param sourceMap mutable source map
+         * @return the transformed source map, or null if the document was dropped by the pipeline
+         * @throws Exception if pipeline execution fails
+         */
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> executePipelines(String id, Map<String, Object> sourceMap) throws Exception {
+            if (ingestService == null || !hasPipelines()) {
+                return sourceMap;
+            }
+
+            // Build IndexRequest to carry the document through the pipeline
+            IndexRequest indexRequest = new IndexRequest(index);
+            indexRequest.id(id);
+            indexRequest.source(sourceMap);
+
+            // Phase 2: only final_pipeline, no default_pipeline
+            indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+            indexRequest.setFinalPipeline(resolvedFinalPipeline != null ? resolvedFinalPipeline : IngestService.NOOP_PIPELINE_NAME);
+            indexRequest.isPipelineResolved(true);
+
+            final String originalId = id;
+            final String originalRouting = indexRequest.routing();
+
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            AtomicReference<Exception> failureRef = new AtomicReference<>();
+            AtomicBoolean dropped = new AtomicBoolean(false);
+
+            ingestService.executeBulkRequest(
+                1,
+                Collections.singletonList(indexRequest),
+                (slot, e) -> failureRef.set(e),
+                (thread, e) -> {
+                    if (e != null) {
+                        future.completeExceptionally(e);
+                    } else {
+                        future.complete(null);
+                    }
+                },
+                slot -> dropped.set(true),
+                ThreadPool.Names.WRITE
+            );
+
+            // Block until pipeline execution completes (with timeout)
+            try {
+                future.get(PIPELINE_EXECUTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                throw new RuntimeException(
+                    "Ingest pipeline execution timed out after [" + PIPELINE_EXECUTION_TIMEOUT_SECONDS + "] seconds",
+                    e
+                );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Ingest pipeline execution was interrupted", e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException("Ingest pipeline execution failed", e.getCause());
+            }
+
+            if (failureRef.get() != null) {
+                throw failureRef.get();
+            }
+
+            if (dropped.get()) {
+                return null;
+            }
+
+            // Guardrails: verify _id and _routing have not been mutated
+            if (Objects.equals(originalId, indexRequest.id()) == false) {
+                throw new IllegalStateException(
+                    "Ingest pipeline attempted to change _id from [" + originalId + "] to [" + indexRequest.id()
+                        + "]. _id mutations are not allowed in pull-based ingestion."
+                );
+            }
+            if (Objects.equals(originalRouting, indexRequest.routing()) == false) {
+                throw new IllegalStateException(
+                    "Ingest pipeline attempted to change _routing. _routing mutations are not allowed in pull-based ingestion."
+                );
+            }
+
+            // _index change is already blocked by final_pipeline semantics in IngestService
+
+            return indexRequest.sourceAsMap();
         }
 
         /**
@@ -199,6 +343,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
          * @param messageProcessorMetrics message processor metrics
          * @return the message operation
          */
+        @SuppressWarnings("unchecked")
         protected MessageOperation getOperation(ShardUpdateMessage shardUpdateMessage, MessageProcessorMetrics messageProcessorMetrics)
             throws IOException {
             Map<String, Object> payloadMap = shardUpdateMessage.parsedPayloadMap();
@@ -252,7 +397,28 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                         throw new IllegalArgumentException(errorMessage);
                     }
 
-                    BytesReference source = convertToBytes(payloadMap.get(SOURCE));
+                    Map<String, Object> sourceMap = (Map<String, Object>) payloadMap.get(SOURCE);
+
+                    // Execute ingest pipelines (Phase 2: final_pipeline only)
+                    try {
+                        Map<String, Object> transformedSource = executePipelines(id, sourceMap);
+                        if (transformedSource == null) {
+                            // Document dropped by pipeline
+                            operation = new Engine.NoOp(
+                                0,
+                                1,
+                                Engine.Operation.Origin.PRIMARY,
+                                System.nanoTime(),
+                                "Document dropped by ingest pipeline"
+                            );
+                            return new MessageOperation(operation, opType);
+                        }
+                        sourceMap = transformedSource;
+                    } catch (Exception e) {
+                        throw new RuntimeException("Ingest pipeline execution failed", e);
+                    }
+
+                    BytesReference source = convertToBytes(sourceMap);
                     SourceToParse sourceToParse = new SourceToParse(index, id, source, MediaTypeRegistry.xContentType(source), null);
                     ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
                     ParseContext.Document document = doc.rootDoc();
