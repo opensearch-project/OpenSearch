@@ -152,7 +152,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
      */
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
-        // Safety log: track final shard response receipt in coordinator
+        // Trace final shard responses to diagnose coordinator sequencing.
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "COORDINATOR: received final shard result from shard={}, target={}, totalOps={}, expectedOps={}",
@@ -196,12 +196,11 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
 
     /**
      * Handle successful stream execution callback
-     * Since partials are no longer fed into the reducer, this callback is not
-     * needed for coordination.
+     * Partials are not fed into the reducer, so coordinator completion is driven
+     * by {@link #successfulShardExecution(SearchShardIterator)}.
      */
     private void successfulStreamExecution() {
-        // No-op: partials are bypassed from reducer, completion is handled by
-        // successfulShardExecution only
+        // No-op.
     }
 
 }

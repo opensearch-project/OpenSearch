@@ -11,8 +11,10 @@ package org.opensearch.search.query;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Defines the different streaming search strategies based on the design-by-case approach.
- * Each mode optimizes for different use cases and performance characteristics.
+ * Streaming search mode selector.
+ *
+ * <p>Only {@link #NO_SCORING} is active in the current streaming implementation.
+ * Other values are retained for request parsing/backward compatibility.
  *
  * @opensearch.internal
  */
@@ -20,29 +22,17 @@ import org.opensearch.common.annotation.ExperimentalApi;
 public enum StreamingSearchMode {
 
     /**
-     * Case 1: No scoring, no sorting - fastest TTFB
-     * - Shard collector: StreamingUnsortedCollector
-     * - Ring buffer with batch emission
-     * - Round-robin merge at coordinator
-     * - Best for: simple filtering, counting, exists queries
+     * No scoring and no sorting.
      */
     NO_SCORING("no_scoring"),
 
     /**
-     * Case 2: Full scoring + explicit sort - production ready
-     * - Shard collector: StreamingSortedCollector
-     * - WAND/Block-Max WAND with windowed top-K heap
-     * - K-way streaming merge at coordinator
-     * - Best for: scored searches with sorting
+     * Retained for backward compatibility.
      */
     SCORED_SORTED("scored_sorted"),
 
     /**
-     * Case 3: Full scoring, no sorting - moderate performance
-     * - Shard collector: StreamingScoredUnsortedCollector
-     * - Ring buffer with scoring
-     * - No merge needed at coordinator
-     * - Best for: scored searches without sorting
+     * Retained for backward compatibility.
      */
     SCORED_UNSORTED("scored_unsorted");
 
@@ -97,8 +87,6 @@ public enum StreamingSearchMode {
     public boolean requiresSorting() {
         return false; // No sorting is supported in the current mode
     }
-
-    // Confidence-based mode removed in this branch
 
     @Override
     public String toString() {
