@@ -74,8 +74,8 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
      */
     public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount) {
         this.name = name;
-        this.limit = Math.max(0, limit);
-        this.estimated = Math.max(0, estimated);
+        this.limit = limit;
+        this.estimated = estimated;
         this.trippedCount = trippedCount;
         this.overhead = overhead;
     }
@@ -89,8 +89,8 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
      * @see #writeTo(StreamOutput)
      */
     public CircuitBreakerStats(StreamInput in) throws IOException {
-        this.limit = Math.max(0, in.readLong());
-        this.estimated = Math.max(0, in.readLong());
+        this.limit = in.readLong();
+        this.estimated = in.readLong();
         this.overhead = in.readDouble();
         this.trippedCount = in.readLong();
         this.name = in.readString();
