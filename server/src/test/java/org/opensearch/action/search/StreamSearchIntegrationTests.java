@@ -54,8 +54,6 @@ import java.util.function.Supplier;
  * This test suite validates streaming search semantics using classic transport:
  * - Streaming search modes (NO_SCORING, SCORED_SORTED, SCORED_UNSORTED)
  * - StreamSearchQueryThenFetchAsyncAction with classic transport
- * - StreamingSearchProgressListener for partial responses
- * - SearchStreamActionListener for streaming responses
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
 public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {

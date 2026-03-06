@@ -287,18 +287,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             SearchShardTarget target = result.getSearchShardTarget();
             processedShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
         }
-        // For streaming search with TopDocs, use the new notification method
-        if (hasTopDocs && newTopDocs != null) {
-            progressListener.notifyPartialReduceWithTopDocs(
-                processedShards,
-                topDocsStats.getTotalHits(),
-                newTopDocs,
-                newAggs,
-                numReducePhases
-            );
-        } else {
-            progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
-        }
+        progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
         long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
@@ -431,87 +420,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
             if (consumeResult(result, callback)) {
                 callback.run();
-            }
-        }
-
-        /**
-         * Performs a transient, non-destructive reduction of the current state and an optional partial result,
-         * and notifies the listener. This is used for coordinated streaming search.
-         */
-        synchronized void notifySnapshot(QuerySearchResult partial) {
-            checkCancellation();
-            if (hasFailure()) {
-                return;
-            }
-
-            List<TopDocs> topDocsList = new ArrayList<>();
-            List<InternalAggregations> aggsList = new ArrayList<>();
-            List<SearchShard> snapshotShards = new ArrayList<>(emptyResults);
-
-            if (reduceResult != null) {
-                if (reduceResult.reducedTopDocs != null) {
-                    topDocsList.add(reduceResult.reducedTopDocs);
-                }
-                if (reduceResult.reducedAggs != null) {
-                    aggsList.add(reduceResult.reducedAggs);
-                }
-                snapshotShards.addAll(reduceResult.processedShards);
-            }
-
-            for (QuerySearchResult result : buffer) {
-                if (result.hasTopDocs()) {
-                    TopDocs td = result.topDocs().topDocs;
-                    SearchPhaseController.setShardIndex(td, result.getShardIndex());
-                    topDocsList.add(td);
-                }
-                if (result.hasAggs()) {
-                    aggsList.add(result.aggregations().expand());
-                }
-                SearchShardTarget target = result.getSearchShardTarget();
-                snapshotShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
-            }
-
-            TotalHits snapshotTotalHits = topDocsStats.getTotalHits();
-
-            if (partial != null) {
-                if (partial.hasTopDocs()) {
-                    TopDocs td = partial.topDocs().topDocs;
-                    SearchPhaseController.setShardIndex(td, partial.getShardIndex());
-                    topDocsList.add(td);
-                    long val = snapshotTotalHits == null ? 0 : snapshotTotalHits.value();
-                    val += td.totalHits.value();
-                    snapshotTotalHits = new TotalHits(
-                        val,
-                        snapshotTotalHits == null ? td.totalHits.relation() : snapshotTotalHits.relation()
-                    );
-                }
-                if (partial.hasAggs()) {
-                    aggsList.add(partial.aggregations().expand());
-                }
-                SearchShardTarget target = partial.getSearchShardTarget();
-                snapshotShards.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
-            }
-
-            TopDocs mergedTopDocs = null;
-            if (hasTopDocs && topDocsList.isEmpty() == false) {
-                mergedTopDocs = SearchPhaseController.mergeTopDocs(topDocsList, topNSize, 0);
-            }
-
-            InternalAggregations mergedAggs = null;
-            if (hasAggs && aggsList.isEmpty() == false) {
-                mergedAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
-            }
-
-            if (hasTopDocs && mergedTopDocs != null) {
-                progressListener.notifyPartialReduceWithTopDocs(
-                    snapshotShards,
-                    snapshotTotalHits,
-                    mergedTopDocs,
-                    mergedAggs,
-                    numReducePhases
-                );
-            } else {
-                progressListener.notifyPartialReduce(snapshotShards, snapshotTotalHits, mergedAggs, numReducePhases);
             }
         }
 

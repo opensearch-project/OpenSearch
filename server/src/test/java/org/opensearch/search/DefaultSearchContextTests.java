@@ -51,6 +51,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -1284,11 +1285,11 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         settings.add(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO);
         settings.add(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
 
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, settings);
 
-        assertEquals(100_000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
-        assertEquals(0.01, clusterSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
-        assertEquals(1000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
+        assertEquals(100_000L, (long) indexScopedSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
+        assertEquals(0.01, indexScopedSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
+        assertEquals(1000L, (long) indexScopedSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
     }
 
     public void testStreamingSettingsValidation() {
@@ -1298,15 +1299,15 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
         settings.add(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
 
         Settings customSettings = Settings.builder()
-            .put("search.aggregations.streaming.max_estimated_bucket_count", 200000)
-            .put("search.aggregations.streaming.min_cardinality_ratio", 0.05)
-            .put("search.aggregations.streaming.min_estimated_bucket_count", 500)
+            .put("index.aggregation.streaming.max_estimated_bucket_count", 200000L)
+            .put("index.aggregation.streaming.min_cardinality_ratio", 0.05)
+            .put("index.aggregation.streaming.min_estimated_bucket_count", 500L)
             .build();
 
-        ClusterSettings clusterSettings = new ClusterSettings(customSettings, settings);
+        IndexScopedSettings indexScopedSettings = new IndexScopedSettings(customSettings, settings);
 
-        assertEquals(200000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
-        assertEquals(0.05, clusterSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
-        assertEquals(500L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
+        assertEquals(200000L, (long) indexScopedSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
+        assertEquals(0.05, indexScopedSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
+        assertEquals(500L, (long) indexScopedSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
     }
 }

@@ -1353,14 +1353,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // Only set a default streaming mode if we will actually use the streaming transport.
             // Classic transport paths (e.g., reindex/UBQ) must not be implicitly switched to streaming.
             if (useStreamingTransport && searchRequest.isStreamingScoring() && searchRequest.getStreamingSearchMode() == null) {
-                searchRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_UNSORTED.toString());
+                searchRequest.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
             }
 
             final boolean isStreamingRequest = (searchRequest.isStreamingScoring() || searchRequest.getStreamingSearchMode() != null);
 
-            final SearchProgressListener progressListener = (isStreamingRequest && useStreamingTransport)
-                ? new StreamingSearchProgressListener(listener, searchPhaseController, searchRequest)
-                : task.getProgressListener();
+            final SearchProgressListener progressListener = task.getProgressListener();
 
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
                 executor,

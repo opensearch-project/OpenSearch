@@ -10,43 +10,19 @@ package org.opensearch.action.search;
 
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.query.QuerySearchResult;
-import org.opensearch.search.query.StreamingSearchMode;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
  * Query phase result consumer for streaming search.
- * Supports progressive batch reduction with configurable scoring modes.
- *
- * Batch reduction frequency is controlled by per-mode multipliers:
- * - NO_SCORING: Immediate reduction (batch size = 1) for fastest
- * time-to-first-byte
- * - SCORED_UNSORTED: Small batches (minBatchReduceSize * 2)
- * - SCORED_SORTED: Larger batches (minBatchReduceSize * 10)
- *
- * These multipliers are applied to the base batch reduce size (typically 5) to
- * determine
- * how many shard results are accumulated before triggering a partial reduction.
- * Lower values
- * mean more frequent reductions and faster streaming, but higher coordinator
- * CPU usage.
+ * Supports progressive batch reduction with a fixed batch policy suitable for unsorted streaming.
  *
  * @opensearch.internal
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
-    private final StreamingSearchMode scoringMode;
-    private int resultsReceived = 0;
 
-    // TTFB tracking for demonstrating fetch phase timing
-    private long queryStartTime = System.currentTimeMillis();
-    private long firstBatchReadyForFetchTime = -1;
-    private boolean firstBatchReadyForFetch = false;
-    private final AtomicInteger batchesReduced = new AtomicInteger(0);
 
     /**
      * Creates a streaming query phase result consumer.
@@ -71,80 +47,20 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
             expectedResultSize,
             onPartialMergeFailure
         );
-
-        // Initialize scoring mode from request
-        String mode = request.getStreamingSearchMode();
-        this.scoringMode = (mode != null) ? StreamingSearchMode.fromString(mode) : StreamingSearchMode.SCORED_SORTED;
     }
 
     /**
-     * Controls partial reduction frequency based on scoring mode.
+     * Controls partial reduction frequency.
+     * With NO_SCORING streaming, we reduce immediately for fastest TTFB.
      *
      * @param requestBatchedReduceSize request batch size
      * @param minBatchReduceSize       minimum batch size
      */
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
-        // Handle null during construction (parent constructor calls this before our
-        // constructor body runs)
-        if (scoringMode == null) {
-            return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
-        }
-
-        switch (scoringMode) {
-            case NO_SCORING:
-                // Reduce immediately for fastest TTFB
-                return Math.min(requestBatchedReduceSize, 1);
-            case SCORED_UNSORTED:
-                // Small batches for quick emission without sorting overhead
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 2);
-            case SCORED_SORTED:
-                // Higher batch size to collect more results before reducing (sorting is
-                // expensive)
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
-            default:
-                return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
-        }
-    }
-
-    /**
-     * Consume streaming results with frequency-based emission
-     */
-
-    @Override
-    public void consumeResult(SearchPhaseResult result, Runnable next) {
-        // Handle partial results (shard progress updates)
-        if (result.queryResult() != null && result.queryResult().isPartial()) {
-            // Coordinated snapshot: merge this partial result with current final results
-            // for immediate emission without saving the partial result in the reducer state.
-            QuerySearchResult queryResult = result.queryResult();
-            pendingReduces.notifySnapshot(queryResult);
-
-            // Continue the pipeline
-            next.run();
-            return;
-        }
-
-        // Handle final shard results
-        super.consumeResult(result, () -> {
-            // Once a final result is added to the reducer (via super.consumeResult),
-            // trigger a snapshot emission to show the new global state immediately.
-            pendingReduces.notifySnapshot(null);
-            next.run();
-        });
-    }
-
-    /**
-     * Get TTFB metrics for benchmarking
-     */
-    public long getTimeToFirstBatch() {
-        if (firstBatchReadyForFetchTime > 0) {
-            return firstBatchReadyForFetchTime - queryStartTime;
-        }
-        return -1;
-    }
-
-    public boolean isFirstBatchReady() {
-        return firstBatchReadyForFetch;
+        // Reduce immediately for fastest TTFB
+        return Math.min(requestBatchedReduceSize, 1);
     }
 }
+
+

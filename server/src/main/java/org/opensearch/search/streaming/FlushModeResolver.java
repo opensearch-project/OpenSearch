@@ -17,6 +17,8 @@ import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
+import org.opensearch.search.internal.SearchContext;
 
 import java.util.Collection;
 
@@ -27,7 +29,7 @@ import java.util.Collection;
  * <p>
  * Performs cost-benefit analysis by examining all collectors in the tree.
  * Streaming is only
- * enabled when all collectors implement {@link Streamable} and the combined
+ * enabled when all collectors implement {@link StreamingCostEstimable} and the combined
  * cost metrics
  * indicate streaming will be beneficial compared to traditional shard-level
  * processing.
@@ -109,13 +111,14 @@ public final class FlushModeResolver {
      *         the default mode
      */
     public static FlushMode resolve(
+        SearchContext context,
         Collector collector,
         FlushMode defaultMode,
         long maxBucketCount,
         double minCardinalityRatio,
         long minBucketCount
     ) {
-        StreamingCostMetrics metrics = collectMetrics(collector);
+        StreamingCostMetrics metrics = collectMetrics(context, collector);
         FlushMode decision = decideFlushMode(metrics, defaultMode, maxBucketCount, minCardinalityRatio, minBucketCount);
         return decision;
 
@@ -128,8 +131,8 @@ public final class FlushModeResolver {
      * @return combined metrics if all collectors support streaming, nonStreamable
      *         otherwise
      */
-    private static StreamingCostMetrics collectMetrics(Collector collector) {
-        if (!(collector instanceof Streamable
+    private static StreamingCostMetrics collectMetrics(SearchContext context, Collector collector) {
+        if (!(collector instanceof StreamingCostEstimable
             || collector instanceof MultiBucketCollector
             || collector instanceof MultiCollector
             || collector instanceof ProfilingAggregator
@@ -138,17 +141,17 @@ public final class FlushModeResolver {
         }
 
         StreamingCostMetrics nodeMetrics = null;
-        if (collector instanceof Streamable) {
-            nodeMetrics = ((Streamable) collector).getStreamingCostMetrics();
-            if (!nodeMetrics.isStreamable()) {
+        if (collector instanceof StreamingCostEstimable streamable) {
+            nodeMetrics = streamable.estimateStreamingCost(context);
+            if (!nodeMetrics.streamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
         }
 
         StreamingCostMetrics childMetrics = null;
         for (Collector child : getChildren(collector)) {
-            StreamingCostMetrics childResult = collectMetrics(child);
-            if (!childResult.isStreamable()) {
+            StreamingCostMetrics childResult = collectMetrics(context, child);
+            if (!childResult.streamable()) {
                 return StreamingCostMetrics.nonStreamable();
             }
             childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);

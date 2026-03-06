@@ -25,7 +25,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestCancellableNodeClient;
-import org.opensearch.rest.action.StreamingTerminalChannelReleasingListener;
+import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -59,44 +59,8 @@ public class RestSearchActionStreamingChannelTests extends OpenSearchTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    public void testStreamingTerminalChannelReleasingListenerCreation() {
-        RestCancellableNodeClient mockClient = mock(RestCancellableNodeClient.class);
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
-        FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
-        @SuppressWarnings("unchecked")
-        ActionListener<SearchResponse> mockDelegate = mock(ActionListener.class);
-
-        StreamingTerminalChannelReleasingListener<SearchResponse> listener = new StreamingTerminalChannelReleasingListener<>(
-            mockClient,
-            channel,
-            mockDelegate
-        );
-
-        assertNotNull(listener);
-        assertEquals(channel, listener.getChannel());
-        assertFalse(listener.isFinished());
-    }
-
-    public void testStreamingListenerBasicFunctionality() {
-        RestCancellableNodeClient mockClient = mock(RestCancellableNodeClient.class);
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
-        FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
-        @SuppressWarnings("unchecked")
-        ActionListener<SearchResponse> mockDelegate = mock(ActionListener.class);
-        SearchResponse mockResponse = mock(SearchResponse.class);
-
-        StreamingTerminalChannelReleasingListener<SearchResponse> listener = new StreamingTerminalChannelReleasingListener<>(
-            mockClient,
-            channel,
-            mockDelegate
-        );
-
-        listener.onResponse(mockResponse);
-        assertTrue(listener.isFinished());
-    }
-
     @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingRequestWiresStreamingTerminalChannelReleasingListener() throws Exception {
+    public void testStreamingRequestWiresRestStatusToXContentListener() throws Exception {
         ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -152,7 +116,7 @@ public class RestSearchActionStreamingChannelTests extends OpenSearchTestCase {
 
             assertThat(capturedAction.get(), equalTo(StreamSearchAction.INSTANCE));
             assertNotNull(capturedListener.get());
-            assertThat(capturedListener.get(), instanceOf(StreamingTerminalChannelReleasingListener.class));
+            assertThat(capturedListener.get(), instanceOf(RestStatusToXContentListener.class));
         }
     }
 

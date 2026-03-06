@@ -65,16 +65,21 @@ public enum StreamingSearchMode {
      */
     public static StreamingSearchMode fromString(String mode) {
         if (mode == null) {
-            return SCORED_UNSORTED; // Default
+            return NO_SCORING; // Default
         }
 
-        for (StreamingSearchMode m : values()) {
+        // Backward compatibility: coerce older scored modes into NO_SCORING
+        if ("SCORED_UNSORTED".equalsIgnoreCase(mode) || "SCORED_SORTED".equalsIgnoreCase(mode) || "NO_SCORING".equalsIgnoreCase(mode)) {
+            return NO_SCORING;
+        }
+
+        for (StreamingSearchMode m : StreamingSearchMode.values()) {
             if (m.name().equalsIgnoreCase(mode) || m.value.equalsIgnoreCase(mode)) {
                 return m;
             }
         }
-
-        throw new IllegalArgumentException("Unknown streaming search mode: " + mode);
+        
+        throw new IllegalArgumentException("Unknown StreamingSearchMode: " + mode);
     }
 
     /**
@@ -90,7 +95,7 @@ public enum StreamingSearchMode {
      * @return true if sorting is required, false otherwise
      */
     public boolean requiresSorting() {
-        return this == SCORED_SORTED;
+        return false; // No sorting is supported in the current mode
     }
 
     // Confidence-based mode removed in this branch

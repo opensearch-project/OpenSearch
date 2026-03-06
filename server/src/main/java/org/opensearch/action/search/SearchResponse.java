@@ -91,11 +91,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField TIMED_OUT = new ParseField("timed_out");
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
-    
-    // Streaming REST fields
-    private static final ParseField IS_PARTIAL = new ParseField("is_partial");
-    private static final ParseField SEQUENCE_NUMBER = new ParseField("sequence_number");
-    private static final ParseField TOTAL_PARTIALS = new ParseField("total_partials");
 
     private final SearchResponseSections internalResponse;
     private final String scrollId;
@@ -107,11 +102,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private final Clusters clusters;
     private final long tookInMillis;
     private final PhaseTook phaseTook;
-
-    // Fields for streaming responses
-    private boolean isPartial = false;
-    private int sequenceNumber = 0;
-    private int totalPartials = 0;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -137,12 +127,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         skippedShards = in.readVInt();
         pointInTimeId = in.readOptionalString();
-        // Read streaming fields
-        if (in.getVersion().onOrAfter(Version.V_2_15_0)) {
-            isPartial = in.readBoolean();
-            sequenceNumber = in.readVInt();
-            totalPartials = in.readVInt();
-        }
     }
 
     public SearchResponse(
@@ -318,31 +302,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         return scrollId;
     }
 
-    // Streaming response methods
-    public boolean isPartial() {
-        return isPartial;
-    }
-
-    public void setPartial(boolean partial) {
-        this.isPartial = partial;
-    }
-
-    public int getSequenceNumber() {
-        return sequenceNumber;
-    }
-
-    public void setSequenceNumber(int sequenceNumber) {
-        this.sequenceNumber = sequenceNumber;
-    }
-
-    public int getTotalPartials() {
-        return totalPartials;
-    }
-
-    public void setTotalPartials(int totalPartials) {
-        this.totalPartials = totalPartials;
-    }
-
     /**
      * Returns the encoded string of the search context that the search request is used to executed
      */
@@ -397,16 +356,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
         }
         
-        // Write streaming fields if it's a streaming partial
-        // or if we have sequenced streaming responses
-        if (isPartial) {
-            builder.field(IS_PARTIAL.getPreferredName(), isPartial);
-            builder.field(SEQUENCE_NUMBER.getPreferredName(), sequenceNumber);
-            if (totalPartials > 0) {
-                builder.field(TOTAL_PARTIALS.getPreferredName(), totalPartials);
-            }
-        }
-        
         RestActions.buildBroadcastShardsHeader(
             builder,
             params,
@@ -445,9 +394,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         int skippedShards = 0; // 0 for BWC
         String scrollId = null;
         String searchContextId = null;
-        boolean isPartial = false;
-        int sequenceNumber = 0;
-        int totalPartials = 0;
         List<ShardSearchFailure> failures = new ArrayList<>();
         Clusters clusters = Clusters.EMPTY;
         List<SearchExtBuilder> extBuilders = new ArrayList<>();
@@ -468,12 +414,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     terminatedEarly = parser.booleanValue();
                 } else if (NUM_REDUCE_PHASES.match(currentFieldName, parser.getDeprecationHandler())) {
                     numReducePhases = parser.intValue();
-                } else if (IS_PARTIAL.match(currentFieldName, parser.getDeprecationHandler())) {
-                    isPartial = parser.booleanValue();
-                } else if (SEQUENCE_NUMBER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    sequenceNumber = parser.intValue();
-                } else if (TOTAL_PARTIALS.match(currentFieldName, parser.getDeprecationHandler())) {
-                    totalPartials = parser.intValue();
                 } else {
                     parser.skipChildren();
                 }
@@ -614,22 +554,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             clusters,
             searchContextId
         );
-        SearchResponse response = new SearchResponse(
-            internalResponse,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            phaseTook,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId
-        );
-        response.setPartial(isPartial);
-        response.setSequenceNumber(sequenceNumber);
-        response.setTotalPartials(totalPartials);
-        return response;
     }
 
     @Override
@@ -650,13 +574,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         out.writeVInt(skippedShards);
         out.writeOptionalString(pointInTimeId);
-        
-        // Write streaming fields
-        if (out.getVersion().onOrAfter(Version.V_2_15_0)) {
-            out.writeBoolean(isPartial);
-            out.writeVInt(sequenceNumber);
-            out.writeVInt(totalPartials);
-        }
     }
 
     @Override

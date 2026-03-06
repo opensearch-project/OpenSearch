@@ -31,6 +31,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +47,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamStringTermsAggregator.class);
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
@@ -454,12 +456,49 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
         add.accept("total_buckets", valueCount);
 
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
         boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
         add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
         add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
         add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
         add.accept("streaming_segment_count", metrics.segmentCount());
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext context) {
+        try {
+            int topNSize = segmentTopN;
+
+            // String terms supports streaming if we have ordinals
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+
+            // Calculate metrics (simplified for now to match StreamNumericTermsAggregator
+            // pattern essentially)
+            // But we need total bucket count from ordinals
+            ValuesSource.Bytes.WithOrdinals ordinalValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long maxCardinality = 0;
+            long totalDocsWithField = 0;
+
+            for (LeafReaderContext leaf : leaves) {
+                SortedSetDocValues docValues = ordinalValuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                    totalDocsWithField += docValues.cost(); // Approximation
+                }
+            }
+
+            return new StreamingCostMetrics(true, topNSize, maxCardinality, leaves.size(), totalDocsWithField);
+        } catch (IOException e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
+    }
+
+    @Override
+    public void doClose() {
+        Releasables.close(resultStrategy);
     }
 }

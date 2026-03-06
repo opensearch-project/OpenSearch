@@ -16,6 +16,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.StreamingCostMetrics;
+import org.opensearch.search.streaming.StreamingCostEstimable;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +27,7 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public class StreamCardinalityAggregator extends CardinalityAggregator {
+public class StreamCardinalityAggregator extends CardinalityAggregator implements StreamingCostEstimable {
 
     private Collector streamCollector;
 
@@ -127,7 +128,7 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("total_buckets", 1);
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
         boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
         add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_precision", precision);
@@ -138,7 +139,7 @@ public class StreamCardinalityAggregator extends CardinalityAggregator {
     }
 
     @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         try {
             // For cardinality, we don't have a fixed topN size like terms aggregations
             // Instead, we use the precision parameter to estimate memory requirements

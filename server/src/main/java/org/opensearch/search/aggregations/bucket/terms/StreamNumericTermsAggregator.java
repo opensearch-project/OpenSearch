@@ -33,6 +33,7 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.StreamingCostMetrics;
+import org.opensearch.search.streaming.StreamingCostEstimable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
-public class StreamNumericTermsAggregator extends TermsAggregator {
+public class StreamNumericTermsAggregator extends TermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
@@ -733,7 +734,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
 
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
         boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
         add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
@@ -745,5 +746,36 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     @Override
     public void doClose() {
         Releasables.close(super::doClose, bucketOrds, resultStrategy);
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        try {
+            // For numeric terms, we can try to estimate if we have a way to know
+            // cardinality.
+            // But often numeric values are high cardinality.
+            // For now, we assume it is streamable if it is being used.
+
+            // We can check doc count at least.
+            java.util.List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long totalDocs = 0;
+            for (LeafReaderContext leaf : leaves) {
+                totalDocs += leaf.reader().numDocs();
+            }
+
+            // We don't have an easy way to get cardinality for numeric values without
+            // iterating.
+            // We'll estimate bucket count as 0 (unknown) or a high number?
+            // Since we use this validator to *reject* low selectivity/high cardinality if
+            // configured...
+            // but here we want to enablement.
+            // Let's return a basic streamable metric.
+            // TopN is segmentTopN.
+
+            return new StreamingCostMetrics(true, segmentTopN, 0, leaves.size(), totalDocs);
+
+        } catch (Exception e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
     }
 }

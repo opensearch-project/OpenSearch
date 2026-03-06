@@ -96,7 +96,14 @@ public final class AggregatorTreeEvaluator {
 
         double minCardinalityRatio = searchContext.getStreamingMinCardinalityRatio();
         long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
-        FlushMode mode = FlushModeResolver.resolve(collector, FlushMode.PER_SHARD, maxBucketCount, minCardinalityRatio, minBucketCount);
+        FlushMode mode = FlushModeResolver.resolve(
+            searchContext,
+            collector,
+            FlushMode.PER_SHARD,
+            maxBucketCount,
+            minCardinalityRatio,
+            minBucketCount
+        );
 
         if (!searchContext.setFlushModeIfAbsent(mode)) {
             // this could happen in case of race condition, we go ahead with what's been set
