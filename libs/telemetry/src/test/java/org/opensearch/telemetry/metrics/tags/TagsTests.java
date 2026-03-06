@@ -21,10 +21,6 @@ public class TagsTests extends OpenSearchTestCase {
         assertEquals(0, Tags.EMPTY.size());
     }
 
-    public void testEmptyToMapReturnsEmptyMap() {
-        assertTrue(Tags.EMPTY.toMap().isEmpty());
-    }
-
     public void testEmptyGetTagsMapReturnsEmptyMap() {
         assertTrue(Tags.EMPTY.getTagsMap().isEmpty());
     }
@@ -71,18 +67,18 @@ public class TagsTests extends OpenSearchTestCase {
         assertEquals("c", t.getKey(2));
     }
 
-    // --- of(varargs) ---
+    // --- ofStringPairs(varargs) ---
 
-    public void testOfVarargsEmpty() {
-        assertSame(Tags.EMPTY, Tags.of(new String[0]));
+    public void testOfStringPairsEmpty() {
+        assertSame(Tags.EMPTY, Tags.ofStringPairs(new String[0]));
     }
 
-    public void testOfVarargsOddLengthThrows() {
-        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "b", "c"));
+    public void testOfStringPairsOddLengthThrows() {
+        expectThrows(IllegalArgumentException.class, () -> Tags.ofStringPairs("a", "b", "c"));
     }
 
-    public void testOfVarargsSorted() {
-        Tags t = Tags.of("z", "1", "a", "2", "m", "3");
+    public void testOfStringPairsSorted() {
+        Tags t = Tags.ofStringPairs("z", "1", "a", "2", "m", "3");
         assertEquals(3, t.size());
         assertEquals("a", t.getKey(0));
         assertEquals("m", t.getKey(1));
@@ -211,21 +207,6 @@ public class TagsTests extends OpenSearchTestCase {
         Map<String, String> map = new HashMap<>();
         map.put("k", null);
         expectThrows(NullPointerException.class, () -> Tags.fromMap(map));
-    }
-
-    // --- toMap ---
-
-    public void testToMapConvertsValuesToStrings() {
-        Tags t = Tags.of("k", (Object) 42L);
-        Map<String, String> map = t.toMap();
-        assertEquals("42", map.get("k"));
-    }
-
-    public void testToMapWithStringValues() {
-        Tags t = Tags.of("a", "1", "b", "2");
-        Map<String, String> map = t.toMap();
-        assertEquals("1", map.get("a"));
-        assertEquals("2", map.get("b"));
     }
 
     // --- getTagsMap ---

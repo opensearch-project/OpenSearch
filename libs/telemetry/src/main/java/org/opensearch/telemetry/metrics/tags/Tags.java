@@ -11,8 +11,6 @@ package org.opensearch.telemetry.metrics.tags;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -134,11 +132,11 @@ public final class Tags {
     }
 
     /**
-     * Creates Tags from interleaved key-value pairs; must be even length.
+     * Creates Tags from interleaved String key-value pairs; must be even length.
      * @param keyValues alternating keys and values
      * @return new Tags instance
      */
-    public static Tags of(String... keyValues) {
+    public static Tags ofStringPairs(String... keyValues) {
         if (keyValues == null || keyValues.length == 0) return EMPTY;
         if (keyValues.length % 2 != 0) {
             throw new IllegalArgumentException("keyValues must be even length, got " + keyValues.length);
@@ -210,7 +208,7 @@ public final class Tags {
      * @param map key-value pairs
      * @return new Tags instance
      */
-    public static Tags fromMap(Map<String, String> map) {
+    public static Tags fromMap(Map<String, ?> map) {
         if (map == null || map.isEmpty()) return EMPTY;
         String[] keys = map.keySet().toArray(new String[0]);
         Arrays.sort(keys);
@@ -252,25 +250,17 @@ public final class Tags {
     }
 
     /**
-     * Converts to a String-valued map. Intended for flush-time, not the hot path.
+     * Returns an unmodifiable map preserving original value types.
+     * @return unmodifiable map of tags
      */
-    public Map<String, String> toMap() {
-        if (keys.length == 0) return Collections.emptyMap();
-        Map<String, String> map = new HashMap<>(keys.length);
-        for (int i = 0; i < keys.length; i++) {
-            map.put(keys[i], String.valueOf(values[i]));
-        }
-        return map;
-    }
-
-    /** Returns an unmodifiable map preserving original value types. */
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public Map<String, ?> getTagsMap() {
-        if (keys.length == 0) return Collections.emptyMap();
-        Map<String, Object> map = new HashMap<>(keys.length);
+        if (keys.length == 0) return Map.of();
+        Map.Entry<String, ?>[] entries = new Map.Entry[keys.length];
         for (int i = 0; i < keys.length; i++) {
-            map.put(keys[i], values[i]);
+            entries[i] = Map.entry(keys[i], values[i]);
         }
-        return Collections.unmodifiableMap(map);
+        return Map.ofEntries(entries);
     }
 
     // -----------------------------------------------------------------------
@@ -287,12 +277,7 @@ public final class Tags {
         if (this == o) return true;
         if (!(o instanceof Tags that)) return false;
         if (this.hashCode != that.hashCode) return false;
-        if (this.keys.length != that.keys.length) return false;
-        for (int i = 0; i < keys.length; i++) {
-            if (!keys[i].equals(that.keys[i])) return false;
-            if (!values[i].equals(that.values[i])) return false;
-        }
-        return true;
+        return Arrays.equals(keys, that.keys) && Arrays.equals(values, that.values);
     }
 
     @Override
