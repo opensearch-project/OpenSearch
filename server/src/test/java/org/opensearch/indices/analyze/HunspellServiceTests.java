@@ -106,7 +106,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         assertEquals("Failed to load hunspell dictionary for locale: en_US", e.getMessage());
         assertNull(e.getCause());
     }
-    
+
     // ========== REF_PATH (Package-based Dictionary) TESTS ==========
 
     public void testGetDictionaryFromPackage() throws Exception {
@@ -137,9 +137,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         java.nio.file.Files.createDirectories(packageDir);
         createHunspellFiles(packageDir, "en_US");
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
 
         Environment environment = new Environment(settings, tempDir.resolve("config"));
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
@@ -158,7 +156,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
 
     public void testMultiplePackagesCaching() throws Exception {
         Path tempDir = createTempDir();
-        
+
         // Create two different packages
         Path pkg1Dir = tempDir.resolve("config").resolve("packages").resolve("pkg-1234").resolve("hunspell").resolve("en_US");
         Path pkg2Dir = tempDir.resolve("config").resolve("packages").resolve("pkg-5678").resolve("hunspell").resolve("en_US");
@@ -167,9 +165,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         createHunspellFiles(pkg1Dir, "en_US");
         createHunspellFiles(pkg2Dir, "en_US");
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
 
         Environment environment = new Environment(settings, tempDir.resolve("config"));
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
@@ -194,9 +190,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         java.nio.file.Files.createDirectories(packageDir);
         createHunspellFiles(packageDir, "en_US");
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
 
         Environment environment = new Environment(settings, tempDir.resolve("config"));
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
@@ -231,9 +225,7 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         Path tempDir = createTempDir();
         // Don't create the package directory - it doesn't exist
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
 
         Environment environment = new Environment(settings, tempDir.resolve("config"));
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
@@ -246,27 +238,25 @@ public class HunspellServiceTests extends OpenSearchTestCase {
 
     public void testMixedCacheKeysTraditionalAndPackage() throws Exception {
         Path tempDir = createTempDir();
-        
+
         // Create traditional hunspell directory
         Path traditionalDir = tempDir.resolve("config").resolve("hunspell").resolve("en_US");
         java.nio.file.Files.createDirectories(traditionalDir);
         createHunspellFiles(traditionalDir, "en_US");
-        
+
         // Create package directory
         Path packageDir = tempDir.resolve("config").resolve("packages").resolve("pkg-1234").resolve("hunspell").resolve("en_US");
         java.nio.file.Files.createDirectories(packageDir);
         createHunspellFiles(packageDir, "en_US");
 
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
 
         Environment environment = new Environment(settings, tempDir.resolve("config"));
         HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
 
         // Load traditional dictionary
         Dictionary traditionalDict = hunspellService.getDictionary("en_US");
-        // Load package-based dictionary  
+        // Load package-based dictionary
         Dictionary packageDict = hunspellService.getDictionaryFromPackage("pkg-1234", "en_US");
 
         assertThat(traditionalDict, notNullValue());
@@ -282,19 +272,10 @@ public class HunspellServiceTests extends OpenSearchTestCase {
     private void createHunspellFiles(Path directory, String locale) throws java.io.IOException {
         // Create .aff file
         Path affFile = directory.resolve(locale + ".aff");
-        java.nio.file.Files.write(affFile, java.util.Arrays.asList(
-            "SET UTF-8",
-            "SFX S Y 1",
-            "SFX S 0 s ."
-        ));
+        java.nio.file.Files.write(affFile, java.util.Arrays.asList("SET UTF-8", "SFX S Y 1", "SFX S 0 s ."));
 
         // Create .dic file
         Path dicFile = directory.resolve(locale + ".dic");
-        java.nio.file.Files.write(dicFile, java.util.Arrays.asList(
-            "3",
-            "test/S",
-            "word/S",
-            "hello"
-        ));
-    }    
+        java.nio.file.Files.write(dicFile, java.util.Arrays.asList("3", "test/S", "word/S", "hello"));
+    }
 }

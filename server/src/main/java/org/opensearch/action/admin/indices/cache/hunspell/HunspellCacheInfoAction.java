@@ -12,7 +12,7 @@ import org.opensearch.action.ActionType;
 
 /**
  * Action for retrieving Hunspell cache information.
- * 
+ *
  * <p>This action requires "cluster:monitor/hunspell/cache" permission when security is enabled.
  *
  * @opensearch.internal

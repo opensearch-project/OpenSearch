@@ -337,6 +337,7 @@ import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -423,6 +424,7 @@ import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.opensearch.rest.action.admin.indices.RestGetIngestionStateAction;
 import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
+import org.opensearch.rest.action.admin.indices.RestHunspellCacheInvalidateAction;
 import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
@@ -446,7 +448,6 @@ import org.opensearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.opensearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.opensearch.rest.action.admin.indices.RestHunspellCacheInvalidateAction;
 import org.opensearch.rest.action.admin.indices.RestUpgradeAction;
 import org.opensearch.rest.action.admin.indices.RestUpgradeStatusAction;
 import org.opensearch.rest.action.admin.indices.RestValidateQueryAction;
@@ -492,7 +493,6 @@ import org.opensearch.rest.action.list.AbstractListAction;
 import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.rest.action.list.RestListAction;
 import org.opensearch.rest.action.list.RestShardsListAction;
-import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.rest.action.search.RestClearScrollAction;
 import org.opensearch.rest.action.search.RestCountAction;
 import org.opensearch.rest.action.search.RestCreatePitAction;
@@ -1124,7 +1124,7 @@ public class ActionModule extends AbstractModule {
         bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
 
         bind(ResponseLimitSettings.class).toInstance(responseLimitSettings);
-        
+
         // Bind HunspellService for TransportHunspellCacheInvalidateAction injection
         if (hunspellService != null) {
             bind(HunspellService.class).toInstance(hunspellService);

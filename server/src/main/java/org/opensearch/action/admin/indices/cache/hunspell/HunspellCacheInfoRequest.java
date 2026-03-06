@@ -22,8 +22,7 @@ import java.io.IOException;
  */
 public class HunspellCacheInfoRequest extends ActionRequest {
 
-    public HunspellCacheInfoRequest() {
-    }
+    public HunspellCacheInfoRequest() {}
 
     public HunspellCacheInfoRequest(StreamInput in) throws IOException {
         super(in);

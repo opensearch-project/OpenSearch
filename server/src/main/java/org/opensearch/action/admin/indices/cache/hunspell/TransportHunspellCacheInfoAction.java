@@ -21,7 +21,7 @@ import java.util.Set;
 
 /**
  * Transport action for retrieving Hunspell cache information.
- * 
+ *
  * <p>Requires "cluster:monitor/hunspell/cache" permission when security is enabled.
  *
  * @opensearch.internal
@@ -44,10 +44,10 @@ public class TransportHunspellCacheInfoAction extends HandledTransportAction<Hun
     protected void doExecute(Task task, HunspellCacheInfoRequest request, ActionListener<HunspellCacheInfoResponse> listener) {
         try {
             Set<String> cachedKeys = hunspellService.getCachedDictionaryKeys();
-            
+
             Set<String> packageKeys = new HashSet<>();
             Set<String> localeKeys = new HashSet<>();
-            
+
             for (String key : cachedKeys) {
                 if (HunspellService.isPackageCacheKey(key)) {
                     packageKeys.add(key);
@@ -55,7 +55,7 @@ public class TransportHunspellCacheInfoAction extends HandledTransportAction<Hun
                     localeKeys.add(key);
                 }
             }
-            
+
             HunspellCacheInfoResponse response = new HunspellCacheInfoResponse(
                 cachedKeys.size(),
                 packageKeys.size(),
@@ -63,7 +63,7 @@ public class TransportHunspellCacheInfoAction extends HandledTransportAction<Hun
                 packageKeys,
                 localeKeys
             );
-            
+
             listener.onResponse(response);
         } catch (Exception e) {
             listener.onFailure(e);

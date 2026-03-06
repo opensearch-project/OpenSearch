@@ -18,7 +18,7 @@ import java.io.IOException;
 
 /**
  * Request for Hunspell cache invalidation.
- * 
+ *
  * <p>Supports three modes:
  * <ul>
  *   <li>Invalidate by package_id (clears all locales for a package)</li>
@@ -36,8 +36,7 @@ public class HunspellCacheInvalidateRequest extends ActionRequest {
     private String cacheKey;
     private boolean invalidateAll;
 
-    public HunspellCacheInvalidateRequest() {
-    }
+    public HunspellCacheInvalidateRequest() {}
 
     public HunspellCacheInvalidateRequest(StreamInput in) throws IOException {
         super(in);
@@ -59,7 +58,7 @@ public class HunspellCacheInvalidateRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = null;
-        
+
         // Reject empty/blank strings with clear error messages
         if (packageId != null && !Strings.hasText(packageId)) {
             e = new ActionRequestValidationException();
@@ -73,18 +72,18 @@ public class HunspellCacheInvalidateRequest extends ActionRequest {
             if (e == null) e = new ActionRequestValidationException();
             e.addValidationError("'cache_key' cannot be empty or blank");
         }
-        
+
         // If any blank validation errors, return early
         if (e != null) {
             return e;
         }
-        
+
         // Count how many modes are specified
         int modeCount = 0;
         if (invalidateAll) modeCount++;
         if (packageId != null) modeCount++;
         if (cacheKey != null) modeCount++;
-        
+
         if (modeCount == 0) {
             e = new ActionRequestValidationException();
             e.addValidationError("Either 'package_id', 'cache_key', or 'invalidate_all' must be specified");
@@ -96,13 +95,13 @@ public class HunspellCacheInvalidateRequest extends ActionRequest {
                 e.addValidationError("Only one of 'package_id' or 'cache_key' can be specified, not both");
             }
         }
-        
+
         // locale is only valid with package_id
         if (locale != null && packageId == null) {
             if (e == null) e = new ActionRequestValidationException();
             e.addValidationError("'locale' can only be specified together with 'package_id'");
         }
-        
+
         return e;
     }
 

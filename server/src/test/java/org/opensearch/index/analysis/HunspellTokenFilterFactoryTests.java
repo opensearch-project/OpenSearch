@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
-    
+
     public void testDedup() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -125,8 +125,8 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"))
         );
-        assertThat(e.getMessage(), containsString("ref_path should contain only the package ID"));
-        assertThat(e.getMessage(), containsString("not a full path"));
+        assertThat(e.getMessage(), containsString("Path separators"));
+        assertThat(e.getMessage(), containsString("are not allowed"));
     }
 
     /**
@@ -184,7 +184,7 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
-        
+
         // When updateable=true, analysis mode should be SEARCH_TIME to enable hot-reload
         assertThat(hunspellTokenFilter.getAnalysisMode(), is(AnalysisMode.SEARCH_TIME));
     }
@@ -205,7 +205,7 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
-        
+
         // Without updateable, analysis mode should be ALL
         assertThat(hunspellTokenFilter.getAnalysisMode(), is(AnalysisMode.ALL));
     }
@@ -227,7 +227,7 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
         HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
-        
+
         assertThat(hunspellTokenFilter.dedup(), is(false));
         assertThat(hunspellTokenFilter.longestOnly(), is(true));
     }

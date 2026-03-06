@@ -42,14 +42,14 @@ import java.util.Locale;
 
 /**
  * The token filter factory for the hunspell analyzer
- * 
+ *
  * Supports hot-reload when used with {@code updateable: true} setting.
  * The dictionary is loaded from either:
  * <ul>
  *   <li>A ref_path (package ID, e.g., "pkg-1234") combined with locale for package-based dictionaries</li>
  *   <li>A locale (e.g., "en_US") for traditional hunspell dictionaries from config/hunspell/</li>
  * </ul>
- * 
+ *
  * <h2>Usage Examples:</h2>
  * <pre>
  * // Traditional locale-based (loads from config/hunspell/en_US/)
@@ -57,7 +57,7 @@ import java.util.Locale;
  *   "type": "hunspell",
  *   "locale": "en_US"
  * }
- * 
+ *
  * // Package-based (loads from config/packages/pkg-1234/hunspell/en_US/)
  * {
  *   "type": "hunspell",
@@ -85,26 +85,22 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         // Get both ref_path and locale parameters
         String refPath = settings.get("ref_path");  // Package ID only (optional)
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
-        
+
         if (refPath != null) {
             // Package-based loading: ref_path (package ID) + locale (required)
             if (locale == null) {
-                throw new IllegalArgumentException(
-                    "When using ref_path, the 'locale' parameter is required for hunspell token filter"
-                );
+                throw new IllegalArgumentException("When using ref_path, the 'locale' parameter is required for hunspell token filter");
             }
-            
+
             // Validate ref_path and locale are safe package/locale identifiers
             validatePackageIdentifier(refPath, "ref_path");
             validatePackageIdentifier(locale, "locale");
-            
+
             // Load from package directory: config/packages/{ref_path}/hunspell/{locale}/
             dictionary = hunspellService.getDictionaryFromPackage(refPath, locale);
             if (dictionary == null) {
                 throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, 
-                        "Could not find hunspell dictionary for locale [%s] in package [%s]", 
-                        locale, refPath)
+                    String.format(Locale.ROOT, "Could not find hunspell dictionary for locale [%s] in package [%s]", locale, refPath)
                 );
             }
         } else if (locale != null) {
@@ -114,14 +110,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             validatePackageIdentifier(locale, "locale");
             dictionary = hunspellService.getDictionary(locale);
             if (dictionary == null) {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale)
-                );
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
             }
         } else {
-            throw new IllegalArgumentException(
-                "missing [locale | language | lang] configuration for hunspell token filter"
-            );
+            throw new IllegalArgumentException("missing [locale | language | lang] configuration for hunspell token filter");
         }
 
         dedup = settings.getAsBoolean("dedup", true);
@@ -142,7 +134,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     public AnalysisMode getAnalysisMode() {
         return this.analysisMode;
     }
-    
+
     public boolean dedup() {
         return dedup;
     }
@@ -154,7 +146,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     /**
      * Validates that a package identifier or locale is safe and doesn't contain
      * path traversal sequences, separators, or other dangerous characters.
-     * 
+     *
      * @param value The value to validate (package ID or locale)
      * @param paramName The parameter name for error messages
      * @throws IllegalArgumentException if validation fails
@@ -163,44 +155,50 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         if (value == null || value.isEmpty()) {
             return; // Null/empty handled elsewhere
         }
-        
+
         // Reject path traversal attempts
-        if (value.equals(".") || value.equals("..") || 
-            value.contains("./") || value.contains("../") ||
-            value.contains("\\.") || value.contains("\\..") ||
-            value.startsWith(".") || value.endsWith(".")) {
+        if (value.equals(".")
+            || value.equals("..")
+            || value.contains("./")
+            || value.contains("../")
+            || value.contains("\\.")
+            || value.contains("\\..")
+            || value.startsWith(".")
+            || value.endsWith(".")) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, 
-                    "Invalid %s: [%s]. Path traversal sequences (., ..) are not allowed.", 
-                    paramName, value)
+                String.format(Locale.ROOT, "Invalid %s: [%s]. Path traversal sequences (., ..) are not allowed.", paramName, value)
             );
         }
-        
+
         // Reject any path separators (Unix and Windows)
         if (value.contains("/") || value.contains("\\")) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, 
-                    "Invalid %s: [%s]. Path separators (/, \\) are not allowed. " +
-                    "Use ref_path for package ID and locale for dictionary locale.", 
-                    paramName, value)
+                String.format(
+                    Locale.ROOT,
+                    "Invalid %s: [%s]. Path separators (/, \\) are not allowed. "
+                        + "Use ref_path for package ID and locale for dictionary locale.",
+                    paramName,
+                    value
+                )
             );
         }
-        
+
         // Reject cache key separator to prevent cache key injection
         if (value.contains(":")) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, 
-                    "Invalid %s: [%s]. Colon (:) is not allowed as it is used as cache key separator.", 
-                    paramName, value)
+                String.format(
+                    Locale.ROOT,
+                    "Invalid %s: [%s]. Colon (:) is not allowed as it is used as cache key separator.",
+                    paramName,
+                    value
+                )
             );
         }
-        
+
         // Reject null bytes (security)
         if (value.contains("\0")) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT, 
-                    "Invalid %s: [%s]. Null bytes are not allowed.", 
-                    paramName, value)
+                String.format(Locale.ROOT, "Invalid %s: [%s]. Null bytes are not allowed.", paramName, value)
             );
         }
     }

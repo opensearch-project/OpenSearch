@@ -205,7 +205,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
         assertThat(json, containsString("\"cache_key\":\"pkg-abc:fr_FR\""));
     }
 
-    public void testResponseToXContentOmitsNullValues() throws IOException {
+    public void testResponseToXContentIncludesNullValuesForConsistentSchema() throws IOException {
         HunspellCacheInvalidateResponse response = new HunspellCacheInvalidateResponse(true, 7, null, null, null);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -214,10 +214,10 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
 
         assertThat(json, containsString("\"acknowledged\":true"));
         assertThat(json, containsString("\"invalidated_count\":7"));
-        // Null values should NOT be present in output
-        assertFalse(json.contains("package_id"));
-        assertFalse(json.contains("locale"));
-        assertFalse(json.contains("cache_key"));
+        // Null values should still be present for consistent response schema
+        assertThat(json, containsString("\"package_id\":null"));
+        assertThat(json, containsString("\"locale\":null"));
+        assertThat(json, containsString("\"cache_key\":null"));
     }
 
     // ==================== REST Parameter Parsing Tests ====================
