@@ -814,34 +814,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             logger.warn("No circuit breaker available for streaming search - memory protection disabled");
         }
 
-        StreamingSearchMode mode = searchContext.getStreamingMode();
-        if (mode == null) {
-            throw new IllegalArgumentException("Streaming mode must be set for streaming collectors");
-        }
-
-        switch (mode) {
-            case NO_SCORING:
-                return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
-            case SCORED_UNSORTED:
-                return new StreamingScoredUnsortedCollectorContext(
-                    "streaming_scored_unsorted",
-                    searchContext.size(),
-                    searchContext,
-                    circuitBreaker
-                );
-            case SCORED_SORTED:
-                SortAndFormats sortAndFormats = searchContext.sort();
-                Sort sort = (sortAndFormats != null) ? sortAndFormats.sort : Sort.RELEVANCE;
-                return new StreamingSortedCollectorContext(
-                    "streaming_scored_sorted",
-                    searchContext.size(),
-                    searchContext,
-                    sort,
-                    circuitBreaker
-                );
-            default:
-                throw new IllegalArgumentException("Unknown streaming mode: " + mode);
-        }
+        return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
     }
 
     /**

@@ -33,6 +33,7 @@ import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.StreamingCostMetrics;
+import org.opensearch.search.streaming.StreamingCostEstimable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
-public class StreamNumericTermsAggregator extends TermsAggregator {
+public class StreamNumericTermsAggregator extends TermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
@@ -744,7 +745,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
 
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
         boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
         add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
@@ -759,7 +760,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
         try {
             // For numeric terms, we can try to estimate if we have a way to know
             // cardinality.

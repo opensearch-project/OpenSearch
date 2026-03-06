@@ -41,7 +41,7 @@ public class StreamingCostMetricsTests extends OpenSearchTestCase {
     }
 
     public void testCombineWithSubAggregationOverflow() {
-        StreamingCostMetrics parent = new StreamingCostMetrics(true, Integer.MAX_VALUE);
+        StreamingCostMetrics parent = new StreamingCostMetrics(true, Long.MAX_VALUE);
         StreamingCostMetrics sub = new StreamingCostMetrics(true, 2);
 
         StreamingCostMetrics combined = parent.combineWithSubAggregation(sub);
@@ -60,7 +60,7 @@ public class StreamingCostMetricsTests extends OpenSearchTestCase {
     }
 
     public void testCombineWithSiblingOverflow() {
-        StreamingCostMetrics sibling1 = new StreamingCostMetrics(true, Integer.MAX_VALUE);
+        StreamingCostMetrics sibling1 = new StreamingCostMetrics(true, Long.MAX_VALUE);
         StreamingCostMetrics sibling2 = new StreamingCostMetrics(true, 1);
 
         StreamingCostMetrics combined = sibling1.combineWithSibling(sibling2);

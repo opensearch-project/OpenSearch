@@ -92,7 +92,14 @@ public final class AggregatorTreeEvaluator {
 
         double minCardinalityRatio = searchContext.getStreamingMinCardinalityRatio();
         long minBucketCount = searchContext.getStreamingMinEstimatedBucketCount();
-        FlushMode mode = FlushModeResolver.resolve(collector, FlushMode.PER_SHARD, maxBucketCount, minCardinalityRatio, minBucketCount);
+        FlushMode mode = FlushModeResolver.resolve(
+            searchContext,
+            collector,
+            FlushMode.PER_SHARD,
+            maxBucketCount,
+            minCardinalityRatio,
+            minBucketCount
+        );
 
         searchContext.setFlushMode(mode);
 

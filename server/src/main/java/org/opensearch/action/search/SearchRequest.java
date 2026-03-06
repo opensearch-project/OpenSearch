@@ -129,7 +129,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private Boolean phaseTook = null;
 
     private boolean streamingScoring = false;
-    private String streamingSearchMode = null; // Will use StreamingSearchMode.SCORED_UNSORTED if null
+    private String streamingSearchMode = null; // Will use StreamingSearchMode.NO_SCORING if null
 
     public SearchRequest() {
         this.localClusterAlias = null;

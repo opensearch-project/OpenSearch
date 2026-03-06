@@ -55,7 +55,6 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.rest.action.RestStatusToXContentListener;
-import org.opensearch.rest.action.StreamingTerminalChannelReleasingListener;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -165,11 +164,7 @@ public class RestSearchAction extends BaseRestHandler {
                     }
                     return channel -> {
                         RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
-                        RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
-                        StreamingTerminalChannelReleasingListener<SearchResponse> wrappedListener =
-                            new StreamingTerminalChannelReleasingListener<>(cancelClient, channel, listener);
-                        wrappedListener.setupBackstops();
-                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, wrappedListener);
+                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
                     };
                 } else {
                     logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");

@@ -31,6 +31,7 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.StreamingCostEstimable;
 import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamStringTermsAggregator.class);
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
@@ -494,7 +495,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
         add.accept("total_buckets", valueCount);
 
-        StreamingCostMetrics metrics = getStreamingCostMetrics();
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
         boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
         add.accept("streaming_enabled", metrics.streamable() && enabled);
         add.accept("streaming_top_n_size", metrics.topNSize());
@@ -503,7 +504,8 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("streaming_segment_count", metrics.segmentCount());
     }
 
-    public StreamingCostMetrics getStreamingCostMetrics() {
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext context) {
         try {
             int topNSize = segmentTopN;
 

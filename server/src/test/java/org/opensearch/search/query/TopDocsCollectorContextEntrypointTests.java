@@ -38,38 +38,7 @@ public class TopDocsCollectorContextEntrypointTests extends OpenSearchTestCase {
         assertEquals(10, context.numHits());
     }
 
-    public void testStreamingBranchSelectedForScoredSorted() throws IOException {
-        SearchContext mockSearchContext = mock(SearchContext.class);
-        BigArrays mockBigArrays = mock(BigArrays.class);
 
-        when(mockSearchContext.isStreamingSearch()).thenReturn(true);
-        when(mockSearchContext.getStreamingMode()).thenReturn(StreamingSearchMode.SCORED_SORTED);
-        when(mockSearchContext.size()).thenReturn(10);
-        when(mockSearchContext.bigArrays()).thenReturn(mockBigArrays);
-        when(mockSearchContext.sort()).thenReturn(null);
-
-        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(mockSearchContext, false);
-
-        assertNotNull(context);
-        assertTrue(context instanceof StreamingSortedCollectorContext);
-        assertEquals(10, context.numHits());
-    }
-
-    public void testStreamingBranchSelectedForScoredUnsorted() throws IOException {
-        SearchContext mockSearchContext = mock(SearchContext.class);
-        BigArrays mockBigArrays = mock(BigArrays.class);
-
-        when(mockSearchContext.isStreamingSearch()).thenReturn(true);
-        when(mockSearchContext.getStreamingMode()).thenReturn(StreamingSearchMode.SCORED_UNSORTED);
-        when(mockSearchContext.size()).thenReturn(10);
-        when(mockSearchContext.bigArrays()).thenReturn(mockBigArrays);
-
-        TopDocsCollectorContext context = TopDocsCollectorContext.createTopDocsCollectorContext(mockSearchContext, false);
-
-        assertNotNull(context);
-        assertTrue(context instanceof StreamingScoredUnsortedCollectorContext);
-        assertEquals(10, context.numHits());
-    }
 
     public void testNonStreamingBranchWhenStreamingDisabled() throws IOException {
         SearchContext mockSearchContext = mock(SearchContext.class);

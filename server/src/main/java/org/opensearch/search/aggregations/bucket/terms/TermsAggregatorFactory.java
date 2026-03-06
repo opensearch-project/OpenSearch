@@ -206,6 +206,15 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
             ) throws IOException {
 
                 if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                    if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                        throw new AggregationExecutionException(
+                            "Aggregation ["
+                                + name
+                                + "] cannot support regular expression style "
+                                + "include/exclude settings as they can only be applied to string fields. Use an array of numeric "
+                                + "values for include/exclude clauses used to filter numeric fields"
+                        );
+                    }
                     ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
                     IncludeExclude.LongFilter longFilter = null;
                     if (numericValuesSource.isFloatingPoint()) {
@@ -237,6 +246,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                         cardinality,
                         computeSegmentTopN(context, bucketCountThresholds, order),
                         metadata
+                    );
+                }
+
+                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                    throw new AggregationExecutionException(
+                        "Aggregation ["
+                            + name
+                            + "] cannot support regular expression style "
+                            + "include/exclude settings as they can only be applied to string fields. Use an array of numeric "
+                            + "values for include/exclude clauses used to filter numeric fields"
                     );
                 }
 

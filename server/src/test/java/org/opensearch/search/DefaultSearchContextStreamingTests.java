@@ -229,7 +229,7 @@ public class DefaultSearchContextStreamingTests extends OpenSearchTestCase {
             );
 
             assertTrue(context.isStreamingSearch());
-            assertEquals(StreamingSearchMode.SCORED_UNSORTED, context.getStreamingMode());
+            assertEquals(StreamingSearchMode.NO_SCORING, context.getStreamingMode());
             assertEquals(FlushMode.PER_SEGMENT, context.getFlushMode());
 
             context.close();
