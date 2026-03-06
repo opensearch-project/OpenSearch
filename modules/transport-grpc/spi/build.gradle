@@ -16,7 +16,10 @@ base {
 
 dependencies {
   implementation project(":server")
-  implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
+  // Temporary: Use local proto JARs until new version is published
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/schemas/libcommon_java_proto.jar')
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/services/libdocument_service_java_proto.jar')
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/services/libsearch_service_java_proto.jar')
   implementation "io.grpc:grpc-api:${versions.grpc}"
   testImplementation project(":test:framework")
   testImplementation "io.grpc:grpc-services:${versions.grpc}"

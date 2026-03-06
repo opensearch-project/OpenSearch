@@ -9,16 +9,36 @@ package org.opensearch.transport.grpc.proto.response.search;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.protobufs.Aggregate;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Utility class for converting SearchResponse objects to Protocol Buffers.
  * This class handles the conversion of search operation responses to their
  * Protocol Buffer representation.
+ * <p>
+ * This is the gRPC transport equivalent of the REST API's XContent serialization.
+ * The REST side uses {@link SearchResponseSections#toXContent(org.opensearch.core.xcontent.XContentBuilder, org.opensearch.core.xcontent.ToXContent.Params)}
+ * to serialize search responses to JSON, while this class converts to protobuf format.
+ * <p>
+ * Key conversions:
+ * <ul>
+ *   <li>Hits: {@link org.opensearch.search.SearchHits} → HitsMetadata proto</li>
+ *   <li>Aggregations: {@link org.opensearch.search.aggregations.InternalAggregations} → Map&lt;String, Aggregate&gt; proto</li>
+ *   <li>Processor results: {@link org.opensearch.search.pipeline.ProcessorExecutionDetail} → ProcessorExecutionDetail proto</li>
+ * </ul>
+ *
+ * @see org.opensearch.action.search.SearchResponseSections
+ * @see org.opensearch.action.search.SearchResponse
  */
 public class SearchResponseSectionsProtoUtils {
 
@@ -39,6 +59,28 @@ public class SearchResponseSectionsProtoUtils {
         org.opensearch.protobufs.HitsMetadata.Builder hitsBuilder = org.opensearch.protobufs.HitsMetadata.newBuilder();
         SearchHitsProtoUtils.toProto(response.getHits(), hitsBuilder);
         builder.setHits(hitsBuilder.build());
+
+        // Convert aggregations if present
+        // Similar to REST API serialization in SearchResponseSections.toXContent()
+        // REST side: aggregations.toXContent(builder, params) - serializes to JSON
+        // Proto side: We convert InternalAggregations to a map of Aggregate protobufs
+        // @see org.opensearch.action.search.SearchResponseSections#toXContent(org.opensearch.core.xcontent.XContentBuilder, org.opensearch.core.xcontent.ToXContent.Params)
+        // @see org.opensearch.search.aggregations.Aggregations#toXContent(org.opensearch.core.xcontent.XContentBuilder, org.opensearch.core.xcontent.ToXContent.Params)
+        if (response.getAggregations() != null) {
+            InternalAggregations aggregations = (InternalAggregations) response.getAggregations();
+            Map<String, Aggregate> aggregatesMap = new HashMap<>();
+
+            for (org.opensearch.search.aggregations.Aggregation agg : aggregations.asList()) {
+                try {
+                    aggregatesMap.put(agg.getName(), AggregateProtoUtils.toProto((InternalAggregation) agg));
+                } catch (IllegalArgumentException e) {
+                    // Aggregation type not yet supported - throw UnsupportedOperationException
+                    throw new UnsupportedOperationException("Aggregation type not supported: " + agg.getClass().getName(), e);
+                }
+            }
+
+            builder.putAllAggregations(aggregatesMap);
+        }
 
         // Convert processor results
         List<org.opensearch.search.pipeline.ProcessorExecutionDetail> processorResults = response.getInternalResponse()
@@ -81,11 +123,6 @@ public class SearchResponseSectionsProtoUtils {
      * @throws UnsupportedOperationException if unsupported features are present
      */
     private static void checkUnsupportedFeatures(SearchResponse response) {
-        // TODO: Implement aggregations conversion
-        if (response.getAggregations() != null) {
-            throw new UnsupportedOperationException("aggregation responses are not supported yet");
-        }
-
         // TODO: Implement suggest conversion
         if (response.getSuggest() != null) {
             throw new UnsupportedOperationException("suggest responses are not supported yet");

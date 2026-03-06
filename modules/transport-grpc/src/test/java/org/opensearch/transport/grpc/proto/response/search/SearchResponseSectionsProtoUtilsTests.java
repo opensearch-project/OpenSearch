@@ -8,11 +8,20 @@
 
 package org.opensearch.transport.grpc.proto.response.search;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.protobufs.Aggregate;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.opensearch.search.aggregations.metrics.InternalMax;
+import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -302,22 +311,6 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("Should not have status", protoDetail.hasStatus());
     }
 
-    public void testToProtoThrowsUnsupportedOperationExceptionForAggregations() {
-        // Create mock SearchResponse with aggregations
-        SearchResponse mockResponse = mock(SearchResponse.class);
-        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
-        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
-        when(mockResponse.getAggregations()).thenReturn(mock(org.opensearch.search.aggregations.Aggregations.class));
-
-        // Call the method under test - should throw UnsupportedOperationException
-        org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
-        );
-        assertEquals("aggregation responses are not supported yet", exception.getMessage());
-    }
-
     public void testToProtoThrowsUnsupportedOperationExceptionForSuggest() {
         // Create mock SearchResponse with suggest
         SearchResponse mockResponse = mock(SearchResponse.class);
@@ -377,5 +370,185 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
             () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
         );
         assertEquals("ext builder responses are not supported yet", exception.getMessage());
+    }
+
+    public void testToProtoWithAggregations() throws IOException {
+        // Test conversion of aggregations from SearchResponse to proto
+        InternalMax maxAgg = new InternalMax("max_price", 99.99, DocValueFormat.RAW, null);
+        InternalMin minAgg = new InternalMin("min_price", 10.50, DocValueFormat.RAW, null);
+        InternalAggregations aggregations = InternalAggregations.from(List.of(maxAgg, minAgg));
+
+        // Mock SearchResponse
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockResponse.getAggregations()).thenReturn(aggregations);
+        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
+
+        // Call conversion
+        org.opensearch.protobufs.SearchResponse.Builder builder =
+            org.opensearch.protobufs.SearchResponse.newBuilder();
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
+
+        // Verify aggregations
+        assertEquals("Should have 2 aggregations", 2, protoResponse.getAggregationsCount());
+        assertTrue("Should contain max_price aggregation", protoResponse.containsAggregations("max_price"));
+        assertTrue("Should contain min_price aggregation", protoResponse.containsAggregations("min_price"));
+
+        Aggregate maxAggregate = protoResponse.getAggregationsOrThrow("max_price");
+        assertTrue("max_price should have Max aggregate", maxAggregate.hasMax());
+        assertEquals("max_price value should match", 99.99, maxAggregate.getMax().getValue().getDouble(), 0.001);
+
+        Aggregate minAggregate = protoResponse.getAggregationsOrThrow("min_price");
+        assertTrue("min_price should have Min aggregate", minAggregate.hasMin());
+        assertEquals("min_price value should match", 10.50, minAggregate.getMin().getValue().getDouble(), 0.001);
+    }
+
+    public void testToProtoWithNestedAggregations() throws IOException {
+        // Test Terms aggregation with nested sub-aggregations
+        InternalMax maxAgg = new InternalMax("max_price", 150.0, DocValueFormat.RAW, null);
+        InternalMin minAgg = new InternalMin("min_price", 20.0, DocValueFormat.RAW, null);
+        InternalAggregations nestedAggs = InternalAggregations.from(List.of(maxAgg, minAgg));
+
+        // Create bucket with nested aggregations
+        List<StringTerms.Bucket> buckets = new ArrayList<>();
+        buckets.add(new StringTerms.Bucket(
+            new BytesRef("electronics"),
+            100,
+            nestedAggs,
+            false,
+            0,
+            DocValueFormat.RAW
+        ));
+
+        TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        StringTerms termsAgg = new StringTerms(
+            "categories",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            null,
+            DocValueFormat.RAW,
+            25,
+            false,
+            0,
+            buckets,
+            0,
+            thresholds
+        );
+
+        InternalAggregations aggregations = InternalAggregations.from(List.of(termsAgg));
+
+        // Mock SearchResponse
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockResponse.getAggregations()).thenReturn(aggregations);
+        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
+
+        // Call conversion
+        org.opensearch.protobufs.SearchResponse.Builder builder =
+            org.opensearch.protobufs.SearchResponse.newBuilder();
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
+
+        // Verify nested structure
+        assertEquals("Should have 1 top-level aggregation", 1, protoResponse.getAggregationsCount());
+        assertTrue("Should contain categories aggregation", protoResponse.containsAggregations("categories"));
+
+        Aggregate categoriesAggregate = protoResponse.getAggregationsOrThrow("categories");
+        assertTrue("categories should have StringTerms aggregate", categoriesAggregate.hasSterms());
+        assertEquals("Should have 1 bucket", 1, categoriesAggregate.getSterms().getBucketsCount());
+
+        // Verify nested aggregations in bucket
+        org.opensearch.protobufs.StringTermsBucket bucket = categoriesAggregate.getSterms().getBuckets(0);
+        assertEquals("Bucket should have 2 nested aggregations", 2, bucket.getAggregateCount());
+        assertTrue("Bucket should contain max_price", bucket.containsAggregate("max_price"));
+        assertTrue("Bucket should contain min_price", bucket.containsAggregate("min_price"));
+    }
+
+    public void testToProtoWithUnsupportedAggregationType() {
+        // Test error handling for unsupported aggregation types
+        // Create a mock aggregation type that is not yet supported
+        InternalAggregation unsupportedAgg = mock(InternalAggregation.class);
+        when(unsupportedAgg.getName()).thenReturn("unsupported_agg");
+        when(unsupportedAgg.getType()).thenReturn("unsupported_type");
+
+        InternalAggregations aggregations = InternalAggregations.from(List.of(unsupportedAgg));
+
+        // Mock SearchResponse
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockResponse.getAggregations()).thenReturn(aggregations);
+        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
+
+        // Call conversion and expect UnsupportedOperationException
+        org.opensearch.protobufs.SearchResponse.Builder builder =
+            org.opensearch.protobufs.SearchResponse.newBuilder();
+        UnsupportedOperationException exception = expectThrows(
+            UnsupportedOperationException.class,
+            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
+        );
+        assertTrue("Exception message should mention aggregation type",
+            exception.getMessage().contains("aggregation") || exception.getMessage().contains("unsupported"));
+    }
+
+    public void testToProtoWithEmptyAggregations() throws IOException {
+        // Test when aggregations are present but empty
+        InternalAggregations aggregations = InternalAggregations.EMPTY;
+
+        // Mock SearchResponse
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockResponse.getAggregations()).thenReturn(aggregations);
+        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
+
+        // Call conversion
+        org.opensearch.protobufs.SearchResponse.Builder builder =
+            org.opensearch.protobufs.SearchResponse.newBuilder();
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
+
+        // Verify proto has no aggregations field set
+        assertEquals("Should have 0 aggregations", 0, protoResponse.getAggregationsCount());
     }
 }

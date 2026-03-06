@@ -15,8 +15,13 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.protobufs.AggregationContainer;
+import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.SearchRequestBody;
+import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
@@ -24,6 +29,7 @@ import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProt
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 
 import io.grpc.stub.StreamObserver;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -228,5 +235,75 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
             .addIndex("test-index")
             .setSearchRequestBody(SearchRequestBody.newBuilder().setSize(10).build())
             .build();
+    }
+
+    public void testSearchWithAggregations() throws IOException {
+        // Integration test: search request with aggregations returns aggregated results
+        // Create test request with aggregations
+        org.opensearch.protobufs.SearchRequest request =
+            org.opensearch.protobufs.SearchRequest.newBuilder()
+                .addIndex("test-index")
+                .setSearchRequestBody(
+                    SearchRequestBody.newBuilder()
+                        .setSize(10)
+                        .putAggregations("max_price",
+                            AggregationContainer.newBuilder()
+                                .setMax(MaxAggregation.newBuilder().setField("price").build())
+                                .build())
+                        .build())
+                .build();
+
+        // Mock action response with aggregations
+        InternalMax maxAgg = new InternalMax("max_price", 150.00, DocValueFormat.RAW, null);
+        InternalAggregations aggregations = InternalAggregations.from(List.of(maxAgg));
+
+        SearchResponse mockSearchResponse = mock(SearchResponse.class);
+        when(mockSearchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockSearchResponse.getAggregations()).thenReturn(aggregations);
+        when(mockSearchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(50));
+        when(mockSearchResponse.isTimedOut()).thenReturn(false);
+        when(mockSearchResponse.getTotalShards()).thenReturn(5);
+        when(mockSearchResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockSearchResponse.getSkippedShards()).thenReturn(0);
+        when(mockSearchResponse.getFailedShards()).thenReturn(0);
+        when(mockSearchResponse.getShardFailures()).thenReturn(new org.opensearch.action.search.ShardSearchFailure[0]);
+        when(mockSearchResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockSearchResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
+        when(mockSearchResponse.getSuggest()).thenReturn(null);
+        when(mockSearchResponse.getProfileResults()).thenReturn(null);
+
+        // Setup action listener to capture and respond
+        doAnswer(invocation -> {
+            org.opensearch.action.search.SearchRequest searchRequest = invocation.getArgument(0);
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> listener = invocation.getArgument(1);
+            // Verify request has aggregations
+            assertNotNull("Request should have source", searchRequest.source());
+            assertNotNull("Request should have aggregations", searchRequest.source().aggregations());
+            assertEquals("Request should have 1 aggregation", 1, searchRequest.source().aggregations().count());
+            listener.onResponse(mockSearchResponse);
+            return null;
+        }).when(client).search(any(), any());
+
+        // Call service
+        @SuppressWarnings("unchecked")
+        StreamObserver<org.opensearch.protobufs.SearchResponse> responseObserver =
+            mock(StreamObserver.class);
+        service.search(request, responseObserver);
+
+        // Verify response
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<org.opensearch.protobufs.SearchResponse> responseCaptor =
+            ArgumentCaptor.forClass(org.opensearch.protobufs.SearchResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        org.opensearch.protobufs.SearchResponse response = responseCaptor.getValue();
+        assertEquals("Response should have 1 aggregation", 1, response.getAggregationsCount());
+        assertTrue("Response should contain max_price aggregation", response.containsAggregations("max_price"));
+
+        org.opensearch.protobufs.Aggregate maxAggregate = response.getAggregationsOrThrow("max_price");
+        assertTrue("max_price should have Max aggregate", maxAggregate.hasMax());
+        assertEquals("max_price value should match", 150.00, maxAggregate.getMax().getValue().getDouble(), 0.001);
     }
 }

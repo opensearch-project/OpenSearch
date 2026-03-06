@@ -15,6 +15,29 @@ import java.util.Map;
 
 /**
  * Utility class for converting generic Java objects to google.protobuf.Struct Protobuf type.
+ *
+ * <p>This utility mirrors the REST API serialization logic found in {@link org.opensearch.core.xcontent.XContentBuilder#unknownValue}
+ * but produces Protocol Buffer messages instead of XContent (JSON/YAML). It handles generic object
+ * serialization for aggregation metadata conversion:
+ * <ul>
+ *   <li>Map&lt;String, Object&gt; → ObjectMap (via handleMapValue)</li>
+ *   <li>List&lt;?&gt; → ListValue (via handleListValue)</li>
+ *   <li>Primitive types (String, Integer, Long, Double, Float, Boolean) → corresponding protobuf scalar types</li>
+ *   <li>Enums → String representation</li>
+ *   <li>null → NULL_VALUE</li>
+ * </ul>
+ *
+ * <p>Related REST serialization:
+ * <ul>
+ *   <li>Aggregation metadata is serialized in {@link org.opensearch.search.aggregations.InternalAggregation#toXContent}
+ *       at line 372 via {@code builder.map(this.metadata)}</li>
+ *   <li>Generic object handling in {@link org.opensearch.core.xcontent.XContentBuilder#unknownValue}</li>
+ *   <li>Map serialization in {@link org.opensearch.core.xcontent.XContentBuilder#map}</li>
+ * </ul>
+ *
+ * @see org.opensearch.core.xcontent.XContentBuilder#unknownValue
+ * @see org.opensearch.core.xcontent.XContentBuilder#map
+ * @see org.opensearch.search.aggregations.InternalAggregation#toXContent
  */
 public class ObjectMapProtoUtils {
 
@@ -25,8 +48,31 @@ public class ObjectMapProtoUtils {
     /**
      * Converts a generic Java Object to its Protocol Buffer representation.
      *
+     * <p>This method parallels {@link org.opensearch.core.xcontent.XContentBuilder#unknownValue}
+     * from the REST API layer, which handles generic object serialization to XContent (JSON/YAML).
+     * Like the REST counterpart, this method uses pattern matching to determine the appropriate
+     * protobuf representation for each Java type.
+     *
+     * <p>Type conversion mapping:
+     * <pre>
+     * Java Type                REST (XContent)          gRPC (Protobuf)
+     * ---------                ---------------          ---------------
+     * null                 →   JSON null            →   NULL_VALUE
+     * String               →   string               →   string
+     * Integer              →   number               →   int32
+     * Long                 →   number               →   int64
+     * Double               →   number               →   double
+     * Float                →   number               →   float
+     * Boolean              →   boolean              →   bool
+     * Enum                 →   string (toString)    →   string (toString)
+     * List&lt;?&gt;              →   array                →   ListValue
+     * Map&lt;String, Object&gt;  →   object               →   ObjectMap
+     * </pre>
+     *
      * @param javaObject The java object to convert
      * @return A Protobuf ObjectMap.Value representation
+     * @throws IllegalArgumentException if the object type is not supported
+     * @see org.opensearch.core.xcontent.XContentBuilder#unknownValue
      */
     public static ObjectMap.Value toProto(Object javaObject) {
         ObjectMap.Value.Builder valueBuilder = ObjectMap.Value.newBuilder();

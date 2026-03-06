@@ -35,7 +35,10 @@ dependencies {
   implementation "io.grpc:grpc-stub:${versions.grpc}"
   implementation "io.grpc:grpc-util:${versions.grpc}"
   implementation "io.perfmark:perfmark-api:0.27.0"
-  implementation "org.opensearch:protobufs:${versions.opensearchprotobufs}"
+  // Temporary: Use local proto JARs until new version is published
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/schemas/libcommon_java_proto.jar')
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/services/libdocument_service_java_proto.jar')
+  implementation files('/home/user/opensearch-protobufs/bazel-bin/protos/services/libsearch_service_java_proto.jar')
   testImplementation project(':test:framework')
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
