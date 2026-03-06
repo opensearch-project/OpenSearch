@@ -18,14 +18,16 @@ import org.opensearch.transport.TransportService;
 
 /**
  * Transport action for Hunspell cache invalidation.
- * 
- * This action is authorized via the "cluster:admin/hunspell/cache/clear" permission.
+ *
+ * This action is authorized via the "cluster:admin/hunspell/cache/invalidate" permission.
  * When the OpenSearch Security plugin is enabled, only users with cluster admin
  * permissions can execute this action.
  *
  * @opensearch.internal
  */
-public class TransportHunspellCacheInvalidateAction extends HandledTransportAction<HunspellCacheInvalidateRequest, HunspellCacheInvalidateResponse> {
+public class TransportHunspellCacheInvalidateAction extends HandledTransportAction<
+    HunspellCacheInvalidateRequest,
+    HunspellCacheInvalidateResponse> {
 
     private final HunspellService hunspellService;
 
@@ -68,13 +70,7 @@ public class TransportHunspellCacheInvalidateAction extends HandledTransportActi
                 invalidatedCount = invalidated ? 1 : 0;
             }
 
-            listener.onResponse(new HunspellCacheInvalidateResponse(
-                true,
-                invalidatedCount,
-                packageId,
-                locale,
-                responseCacheKey
-            ));
+            listener.onResponse(new HunspellCacheInvalidateResponse(true, invalidatedCount, packageId, locale, responseCacheKey));
         } catch (Exception e) {
             listener.onFailure(e);
         }

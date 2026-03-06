@@ -10,9 +10,9 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateRequest;
 import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateResponse;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.indices.analysis.HunspellService;
@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link RestHunspellCacheInvalidateAction}
@@ -40,28 +39,28 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     // ==================== Route Tests ====================
 
     public void testRoutes() {
-        HunspellService mockService = mock(HunspellService.class);
-        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction(mockService);
-        
+        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction();
+
         List<RestHunspellCacheInvalidateAction.Route> routes = action.routes();
         assertThat(routes, hasSize(3));
-        
+
         // Verify GET route
-        assertTrue(routes.stream().anyMatch(r -> 
-            r.getMethod() == RestRequest.Method.GET && r.getPath().equals("/_hunspell/cache")));
-        
+        assertTrue(routes.stream().anyMatch(r -> r.getMethod() == RestRequest.Method.GET && r.getPath().equals("/_hunspell/cache")));
+
         // Verify POST invalidate route
-        assertTrue(routes.stream().anyMatch(r -> 
-            r.getMethod() == RestRequest.Method.POST && r.getPath().equals("/_hunspell/cache/_invalidate")));
-        
+        assertTrue(
+            routes.stream().anyMatch(r -> r.getMethod() == RestRequest.Method.POST && r.getPath().equals("/_hunspell/cache/_invalidate"))
+        );
+
         // Verify POST invalidate_all route
-        assertTrue(routes.stream().anyMatch(r -> 
-            r.getMethod() == RestRequest.Method.POST && r.getPath().equals("/_hunspell/cache/_invalidate_all")));
+        assertTrue(
+            routes.stream()
+                .anyMatch(r -> r.getMethod() == RestRequest.Method.POST && r.getPath().equals("/_hunspell/cache/_invalidate_all"))
+        );
     }
 
     public void testHandlerName() {
-        HunspellService mockService = mock(HunspellService.class);
-        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction(mockService);
+        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction();
         assertThat(action.getName(), equalTo("hunspell_cache_invalidate_action"));
     }
 
@@ -70,7 +69,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testBuildRequestWithPackageIdOnly() {
         HunspellCacheInvalidateRequest request = new HunspellCacheInvalidateRequest();
         request.setPackageId("pkg-12345");
-        
+
         assertThat(request.getPackageId(), equalTo("pkg-12345"));
         assertThat(request.getLocale(), nullValue());
         assertThat(request.getCacheKey(), nullValue());
@@ -82,7 +81,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
         HunspellCacheInvalidateRequest request = new HunspellCacheInvalidateRequest();
         request.setPackageId("pkg-12345");
         request.setLocale("en_US");
-        
+
         assertThat(request.getPackageId(), equalTo("pkg-12345"));
         assertThat(request.getLocale(), equalTo("en_US"));
         assertThat(request.getCacheKey(), nullValue());
@@ -93,7 +92,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testBuildRequestWithCacheKey() {
         HunspellCacheInvalidateRequest request = new HunspellCacheInvalidateRequest();
         request.setCacheKey("pkg-12345:en_US");
-        
+
         assertThat(request.getPackageId(), nullValue());
         assertThat(request.getLocale(), nullValue());
         assertThat(request.getCacheKey(), equalTo("pkg-12345:en_US"));
@@ -104,7 +103,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testBuildRequestWithInvalidateAll() {
         HunspellCacheInvalidateRequest request = new HunspellCacheInvalidateRequest();
         request.setInvalidateAll(true);
-        
+
         assertThat(request.getPackageId(), nullValue());
         assertThat(request.getLocale(), nullValue());
         assertThat(request.getCacheKey(), nullValue());
@@ -115,7 +114,7 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testRequestValidationFailsWhenNoParametersProvided() {
         HunspellCacheInvalidateRequest request = new HunspellCacheInvalidateRequest();
         // No parameters set
-        
+
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("package_id"));
     }
@@ -128,13 +127,13 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
         original.setLocale("de_DE");
         original.setCacheKey("some-key");
         original.setInvalidateAll(false);
-        
+
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
-        
+
         StreamInput in = out.bytes().streamInput();
         HunspellCacheInvalidateRequest deserialized = new HunspellCacheInvalidateRequest(in);
-        
+
         assertThat(deserialized.getPackageId(), equalTo(original.getPackageId()));
         assertThat(deserialized.getLocale(), equalTo(original.getLocale()));
         assertThat(deserialized.getCacheKey(), equalTo(original.getCacheKey()));
@@ -145,13 +144,13 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
         HunspellCacheInvalidateRequest original = new HunspellCacheInvalidateRequest();
         original.setInvalidateAll(true);
         // packageId, locale, cacheKey are null
-        
+
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
-        
+
         StreamInput in = out.bytes().streamInput();
         HunspellCacheInvalidateRequest deserialized = new HunspellCacheInvalidateRequest(in);
-        
+
         assertThat(deserialized.getPackageId(), nullValue());
         assertThat(deserialized.getLocale(), nullValue());
         assertThat(deserialized.getCacheKey(), nullValue());
@@ -161,16 +160,14 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     // ==================== Response Tests ====================
 
     public void testResponseSerialization() throws IOException {
-        HunspellCacheInvalidateResponse original = new HunspellCacheInvalidateResponse(
-            true, 5, "pkg-123", "en_US", "pkg-123:en_US"
-        );
-        
+        HunspellCacheInvalidateResponse original = new HunspellCacheInvalidateResponse(true, 5, "pkg-123", "en_US", "pkg-123:en_US");
+
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
-        
+
         StreamInput in = out.bytes().streamInput();
         HunspellCacheInvalidateResponse deserialized = new HunspellCacheInvalidateResponse(in);
-        
+
         assertThat(deserialized.isAcknowledged(), equalTo(true));
         assertThat(deserialized.getInvalidatedCount(), equalTo(5));
         assertThat(deserialized.getPackageId(), equalTo("pkg-123"));
@@ -179,16 +176,14 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     }
 
     public void testResponseSerializationWithNullValues() throws IOException {
-        HunspellCacheInvalidateResponse original = new HunspellCacheInvalidateResponse(
-            true, 10, null, null, null
-        );
-        
+        HunspellCacheInvalidateResponse original = new HunspellCacheInvalidateResponse(true, 10, null, null, null);
+
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
-        
+
         StreamInput in = out.bytes().streamInput();
         HunspellCacheInvalidateResponse deserialized = new HunspellCacheInvalidateResponse(in);
-        
+
         assertThat(deserialized.isAcknowledged(), equalTo(true));
         assertThat(deserialized.getInvalidatedCount(), equalTo(10));
         assertThat(deserialized.getPackageId(), nullValue());
@@ -197,14 +192,12 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     }
 
     public void testResponseToXContent() throws IOException {
-        HunspellCacheInvalidateResponse response = new HunspellCacheInvalidateResponse(
-            true, 3, "pkg-abc", "fr_FR", "pkg-abc:fr_FR"
-        );
-        
+        HunspellCacheInvalidateResponse response = new HunspellCacheInvalidateResponse(true, 3, "pkg-abc", "fr_FR", "pkg-abc:fr_FR");
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, null);
         String json = BytesReference.bytes(builder).utf8ToString();
-        
+
         assertThat(json, containsString("\"acknowledged\":true"));
         assertThat(json, containsString("\"invalidated_count\":3"));
         assertThat(json, containsString("\"package_id\":\"pkg-abc\""));
@@ -213,14 +206,12 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     }
 
     public void testResponseToXContentOmitsNullValues() throws IOException {
-        HunspellCacheInvalidateResponse response = new HunspellCacheInvalidateResponse(
-            true, 7, null, null, null
-        );
-        
+        HunspellCacheInvalidateResponse response = new HunspellCacheInvalidateResponse(true, 7, null, null, null);
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, null);
         String json = BytesReference.bytes(builder).utf8ToString();
-        
+
         assertThat(json, containsString("\"acknowledged\":true"));
         assertThat(json, containsString("\"invalidated_count\":7"));
         // Null values should NOT be present in output
@@ -234,13 +225,12 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testRestParamsPackageIdOnly() {
         Map<String, String> params = new HashMap<>();
         params.put("package_id", "my-pkg");
-        
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withParams(params)
+
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
             .withPath("/_hunspell/cache/_invalidate")
             .withMethod(RestRequest.Method.POST)
             .build();
-        
+
         assertThat(restRequest.param("package_id"), equalTo("my-pkg"));
         assertThat(restRequest.param("locale"), nullValue());
         assertThat(restRequest.param("cache_key"), nullValue());
@@ -250,13 +240,12 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("package_id", "my-pkg");
         params.put("locale", "es_ES");
-        
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withParams(params)
+
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
             .withPath("/_hunspell/cache/_invalidate")
             .withMethod(RestRequest.Method.POST)
             .build();
-        
+
         assertThat(restRequest.param("package_id"), equalTo("my-pkg"));
         assertThat(restRequest.param("locale"), equalTo("es_ES"));
     }
@@ -264,22 +253,20 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
     public void testRestParamsCacheKey() {
         Map<String, String> params = new HashMap<>();
         params.put("cache_key", "pkg-xyz:it_IT");
-        
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withParams(params)
+
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
             .withPath("/_hunspell/cache/_invalidate")
             .withMethod(RestRequest.Method.POST)
             .build();
-        
+
         assertThat(restRequest.param("cache_key"), equalTo("pkg-xyz:it_IT"));
     }
 
     public void testRestPathInvalidateAll() {
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/_hunspell/cache/_invalidate_all")
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_hunspell/cache/_invalidate_all")
             .withMethod(RestRequest.Method.POST)
             .build();
-        
+
         assertTrue(restRequest.path().endsWith("/_invalidate_all"));
     }
 
@@ -301,17 +288,16 @@ public class RestHunspellCacheInvalidateActionTests extends OpenSearchTestCase {
 
     public void testActionName() {
         assertThat(
-            org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateAction.NAME, 
-            equalTo("cluster:admin/hunspell/cache/clear")
+            org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateAction.NAME,
+            equalTo("cluster:admin/hunspell/cache/invalidate")
         );
     }
 
     // ==================== Response Params Test ====================
 
     public void testResponseParams() {
-        HunspellService mockService = mock(HunspellService.class);
-        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction(mockService);
-        
+        RestHunspellCacheInvalidateAction action = new RestHunspellCacheInvalidateAction();
+
         Set<String> params = action.responseParams();
         assertTrue(params.contains("package_id"));
         assertTrue(params.contains("cache_key"));
