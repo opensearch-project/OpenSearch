@@ -50,6 +50,8 @@ public class IngestionEngineFactory implements EngineFactory {
         boolean isAllActiveIngestion = ingestionSource != null && ingestionSource.isAllActiveIngestionEnabled();
 
         IngestService ingestService = ingestServiceSupplier != null ? ingestServiceSupplier.get() : null;
+        assert ingestService != null || ingestServiceSupplier == null
+            : "IngestService supplier returned null. This indicates a initialization ordering issue.";
 
         if (isAllActiveIngestion) {
             // use ingestion engine on both primary and replica in all-active mode
