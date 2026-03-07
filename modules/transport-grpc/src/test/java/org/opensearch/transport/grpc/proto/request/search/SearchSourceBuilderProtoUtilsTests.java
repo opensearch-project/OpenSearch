@@ -11,11 +11,14 @@ package org.opensearch.transport.grpc.proto.request.search;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.index.query.MatchAllQueryBuilder;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MatchAllQuery;
+import org.opensearch.protobufs.MaxAggregation;
+import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.protobufs.QueryContainer;
 import org.opensearch.protobufs.Script;
@@ -774,6 +777,47 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
 
         // Verify the result
         assertNotNull("FetchSourceContext should not be null", searchSourceBuilder.fetchSource());
+    }
+
+    // ========================================
+    // Aggregations Tests
+    // ========================================
+
+    public void testParseProtoWithAggregations() throws IOException {
+        // Test that aggregations field is properly parsed from SearchRequestBody
+        Map<String, AggregationContainer> aggregationsMap = new HashMap<>();
+        aggregationsMap.put("max_price",
+            AggregationContainer.newBuilder()
+                .setMax(MaxAggregation.newBuilder().setField("price").build())
+                .build());
+        aggregationsMap.put("min_price",
+            AggregationContainer.newBuilder()
+                .setMin(MinAggregation.newBuilder().setField("price").build())
+                .build());
+
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
+            .putAllAggregations(aggregationsMap)
+            .build();
+
+        // Parse proto
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(builder, protoRequest, queryUtils);
+
+        // Verify aggregations
+        assertNotNull("Aggregations should not be null", builder.aggregations());
+        assertEquals("Should have 2 aggregations", 2, builder.aggregations().count());
+    }
+
+    public void testParseProtoWithoutAggregations() throws IOException {
+        // Test that empty aggregations map doesn't cause issues
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().build();
+
+        // Parse proto
+        SearchSourceBuilder builder = new SearchSourceBuilder();
+        SearchSourceBuilderProtoUtils.parseProto(builder, protoRequest, queryUtils);
+
+        // Verify no aggregations
+        assertNull("Aggregations should be null", builder.aggregations());
     }
 
 }

@@ -9,7 +9,9 @@ package org.opensearch.transport.grpc.proto.response.search;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,7 +72,12 @@ public class SearchResponseSectionsProtoUtils {
             }
         }
 
-        // Check for unsupported features
+        // Convert aggregations if present
+        if (response.getAggregations() != null) {
+            AggregateProtoUtils.toProtoInternal((InternalAggregations) response.getAggregations(), (name, aggProto) -> builder.putAggregations(name, aggProto));
+        }
+
+        // Check for other unsupported features
         checkUnsupportedFeatures(response);
     }
 
@@ -81,10 +88,7 @@ public class SearchResponseSectionsProtoUtils {
      * @throws UnsupportedOperationException if unsupported features are present
      */
     private static void checkUnsupportedFeatures(SearchResponse response) {
-        // TODO: Implement aggregations conversion
-        if (response.getAggregations() != null) {
-            throw new UnsupportedOperationException("aggregation responses are not supported yet");
-        }
+        // Aggregations are now supported, removed from unsupported list
 
         // TODO: Implement suggest conversion
         if (response.getSuggest() != null) {
