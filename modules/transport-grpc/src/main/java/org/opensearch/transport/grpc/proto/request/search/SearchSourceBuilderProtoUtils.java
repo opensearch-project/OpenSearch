@@ -171,11 +171,9 @@ public class SearchSourceBuilderProtoUtils {
         }
 
         // Parse aggregations from protobuf
-        // Similar to REST API parsing in SearchSourceBuilder.parseXContent()
-        // REST side: aggregations = AggregatorFactories.parseAggregators(parser)
+        // Similar to REST API parsing in {@link org.opensearch.search.builder.SearchSourceBuilder#parseXContent(XContentParser, boolean)}
+        // REST side: aggregations = {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators(XContentParser)}
         // Proto side: We parse from the protobuf AggregationContainer map
-        // @see org.opensearch.search.builder.SearchSourceBuilder#parseXContent(XContentParser, boolean)
-        // @see org.opensearch.search.aggregations.AggregatorFactories#parseAggregators(XContentParser)
         //
         // Note: In REST API, "aggregations" and "aggs" are aliases for the same JSON field.
         // In protobuf, we only have the "aggregations" field (field 36).
@@ -223,7 +221,7 @@ public class SearchSourceBuilderProtoUtils {
                 DerivedField derivedFieldProto = entry.getValue();
 
                 // Convert protobuf DerivedField to OpenSearch DerivedField using the REST side pattern
-                // This uses simple constructor + conditional setters (matches DerivedFieldMapper.Builder.build())
+                // This uses simple constructor + conditional setters (matches {@link org.opensearch.index.mapper.DerivedFieldMapper.Builder#build()})
                 org.opensearch.index.mapper.DerivedField derivedField = DerivedFieldProtoUtils.fromProto(name, derivedFieldProto);
 
                 // Add to SearchSourceBuilder - check if any optional fields are set to choose the right method
@@ -286,10 +284,12 @@ public class SearchSourceBuilderProtoUtils {
         }
 
         /**
-         * Similar to {@link SearchSourceBuilder.ScriptField#ScriptField(XContentParser)}
+         * Converts a protobuf ScriptField to a {@link org.opensearch.search.builder.SearchSourceBuilder.ScriptField}.
+         * Similar to {@link org.opensearch.search.builder.SearchSourceBuilder.ScriptField#ScriptField(XContentParser)}
          *
-         * @param scriptFieldName
-         * @param scriptFieldProto
+         * @param scriptFieldName The name of the script field
+         * @param scriptFieldProto The protobuf ScriptField message
+         * @return A SearchSourceBuilder.ScriptField instance
          * @throws IOException if there's an error during parsing
          */
 
