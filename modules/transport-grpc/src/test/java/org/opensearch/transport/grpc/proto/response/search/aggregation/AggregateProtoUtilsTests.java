@@ -7,16 +7,23 @@
  */
 package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,13 +32,142 @@ import java.util.Map;
 
 /**
  * Tests for {@link AggregateProtoUtils} verifying the central dispatcher
- * and common helper methods work correctly for Min/Max metric aggregations.
+ * and common helper methods work correctly.
  */
 public class AggregateProtoUtilsTests extends OpenSearchTestCase {
 
     // ========================================
     // toProto() - Dispatcher Tests
     // ========================================
+
+    public void testToProtoWithStringTerms() throws IOException {
+        List<StringTerms.Bucket> buckets = new ArrayList<>();
+        buckets.add(new StringTerms.Bucket(new BytesRef("category1"), 10, InternalAggregations.EMPTY, false, 0, DocValueFormat.RAW));
+
+        org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds thresholds =
+            new org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        StringTerms stringTerms = new StringTerms(
+            "my_terms",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            100,
+            buckets,
+            0,
+            thresholds
+        );
+
+        Aggregate result = AggregateProtoUtils.toProto(stringTerms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have sterms set", result.hasSterms());
+        assertEquals("Should have 1 bucket", 1, result.getSterms().getBucketsCount());
+    }
+
+    public void testToProtoWithLongTerms() throws IOException {
+        List<LongTerms.Bucket> buckets = new ArrayList<>();
+        buckets.add(new LongTerms.Bucket(123L, 10, InternalAggregations.EMPTY, false, 0, DocValueFormat.RAW));
+
+        org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds thresholds =
+            new org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        LongTerms longTerms = new LongTerms(
+            "my_long_terms",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            50,
+            buckets,
+            0,
+            thresholds
+        );
+
+        Aggregate result = AggregateProtoUtils.toProto(longTerms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have lterms set", result.hasLterms());
+        assertEquals("Should have 1 bucket", 1, result.getLterms().getBucketsCount());
+    }
+
+    public void testToProtoWithDoubleTerms() throws IOException {
+        List<DoubleTerms.Bucket> buckets = new ArrayList<>();
+        buckets.add(new DoubleTerms.Bucket(99.5, 5L, InternalAggregations.EMPTY, false, 0L, DocValueFormat.RAW));
+
+        org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds thresholds =
+            new org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        DoubleTerms doubleTerms = new DoubleTerms(
+            "my_double_terms",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            50,
+            buckets,
+            0,
+            thresholds
+        );
+
+        Aggregate result = AggregateProtoUtils.toProto(doubleTerms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have dterms set", result.hasDterms());
+        assertEquals("Should have 1 bucket", 1, result.getDterms().getBucketsCount());
+    }
+
+    public void testToProtoWithUnsignedLongTerms() throws IOException {
+        List<UnsignedLongTerms.Bucket> buckets = new ArrayList<>();
+        buckets.add(new UnsignedLongTerms.Bucket(BigInteger.valueOf(999), 3, InternalAggregations.EMPTY, false, 0, DocValueFormat.RAW));
+
+        org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds thresholds =
+            new org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        UnsignedLongTerms unsignedLongTerms = new UnsignedLongTerms(
+            "my_unsigned_long_terms",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            Collections.emptyMap(),
+            DocValueFormat.RAW,
+            25,
+            false,
+            50,
+            buckets,
+            0,
+            thresholds
+        );
+
+        Aggregate result = AggregateProtoUtils.toProto(unsignedLongTerms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have ulterms set", result.hasUlterms());
+        assertEquals("Should have 1 bucket", 1, result.getUlterms().getBucketsCount());
+    }
+
+    public void testToProtoWithUnmappedTerms() throws IOException {
+        org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds thresholds =
+            new org.opensearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds(1, 0, 10, 25);
+
+        UnmappedTerms unmappedTerms = new UnmappedTerms(
+            "my_unmapped_terms",
+            org.opensearch.search.aggregations.BucketOrder.count(false),
+            thresholds,
+            Collections.emptyMap()
+        );
+
+        Aggregate result = AggregateProtoUtils.toProto(unmappedTerms);
+
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have umterms set", result.hasUmterms());
+    }
 
     public void testToProtoWithInternalMin() throws IOException {
         InternalMin internalMin = new InternalMin("min_price", 10.5, DocValueFormat.RAW, Collections.emptyMap());
@@ -63,7 +199,7 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Exception message should mention null", ex.getMessage().contains("must not be null"));
     }
 
-    public void testToProtoWithUnsupportedTypeThrowsException() throws IOException {
+    public void testToProtoWithUnsupportedTypeThrowsException() {
         // Create a mock unsupported aggregation type
         InternalAggregation unsupported = new InternalAggregation("unsupported", Collections.emptyMap()) {
             @Override
@@ -72,12 +208,15 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
             }
 
             @Override
-            public InternalAggregation reduce(List<InternalAggregation> aggregations, InternalAggregation.ReduceContext reduceContext) {
+            protected void doWriteTo(org.opensearch.core.common.io.stream.StreamOutput out) throws IOException {}
+
+            @Override
+            public Object getProperty(List<String> path) {
                 return null;
             }
 
             @Override
-            public Object getProperty(List<String> path) {
+            public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
                 return null;
             }
 
@@ -89,14 +228,9 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
             @Override
             public org.opensearch.core.xcontent.XContentBuilder doXContentBody(
                 org.opensearch.core.xcontent.XContentBuilder builder,
-                org.opensearch.core.xcontent.ToXContent.Params params
+                Params params
             ) throws IOException {
                 return builder;
-            }
-
-            @Override
-            protected void doWriteTo(org.opensearch.core.common.io.stream.StreamOutput out) throws IOException {
-                // No-op for test
             }
         };
 
@@ -104,15 +238,49 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> AggregateProtoUtils.toProto(unsupported)
         );
-        assertTrue("Exception message should mention unsupported", ex.getMessage().contains("Unsupported"));
+        assertTrue("Exception message should mention unsupported type", ex.getMessage().contains("Unsupported aggregation type"));
+    }
+
+    // ========================================
+    // setMetadataIfPresent() Tests
+    // ========================================
+
+    public void testSetMetadataIfPresentWithValidMetadata() {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("color", "blue");
+        metadata.put("priority", 5);
+
+        ObjectMap.Builder[] capturedMeta = new ObjectMap.Builder[1];
+        AggregateProtoUtils.setMetadataIfPresent(metadata, meta -> {
+            capturedMeta[0] = ObjectMap.newBuilder(meta);
+        });
+
+        assertNotNull("Metadata should be set", capturedMeta[0]);
+    }
+
+    public void testSetMetadataIfPresentWithEmptyMetadata() {
+        Map<String, Object> metadata = new HashMap<>();
+
+        boolean[] called = new boolean[1];
+        AggregateProtoUtils.setMetadataIfPresent(metadata, meta -> {
+            called[0] = true;
+        });
+
+        assertFalse("Setter should not be called for empty metadata", called[0]);
+    }
+
+    public void testSetMetadataIfPresentWithNullMetadata() {
+        boolean[] called = new boolean[1];
+        AggregateProtoUtils.setMetadataIfPresent(null, meta -> {
+            called[0] = true;
+        });
+
+        assertFalse("Setter should not be called for null metadata", called[0]);
     }
 
     // ========================================
     // toProtoInternal() Tests
     // ========================================
-    // Note: Metadata handling is tested in the specific aggregation tests
-    // (MinAggregateProtoUtilsTests, MaxAggregateProtoUtilsTests) since
-    // setMetadataIfPresent is called by those converters.
 
     public void testToProtoInternalWithMultipleAggregations() throws IOException {
         // Create sub-aggregations

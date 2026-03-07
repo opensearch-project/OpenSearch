@@ -87,6 +87,10 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
         ValuesSourceAggregationProtoUtils.parseMissing(builder, true, missingValue);
 
         assertNotNull(builder.missing());
+        // String values should remain as String objects, not converted to BytesRef
+        // This ensures proper formatting in aggregation results (e.g., "N/A" instead of "[4e 2f 41]")
+        assertEquals(String.class, builder.missing().getClass());
+        assertEquals("N/A", builder.missing());
     }
 
     public void testParseMissingWhenNotPresent() {

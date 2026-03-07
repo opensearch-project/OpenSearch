@@ -87,6 +87,11 @@ allprojects {
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
+
+  // Add local Maven repository for protobuf development
+  repositories {
+    mavenLocal()
+  }
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {

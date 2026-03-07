@@ -185,6 +185,14 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             return aggregations;
         }
 
+        /**
+         * Returns the format used for this bucket's key.
+         * @return the DocValueFormat for this bucket
+         */
+        public DocValueFormat getFormat() {
+            return format;
+        }
+
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

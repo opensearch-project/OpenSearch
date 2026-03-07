@@ -142,7 +142,9 @@ public class ValuesSourceAggregationProtoUtils {
         org.opensearch.protobufs.FieldValue missingProto
     ) {
         if (hasMissing) {
-            Object missingValue = FieldValueProtoUtils.fromProto(missingProto);
+            // Don't convert strings to BytesRef for missing values - keep them as String objects
+            // to match REST API behavior and ensure proper formatting in aggregation results
+            Object missingValue = FieldValueProtoUtils.fromProto(missingProto, false);
             builder.missing(missingValue);
         }
     }

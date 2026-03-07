@@ -11,9 +11,19 @@ import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
+import org.opensearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.opensearch.search.aggregations.bucket.terms.LongTerms;
+import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.DoubleTermsProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.LongTermsProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.StringTermsProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.UnmappedTermsProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.UnsignedLongTermsProtoUtils;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MaxAggregateProtoUtils;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MinAggregateProtoUtils;
 
@@ -55,10 +65,20 @@ public class AggregateProtoUtils {
         Aggregate.Builder aggregateBuilder = Aggregate.newBuilder();
 
         // Dispatch based on runtime type
-        if (aggregation instanceof InternalMin) {
+        if (aggregation instanceof StringTerms) {
+            aggregateBuilder.setSterms(StringTermsProtoUtils.toProto((StringTerms) aggregation));
+        } else if (aggregation instanceof LongTerms) {
+            aggregateBuilder.setLterms(LongTermsProtoUtils.toProto((LongTerms) aggregation));
+        } else if (aggregation instanceof UnsignedLongTerms) {
+            aggregateBuilder.setUlterms(UnsignedLongTermsProtoUtils.toProto((UnsignedLongTerms) aggregation));
+        } else if (aggregation instanceof DoubleTerms) {
+            aggregateBuilder.setDterms(DoubleTermsProtoUtils.toProto((DoubleTerms) aggregation));
+        } else if (aggregation instanceof InternalMin) {
             aggregateBuilder.setMin(MinAggregateProtoUtils.toProto((InternalMin) aggregation));
         } else if (aggregation instanceof InternalMax) {
             aggregateBuilder.setMax(MaxAggregateProtoUtils.toProto((InternalMax) aggregation));
+        } else if (aggregation instanceof UnmappedTerms) {
+            aggregateBuilder.setUmterms(UnmappedTermsProtoUtils.toProto((UnmappedTerms) aggregation));
         } else {
             // Future aggregation types will be added here
             throw new IllegalArgumentException("Unsupported aggregation type: " + aggregation.getClass().getName());

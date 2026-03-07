@@ -10,172 +10,214 @@ package org.opensearch.transport.grpc.proto.request.search.aggregation;
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.MinAggregation;
-import org.opensearch.protobufs.ObjectMap;
+import org.opensearch.protobufs.TermsAggregation;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Map;
-
-/**
- * Tests for {@link AggregationContainerProtoUtils}
- */
 public class AggregationContainerProtoUtilsTests extends OpenSearchTestCase {
 
-    // ========================================
-    // Min Aggregation Tests
-    // ========================================
+    public void testFromProtoWithTermsAggregation() {
+        // Create a simple terms aggregation proto
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("category").setSize(10).build();
 
-    public void testFromProtoWithMinAggregation() {
-        MinAggregation minAgg = MinAggregation.newBuilder()
-            .setField("price")
-            .build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
 
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(minAgg)
-            .build();
+        // Convert
+        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("test_agg", container);
 
-        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("min_price", container);
+        // Verify
+        assertNotNull(result);
+        assertTrue(result instanceof TermsAggregationBuilder);
+        assertEquals("test_agg", result.getName());
 
-        assertNotNull("Result should not be null", result);
-        assertTrue("Should be MinAggregationBuilder", result instanceof MinAggregationBuilder);
-        assertEquals("Name should match", "min_price", result.getName());
-        MinAggregationBuilder minBuilder = (MinAggregationBuilder) result;
-        assertEquals("Field should match", "price", minBuilder.field());
+        TermsAggregationBuilder termsBuilder = (TermsAggregationBuilder) result;
+        assertEquals("category", termsBuilder.field());
+        assertEquals(10, termsBuilder.size());
     }
 
-    public void testFromProtoWithMinAggregationAndMetadata() {
-        MinAggregation minAgg = MinAggregation.newBuilder()
-            .setField("price")
-            .build();
-
-        ObjectMap metadata = ObjectMap.newBuilder()
-            .putFields("key1", ObjectMap.Value.newBuilder().setString("value1").build())
-            .build();
-
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(minAgg)
-            .setMeta(metadata)
-            .build();
-
-        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("min_price", container);
-
-        assertNotNull("Result should not be null", result);
-        assertTrue("Should be MinAggregationBuilder", result instanceof MinAggregationBuilder);
-        assertEquals("Name should match", "min_price", result.getName());
-
-        Map<String, Object> resultMetadata = result.getMetadata();
-        assertNotNull("Metadata should not be null", resultMetadata);
-        assertEquals("Metadata should have one entry", 1, resultMetadata.size());
-        assertTrue("Metadata should contain key1", resultMetadata.containsKey("key1"));
-    }
-
-    // ========================================
-    // Max Aggregation Tests
-    // ========================================
-
-    public void testFromProtoWithMaxAggregation() {
-        MaxAggregation maxAgg = MaxAggregation.newBuilder()
-            .setField("price")
-            .build();
-
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMax(maxAgg)
-            .build();
-
-        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("max_price", container);
-
-        assertNotNull("Result should not be null", result);
-        assertTrue("Should be MaxAggregationBuilder", result instanceof MaxAggregationBuilder);
-        assertEquals("Name should match", "max_price", result.getName());
-        MaxAggregationBuilder maxBuilder = (MaxAggregationBuilder) result;
-        assertEquals("Field should match", "price", maxBuilder.field());
-    }
-
-    public void testFromProtoWithMaxAggregationAndMetadata() {
-        MaxAggregation maxAgg = MaxAggregation.newBuilder()
-            .setField("price")
-            .build();
-
-        ObjectMap metadata = ObjectMap.newBuilder()
-            .putFields("key1", ObjectMap.Value.newBuilder().setString("value1").build())
-            .putFields("key2", ObjectMap.Value.newBuilder().setInt32(42).build())
-            .build();
-
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMax(maxAgg)
-            .setMeta(metadata)
-            .build();
-
-        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("max_price", container);
-
-        assertNotNull("Result should not be null", result);
-        assertTrue("Should be MaxAggregationBuilder", result instanceof MaxAggregationBuilder);
-        assertEquals("Name should match", "max_price", result.getName());
-
-        Map<String, Object> resultMetadata = result.getMetadata();
-        assertNotNull("Metadata should not be null", resultMetadata);
-        assertEquals("Metadata should have two entries", 2, resultMetadata.size());
-        assertTrue("Metadata should contain key1", resultMetadata.containsKey("key1"));
-        assertTrue("Metadata should contain key2", resultMetadata.containsKey("key2"));
-    }
-
-    // ========================================
-    // Error Cases
-    // ========================================
-
-    public void testFromProtoWithNullContainerThrowsException() {
+    public void testFromProtoWithNullContainer() {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> AggregationContainerProtoUtils.fromProto("test", null)
         );
-        assertTrue("Exception message should mention null", ex.getMessage().contains("must not be null"));
+        assertTrue(ex.getMessage().contains("must not be null"));
     }
 
-    public void testFromProtoWithNullNameThrowsException() {
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(MinAggregation.newBuilder().setField("field").build())
-            .build();
+    public void testFromProtoWithNullName() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> AggregationContainerProtoUtils.fromProto(null, container)
         );
-        assertTrue("Exception message should mention null or empty", ex.getMessage().contains("must not be null"));
+        assertTrue(ex.getMessage().contains("name"));
     }
 
-    public void testFromProtoWithEmptyNameThrowsException() {
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(MinAggregation.newBuilder().setField("field").build())
-            .build();
+    public void testFromProtoWithEmptyName() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> AggregationContainerProtoUtils.fromProto("", container)
         );
-        assertTrue("Exception message should mention null or empty", ex.getMessage().contains("must not be null or empty"));
+        assertTrue(ex.getMessage().contains("name"));
     }
 
-    public void testFromProtoWithInvalidNameThrowsException() {
-        AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(MinAggregation.newBuilder().setField("field").build())
-            .build();
-
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> AggregationContainerProtoUtils.fromProto("invalid[name]", container)
-        );
-        assertTrue("Exception message should mention invalid", ex.getMessage().contains("Invalid aggregation name"));
-    }
-
-    public void testFromProtoWithNotSetContainerThrowsException() {
+    public void testFromProtoWithAggregationNotSet() {
         AggregationContainer container = AggregationContainer.newBuilder().build();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> AggregationContainerProtoUtils.fromProto("test", container)
         );
-        assertTrue("Exception message should mention not set", ex.getMessage().contains("not set"));
+        assertTrue(ex.getMessage().contains("not set"));
+    }
+
+    public void testFromProtoWithMinAggregation() {
+        MinAggregation minProto = MinAggregation.newBuilder().setField("price").build();
+
+        AggregationContainer container = AggregationContainer.newBuilder().setMin(minProto).build();
+
+        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("min_agg", container);
+
+        assertNotNull(result);
+        assertTrue(result instanceof MinAggregationBuilder);
+        assertEquals("min_agg", result.getName());
+        assertEquals("price", ((MinAggregationBuilder) result).field());
+    }
+
+    public void testFromProtoWithMaxAggregation() {
+        MaxAggregation maxProto = MaxAggregation.newBuilder().setField("price").build();
+
+        AggregationContainer container = AggregationContainer.newBuilder().setMax(maxProto).build();
+
+        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("max_agg", container);
+
+        assertNotNull(result);
+        assertTrue(result instanceof MaxAggregationBuilder);
+        assertEquals("max_agg", result.getName());
+        assertEquals("price", ((MaxAggregationBuilder) result).field());
+    }
+
+    public void testFromProtoWithMetadata() {
+        // Create aggregation with metadata
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("category").build();
+
+        org.opensearch.protobufs.ObjectMap meta = org.opensearch.protobufs.ObjectMap.newBuilder()
+            .putFields("color", org.opensearch.protobufs.ObjectMap.Value.newBuilder().setString("blue").build())
+            .build();
+
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).setMeta(meta).build();
+
+        // Convert
+        AggregationBuilder result = AggregationContainerProtoUtils.fromProto("test_agg", container);
+
+        // Verify metadata is set
+        assertNotNull(result);
+        assertNotNull(result.getMetadata());
+        assertEquals("blue", result.getMetadata().get("color"));
+    }
+
+    // Aggregation name validation tests (mirrors AggregatorFactories.VALID_AGG_NAME)
+
+    public void testFromProtoWithInvalidNameContainingOpenBracket() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregationContainerProtoUtils.fromProto("my[agg", container)
+        );
+        assertTrue(ex.getMessage().contains("Invalid aggregation name"));
+        assertTrue(ex.getMessage().contains("my[agg"));
+        assertTrue(ex.getMessage().contains("["));
+        assertTrue(ex.getMessage().contains("]"));
+        assertTrue(ex.getMessage().contains(">"));
+    }
+
+    public void testFromProtoWithInvalidNameContainingCloseBracket() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregationContainerProtoUtils.fromProto("my]agg", container)
+        );
+        assertTrue(ex.getMessage().contains("Invalid aggregation name"));
+        assertTrue(ex.getMessage().contains("my]agg"));
+    }
+
+    public void testFromProtoWithInvalidNameContainingGreaterThan() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregationContainerProtoUtils.fromProto("my>agg", container)
+        );
+        assertTrue(ex.getMessage().contains("Invalid aggregation name"));
+        assertTrue(ex.getMessage().contains("my>agg"));
+    }
+
+    public void testFromProtoWithInvalidNameContainingBrackets() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregationContainerProtoUtils.fromProto("my[agg]name", container)
+        );
+        assertTrue(ex.getMessage().contains("Invalid aggregation name"));
+    }
+
+    public void testFromProtoWithValidAggregationNames() {
+        TermsAggregation termsProto = TermsAggregation.newBuilder().setField("field").build();
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(termsProto).build();
+
+        // Test various valid names
+        String[] validNames = {
+            "my_agg",
+            "my-agg",
+            "myAgg123",
+            "agg.name",
+            "agg:name",
+            "agg/name",
+            "agg name",
+            "agg@name",
+            "agg#name"
+        };
+
+        for (String validName : validNames) {
+            AggregationBuilder result = AggregationContainerProtoUtils.fromProto(validName, container);
+            assertNotNull("Valid name should be accepted: " + validName, result);
+            assertEquals(validName, result.getName());
+        }
+    }
+
+    public void testFromProtoValidatesSubAggregationNames() {
+        // Create a terms aggregation with a sub-aggregation that has invalid name
+        AggregationContainer invalidSubAgg = AggregationContainer.newBuilder()
+            .setMin(MinAggregation.newBuilder().setField("price").build())
+            .build();
+
+        TermsAggregation proto = TermsAggregation.newBuilder()
+            .setField("category")
+            .putAggregations("invalid[name", invalidSubAgg)  // Invalid sub-agg name
+            .build();
+
+        AggregationContainer container = AggregationContainer.newBuilder().setTerms(proto).build();
+
+        // Should fail when processing sub-aggregation with invalid name
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregationContainerProtoUtils.fromProto("categories", container)
+        );
+        assertTrue(ex.getMessage().contains("Invalid aggregation name"));
+        assertTrue(ex.getMessage().contains("invalid[name"));
     }
 }

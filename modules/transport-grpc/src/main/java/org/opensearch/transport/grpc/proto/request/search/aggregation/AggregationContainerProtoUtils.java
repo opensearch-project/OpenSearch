@@ -11,6 +11,7 @@ import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.transport.grpc.proto.request.common.ObjectMapProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.bucket.terms.TermsAggregationProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MaxAggregationProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MinAggregationProtoUtils;
 
@@ -19,8 +20,6 @@ import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.Mi
  *
  * <p>This class serves as a central dispatcher that routes different aggregation types to their specific converters,
  * similar to how {@link AggregatorFactories#parseAggregators} uses registered parsers with XContentParser.
- *
- * <p>Currently supports Min and Max metric aggregations.
  *
  * @see AggregatorFactories#parseAggregators
  */
@@ -64,6 +63,10 @@ public class AggregationContainerProtoUtils {
         // Dispatch to type-specific converter based on aggregation type
         // This mirrors the REST-side pattern where each aggregation has a registered parser
         switch (aggContainer.getAggregationContainerCase()) {
+            case TERMS:
+                builder = TermsAggregationProtoUtils.fromProto(name, aggContainer.getTerms());
+                break;
+
             case MIN:
                 builder = MinAggregationProtoUtils.fromProto(name, aggContainer.getMin());
                 break;

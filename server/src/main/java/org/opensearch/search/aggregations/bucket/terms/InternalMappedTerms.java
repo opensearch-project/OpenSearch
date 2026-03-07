@@ -138,6 +138,15 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         return bucketMap.get(term);
     }
 
+    /**
+     * Gets the format used for rendering keys in this aggregation.
+     *
+     * @return the DocValueFormat
+     */
+    public DocValueFormat getFormat() {
+        return format;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
