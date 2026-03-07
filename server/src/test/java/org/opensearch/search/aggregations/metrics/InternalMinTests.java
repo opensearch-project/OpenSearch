@@ -96,4 +96,36 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
         }
         return new InternalMin(name, value, formatter, metadata);
     }
+
+    public void testGetFormatReturnsCorrectFormat() {
+        // Test with RAW format
+        InternalMin minWithRawFormat = new InternalMin("test_min", 10.5, DocValueFormat.RAW, null);
+        assertEquals(DocValueFormat.RAW, minWithRawFormat.getFormat());
+
+        // Test with custom decimal format
+        DocValueFormat customFormat = randomNumericDocValueFormat();
+        InternalMin minWithCustomFormat = new InternalMin("test_min", 10.5, customFormat, null);
+        assertEquals(customFormat, minWithCustomFormat.getFormat());
+    }
+
+    public void testGetFormatWithDifferentFormats() {
+        // Test that getFormat() returns the same format that was passed in constructor
+        DocValueFormat[] formats = new DocValueFormat[] {
+            DocValueFormat.RAW,
+            DocValueFormat.BOOLEAN,
+            DocValueFormat.GEOHASH,
+            DocValueFormat.IP
+        };
+
+        for (DocValueFormat format : formats) {
+            InternalMin min = new InternalMin("test_min", randomDouble(), format, null);
+            assertSame(format, min.getFormat());
+        }
+    }
+
+    public void testGetFormatNotNull() {
+        // Ensure getFormat() never returns null even when constructed with default format
+        InternalMin min = new InternalMin("test_min", randomDouble(), DocValueFormat.RAW, null);
+        assertNotNull(min.getFormat());
+    }
 }

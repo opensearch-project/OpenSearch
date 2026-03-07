@@ -18,6 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -302,20 +303,107 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         assertFalse("Should not have status", protoDetail.hasStatus());
     }
 
-    public void testToProtoThrowsUnsupportedOperationExceptionForAggregations() {
+    public void testToProtoWithAggregations() throws IOException {
+        // Create mock Min aggregation
+        org.opensearch.search.aggregations.metrics.InternalMin minAgg = mock(
+            org.opensearch.search.aggregations.metrics.InternalMin.class
+        );
+        when(minAgg.getName()).thenReturn("min_price");
+        when(minAgg.getValue()).thenReturn(-50.0);
+        when(minAgg.getFormat()).thenReturn(org.opensearch.search.DocValueFormat.RAW);
+        when(minAgg.getMetadata()).thenReturn(Collections.emptyMap());
+
+        // Create mock Max aggregation
+        org.opensearch.search.aggregations.metrics.InternalMax maxAgg = mock(
+            org.opensearch.search.aggregations.metrics.InternalMax.class
+        );
+        when(maxAgg.getName()).thenReturn("max_price");
+        when(maxAgg.getValue()).thenReturn(9999.0);
+        when(maxAgg.getFormat()).thenReturn(org.opensearch.search.DocValueFormat.RAW);
+        when(maxAgg.getMetadata()).thenReturn(Collections.emptyMap());
+
+        // Create InternalAggregations with our mocked aggregations
+        List<org.opensearch.search.aggregations.InternalAggregation> aggsList = new ArrayList<>();
+        aggsList.add(minAgg);
+        aggsList.add(maxAgg);
+        org.opensearch.search.aggregations.InternalAggregations aggregations = org.opensearch.search.aggregations.InternalAggregations
+            .from(aggsList);
+
+        // Create mock SearchResponseSections
+        SearchResponseSections mockSections = mock(SearchResponseSections.class);
+        when(mockSections.getProcessorResult()).thenReturn(new ArrayList<>());
+        when(mockSections.getSearchExtBuilders()).thenReturn(new ArrayList<>());
+
         // Create mock SearchResponse with aggregations
         SearchResponse mockResponse = mock(SearchResponse.class);
         when(mockResponse.getHits()).thenReturn(SearchHits.empty());
-        when(mockResponse.getInternalResponse()).thenReturn(mock(SearchResponseSections.class));
-        when(mockResponse.getAggregations()).thenReturn(mock(org.opensearch.search.aggregations.Aggregations.class));
+        when(mockResponse.getInternalResponse()).thenReturn(mockSections);
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getAggregations()).thenReturn(aggregations);
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
 
-        // Call the method under test - should throw UnsupportedOperationException
+        // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        UnsupportedOperationException exception = expectThrows(
-            UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
-        );
-        assertEquals("aggregation responses are not supported yet", exception.getMessage());
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
+
+        // Verify aggregations are present
+        assertNotNull("Proto response should not be null", protoResponse);
+        assertEquals("Should have 2 aggregations", 2, protoResponse.getAggregationsCount());
+        assertTrue("Should contain min_price aggregation", protoResponse.containsAggregations("min_price"));
+        assertTrue("Should contain max_price aggregation", protoResponse.containsAggregations("max_price"));
+
+        // Verify Min aggregation
+        org.opensearch.protobufs.Aggregate minAggregate = protoResponse.getAggregationsOrThrow("min_price");
+        assertTrue("Min should have value", minAggregate.hasValue());
+        assertTrue("Min value should be double", minAggregate.getValue().hasDouble());
+        assertEquals("Min value should be -50.0", -50.0, minAggregate.getValue().getDouble(), 0.001);
+
+        // Verify Max aggregation
+        org.opensearch.protobufs.Aggregate maxAggregate = protoResponse.getAggregationsOrThrow("max_price");
+        assertTrue("Max should have value", maxAggregate.hasValue());
+        assertTrue("Max value should be double", maxAggregate.getValue().hasDouble());
+        assertEquals("Max value should be 9999.0", 9999.0, maxAggregate.getValue().getDouble(), 0.001);
+    }
+
+    public void testToProtoWithNullAggregations() throws IOException {
+        // Create mock SearchResponseSections
+        SearchResponseSections mockSections = mock(SearchResponseSections.class);
+        when(mockSections.getProcessorResult()).thenReturn(new ArrayList<>());
+        when(mockSections.getSearchExtBuilders()).thenReturn(new ArrayList<>());
+
+        // Create mock SearchResponse without aggregations
+        SearchResponse mockResponse = mock(SearchResponse.class);
+        when(mockResponse.getHits()).thenReturn(SearchHits.empty());
+        when(mockResponse.getInternalResponse()).thenReturn(mockSections);
+        when(mockResponse.getTook()).thenReturn(TimeValue.timeValueMillis(100));
+        when(mockResponse.isTimedOut()).thenReturn(false);
+        when(mockResponse.getTotalShards()).thenReturn(5);
+        when(mockResponse.getSuccessfulShards()).thenReturn(5);
+        when(mockResponse.getSkippedShards()).thenReturn(0);
+        when(mockResponse.getFailedShards()).thenReturn(0);
+        when(mockResponse.getShardFailures()).thenReturn(new ShardSearchFailure[0]);
+        when(mockResponse.getClusters()).thenReturn(new SearchResponse.Clusters(0, 0, 0));
+        when(mockResponse.getAggregations()).thenReturn(null);
+        when(mockResponse.getSuggest()).thenReturn(null);
+        when(mockResponse.getProfileResults()).thenReturn(null);
+
+        // Call the method under test
+        org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
+
+        // Verify no aggregations
+        assertNotNull("Proto response should not be null", protoResponse);
+        assertEquals("Should have 0 aggregations", 0, protoResponse.getAggregationsCount());
     }
 
     public void testToProtoThrowsUnsupportedOperationExceptionForSuggest() {
