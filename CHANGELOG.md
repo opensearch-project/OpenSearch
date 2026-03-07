@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add range validations in query builder and field mapper ([#20497](https://github.com/opensearch-project/OpenSearch/issues/20497))
 - [Workload Management] Enhance Scroll API support for autotagging ([#20151](https://github.com/opensearch-project/OpenSearch/pull/20151))
 - Add indices to search request slowlog ([#20588](https://github.com/opensearch-project/OpenSearch/pull/20588))
+- Add gRPC support for Min and Max metric aggregations ([#20676](https://github.com/opensearch-project/OpenSearch/pull/20676))
 
 ### Changed
 - Move Randomness from server to libs/common ([#20570](https://github.com/opensearch-project/OpenSearch/pull/20570))
