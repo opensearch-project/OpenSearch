@@ -97,4 +97,36 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
         }
         return new InternalMax(name, value, formatter, metadata);
     }
+
+    public void testGetFormatReturnsCorrectFormat() {
+        // Test with RAW format
+        InternalMax maxWithRawFormat = new InternalMax("test_max", 99.9, DocValueFormat.RAW, null);
+        assertEquals(DocValueFormat.RAW, maxWithRawFormat.getFormat());
+
+        // Test with custom decimal format
+        DocValueFormat customFormat = randomNumericDocValueFormat();
+        InternalMax maxWithCustomFormat = new InternalMax("test_max", 99.9, customFormat, null);
+        assertEquals(customFormat, maxWithCustomFormat.getFormat());
+    }
+
+    public void testGetFormatWithDifferentFormats() {
+        // Test that getFormat() returns the same format that was passed in constructor
+        DocValueFormat[] formats = new DocValueFormat[] {
+            DocValueFormat.RAW,
+            DocValueFormat.BOOLEAN,
+            DocValueFormat.GEOHASH,
+            DocValueFormat.IP
+        };
+
+        for (DocValueFormat format : formats) {
+            InternalMax max = new InternalMax("test_max", randomDouble(), format, null);
+            assertSame(format, max.getFormat());
+        }
+    }
+
+    public void testGetFormatNotNull() {
+        // Ensure getFormat() never returns null even when constructed with default format
+        InternalMax max = new InternalMax("test_max", randomDouble(), DocValueFormat.RAW, null);
+        assertNotNull(max.getFormat());
+    }
 }

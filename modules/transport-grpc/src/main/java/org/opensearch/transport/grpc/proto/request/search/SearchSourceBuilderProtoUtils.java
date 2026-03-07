@@ -9,16 +9,19 @@ package org.opensearch.transport.grpc.proto.request.search;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.protobufs.DerivedField;
 import org.opensearch.protobufs.FieldAndFormat;
 import org.opensearch.protobufs.Rescore;
 import org.opensearch.protobufs.ScriptField;
 import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.protobufs.TrackHits;
+import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationContainerProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
@@ -31,8 +34,23 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCU
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
- * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
+ * Utility class for converting SearchSourceBuilder Protocol Buffers to objects.
+ * This class handles the parsing of search request body from protobuf to OpenSearch's
+ * internal SearchSourceBuilder representation.
  *
+ * <p>Key conversions handled:
+ * <ul>
+ *   <li>Queries: InnerQueryBuilder proto → {@link org.opensearch.index.query.QueryBuilder}</li>
+ *   <li>Aggregations: Map&lt;String, AggregationContainer&gt; proto → {@link org.opensearch.search.aggregations.AggregationBuilder}</li>
+ *   <li>Sorts: SortCombinations proto → {@link org.opensearch.search.sort.SortBuilder}</li>
+ *   <li>Source filtering: SourceConfig proto → {@link org.opensearch.search.fetch.subphase.FetchSourceContext}</li>
+ * </ul>
+ * <p>
+ * Note: The REST API supports both "aggregations" and "aggs" field names as aliases.
+ * In protobuf, only the "aggregations" field is used (field 36 in SearchRequestBody).
+ *
+ * @see org.opensearch.search.builder.SearchSourceBuilder
+ * @see org.opensearch.search.aggregations.AggregatorFactories
  */
 public class SearchSourceBuilderProtoUtils {
 
@@ -152,13 +170,23 @@ public class SearchSourceBuilderProtoUtils {
             }
         }
 
-        // Aggregations field was removed in protobufs 1.0.0
-        // TODO: Support aggregations when they are re-added to the proto
-        /*
+        // Parse aggregations from protobuf
+        // Similar to REST API parsing in SearchSourceBuilder.parseXContent()
+        // REST side: aggregations = AggregatorFactories.parseAggregators(parser)
+        // Proto side: We parse from the protobuf AggregationContainer map
+        // @see org.opensearch.search.builder.SearchSourceBuilder#parseXContent(XContentParser, boolean)
+        // @see org.opensearch.search.aggregations.AggregatorFactories#parseAggregators(XContentParser)
+        //
+        // Note: In REST API, "aggregations" and "aggs" are aliases for the same JSON field.
+        // In protobuf, we only have the "aggregations" field (field 36).
         if (protoRequest.getAggregationsCount() > 0) {
-            throw new UnsupportedOperationException("aggregations param is not supported yet");
+            for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
+                String aggName = entry.getKey();
+                AggregationBuilder aggBuilder = AggregationContainerProtoUtils.fromProto(aggName, entry.getValue());
+                searchSourceBuilder.aggregation(aggBuilder);
+            }
         }
-        */
+
         if (protoRequest.hasHighlight()) {
             searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
         }
