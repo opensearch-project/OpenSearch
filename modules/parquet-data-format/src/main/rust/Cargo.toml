@@ -7,10 +7,6 @@ edition = "2024"
 name = "parquet_dataformat_jni"
 crate-type = ["cdylib", "lib"]
 
-[[bin]]
-name = "profiler"
-path = "src/bin/profiler.rs"
-
 [dependencies]
 
 arrow = { version = "58.0.0", features = ["ffi"] }
@@ -43,10 +39,6 @@ vectorized-exec-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
 
 # Parquet support
 parquet = { version = "58.0.0", features = ["arrow"] }
-polars = { version = "0.52.0", features = ["lazy", "parquet", "dtype-datetime", "temporal", "timezones", "pivot", "new_streaming", "cum_agg", "ipc_streaming"] }
-polars-core = { version = "0.52.0", features = ["dtype-datetime", "temporal"] }
-polars-expr = { version = "0.52.0", features = ["timezones"] }
-polars-arrow = { version = "0.52.0", features = ["io_ipc"] }
 
 # Object store for file access
 object_store = "0.11"

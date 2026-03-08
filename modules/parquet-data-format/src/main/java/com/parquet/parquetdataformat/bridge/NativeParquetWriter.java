@@ -24,11 +24,13 @@ public class NativeParquetWriter implements Closeable {
      * Creates a new native Parquet writer.
      * @param filePath path to the Parquet file
      * @param schemaAddress Arrow C Data Interface schema pointer
+     * @param sortColumn column to sort by
+     * @param reverseSort whether to sort in reverse order
      * @throws IOException if writer creation fails
      */
-    public NativeParquetWriter(String filePath, String indexName, long schemaAddress) throws IOException {
+    public NativeParquetWriter(String filePath, long schemaAddress, String sortColumn, boolean reverseSort) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, schemaAddress, "temp");
+        RustBridge.createWriter(filePath, schemaAddress, sortColumn, reverseSort);
     }
 
     /**

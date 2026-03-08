@@ -36,5 +36,13 @@ public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable
         return 0;
     }
 
+    default void setSortColumn(String sortColumn) {
+        // no-op by default
+    }
+
+    default void setReverseSort(boolean reverseSort) {
+        // no-op by default
+    }
+
     void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;
 }

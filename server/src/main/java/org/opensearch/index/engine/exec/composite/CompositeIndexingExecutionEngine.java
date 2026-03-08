@@ -8,8 +8,10 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.coord.Segment;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,17 +53,33 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         PluginsService pluginsService,
         ShardPath shardPath,
         long initialWriterGeneration,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        EngineConfig engineConfig
     ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         List<DataFormat> dataFormats = new ArrayList<>();
+
+        String sortKey = engineConfig.getIndexSort() != null
+            && engineConfig.getIndexSort().getSort().length > 0
+            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().isPresent()
+                ? Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().get().getField()
+                : null;
+
+        boolean reverseSort = engineConfig.getIndexSort() != null
+            && engineConfig.getIndexSort().getSort().length > 0
+            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().isPresent()
+            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().get().getReverse();
+
         try {
             DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)
                 .stream()
                 .findAny()
                 .orElseThrow(() -> new IllegalArgumentException("dataformat [" + DataFormat.TEXT + "] is not registered."));
             dataFormats.add(plugin.getDataFormat());
-            delegates.add(plugin.indexingEngine(mapperService, shardPath, indexSettings));
+            IndexingExecutionEngine<?> delegate = plugin.indexingEngine(mapperService, shardPath, indexSettings);
+            delegate.setSortColumn(sortKey);
+            delegate.setReverseSort(reverseSort);
+            delegates.add(delegate);
         } catch (NullPointerException e) {
             delegates.add(new TextEngine());
         }

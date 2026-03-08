@@ -323,7 +323,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 pluginsService,
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet(),
-                indexSettings
+                indexSettings,
+                getEngineConfig()
             );
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
