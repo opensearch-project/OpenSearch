@@ -291,16 +291,10 @@ public final class Tags {
         return sb.append('}').toString();
     }
 
-    // -----------------------------------------------------------------------
-    // Deprecated API
-    // -----------------------------------------------------------------------
-
     /**
      * Factory method.
-     * @return tags
-     * @deprecated Use {@link #EMPTY} instead.
+     * @return empty tags
      */
-    @Deprecated
     public static Tags create() {
         return EMPTY;
     }
@@ -310,9 +304,7 @@ public final class Tags {
      * @param key   key
      * @param value value
      * @return new Tags instance with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
      */
-    @Deprecated
     public Tags addTag(String key, String value) {
         Objects.requireNonNull(key, "key cannot be null");
         Objects.requireNonNull(value, "value cannot be null");
@@ -324,9 +316,7 @@ public final class Tags {
      * @param key   key
      * @param value value
      * @return new Tags instance with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
      */
-    @Deprecated
     public Tags addTag(String key, long value) {
         Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
@@ -337,9 +327,7 @@ public final class Tags {
      * @param key   key
      * @param value value
      * @return new Tags instance with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
      */
-    @Deprecated
     public Tags addTag(String key, double value) {
         Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
@@ -350,9 +338,7 @@ public final class Tags {
      * @param key   key
      * @param value value
      * @return new Tags instance with the added tag
-     * @deprecated Use {@link #of} or {@link #concat} instead.
      */
-    @Deprecated
     public Tags addTag(String key, boolean value) {
         Objects.requireNonNull(key, "key cannot be null");
         return Tags.concat(this, Tags.of(key, (Object) value));
