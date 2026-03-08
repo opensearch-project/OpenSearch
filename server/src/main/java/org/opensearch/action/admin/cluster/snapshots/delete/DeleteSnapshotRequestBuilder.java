@@ -83,4 +83,15 @@ public class DeleteSnapshotRequestBuilder extends ClusterManagerNodeOperationReq
         request.snapshots(snapshots);
         return this;
     }
+
+    /**
+     * If set to true the operation should wait for the snapshot deletion to complete before returning.
+     *
+     * @param waitForCompletion true if operation should wait for the snapshot deletion to complete
+     * @return this builder
+     */
+    public DeleteSnapshotRequestBuilder setWaitForCompletion(boolean waitForCompletion) {
+        request.waitForCompletion(waitForCompletion);
+        return this;
+    }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.cluster.snapshots.delete;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.annotation.PublicApi;
@@ -39,6 +40,8 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -56,6 +59,8 @@ public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnaps
     private String repository;
 
     private String[] snapshots;
+
+    private boolean waitForCompletion;
 
     /**
      * Constructs a new delete snapshots request
@@ -86,6 +91,9 @@ public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnaps
         super(in);
         repository = in.readString();
         snapshots = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            waitForCompletion = in.readBoolean();
+        }
     }
 
     @Override
@@ -93,6 +101,9 @@ public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnaps
         super.writeTo(out);
         out.writeString(repository);
         out.writeStringArray(snapshots);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeBoolean(waitForCompletion);
+        }
     }
 
     @Override
@@ -138,5 +149,45 @@ public class DeleteSnapshotRequest extends ClusterManagerNodeRequest<DeleteSnaps
     public DeleteSnapshotRequest snapshots(String... snapshots) {
         this.snapshots = snapshots;
         return this;
+    }
+
+    /**
+     * If set to true the operation should wait for the snapshot deletion to complete before returning.
+     * <p>
+     * By default, the operation will return as soon as the deletion is initialized. It can be changed by setting this
+     * flag to true.
+     *
+     * @param waitForCompletion true if operation should wait for the snapshot deletion to complete
+     * @return this request
+     */
+    public DeleteSnapshotRequest waitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+        return this;
+    }
+
+    /**
+     * Returns true if the request should wait for the snapshot deletion to complete before returning
+     *
+     * @return true if the request should wait for completion
+     */
+    public boolean waitForCompletion() {
+        return waitForCompletion;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DeleteSnapshotRequest that = (DeleteSnapshotRequest) o;
+        return waitForCompletion == that.waitForCompletion
+            && Objects.equals(repository, that.repository)
+            && Arrays.equals(snapshots, that.snapshots);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(repository, waitForCompletion);
+        result = 31 * result + Arrays.hashCode(snapshots);
+        return result;
     }
 }
