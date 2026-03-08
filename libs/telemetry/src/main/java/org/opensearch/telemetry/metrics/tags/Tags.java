@@ -53,6 +53,7 @@ public final class Tags {
     public static Tags of(String key, Object value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
+        validateValue(value);
         String[] k = { key };
         Object[] v = { value };
         return new Tags(k, v, computeHash(k, v));
@@ -71,6 +72,8 @@ public final class Tags {
         Objects.requireNonNull(v1, "v1 must not be null");
         Objects.requireNonNull(k2, "k2 must not be null");
         Objects.requireNonNull(v2, "v2 must not be null");
+        validateValue(v1);
+        validateValue(v2);
         int cmp = k1.compareTo(k2);
         String[] keys;
         Object[] values;
@@ -104,6 +107,9 @@ public final class Tags {
         Objects.requireNonNull(v2, "v2 must not be null");
         Objects.requireNonNull(k3, "k3 must not be null");
         Objects.requireNonNull(v3, "v3 must not be null");
+        validateValue(v1);
+        validateValue(v2);
+        validateValue(v3);
         return fromPairs(new String[] { k1, k2, k3 }, new Object[] { v1, v2, v3 }, 3);
     }
 
@@ -128,6 +134,10 @@ public final class Tags {
         Objects.requireNonNull(v3, "v3 must not be null");
         Objects.requireNonNull(k4, "k4 must not be null");
         Objects.requireNonNull(v4, "v4 must not be null");
+        validateValue(v1);
+        validateValue(v2);
+        validateValue(v3);
+        validateValue(v4);
         return fromPairs(new String[] { k1, k2, k3, k4 }, new Object[] { v1, v2, v3, v4 }, 4);
     }
 
@@ -215,6 +225,7 @@ public final class Tags {
         Object[] values = new Object[keys.length];
         for (int i = 0; i < keys.length; i++) {
             values[i] = Objects.requireNonNull(map.get(keys[i]), "value for key '" + keys[i] + "' must not be null");
+            validateValue(values[i]);
         }
         return new Tags(keys, values, computeHash(keys, values));
     }
@@ -347,6 +358,14 @@ public final class Tags {
     // -----------------------------------------------------------------------
     // Internal
     // -----------------------------------------------------------------------
+
+    private static final String UNSUPPORTED_TYPE_MSG = "Tag value must be String, Long, Double, or Boolean, got: ";
+
+    private static void validateValue(Object value) {
+        if (!(value instanceof String || value instanceof Long || value instanceof Double || value instanceof Boolean)) {
+            throw new IllegalArgumentException(UNSUPPORTED_TYPE_MSG + value.getClass().getName());
+        }
+    }
 
     private static int computeHash(String[] keys, Object[] values) {
         int result = 1;

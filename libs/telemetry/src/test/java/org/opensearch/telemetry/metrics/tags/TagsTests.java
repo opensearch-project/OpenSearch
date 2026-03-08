@@ -10,6 +10,7 @@ package org.opensearch.telemetry.metrics.tags;
 
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -73,6 +74,10 @@ public class TagsTests extends OpenSearchTestCase {
         assertSame(Tags.EMPTY, Tags.ofStringPairs(new String[0]));
     }
 
+    public void testOfStringPairsNull() {
+        assertSame(Tags.EMPTY, Tags.ofStringPairs((String[]) null));
+    }
+
     public void testOfStringPairsOddLengthThrows() {
         expectThrows(IllegalArgumentException.class, () -> Tags.ofStringPairs("a", "b", "c"));
     }
@@ -118,6 +123,10 @@ public class TagsTests extends OpenSearchTestCase {
 
     public void testConcatBothNullReturnsEmpty() {
         assertSame(Tags.EMPTY, Tags.concat(null, null));
+    }
+
+    public void testConcatEmptyWithNullReturnsEmpty() {
+        assertSame(Tags.EMPTY, Tags.concat(Tags.EMPTY, null));
     }
 
     public void testConcatPartialOverlapMergesAndDeduplicates() {
@@ -209,6 +218,49 @@ public class TagsTests extends OpenSearchTestCase {
         expectThrows(NullPointerException.class, () -> Tags.fromMap(map));
     }
 
+    // --- value type validation ---
+
+    public void testOfAcceptsSupportedTypes() {
+        Tags stringTag = Tags.of("s", "val");
+        assertEquals("val", stringTag.getValue(0));
+
+        Tags longTag = Tags.of("l", 42L);
+        assertEquals(42L, longTag.getValue(0));
+
+        Tags doubleTag = Tags.of("d", 3.14);
+        assertEquals(3.14, doubleTag.getValue(0));
+
+        Tags boolTag = Tags.of("b", true);
+        assertEquals(true, boolTag.getValue(0));
+    }
+
+    public void testOfRejectsUnsupportedType() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Tags.of("k", new ArrayList<>()));
+        assertTrue(e.getMessage().contains("ArrayList"));
+    }
+
+    public void testOfRejectsIntegerType() {
+        expectThrows(IllegalArgumentException.class, () -> Tags.of("k", 42));
+    }
+
+    public void testOfTwoPairRejectsUnsupportedType() {
+        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", new Object()));
+    }
+
+    public void testOfThreePairRejectsUnsupportedType() {
+        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", "ok", "c", new int[] { 1 }));
+    }
+
+    public void testOfFourPairRejectsUnsupportedType() {
+        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", "ok", "c", "ok", "d", new Object()));
+    }
+
+    public void testFromMapRejectsUnsupportedValueType() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("k", new ArrayList<>());
+        expectThrows(IllegalArgumentException.class, () -> Tags.fromMap(map));
+    }
+
     // --- getTagsMap ---
 
     public void testGetTagsMapPreservesOriginalTypes() {
@@ -238,6 +290,14 @@ public class TagsTests extends OpenSearchTestCase {
     public void testIdentityEquals() {
         Tags t = Tags.of("k", "v");
         assertEquals(t, t);
+    }
+
+    public void testNotEqualToNull() {
+        assertNotEquals(Tags.of("k", "v"), null);
+    }
+
+    public void testNotEqualToNonTagsObject() {
+        assertNotEquals(Tags.of("k", "v"), "not a Tags");
     }
 
     public void testDifferentSizeNotEqual() {
