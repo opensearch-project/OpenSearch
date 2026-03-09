@@ -66,6 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix ShardSearchFailure in transport-grpc ([#20641](https://github.com/opensearch-project/OpenSearch/pull/20641))
 - Fix TLS cert hot-reload for Arrow Flight transport ([#20732](https://github.com/opensearch-project/OpenSearch/pull/20732))
 - Fix misleading heap usage cancellation message in SearchBackpressureService ([#20779](https://github.com/opensearch-project/OpenSearch/pull/20779))
+- Adding lockable concurrent queue utilities ([#20791](https://github.com/opensearch-project/OpenSearch/pull/20791))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
