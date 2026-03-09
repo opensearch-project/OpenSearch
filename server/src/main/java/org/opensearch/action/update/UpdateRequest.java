@@ -163,13 +163,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * Stores the original (pre-pipeline) source of the doc when docAsUpsert is true.
      * This is used to ensure that when a bulk update with doc_as_upsert merges the doc
      * into an existing document, the merge uses the original user-provided source rather
-     * than the pipeline-modified source. This is transient and not serialized.
+     * than the pipeline-modified source.
      */
     @Nullable
-    private transient BytesReference rawDocSource;
+    private BytesReference rawDocSource;
 
     @Nullable
-    private transient MediaType rawDocSourceContentType;
+    private MediaType rawDocSourceContentType;
 
     public UpdateRequest() {}
 
@@ -204,6 +204,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
         requireAlias = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            rawDocSource = in.readOptionalBytesReference();
+            if (rawDocSource != null) {
+                rawDocSourceContentType = in.readMediaType();
+            }
+        }
     }
 
     public UpdateRequest(String index, String id) {
@@ -958,6 +964,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
         out.writeBoolean(requireAlias);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeOptionalBytesReference(rawDocSource);
+            if (rawDocSource != null) {
+                rawDocSourceContentType.writeTo(out);
+            }
+        }
     }
 
     @Override

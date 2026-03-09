@@ -225,7 +225,7 @@ public class UpdateHelper {
         // it is merged with the existing document, matching the behavior of single upsert operations
         // where the pipeline runs on the full merged document. See #10864.
         final Map<String, Object> docSourceForMerge;
-        if (request.docAsUpsert() && request.rawDocSource() != null) {
+        if (request.docAsUpsert() && request.rawDocSource() != null && request.rawDocSourceContentType() != null) {
             Tuple<? extends MediaType, Map<String, Object>> rawSourceAndContent = XContentHelper.convertToMap(
                 request.rawDocSource(),
                 true,
