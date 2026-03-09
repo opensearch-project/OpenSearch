@@ -124,7 +124,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
     }
 
     private static boolean containsFilters(FetchSourceContext context) {
-        return context.includes().length != 0 || context.excludes().length != 0;
+        return context.includes().length != 0 || context.excludes().length != 0 || context.includesExplicit();
     }
 
     private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {

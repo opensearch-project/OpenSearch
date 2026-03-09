@@ -35,9 +35,11 @@ package org.opensearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.fetch.FetchContext;
 import org.opensearch.search.fetch.FetchSubPhase.HitContext;
@@ -73,6 +75,52 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
 
         hitContext = hitExecute(source, true, "*", "field2");
         assertEquals(Collections.singletonMap("field1", "value"), hitContext.hit().getSourceAsMap());
+    }
+
+    public void testEmptyIncludesArray() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field1", "value").field("field2", "value2").endObject();
+
+        // Test with _source: [] (empty array parsed via fromXContent)
+        FetchSourceContext fetchSourceContext;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "[]")) {
+            parser.nextToken();
+            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+        }
+        assertTrue(fetchSourceContext.fetchSource());
+        assertTrue(fetchSourceContext.includesExplicit());
+        assertEquals(0, fetchSourceContext.includes().length);
+
+        HitContext hitContext = hitExecuteWithContext(source, fetchSourceContext);
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        // Test with _source: {"includes": []} (empty includes in object)
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"includes\": []}")) {
+            parser.nextToken();
+            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+        }
+        assertTrue(fetchSourceContext.fetchSource());
+        assertTrue(fetchSourceContext.includesExplicit());
+        assertEquals(0, fetchSourceContext.includes().length);
+
+        hitContext = hitExecuteWithContext(source, fetchSourceContext);
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+    }
+
+    public void testEmptyIncludesWithExcludes() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field1", "value").field("field2", "value2").endObject();
+
+        // Test with _source: {"includes": [], "excludes": ["field1"]}
+        // Empty includes with explicit excludes - should still return empty since includes is empty
+        FetchSourceContext fetchSourceContext;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"includes\": [], \"excludes\": [\"field1\"]}")) {
+            parser.nextToken();
+            fetchSourceContext = FetchSourceContext.fromXContent(parser);
+        }
+        assertTrue(fetchSourceContext.fetchSource());
+        assertTrue(fetchSourceContext.includesExplicit());
+
+        HitContext hitContext = hitExecuteWithContext(source, fetchSourceContext);
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
     }
 
     public void testMultipleFiltering() throws IOException {
@@ -205,6 +253,29 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         } else {
             assertNotNull(processor);
             processor.process(hitContext);
+        }
+        return hitContext;
+    }
+
+    private HitContext hitExecuteWithContext(XContentBuilder source, FetchSourceContext fetchSourceContext) throws IOException {
+        FetchContext fetchContext = mock(FetchContext.class);
+        when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
+        when(fetchContext.getIndexName()).thenReturn("index");
+
+        final SearchHit searchHit = new SearchHit(1, null, null, null, null);
+
+        MemoryIndex index = new MemoryIndex();
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, new SourceLookup());
+        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
+
+        FetchSourcePhase phase = new FetchSourcePhase();
+        FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
+        if (fetchSourceContext.fetchSource()) {
+            assertNotNull(processor);
+            processor.process(hitContext);
+        } else {
+            assertNull(processor);
         }
         return hitContext;
     }

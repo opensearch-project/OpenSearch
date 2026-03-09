@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch.subphase;
 
+import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
@@ -49,6 +50,7 @@ import org.opensearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -69,12 +71,21 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final boolean fetchSource;
     private final String[] includes;
     private final String[] excludes;
+    private final boolean includesExplicit;
     private Function<Map<String, ?>, Map<String, Object>> filter;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includesExplicit = false;
+    }
+
+    private FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes, boolean includesExplicit) {
+        this.fetchSource = fetchSource;
+        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
+        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includesExplicit = includesExplicit;
     }
 
     public FetchSourceContext(boolean fetchSource) {
@@ -85,6 +96,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         fetchSource = in.readBoolean();
         includes = in.readStringArray();
         excludes = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            includesExplicit = in.readBoolean();
+        } else {
+            includesExplicit = false;
+        }
     }
 
     @Override
@@ -92,6 +108,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeBoolean(includesExplicit);
+        }
     }
 
     public boolean fetchSource() {
@@ -106,10 +125,20 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return this.excludes;
     }
 
+    /**
+     * Returns true if the includes filter was explicitly set, even if the array is empty.
+     * This is used to distinguish between "no includes specified" (include everything)
+     * and "empty includes specified" (include nothing).
+     */
+    public boolean includesExplicit() {
+        return this.includesExplicit;
+    }
+
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
         Boolean fetchSource = null;
         String[] sourceExcludes = null;
         String[] sourceIncludes = null;
+        boolean includesExplicit = false;
 
         String source = request.param("_source");
         if (source != null) {
@@ -119,12 +148,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 fetchSource = false;
             } else {
                 sourceIncludes = Strings.splitStringByCommaToArray(source);
+                includesExplicit = true;
             }
         }
 
         String sIncludes = request.param("_source_includes");
         if (sIncludes != null) {
             sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
+            includesExplicit = true;
         }
 
         String sExcludes = request.param("_source_excludes");
@@ -133,7 +164,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes, includesExplicit);
         }
         return null;
     }
@@ -143,16 +174,19 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
+        boolean includesExplicit = false;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {
             includes = new String[] { parser.text() };
+            includesExplicit = true;
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             includes = list.toArray(new String[0]);
+            includesExplicit = true;
         } else if (token == XContentParser.Token.START_OBJECT) {
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -173,6 +207,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             }
                         }
                         includes = includesList.toArray(new String[0]);
+                        includesExplicit = true;
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -197,6 +232,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         includes = new String[] { parser.text() };
+                        includesExplicit = true;
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = new String[] { parser.text() };
                     } else {
@@ -227,7 +263,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 parser.getTokenLocation()
             );
         }
-        return new FetchSourceContext(fetchSource, includes, excludes);
+        return new FetchSourceContext(fetchSource, includes, excludes, includesExplicit);
     }
 
     @Override
@@ -251,6 +287,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
+        if (includesExplicit != that.includesExplicit) return false;
         if (!Arrays.equals(excludes, that.excludes)) return false;
         if (!Arrays.equals(includes, that.includes)) return false;
 
@@ -260,6 +297,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         int result = (fetchSource ? 1 : 0);
+        result = 31 * result + (includesExplicit ? 1 : 0);
         result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
         result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
         return result;
@@ -271,7 +309,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
      */
     public Function<Map<String, ?>, Map<String, Object>> getFilter() {
         if (filter == null) {
-            filter = XContentMapValues.filter(includes, excludes, true);
+            // If includes was explicitly set to an empty array, return an empty map
+            // rather than treating it as "include everything"
+            if (includesExplicit && includes.length == 0) {
+                filter = (sourceAsMap) -> Collections.emptyMap();
+            } else {
+                filter = XContentMapValues.filter(includes, excludes, true);
+            }
         }
         return filter;
     }
