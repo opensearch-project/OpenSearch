@@ -1797,7 +1797,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         try {
-            if (getIndexer() instanceof NRTReplicationEngine nrtEngine) {
+            if (getIndexer() instanceof EngineBackedIndexer indexer && indexer.getEngine() instanceof NRTReplicationEngine nrtEngine) {
                 return Optional.of(nrtEngine);
             } else {
                 return Optional.empty();
@@ -5838,7 +5838,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateShardIngestionState(IngestionSettings ingestionSettings) {
         synchronized (engineMutex) {
-            if (!(getIndexerOrNull() instanceof IngestionEngine ingestionEngine)) {
+            if (!(getIndexerOrNull() instanceof EngineBackedIndexer indexer
+                && indexer.getEngine() instanceof IngestionEngine ingestionEngine)) {
                 return;
             }
             ingestionEngine.updateIngestionSettings(ingestionSettings);
@@ -5850,8 +5851,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     @Override
     public ShardIngestionState getIngestionState() {
-        Indexer engine = getIndexerOrNull();
-        if (indexSettings.getIndexMetadata().useIngestionSource() == false || !(engine instanceof IngestionEngine ingestionEngine)) {
+        Indexer indexer = getIndexerOrNull();
+        if (indexSettings.getIndexMetadata().useIngestionSource() == false
+            || !(indexer instanceof EngineBackedIndexer engineBackedIndexer
+                && engineBackedIndexer.getEngine() instanceof IngestionEngine ingestionEngine)) {
             throw new OpenSearchException("Unable to retrieve ingestion state as the shard does not have ingestion enabled.");
         }
 
