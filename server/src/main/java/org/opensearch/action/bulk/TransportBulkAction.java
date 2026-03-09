@@ -426,6 +426,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
                 if (docRequest != null) {
                     if (updateRequest.docAsUpsert()) {
+                        // Save the original doc source before pipeline processing.
+                        // When the document already exists, the merge in UpdateHelper should use the
+                        // original user-provided source rather than the pipeline-modified source.
+                        // This fixes the inconsistency between single upsert and bulk upsert behavior
+                        // with ingest pipelines (see #10864).
+                        updateRequest.saveRawDocSource();
                         indexRequestHasPipeline |= ingestService.resolvePipelines(actionRequest, docRequest, metadata);
                     } else {
                         // In the case when doc as upsert is false or not defined, we only resolve system ingest pipelines.

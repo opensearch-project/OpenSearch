@@ -220,7 +220,23 @@ public class UpdateHelper {
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
-        final boolean noop = !XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop);
+        // When docAsUpsert is true and the document exists, use the original (pre-pipeline) doc source
+        // for merging. This ensures that the ingest pipeline does not corrupt the partial doc before
+        // it is merged with the existing document, matching the behavior of single upsert operations
+        // where the pipeline runs on the full merged document. See #10864.
+        final Map<String, Object> docSourceForMerge;
+        if (request.docAsUpsert() && request.rawDocSource() != null) {
+            Tuple<? extends MediaType, Map<String, Object>> rawSourceAndContent = XContentHelper.convertToMap(
+                request.rawDocSource(),
+                true,
+                request.rawDocSourceContentType()
+            );
+            docSourceForMerge = rawSourceAndContent.v2();
+        } else {
+            docSourceForMerge = currentRequest.sourceAsMap();
+        }
+
+        final boolean noop = !XContentHelper.update(updatedSourceAsMap, docSourceForMerge, detectNoop);
 
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.

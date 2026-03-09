@@ -48,6 +48,7 @@ import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -157,6 +158,18 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Nullable
     private IndexRequest doc;
+
+    /**
+     * Stores the original (pre-pipeline) source of the doc when docAsUpsert is true.
+     * This is used to ensure that when a bulk update with doc_as_upsert merges the doc
+     * into an existing document, the merge uses the original user-provided source rather
+     * than the pipeline-modified source. This is transient and not serialized.
+     */
+    @Nullable
+    private transient BytesReference rawDocSource;
+
+    @Nullable
+    private transient MediaType rawDocSourceContentType;
 
     public UpdateRequest() {}
 
@@ -837,6 +850,34 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
         return this;
+    }
+
+    /**
+     * Saves the original (pre-pipeline) source of the doc for use during update merging.
+     * When docAsUpsert is true and the document already exists, the merge should use the
+     * original source rather than the pipeline-modified source.
+     */
+    public void saveRawDocSource() {
+        if (this.doc != null) {
+            this.rawDocSource = this.doc.source();
+            this.rawDocSourceContentType = this.doc.getContentType();
+        }
+    }
+
+    /**
+     * Returns the original (pre-pipeline) source of the doc, or null if not saved.
+     */
+    @Nullable
+    public BytesReference rawDocSource() {
+        return this.rawDocSource;
+    }
+
+    /**
+     * Returns the content type of the original (pre-pipeline) doc source.
+     */
+    @Nullable
+    public MediaType rawDocSourceContentType() {
+        return this.rawDocSourceContentType;
     }
 
     public boolean scriptedUpsert() {
