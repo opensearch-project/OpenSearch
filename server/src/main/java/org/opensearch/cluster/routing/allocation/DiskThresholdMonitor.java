@@ -385,7 +385,7 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        handleReadBlocks(state, indicesToBlockRead, listener);
+        handleReadBlocks(state, indicesToBlockRead, indicesNotToAutoRelease, listener);
         handleReadOnlyBlocks(state, indicesToMarkReadOnly, indicesNotToAutoRelease, listener);
         handleClusterCreateIndexBlocks(state, nodes, listener);
     }
@@ -493,12 +493,18 @@ public class DiskThresholdMonitor {
             .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
-    private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
+    private void handleReadBlocks(
+        ClusterState state,
+        Set<String> indicesToBlockRead,
+        Set<String> indicesNotToAutoRelease,
+        ActionListener<Void> listener
+    ) {
         final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
             Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
             false
         )
             .map(Map.Entry::getKey)
+            .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> indicesToBlockRead.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
             .collect(Collectors.toSet());

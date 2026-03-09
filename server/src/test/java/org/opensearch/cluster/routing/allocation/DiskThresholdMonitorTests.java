@@ -1309,6 +1309,104 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         assertFalse(indicesToBlockRead.get().isEmpty());
     }
 
+    public void testReadBlockNotAutoReleasedWhenNodeAboveHighWatermark() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        // Create two indices on two nodes; one node is above high watermark, the other is below all thresholds
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("index_node_above")
+                    .settings(
+                        settings(Version.CURRENT).put("index.routing.allocation.require._id", "hot_node_1")
+                            .put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .put(
+                IndexMetadata.builder("index_node_below")
+                    .settings(
+                        settings(Version.CURRENT).put("index.routing.allocation.require._id", "hot_node_2")
+                            .put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true)
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metadata.index("index_node_above"))
+            .addAsNew(metadata.index("index_node_below"))
+            .build();
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .nodes(DiscoveryNodes.builder().add(newNode("hot_node_1")).add(newNode("hot_node_2")))
+                .blocks(
+                    ClusterBlocks.builder()
+                        .addBlocks(metadata.index("index_node_above"))
+                        .addBlocks(metadata.index("index_node_below"))
+                        .build()
+                )
+                .build(),
+            allocation
+        );
+
+        assertTrue(clusterState.getBlocks().hasIndexBlock("index_node_above", IndexMetadata.INDEX_READ_BLOCK));
+        assertTrue(clusterState.getBlocks().hasIndexBlock("index_node_below", IndexMetadata.INDEX_READ_BLOCK));
+
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> {
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(clusterState);
+            },
+            () -> 5.0
+        ) {
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    assertTrue(indicesToReleaseReadBlock.compareAndSet(null, indicesToUpdate));
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // hot_node_1 is above high watermark (free 8%), hot_node_2 is healthy (free 50%)
+        Map<String, DiskUsage> builder = new HashMap<>();
+        builder.put("hot_node_1", new DiskUsage("hot_node_1", "hot_node_1", "/foo/bar", 100, 8));
+        builder.put("hot_node_2", new DiskUsage("hot_node_2", "hot_node_2", "/foo/bar", 100, 50));
+        monitor.onNewInfo(clusterInfo(builder));
+
+        // index_node_above should NOT be auto-released because hot_node_1 is above high watermark
+        // index_node_below should be auto-released because hot_node_2 is healthy
+        assertNotNull(indicesToReleaseReadBlock.get());
+        assertTrue(
+            "index_node_below should be auto-released",
+            indicesToReleaseReadBlock.get().contains("index_node_below")
+        );
+        assertFalse(
+            "index_node_above should NOT be auto-released when node is above high watermark",
+            indicesToReleaseReadBlock.get().contains("index_node_above")
+        );
+    }
+
     private void assertNoLogging(DiskThresholdMonitor monitor, final Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
         try (MockLogAppender mockAppender = MockLogAppender.createForLoggers(LogManager.getLogger(DiskThresholdMonitor.class))) {
             mockAppender.addExpectation(
