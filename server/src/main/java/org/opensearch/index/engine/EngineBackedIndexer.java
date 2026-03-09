@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -24,7 +23,6 @@ import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.DocsStats;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
@@ -367,22 +365,18 @@ public class EngineBackedIndexer implements Indexer {
 
     @Override
     public long lastRefreshedCheckpoint() {
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).lastRefreshedCheckpoint();
+        }
         return Indexer.super.lastRefreshedCheckpoint();
     }
 
     @Override
     public long currentOngoingRefreshCheckpoint() {
+        if (engine instanceof InternalEngine) {
+            return ((InternalEngine) engine).currentOngoingRefreshCheckpoint();
+        }
         return Indexer.super.currentOngoingRefreshCheckpoint();
-    }
-
-    @Override
-    public void finalizeReplication(CatalogSnapshot catalogSnapshot, ShardPath shardPath) throws IOException {
-        Indexer.super.finalizeReplication(catalogSnapshot, shardPath);
-    }
-
-    @Override
-    public void maybeDie(Logger logger, String maybeMessage, Throwable maybeFatal) {
-        Indexer.super.maybeDie(logger, maybeMessage, maybeFatal);
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
@@ -262,8 +261,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     }
                     // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
                     // move.
-                    long lastRefreshedCheckpoint = ((InternalEngine) ((EngineBackedIndexer) indexShard.getIndexer()).getEngine())
-                        .lastRefreshedCheckpoint();
+                    long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     // Create a map of file name to size and update the refresh segment tracker
@@ -451,8 +449,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
         throws IOException {
-        final long maxSeqNo = ((InternalEngine) ((EngineBackedIndexer) indexShard.getIndexer()).getEngine())
-            .currentOngoingRefreshCheckpoint();
+        final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
         SegmentInfos segmentInfosSnapshot = segmentInfos.clone();
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
