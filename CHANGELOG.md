@@ -77,7 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.7 ([#20714](https://github.com/opensearch-project/OpenSearch/pull/20714), [#20759](https://github.com/opensearch-project/OpenSearch/pull/20759))
 - Bump `tj-actions/changed-files` from 47.0.1 to 47.0.4 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.7 to 10.8 ([#20715](https://github.com/opensearch-project/OpenSearch/pull/20715))
-- Bump OpenTelemetry to 1.59.0 and OpenTelemetry Semconv to 1.40.0 ([#20737](https://github.com/opensearch-project/OpenSearch/pull/20737))
+- Bump OpenTelemetry to 1.60.1 and OpenTelemetry Semconv to 1.40.0 ([#20737](https://github.com/opensearch-project/OpenSearch/pull/20737), [#20797](https://github.com/opensearch-project/OpenSearch/pull/20797))
 - Bump `ch.qos.logback:logback-classic` from 1.5.27 to 1.5.32 ([#20761](https://github.com/opensearch-project/OpenSearch/pull/20761))
 - Bump `actions/upload-artifact` from 6 to 7 ([#20762](https://github.com/opensearch-project/OpenSearch/pull/20762))
 - Bump `org.tukaani:xz` from 1.11 to 1.12 ([#20760](https://github.com/opensearch-project/OpenSearch/pull/20760))
