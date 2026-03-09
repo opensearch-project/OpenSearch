@@ -82,6 +82,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `ch.qos.logback:logback-classic` from 1.5.27 to 1.5.32 ([#20761](https://github.com/opensearch-project/OpenSearch/pull/20761))
 - Bump `actions/upload-artifact` from 6 to 7 ([#20762](https://github.com/opensearch-project/OpenSearch/pull/20762))
 - Bump `org.tukaani:xz` from 1.11 to 1.12 ([#20760](https://github.com/opensearch-project/OpenSearch/pull/20760))
+- Bump `org.jline:jline` from 3.30.6 to 4.0.0 ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
 
 ### Removed
 
