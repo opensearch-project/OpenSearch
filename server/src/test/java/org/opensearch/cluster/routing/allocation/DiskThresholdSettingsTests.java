@@ -58,8 +58,23 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
         assertTrue(diskThresholdSettings.includeRelocations());
+        assertTrue(diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled());
         assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
         assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
+    }
+
+    public void testIndexReadBlockAutoReleaseUpdate() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        assertTrue(diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled());
+
+        Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE.getKey(), false)
+            .build();
+        nss.applySettings(newSettings);
+
+        assertFalse(diskThresholdSettings.isIndexReadBlockAutoReleaseEnabled());
     }
 
     public void testUpdate() {

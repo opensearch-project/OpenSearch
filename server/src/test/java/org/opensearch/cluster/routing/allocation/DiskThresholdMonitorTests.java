@@ -542,6 +542,122 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
         assertNull(indicesToReleaseReadOnlyBlock.get());
     }
 
+    public void testManuallySetReadBlockIsAutoReleased() {
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test_index")
+                .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .build();
+        IndexMetadata indexMetadata = metadata.index("test_index");
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")))
+            .build();
+
+        assertTrue(clusterState.blocks().hasIndexBlock("test_index", IndexMetadata.INDEX_READ_BLOCK));
+
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            Settings.EMPTY,
+            () -> clusterState,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(clusterState),
+            () -> 1.0
+        ) {
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    indicesToReleaseReadBlock.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // All disks are OK
+        Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/foo", 100, 50));
+
+        monitor.onNewInfo(new org.opensearch.cluster.ClusterInfo(usages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // Verification of Default behavior: It IS auto-released (because default is true)
+        assertNotNull("INDEX_READ_BLOCK should have been targeted for release (Default behavior)", indicesToReleaseReadBlock.get());
+        assertTrue(indicesToReleaseReadBlock.get().contains("test_index"));
+    }
+
+    public void testManuallySetReadBlockIsNotAutoReleasedWhenDisabled() {
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test_index")
+                .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_BLOCKS_READ_SETTING.getKey(), true))
+                .numberOfShards(1)
+                .numberOfReplicas(0))
+            .build();
+        IndexMetadata indexMetadata = metadata.index("test_index");
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(indexMetadata).build())
+            .blocks(ClusterBlocks.builder().addBlocks(indexMetadata).build())
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")))
+            .build();
+
+        assertTrue(clusterState.blocks().hasIndexBlock("test_index", IndexMetadata.INDEX_READ_BLOCK));
+
+        AtomicReference<Set<String>> indicesToReleaseReadBlock = new AtomicReference<>();
+        Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.INDEX_READ_BLOCK_AUTO_RELEASE.getKey(), false)
+            .build();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            settings,
+            () -> clusterState,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            () -> 0L,
+            (reason, priority, listener) -> listener.onResponse(clusterState),
+            () -> 1.0
+        ) {
+            @Override
+            protected void updateIndicesReadBlock(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readBlock) {
+                if (readBlock == false) {
+                    indicesToReleaseReadBlock.set(indicesToUpdate);
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                listener.onResponse(null);
+            }
+        };
+
+        // All disks are OK
+        Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/foo", 100, 50));
+
+        monitor.onNewInfo(new org.opensearch.cluster.ClusterInfo(usages, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of()));
+
+        // Verification of Fix: It should NOT be auto-released
+        assertNull("INDEX_READ_BLOCK should NOT have been targeted for release when auto_release is disabled", indicesToReleaseReadBlock.get());
+    }
+
     @TestLogging(value = "org.opensearch.cluster.routing.allocation.DiskThresholdMonitor:INFO", reason = "testing INFO/WARN logging")
     public void testDiskMonitorLogging() throws IllegalAccessException {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
