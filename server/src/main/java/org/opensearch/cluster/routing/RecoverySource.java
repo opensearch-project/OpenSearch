@@ -414,11 +414,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
                 .field("index", index.getName())
-                .field("restoreUUID", restoreUUID)
-                .field("isSearchableSnapshot", isSearchableSnapshot)
-                .field("remoteStoreIndexShallowCopy", remoteStoreIndexShallowCopy)
-                .field("sourceRemoteStoreRepository", sourceRemoteStoreRepository)
-                .field("sourceRemoteTranslogRepository", sourceRemoteTranslogRepository);
+                .field("restore_uuid", restoreUUID)
+                .field("is_searchable_snapshot", isSearchableSnapshot)
+                .field("remote_store_index_shallow_copy", remoteStoreIndexShallowCopy)
+                .field("source_remote_store_repository", sourceRemoteStoreRepository)
+                .field("source_remote_translog_repository", sourceRemoteTranslogRepository);
         }
 
         @Override
@@ -522,7 +522,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.field("version", version.toString()).field("index", index.getName()).field("restoreUUID", restoreUUID);
+            builder.field("version", version.toString()).field("index", index.getName()).field("restore_uuid", restoreUUID);
         }
 
         @Override
