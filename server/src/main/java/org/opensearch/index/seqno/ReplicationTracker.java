@@ -250,6 +250,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
     private final Consumer<ReplicationGroup> onReplicationGroupUpdated;
 
+    /**
+     * A callback invoked when primary mode is activated. This is called at the end of both
+     * {@link #activatePrimaryMode(long)} and {@link #activateWithPrimaryContext(PrimaryContext)}.
+     */
+    private final Runnable onPrimaryModeActivated;
+
     private volatile ReplicationCheckpoint latestReplicationCheckpoint;
 
     private final Function<String, Boolean> isShardOnRemoteEnabledNode;
@@ -1027,6 +1033,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             onSyncRetentionLeases,
             safeCommitInfoSupplier,
             x -> {},
+            () -> {},
             isShardOnRemoteEnabledNode
         );
     }
@@ -1042,6 +1049,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param globalCheckpoint          the last known global checkpoint for this shard, or {@link SequenceNumbers#UNASSIGNED_SEQ_NO}
      * @param onSyncRetentionLeases     a callback when a new retention lease is created or an existing retention lease expires
      * @param onReplicationGroupUpdated a callback when the replica group changes
+     * @param onPrimaryModeActivated    a callback when primary mode is activated
      */
     public ReplicationTracker(
         final ShardId shardId,
@@ -1054,6 +1062,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onSyncRetentionLeases,
         final Supplier<SafeCommitInfo> safeCommitInfoSupplier,
         final Consumer<ReplicationGroup> onReplicationGroupUpdated,
+        final Runnable onPrimaryModeActivated,
         final Function<String, Boolean> isShardOnRemoteEnabledNode
     ) {
         super(shardId, indexSettings);
@@ -1076,6 +1085,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.fileBasedRecoveryThreshold = IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.get(indexSettings.getSettings());
         this.safeCommitInfoSupplier = safeCommitInfoSupplier;
         this.onReplicationGroupUpdated = onReplicationGroupUpdated;
+        this.onPrimaryModeActivated = Objects.requireNonNull(onPrimaryModeActivated);
         this.latestReplicationCheckpoint = indexSettings.isSegRepEnabledOrRemoteNode() ? ReplicationCheckpoint.empty(shardId) : null;
         this.isShardOnRemoteEnabledNode = isShardOnRemoteEnabledNode;
         assert Version.V_EMPTY.equals(indexSettings.getIndexVersionCreated()) == false;
@@ -1390,6 +1400,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
 
         addPeerRecoveryRetentionLeaseForSolePrimary();
         assert invariant();
+        onPrimaryModeActivated.run();
     }
 
     /**
@@ -1846,6 +1857,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         runAfter.run();
         addPeerRecoveryRetentionLeaseForSolePrimary();
         assert invariant();
+        onPrimaryModeActivated.run();
     }
 
     private synchronized void setHasAllPeerRecoveryRetentionLeases() {

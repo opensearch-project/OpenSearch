@@ -506,6 +506,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             (retentionLeases, listener) -> retentionLeaseSyncer.sync(shardId, aId, getPendingPrimaryTerm(), retentionLeases, listener),
             this::getSafeCommitInfo,
             pendingReplicationActions,
+            this::postActivatePrimaryMode,
             isShardOnRemoteEnabledNode
         );
 
@@ -795,7 +796,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
                         // the cluster-manager started a recovering primary, activate primary mode.
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                        postActivatePrimaryMode();
                     }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
@@ -875,7 +875,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // are brought up to date.
                                 checkpointPublisher.publish(this, getLatestReplicationCheckpoint());
                             }
-                            postActivatePrimaryMode();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
                              * its Lucene index was reset during the primary term transition. In particular, the Lucene index
@@ -3899,7 +3898,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
         }
-        postActivatePrimaryMode();
     }
 
     private void postActivatePrimaryMode() {
