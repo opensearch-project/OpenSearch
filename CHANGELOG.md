@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `log4j` from 2.21.0 to 2.25.3 ([#20308](https://github.com/opensearch-project/OpenSearch/pull/20308))
 - Bump netty from 4.1.125.Final to 4.1.131.Final ([#20744](https://github.com/opensearch-project/OpenSearch/pull/20744))
 - Bump shadow-gradle-plugin from 8.1.1 to 8.3.10 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
+- Bump Jackson from 2.18.2 to 2.18.6 ([#20813](https://github.com/opensearch-project/OpenSearch/pull/20813))
 - Update HDFS test fixture dependencies ([#20768](https://github.com/opensearch-project/OpenSearch/pull/20768))
 
 ### Deprecated
