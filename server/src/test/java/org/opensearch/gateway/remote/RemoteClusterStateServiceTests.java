@@ -856,6 +856,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             )
         );
         assertTrue(exception.getMessage().startsWith("Timed out waiting for transfer of following metadata to complete"));
+        assertEquals(0, remoteClusterStateService.getRemoteStateStats().getIndexMetadataUploadTimeoutCount());
+        assertEquals(1, remoteClusterStateService.getRemoteStateStats().getMetadataUploadTimeoutCount());
     }
 
     public void testGetClusterStateForManifest_IncludeEphemeral() throws IOException {
