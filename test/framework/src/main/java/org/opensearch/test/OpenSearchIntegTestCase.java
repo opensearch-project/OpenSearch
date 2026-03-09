@@ -1646,6 +1646,23 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Indexes documents in bulk across the specified number of segments. Documents are evenly distributed
+     * across segments with a refresh between each batch to create segment boundaries. This is useful for
+     * tests that need multiple predefined segments for testing.
+     *
+     * @param builders   the documents to index
+     * @param numSegments the number of segments to create
+     */
+    public void indexBulkWithSegments(List<IndexRequestBuilder> builders, int numSegments) throws InterruptedException {
+        int batchSize = builders.size() / numSegments;
+        for (int seg = 0; seg < numSegments; seg++) {
+            int from = seg * batchSize;
+            int to = (seg == numSegments - 1) ? builders.size() : from + batchSize;
+            indexRandom(true, false, builders.subList(from, to));
+        }
+    }
+
     /*
      * This method ingests bogus documents for the given indices such that multiple slices
      * are formed. This is useful for testing with the concurrent search use-case as it creates

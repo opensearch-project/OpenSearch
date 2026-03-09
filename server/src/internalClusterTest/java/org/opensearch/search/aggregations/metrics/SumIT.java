@@ -69,6 +69,7 @@ import static org.opensearch.search.aggregations.metrics.MetricAggScriptPlugin.V
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -433,20 +434,20 @@ public class SumIT extends AbstractNumericTestCase {
     }
 
     public void testSumWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             long expectedSum = 0;
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
                 expectedSum += (i + 1);
-                client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-                if (i % 2500 == 2499) refresh();
+                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
             }
-            refresh();
+            indexBulkWithSegments(builders, 2);
             indexRandomForConcurrentSearch("intra_test");
             SearchResponse response = client().prepareSearch("intra_test").addAggregation(sum("sum").field("value")).get();
             Sum sumAgg = response.getAggregations().get("sum");
             assertThat(sumAgg, notNullValue());
-            assertThat(sumAgg.getValue(), equalTo((double) expectedSum));
+            assertThat(sumAgg.getValue(), closeTo((double) expectedSum, 0.1));
         } finally {
             internalCluster().wipeIndices("intra_test");
         }

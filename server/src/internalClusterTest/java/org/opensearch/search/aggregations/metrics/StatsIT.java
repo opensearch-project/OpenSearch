@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.metrics;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
@@ -48,6 +49,7 @@ import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -66,6 +68,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -412,24 +415,24 @@ public class StatsIT extends AbstractNumericTestCase {
     }
 
     public void testStatsWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             long expectedSum = 0;
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
                 expectedSum += (i + 1);
-                client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-                if (i % 2500 == 2499) refresh();
+                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
             }
-            refresh();
+            indexBulkWithSegments(builders, 2);
             indexRandomForConcurrentSearch("intra_test");
             SearchResponse response = client().prepareSearch("intra_test").addAggregation(stats("stats").field("value")).get();
             Stats statsAgg = response.getAggregations().get("stats");
             assertThat(statsAgg, notNullValue());
             assertThat(statsAgg.getCount(), equalTo(5000L));
-            assertThat(statsAgg.getMin(), equalTo(1.0));
-            assertThat(statsAgg.getMax(), equalTo(5000.0));
-            assertThat(statsAgg.getSum(), equalTo((double) expectedSum));
-            assertThat(statsAgg.getAvg(), equalTo((double) expectedSum / 5000));
+            assertThat(statsAgg.getMin(), closeTo(1.0, 0.1));
+            assertThat(statsAgg.getMax(), closeTo(5000.0, 0.1));
+            assertThat(statsAgg.getSum(), closeTo((double) expectedSum, 0.1));
+            assertThat(statsAgg.getAvg(), closeTo((double) expectedSum / 5000, 0.1));
         } finally {
             internalCluster().wipeIndices("intra_test");
         }

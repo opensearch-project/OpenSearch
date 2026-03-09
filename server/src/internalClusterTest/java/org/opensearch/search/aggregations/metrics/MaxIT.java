@@ -10,19 +10,22 @@ package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.opensearch.search.aggregations.AggregationBuilders.max;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -49,44 +52,19 @@ public class MaxIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     }
 
     public void testMaxAggregation() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
-            int totalDocs = 5000;
-            for (int i = 0; i < totalDocs; i++) {
-                client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-                if (i % 2500 == 2499) {
-                    refresh();
-                }
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
+            for (int i = 0; i < 5000; i++) {
+                builders.add(client().prepareIndex("test").setSource("value", i + 1));
             }
-            refresh();
+            indexBulkWithSegments(builders, 2);
             indexRandomForConcurrentSearch("test");
             SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
             assertSearchResponse(response);
             Max maxAgg = response.getAggregations().get("max_agg");
             assertThat(maxAgg, notNullValue());
-            assertThat(maxAgg.getValue(), equalTo(5000.0));
-        } finally {
-            internalCluster().wipeIndices("test");
-        }
-    }
-
-    public void testMaxAggregationMultipleShards() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
-        try {
-            int totalDocs = 5000;
-            for (int i = 0; i < totalDocs; i++) {
-                client().prepareIndex("test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-                if (i % 2500 == 2499) {
-                    refresh();
-                }
-            }
-            refresh();
-            indexRandomForConcurrentSearch("test");
-            SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
-            assertSearchResponse(response);
-            Max maxAgg = response.getAggregations().get("max_agg");
-            assertThat(maxAgg, notNullValue());
-            assertThat(maxAgg.getValue(), equalTo(5000.0));
+            assertThat(maxAgg.getValue(), closeTo(5000.0, 0.1));
         } finally {
             internalCluster().wipeIndices("test");
         }

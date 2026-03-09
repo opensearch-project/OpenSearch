@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations.metrics;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -46,6 +47,7 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -426,13 +428,13 @@ public class ValueCountIT extends ParameterizedStaticSettingsOpenSearchIntegTest
     }
 
     public void testValueCountWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                client().prepareIndex("intra_test").setId(String.valueOf(i)).setSource("value", i + 1).get();
-                if (i % 2500 == 2499) refresh();
+                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
             }
-            refresh();
+            indexBulkWithSegments(builders, 2);
             indexRandomForConcurrentSearch("intra_test");
             SearchResponse response = client().prepareSearch("intra_test").addAggregation(count("count").field("value")).get();
             ValueCount countAgg = response.getAggregations().get("count");
