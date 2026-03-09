@@ -173,8 +173,7 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalSum agg) {
-        // TODO this could be incorrect... e.g. +1 + -1
-        return agg.getValue() != 0.0;
+        return agg.getCount() > 0;
     }
 
     public static boolean hasValue(InternalCardinality agg) {

@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -49,10 +50,12 @@ import java.util.Objects;
  */
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
+    private final long count;
 
-    public InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
+    public InternalSum(String name, double sum, long count, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
         this.sum = sum;
+        this.count = count;
         this.format = formatter;
     }
 
@@ -63,12 +66,23 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            count = in.readVLong();
+        } else {
+            // Legacy nodes do not send count; default to 1 so that the sum
+            // is always rendered as a numeric value during mixed-version reduce,
+            // preserving the old behaviour until all nodes are upgraded.
+            count = 1;
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         out.writeDouble(sum);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeVLong(count);
+        }
     }
 
     @Override
@@ -86,30 +100,40 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         return sum;
     }
 
+    public long getCount() {
+        return count;
+    }
+
     @Override
     public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        long count = 0;
         for (InternalAggregation aggregation : aggregations) {
-            double value = ((InternalSum) aggregation).sum;
-            kahanSummation.add(value);
+            InternalSum sum = (InternalSum) aggregation;
+            count += sum.count;
+            kahanSummation.add(sum.sum);
         }
-        return new InternalSum(name, kahanSummation.value(), format, getMetadata());
+        return new InternalSum(name, kahanSummation.value(), count, format, getMetadata());
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.VALUE.getPreferredName(), sum);
-        if (format != DocValueFormat.RAW) {
-            builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum).toString());
+        if (count != 0) {
+            builder.field(CommonFields.VALUE.getPreferredName(), sum);
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(sum).toString());
+            }
+        } else {
+            builder.nullField(CommonFields.VALUE.getPreferredName());
         }
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), sum);
+        return Objects.hash(super.hashCode(), sum, count);
     }
 
     @Override
@@ -119,6 +143,6 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         if (super.equals(obj) == false) return false;
 
         InternalSum that = (InternalSum) obj;
-        return Objects.equals(sum, that.sum);
+        return Objects.equals(sum, that.sum) && count == that.count;
     }
 }

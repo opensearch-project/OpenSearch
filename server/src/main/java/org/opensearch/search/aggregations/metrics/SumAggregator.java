@@ -32,14 +32,20 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
+import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
+import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -56,6 +62,7 @@ import org.opensearch.search.startree.StarTreeQueryHelper;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.opensearch.search.startree.StarTreeQueryHelper.getStarTreeFilteredValues;
 import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
@@ -68,6 +75,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
+    private LongArray counts;
     private DoubleArray sums;
     private DoubleArray compensations;
 
@@ -83,6 +91,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
+            counts = context.bigArrays().newLongArray(1, true);
             sums = context.bigArrays().newDoubleArray(1, true);
             compensations = context.bigArrays().newDoubleArray(1, true);
         }
@@ -125,7 +134,9 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     setKahanSummation(bucket);
-                    for (int i = 0; i < values.docValueCount(); i++) {
+                    int valueCount = values.docValueCount();
+                    counts.increment(bucket, valueCount);
+                    for (int i = 0; i < valueCount; i++) {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
@@ -137,13 +148,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             @Override
             public void collect(DocIdStream stream, long bucket) throws IOException {
                 setKahanSummation(bucket);
+                final int[] count = { 0 };
                 stream.forEach((doc) -> {
                     if (values.advanceExact(doc)) {
-                        for (int i = 0; i < values.docValueCount(); i++) {
+                        int valueCount = values.docValueCount();
+                        count[0] += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
                             kahanSummation.add(values.nextValue());
                         }
                     }
                 });
+                counts.increment(bucket, count[0]);
                 compensations.set(bucket, kahanSummation.delta());
                 sums.set(bucket, kahanSummation.value());
             }
@@ -151,18 +166,23 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             @Override
             public void collectRange(int min, int max) throws IOException {
                 setKahanSummation(0);
+                int count = 0;
                 for (int docId = min; docId < max; docId++) {
                     if (values.advanceExact(docId)) {
-                        for (int i = 0; i < values.docValueCount(); i++) {
+                        int valueCount = values.docValueCount();
+                        count += valueCount;
+                        for (int i = 0; i < valueCount; i++) {
                             kahanSummation.add(values.nextValue());
                         }
                     }
                 }
+                counts.increment(0, count);
                 sums.set(0, kahanSummation.value());
                 compensations.set(0, kahanSummation.delta());
             }
 
             private void setKahanSummation(long bucket) {
+                counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
                 // Compute the sum of double values with Kahan summation algorithm which is more
@@ -175,20 +195,49 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
     }
 
     private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        assert starTreeValues != null;
 
-        StarTreeQueryHelper.precomputeLeafUsingStarTree(
-            context,
-            valuesSource,
-            ctx,
-            starTree,
-            MetricStat.SUM.getTypeName(),
-            value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
-            () -> {
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
-            }
+        String fieldName = ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName();
+        String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+            starTree.getField(),
+            fieldName,
+            MetricStat.SUM.getTypeName()
         );
+        String countMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+            starTree.getField(),
+            fieldName,
+            MetricStat.VALUE_COUNT.getTypeName()
+        );
+
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
+        SortedNumericStarTreeValuesIterator sumValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            .getMetricValuesIterator(sumMetricName);
+        SortedNumericStarTreeValuesIterator countValueIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+            .getMetricValuesIterator(countMetricName);
+        FixedBitSet matchedDocIds = getStarTreeFilteredValues(context, ctx, starTreeValues);
+        assert matchedDocIds != null;
+
+        int numBits = matchedDocIds.length();
+        if (numBits > 0) {
+            for (int bit = matchedDocIds.nextSetBit(0); bit != DocIdSetIterator.NO_MORE_DOCS; bit = bit + 1 < numBits
+                ? matchedDocIds.nextSetBit(bit + 1)
+                : DocIdSetIterator.NO_MORE_DOCS) {
+                if ((sumValuesIterator.advanceExact(bit) && countValueIterator.advanceExact(bit)) == false) {
+                    continue;
+                }
+
+                assert sumValuesIterator.entryValueCount() == countValueIterator.entryValueCount()
+                    : "StarTree sum and count iterators have mismatched entry value counts";
+                for (int i = 0; i < sumValuesIterator.entryValueCount(); i++) {
+                    kahanSummation.add(NumericUtils.sortableLongToDouble(sumValuesIterator.nextValue()));
+                    counts.increment(0, countValueIterator.nextValue());
+                }
+            }
+        }
+
+        sums.set(0, kahanSummation.value());
+        compensations.set(0, kahanSummation.delta());
     }
 
     /**
@@ -200,23 +249,42 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parentCollector
     ) throws IOException {
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
-            starTree,
-            MetricStat.SUM.getTypeName(),
-            valuesSource,
-            parentCollector,
-            (bucket) -> {
+        assert parentCollector != null;
+        return new StarTreeBucketCollector(parentCollector) {
+            String sumMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.SUM.getTypeName()
+            );
+            String valueCountMetricName = StarTreeUtils.fullyQualifiedFieldNameForStarTreeMetricsDocValues(
+                starTree.getField(),
+                ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName(),
+                MetricStat.VALUE_COUNT.getTypeName()
+            );
+            SortedNumericStarTreeValuesIterator sumMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(sumMetricName);
+            SortedNumericStarTreeValuesIterator valueCountMetricValuesIterator = (SortedNumericStarTreeValuesIterator) starTreeValues
+                .getMetricValuesIterator(valueCountMetricName);
+
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void collectStarTreeEntry(int starTreeEntryBit, long bucket) throws IOException {
+                counts = context.bigArrays().grow(counts, bucket + 1);
                 sums = context.bigArrays().grow(sums, bucket + 1);
                 compensations = context.bigArrays().grow(compensations, bucket + 1);
-            },
-            (bucket, metricValue) -> {
+                if (sumMetricValuesIterator.advanceExact(starTreeEntryBit) == false
+                    || valueCountMetricValuesIterator.advanceExact(starTreeEntryBit) == false) {
+                    return;
+                }
                 kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
-                kahanSummation.add(NumericUtils.sortableLongToDouble(metricValue));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(sumMetricValuesIterator.nextValue()));
+
                 sums.set(bucket, kahanSummation.value());
                 compensations.set(bucket, kahanSummation.delta());
+                counts.increment(bucket, valueCountMetricValuesIterator.nextValue());
             }
-        );
+        };
     }
 
     @Override
@@ -232,16 +300,19 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalSum(name, sums.get(bucket), format, metadata());
+        return new InternalSum(name, sums.get(bucket), counts.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalSum(name, 0.0, format, metadata());
+        return new InternalSum(name, 0.0, 0L, format, metadata());
     }
 
     @Override
     public void doReset() {
+        if (counts != null) {
+            counts.fill(0, counts.size(), 0L);
+        }
         if (sums != null) {
             sums.fill(0, sums.size(), 0.0);
         }
@@ -252,6 +323,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
 
     @Override
     public void doClose() {
-        Releasables.close(sums, compensations);
+        Releasables.close(counts, sums, compensations);
     }
 }

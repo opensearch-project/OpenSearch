@@ -282,7 +282,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                 + "  \"min\" : null,\n"
                 + "  \"max\" : null,\n"
                 + "  \"avg\" : null,\n"
-                + "  \"sum\" : 0.0\n"
+                + "  \"sum\" : null\n"
                 + "}",
             builder.toString()
         );

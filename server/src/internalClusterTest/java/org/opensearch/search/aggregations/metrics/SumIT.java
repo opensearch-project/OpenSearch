@@ -43,6 +43,7 @@ import org.opensearch.search.aggregations.bucket.filter.Filter;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
+import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.core.IsNull;
 
 import java.util.ArrayList;
@@ -364,6 +365,33 @@ public class SumIT extends AbstractNumericTestCase {
             equalTo(2L)
         );
         internalCluster().wipeIndices("cache_test_idx");
+    }
+
+    public void testAllNullFieldValues() throws Exception {
+        String indexName = "test_null_sum_idx";
+        assertAcked(prepareCreate(indexName).setMapping("value", "type=long"));
+
+        indexRandom(
+            true,
+            client().prepareIndex(indexName).setSource("other_field", 1),
+            client().prepareIndex(indexName).setSource("other_field", 2),
+            client().prepareIndex(indexName).setSource("other_field", 3)
+        );
+
+        SearchResponse response = client().prepareSearch(indexName)
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").field("value"))
+            .get();
+
+        assertHitCount(response, 3);
+
+        Sum sum = response.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat(sum.getValue(), equalTo(0.0));
+        assertFalse(AggregationInspectionHelper.hasValue((InternalSum) sum));
+
+        internalCluster().wipeIndices(indexName);
     }
 
     public void testFieldAlias() {
