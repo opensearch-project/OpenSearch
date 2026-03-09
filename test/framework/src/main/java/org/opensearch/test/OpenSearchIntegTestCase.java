@@ -1659,7 +1659,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         for (int seg = 0; seg < numSegments; seg++) {
             int from = seg * batchSize;
             int to = (seg == numSegments - 1) ? builders.size() : from + batchSize;
-            indexRandom(true, false, builders.subList(from, to));
+            indexRandom(true, false, false, builders.subList(from, to));
         }
     }
 
