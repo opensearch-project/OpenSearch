@@ -434,22 +434,22 @@ public class SumIT extends AbstractNumericTestCase {
     }
 
     public void testSumWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_sum_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             long expectedSum = 0;
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
                 expectedSum += (i + 1);
-                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_sum_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("intra_test");
-            SearchResponse response = client().prepareSearch("intra_test").addAggregation(sum("sum").field("value")).get();
+            indexRandomForConcurrentSearch("test_sum_agg");
+            SearchResponse response = client().prepareSearch("test_sum_agg").addAggregation(sum("sum").field("value")).get();
             Sum sumAgg = response.getAggregations().get("sum");
             assertThat(sumAgg, notNullValue());
             assertThat(sumAgg.getValue(), closeTo((double) expectedSum, 0.1));
         } finally {
-            internalCluster().wipeIndices("intra_test");
+            internalCluster().wipeIndices("test_sum_agg");
         }
     }
 }

@@ -52,21 +52,21 @@ public class MaxIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     }
 
     public void testMaxAggregation() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_max_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                builders.add(client().prepareIndex("test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_max_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("test");
-            SearchResponse response = client().prepareSearch("test").addAggregation(max("max_agg").field("value")).get();
+            indexRandomForConcurrentSearch("test_max_agg");
+            SearchResponse response = client().prepareSearch("test_max_agg").addAggregation(max("max_agg").field("value")).get();
             assertSearchResponse(response);
             Max maxAgg = response.getAggregations().get("max_agg");
             assertThat(maxAgg, notNullValue());
             assertThat(maxAgg.getValue(), closeTo(5000.0, 0.1));
         } finally {
-            internalCluster().wipeIndices("test");
+            internalCluster().wipeIndices("test_max_agg");
         }
     }
 }

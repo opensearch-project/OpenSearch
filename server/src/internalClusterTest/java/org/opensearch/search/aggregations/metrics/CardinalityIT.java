@@ -73,6 +73,8 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
@@ -678,22 +680,22 @@ public class CardinalityIT extends ParameterizedStaticSettingsOpenSearchIntegTes
     }
 
     public void testCardinalityWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_cardinality_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                builders.add(client().prepareIndex("intra_test").setSource("category", i % 100));
+                builders.add(client().prepareIndex("test_cardinality_agg").setSource("category", i % 100));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("intra_test");
-            SearchResponse response = client().prepareSearch("intra_test")
+            indexRandomForConcurrentSearch("test_cardinality_agg");
+            SearchResponse response = client().prepareSearch("test_cardinality_agg")
                 .addAggregation(cardinality("cardinality").field("category"))
                 .get();
             Cardinality cardinalityAgg = response.getAggregations().get("cardinality");
             assertThat(cardinalityAgg, notNullValue());
             assertThat(cardinalityAgg.getValue(), equalTo(100L));
         } finally {
-            internalCluster().wipeIndices("intra_test");
+            internalCluster().wipeIndices("test_cardinality_agg");
         }
     }
 }

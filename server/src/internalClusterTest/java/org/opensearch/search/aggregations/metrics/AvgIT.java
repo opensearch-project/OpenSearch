@@ -52,21 +52,21 @@ public class AvgIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     }
 
     public void testAvgAggregation() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_avg_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                builders.add(client().prepareIndex("test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_avg_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("test");
-            SearchResponse response = client().prepareSearch("test").addAggregation(avg("avg_agg").field("value")).get();
+            indexRandomForConcurrentSearch("test_avg_agg");
+            SearchResponse response = client().prepareSearch("test_avg_agg").addAggregation(avg("avg_agg").field("value")).get();
             assertSearchResponse(response);
             Avg avgAgg = response.getAggregations().get("avg_agg");
             assertThat(avgAgg, notNullValue());
             assertThat(avgAgg.getValue(), closeTo(2500.5, 0.1));
         } finally {
-            internalCluster().wipeIndices("test");
+            internalCluster().wipeIndices("test_avg_agg");
         }
     }
 }

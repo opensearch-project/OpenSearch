@@ -52,21 +52,21 @@ public class MinIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     }
 
     public void testMinAggregation() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_min_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                builders.add(client().prepareIndex("test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_min_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("test");
-            SearchResponse response = client().prepareSearch("test").addAggregation(min("min_agg").field("value")).get();
+            indexRandomForConcurrentSearch("test_min_agg");
+            SearchResponse response = client().prepareSearch("test_min_agg").addAggregation(min("min_agg").field("value")).get();
             assertSearchResponse(response);
             Min minAgg = response.getAggregations().get("min_agg");
             assertThat(minAgg, notNullValue());
             assertThat(minAgg.getValue(), closeTo(1.0, 0.1));
         } finally {
-            internalCluster().wipeIndices("test");
+            internalCluster().wipeIndices("test_min_agg");
         }
     }
 }

@@ -415,17 +415,17 @@ public class StatsIT extends AbstractNumericTestCase {
     }
 
     public void testStatsWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_stats_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             long expectedSum = 0;
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
                 expectedSum += (i + 1);
-                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_stats_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("intra_test");
-            SearchResponse response = client().prepareSearch("intra_test").addAggregation(stats("stats").field("value")).get();
+            indexRandomForConcurrentSearch("test_stats_agg");
+            SearchResponse response = client().prepareSearch("test_stats_agg").addAggregation(stats("stats").field("value")).get();
             Stats statsAgg = response.getAggregations().get("stats");
             assertThat(statsAgg, notNullValue());
             assertThat(statsAgg.getCount(), equalTo(5000L));
@@ -434,7 +434,7 @@ public class StatsIT extends AbstractNumericTestCase {
             assertThat(statsAgg.getSum(), closeTo((double) expectedSum, 0.1));
             assertThat(statsAgg.getAvg(), closeTo((double) expectedSum / 5000, 0.1));
         } finally {
-            internalCluster().wipeIndices("intra_test");
+            internalCluster().wipeIndices("test_stats_agg");
         }
     }
 }

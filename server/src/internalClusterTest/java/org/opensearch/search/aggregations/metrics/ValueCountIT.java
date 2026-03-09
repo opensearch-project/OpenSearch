@@ -428,20 +428,20 @@ public class ValueCountIT extends ParameterizedStaticSettingsOpenSearchIntegTest
     }
 
     public void testValueCountWithIntraSegmentPartitioning() throws Exception {
-        createIndex("intra_test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        createIndex("test_value_count_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
         try {
             List<IndexRequestBuilder> builders = new ArrayList<>(5000);
             for (int i = 0; i < 5000; i++) {
-                builders.add(client().prepareIndex("intra_test").setSource("value", i + 1));
+                builders.add(client().prepareIndex("test_value_count_agg").setSource("value", i + 1));
             }
             indexBulkWithSegments(builders, 2);
-            indexRandomForConcurrentSearch("intra_test");
-            SearchResponse response = client().prepareSearch("intra_test").addAggregation(count("count").field("value")).get();
+            indexRandomForConcurrentSearch("test_value_count_agg");
+            SearchResponse response = client().prepareSearch("test_value_count_agg").addAggregation(count("count").field("value")).get();
             ValueCount countAgg = response.getAggregations().get("count");
             assertThat(countAgg, notNullValue());
             assertThat(countAgg.getValue(), equalTo(5000L));
         } finally {
-            internalCluster().wipeIndices("intra_test");
+            internalCluster().wipeIndices("test_value_count_agg");
         }
     }
 }
