@@ -45,100 +45,56 @@ public final class Tags {
     // -----------------------------------------------------------------------
 
     /**
-     * Creates an immutable Tags with one key-value pair.
+     * Creates an immutable Tags with one String-valued pair.
      * @param key   tag key
      * @param value tag value
      * @return new Tags instance
      */
-    public static Tags of(String key, Object value) {
+    public static Tags of(String key, String value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-        validateValue(value);
         String[] k = { key };
         Object[] v = { value };
         return new Tags(k, v, computeHash(k, v));
     }
 
     /**
-     * Creates an immutable Tags with two key-value pairs.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
+     * Creates an immutable Tags with one long-valued pair.
+     * @param key   tag key
+     * @param value tag value
      * @return new Tags instance
      */
-    public static Tags of(String k1, Object v1, String k2, Object v2) {
-        Objects.requireNonNull(k1, "k1 must not be null");
-        Objects.requireNonNull(v1, "v1 must not be null");
-        Objects.requireNonNull(k2, "k2 must not be null");
-        Objects.requireNonNull(v2, "v2 must not be null");
-        validateValue(v1);
-        validateValue(v2);
-        int cmp = k1.compareTo(k2);
-        String[] keys;
-        Object[] values;
-        if (cmp < 0) {
-            keys = new String[] { k1, k2 };
-            values = new Object[] { v1, v2 };
-        } else if (cmp > 0) {
-            keys = new String[] { k2, k1 };
-            values = new Object[] { v2, v1 };
-        } else {
-            keys = new String[] { k2 };
-            values = new Object[] { v2 };
-        }
-        return new Tags(keys, values, computeHash(keys, values));
+    public static Tags of(String key, long value) {
+        Objects.requireNonNull(key, "key must not be null");
+        String[] k = { key };
+        Object[] v = { value };
+        return new Tags(k, v, computeHash(k, v));
     }
 
     /**
-     * Creates an immutable Tags with three key-value pairs.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
-     * @param k3 third key
-     * @param v3 third value
+     * Creates an immutable Tags with one double-valued pair.
+     * @param key   tag key
+     * @param value tag value
      * @return new Tags instance
      */
-    public static Tags of(String k1, Object v1, String k2, Object v2, String k3, Object v3) {
-        Objects.requireNonNull(k1, "k1 must not be null");
-        Objects.requireNonNull(v1, "v1 must not be null");
-        Objects.requireNonNull(k2, "k2 must not be null");
-        Objects.requireNonNull(v2, "v2 must not be null");
-        Objects.requireNonNull(k3, "k3 must not be null");
-        Objects.requireNonNull(v3, "v3 must not be null");
-        validateValue(v1);
-        validateValue(v2);
-        validateValue(v3);
-        return fromPairs(new String[] { k1, k2, k3 }, new Object[] { v1, v2, v3 }, 3);
+    public static Tags of(String key, double value) {
+        Objects.requireNonNull(key, "key must not be null");
+        String[] k = { key };
+        Object[] v = { value };
+        return new Tags(k, v, computeHash(k, v));
     }
 
     /**
-     * Creates an immutable Tags with four key-value pairs.
-     * @param k1 first key
-     * @param v1 first value
-     * @param k2 second key
-     * @param v2 second value
-     * @param k3 third key
-     * @param v3 third value
-     * @param k4 fourth key
-     * @param v4 fourth value
+     * Creates an immutable Tags with one boolean-valued pair.
+     * @param key   tag key
+     * @param value tag value
      * @return new Tags instance
      */
-    public static Tags of(String k1, Object v1, String k2, Object v2, String k3, Object v3, String k4, Object v4) {
-        Objects.requireNonNull(k1, "k1 must not be null");
-        Objects.requireNonNull(v1, "v1 must not be null");
-        Objects.requireNonNull(k2, "k2 must not be null");
-        Objects.requireNonNull(v2, "v2 must not be null");
-        Objects.requireNonNull(k3, "k3 must not be null");
-        Objects.requireNonNull(v3, "v3 must not be null");
-        Objects.requireNonNull(k4, "k4 must not be null");
-        Objects.requireNonNull(v4, "v4 must not be null");
-        validateValue(v1);
-        validateValue(v2);
-        validateValue(v3);
-        validateValue(v4);
-        return fromPairs(new String[] { k1, k2, k3, k4 }, new Object[] { v1, v2, v3, v4 }, 4);
+    public static Tags of(String key, boolean value) {
+        Objects.requireNonNull(key, "key must not be null");
+        String[] k = { key };
+        Object[] v = { value };
+        return new Tags(k, v, computeHash(k, v));
     }
 
     /**
@@ -225,7 +181,6 @@ public final class Tags {
         Object[] values = new Object[keys.length];
         for (int i = 0; i < keys.length; i++) {
             values[i] = Objects.requireNonNull(map.get(keys[i]), "value for key '" + keys[i] + "' must not be null");
-            validateValue(values[i]);
         }
         return new Tags(keys, values, computeHash(keys, values));
     }
@@ -319,7 +274,7 @@ public final class Tags {
     public Tags addTag(String key, String value) {
         Objects.requireNonNull(key, "key cannot be null");
         Objects.requireNonNull(value, "value cannot be null");
-        return Tags.concat(this, Tags.of(key, (Object) value));
+        return Tags.concat(this, Tags.of(key, value));
     }
 
     /**
@@ -330,7 +285,7 @@ public final class Tags {
      */
     public Tags addTag(String key, long value) {
         Objects.requireNonNull(key, "key cannot be null");
-        return Tags.concat(this, Tags.of(key, (Object) value));
+        return Tags.concat(this, Tags.of(key, value));
     }
 
     /**
@@ -341,7 +296,7 @@ public final class Tags {
      */
     public Tags addTag(String key, double value) {
         Objects.requireNonNull(key, "key cannot be null");
-        return Tags.concat(this, Tags.of(key, (Object) value));
+        return Tags.concat(this, Tags.of(key, value));
     }
 
     /**
@@ -352,20 +307,12 @@ public final class Tags {
      */
     public Tags addTag(String key, boolean value) {
         Objects.requireNonNull(key, "key cannot be null");
-        return Tags.concat(this, Tags.of(key, (Object) value));
+        return Tags.concat(this, Tags.of(key, value));
     }
 
     // -----------------------------------------------------------------------
     // Internal
     // -----------------------------------------------------------------------
-
-    private static final String UNSUPPORTED_TYPE_MSG = "Tag value must be String, Long, Double, or Boolean, got: ";
-
-    private static void validateValue(Object value) {
-        if (!(value instanceof String || value instanceof Long || value instanceof Double || value instanceof Boolean)) {
-            throw new IllegalArgumentException(UNSUPPORTED_TYPE_MSG + value.getClass().getName());
-        }
-    }
 
     private static int computeHash(String[] keys, Object[] values) {
         int result = 1;

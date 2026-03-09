@@ -10,7 +10,6 @@ package org.opensearch.telemetry.metrics.tags;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,32 +39,26 @@ public class TagsTests extends OpenSearchTestCase {
     }
 
     public void testOfNullValueThrows() {
-        expectThrows(NullPointerException.class, () -> Tags.of("k", (Object) null));
+        expectThrows(NullPointerException.class, () -> Tags.of("k", (String) null));
     }
 
-    // --- of(k1,v1,k2,v2) sorted ---
-
-    public void testOfTwoTagsSorted() {
-        Tags t = Tags.of("z", "1", "a", "2");
-        assertEquals(2, t.size());
-        assertEquals("a", t.getKey(0));
-        assertEquals("z", t.getKey(1));
-    }
-
-    public void testOfTwoTagsDuplicateKeyLastWins() {
-        Tags t = Tags.of("k", "first", "k", "second");
+    public void testOfLong() {
+        Tags t = Tags.of("retries", 3L);
         assertEquals(1, t.size());
-        assertEquals("second", t.getValue(0));
+        assertEquals("retries", t.getKey(0));
+        assertEquals(3L, t.getValue(0));
     }
 
-    // --- of(k1,v1,k2,v2,k3,v3) ---
+    public void testOfDouble() {
+        Tags t = Tags.of("latency", 1.5);
+        assertEquals(1, t.size());
+        assertEquals(1.5, t.getValue(0));
+    }
 
-    public void testOfThreeTagsSorted() {
-        Tags t = Tags.of("c", "3", "a", "1", "b", "2");
-        assertEquals(3, t.size());
-        assertEquals("a", t.getKey(0));
-        assertEquals("b", t.getKey(1));
-        assertEquals("c", t.getKey(2));
+    public void testOfBoolean() {
+        Tags t = Tags.of("enabled", true);
+        assertEquals(1, t.size());
+        assertEquals(true, t.getValue(0));
     }
 
     // --- ofStringPairs(varargs) ---
@@ -130,8 +123,8 @@ public class TagsTests extends OpenSearchTestCase {
     }
 
     public void testConcatPartialOverlapMergesAndDeduplicates() {
-        Tags a = Tags.of("a", "1", "c", "3");
-        Tags b = Tags.of("b", "2", "c", "4");
+        Tags a = Tags.ofStringPairs("a", "1", "c", "3");
+        Tags b = Tags.ofStringPairs("b", "2", "c", "4");
         Tags merged = Tags.concat(a, b);
         assertEquals(3, merged.size());
         assertEquals("a", merged.getKey(0));
@@ -143,8 +136,8 @@ public class TagsTests extends OpenSearchTestCase {
     }
 
     public void testConcatInterleavedNoOverlap() {
-        Tags a = Tags.of("a", "1", "c", "3", "e", "5");
-        Tags b = Tags.of("b", "2", "d", "4");
+        Tags a = Tags.ofStringPairs("a", "1", "c", "3", "e", "5");
+        Tags b = Tags.ofStringPairs("b", "2", "d", "4");
         Tags merged = Tags.concat(a, b);
         assertEquals(5, merged.size());
         assertEquals("a", merged.getKey(0));
@@ -155,8 +148,8 @@ public class TagsTests extends OpenSearchTestCase {
     }
 
     public void testConcatFullOverlapBWins() {
-        Tags a = Tags.of("a", "old_a", "b", "old_b");
-        Tags b = Tags.of("a", "new_a", "b", "new_b");
+        Tags a = Tags.ofStringPairs("a", "old_a", "b", "old_b");
+        Tags b = Tags.ofStringPairs("a", "new_a", "b", "new_b");
         Tags merged = Tags.concat(a, b);
         assertEquals(2, merged.size());
         assertEquals("new_a", merged.getValue(0));
@@ -165,7 +158,7 @@ public class TagsTests extends OpenSearchTestCase {
 
     public void testConcatLargeRemainderPath() {
         Tags a = Tags.of("z", "26");
-        Tags b = Tags.of("a", "1", "b", "2", "c", "3", "d", "4");
+        Tags b = Tags.ofStringPairs("a", "1", "b", "2", "c", "3", "d", "4");
         Tags merged = Tags.concat(a, b);
         assertEquals(5, merged.size());
         assertEquals("a", merged.getKey(0));
@@ -175,15 +168,15 @@ public class TagsTests extends OpenSearchTestCase {
     }
 
     public void testConcatHashConsistency() {
-        Tags viaOf = Tags.of("a", "1", "b", "2");
+        Tags viaOfStringPairs = Tags.ofStringPairs("a", "1", "b", "2");
         Tags viaConcat = Tags.concat(Tags.of("a", "1"), Tags.of("b", "2"));
-        assertEquals(viaOf, viaConcat);
-        assertEquals(viaOf.hashCode(), viaConcat.hashCode());
+        assertEquals(viaOfStringPairs, viaConcat);
+        assertEquals(viaOfStringPairs.hashCode(), viaConcat.hashCode());
     }
 
     public void testConcatResultIsSorted() {
         Tags a = Tags.of("x", "1");
-        Tags b = Tags.of("a", "2", "m", "3");
+        Tags b = Tags.ofStringPairs("a", "2", "m", "3");
         Tags merged = Tags.concat(a, b);
         for (int i = 0; i < merged.size() - 1; i++) {
             assertTrue(merged.getKey(i).compareTo(merged.getKey(i + 1)) < 0);
@@ -218,61 +211,18 @@ public class TagsTests extends OpenSearchTestCase {
         expectThrows(NullPointerException.class, () -> Tags.fromMap(map));
     }
 
-    // --- value type validation ---
-
-    public void testOfAcceptsSupportedTypes() {
-        Tags stringTag = Tags.of("s", "val");
-        assertEquals("val", stringTag.getValue(0));
-
-        Tags longTag = Tags.of("l", 42L);
-        assertEquals(42L, longTag.getValue(0));
-
-        Tags doubleTag = Tags.of("d", 3.14);
-        assertEquals(3.14, doubleTag.getValue(0));
-
-        Tags boolTag = Tags.of("b", true);
-        assertEquals(true, boolTag.getValue(0));
-    }
-
-    public void testOfRejectsUnsupportedType() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Tags.of("k", new ArrayList<>()));
-        assertTrue(e.getMessage().contains("ArrayList"));
-    }
-
-    public void testOfRejectsIntegerType() {
-        expectThrows(IllegalArgumentException.class, () -> Tags.of("k", 42));
-    }
-
-    public void testOfTwoPairRejectsUnsupportedType() {
-        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", new Object()));
-    }
-
-    public void testOfThreePairRejectsUnsupportedType() {
-        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", "ok", "c", new int[] { 1 }));
-    }
-
-    public void testOfFourPairRejectsUnsupportedType() {
-        expectThrows(IllegalArgumentException.class, () -> Tags.of("a", "ok", "b", "ok", "c", "ok", "d", new Object()));
-    }
-
-    public void testFromMapRejectsUnsupportedValueType() {
-        Map<String, Object> map = new HashMap<>();
-        map.put("k", new ArrayList<>());
-        expectThrows(IllegalArgumentException.class, () -> Tags.fromMap(map));
-    }
-
     // --- getTagsMap ---
 
     public void testGetTagsMapPreservesOriginalTypes() {
-        Tags t = Tags.of("num", (Object) 42L);
+        Tags t = Tags.of("num", 42L);
         assertEquals(42L, t.getTagsMap().get("num"));
     }
 
     // --- equals / hashCode ---
 
     public void testEqualTagsAreEqual() {
-        Tags a = Tags.of("x", "1", "y", "2");
-        Tags b = Tags.of("x", "1", "y", "2");
+        Tags a = Tags.ofStringPairs("x", "1", "y", "2");
+        Tags b = Tags.ofStringPairs("x", "1", "y", "2");
         assertEquals(a, b);
         assertEquals(a.hashCode(), b.hashCode());
     }
@@ -302,7 +252,7 @@ public class TagsTests extends OpenSearchTestCase {
 
     public void testDifferentSizeNotEqual() {
         Tags a = Tags.of("k", "v");
-        Tags b = Tags.of("k", "v", "k2", "v2");
+        Tags b = Tags.ofStringPairs("k", "v", "k2", "v2");
         assertNotEquals(a, b);
     }
 
