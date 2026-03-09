@@ -1655,6 +1655,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @param numSegments the number of segments to create
      */
     public void indexBulkWithSegments(List<IndexRequestBuilder> builders, int numSegments) throws InterruptedException {
+        assert numSegments > 0 && numSegments <= builders.size() : "numSegments must be between 1 and builders.size()";
         int batchSize = builders.size() / numSegments;
         for (int seg = 0; seg < numSegments; seg++) {
             int from = seg * batchSize;
