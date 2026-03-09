@@ -24,9 +24,11 @@ import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -104,7 +106,8 @@ public class DefaultStreamPoller implements StreamPoller {
         int numProcessorThreads,
         int blockingQueueSize,
         long pointerBasedLagUpdateIntervalMs,
-        IngestionMessageMapper.MapperType mapperType
+        IngestionMessageMapper.MapperType mapperType,
+        Map<String, Object> mapperSettings
     ) {
         this(
             startPointer,
@@ -120,7 +123,7 @@ public class DefaultStreamPoller implements StreamPoller {
             pollTimeout,
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
-            IngestionMessageMapper.create(mapperType.getName(), shardId)
+            IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings)
         );
     }
 
@@ -604,6 +607,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private int blockingQueueSize = 100;
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
+        private Map<String, Object> mapperSettings = Collections.emptyMap();
 
         /**
          * Initialize the builder with mandatory parameters
@@ -704,6 +708,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set mapper settings
+         */
+        public Builder mapperSettings(Map<String, Object> mapperSettings) {
+            this.mapperSettings = mapperSettings != null ? mapperSettings : Collections.emptyMap();
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -722,7 +734,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 numProcessorThreads,
                 blockingQueueSize,
                 pointerBasedLagUpdateIntervalMs,
-                mapperType
+                mapperType,
+                mapperSettings
             );
         }
     }

@@ -38,7 +38,7 @@ import java.util.Arrays;
 /**
  * Transport action to resume ingestion.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class TransportResumeIngestionAction extends TransportClusterManagerNodeAction<ResumeIngestionRequest, ResumeIngestionResponse>
     implements
