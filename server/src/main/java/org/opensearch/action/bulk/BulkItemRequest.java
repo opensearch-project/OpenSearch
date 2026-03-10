@@ -139,7 +139,16 @@ public class BulkItemRequest implements Writeable, Accountable {
     public void writeThin(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
-        out.writeOptionalWriteable(primaryResponse == null ? null : primaryResponse::writeThin);
+
+        BulkItemResponse primaryResponse = this.primaryResponse;
+
+        // Explicitly check if primaryResponse is null to avoid branching/mispredictions in a lambda
+        if (primaryResponse != null) {
+            out.writeBoolean(true);
+            primaryResponse.writeThin(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override
