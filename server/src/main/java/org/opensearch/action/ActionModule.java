@@ -595,13 +595,10 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        Set<String> transients =
-            Stream.concat(
-                actionPlugins.stream().flatMap(p -> p.getTransients().stream()),
-                Stream.of(
-                    TracerContextStorage.CURRENT_SPAN
-                )
-            ).collect(Collectors.toSet());
+        Set<String> transients = Stream.concat(
+            actionPlugins.stream().flatMap(p -> p.getTransients().stream()),
+            Stream.of(TracerContextStorage.CURRENT_SPAN)
+        ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext(), headers, transients);

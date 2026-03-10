@@ -53,8 +53,8 @@ import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestHeaderDefinition;
+import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.tasks.Task;
@@ -68,9 +68,9 @@ import org.opensearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.Collection;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -324,16 +324,13 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
             // Verify transients were passed to the plugin
             assertNotNull("Plugin should have received transients", receivedTransients[0]);
-            assertTrue("Should contain custom transient from plugin",
-                receivedTransients[0].contains("custom_transient"));
-            assertTrue("Should contain core CURRENT_SPAN",
-                receivedTransients[0].contains(TracerContextStorage.CURRENT_SPAN));
+            assertTrue("Should contain custom transient from plugin", receivedTransients[0].contains("custom_transient"));
+            assertTrue("Should contain core CURRENT_SPAN", receivedTransients[0].contains(TracerContextStorage.CURRENT_SPAN));
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-        finally {
+        } finally {
             threadPool.shutdown();
         }
     }
 
-    }
+}

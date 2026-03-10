@@ -276,7 +276,7 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
         SpanReference spanReference = new SpanReference(null);
         Map<String, Object> source = new HashMap<>();
         source.put(ThreadContextBasedTracerContextStorage.CURRENT_SPAN, spanReference);
-        ThreadContextBasedTracerContextStorage context = (ThreadContextBasedTracerContextStorage)threadContextStorage;
+        ThreadContextBasedTracerContextStorage context = (ThreadContextBasedTracerContextStorage) threadContextStorage;
         assertTrue(context.transients(source).isEmpty());
     }
 }

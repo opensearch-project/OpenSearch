@@ -156,7 +156,11 @@ public interface ActionPlugin {
      *
      * Note: Only one installed plugin may implement a rest wrapper.
      */
-    default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext, Set<RestHeaderDefinition> headersToCopy, Set<String> transients) {
+    default UnaryOperator<RestHandler> getRestHandlerWrapper(
+        ThreadContext threadContext,
+        Set<RestHeaderDefinition> headersToCopy,
+        Set<String> transients
+    ) {
         return this.getRestHandlerWrapper(threadContext);
     }
 
