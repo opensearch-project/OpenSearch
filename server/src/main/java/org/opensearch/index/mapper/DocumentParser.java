@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1393,6 +1394,75 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
+
+        // If a dynamic_property matches this field, use it without updating the index mapping (no cluster state update;
+        // see DynamicProperty javadoc for authorization/audit implications).
+        // Use ContentPath + leaf so the dotted name matches FieldMapper#name (built via pathAsText in FieldMapper.Builder).
+        // Root ObjectMapper#fullPath is the internal mapping-type name "_doc", which must not prefix index field names.
+        String fullPath = context.path().pathAsText(currentFieldName);
+        DynamicProperty dynamicProperty = context.root().findDynamicProperty(fullPath);
+        if (dynamicProperty != null) {
+            Mapper cached = context.lookupDynamicPropertyMapper(fullPath);
+            if (cached != null) {
+                context.path().add(currentFieldName);
+                try {
+                    parseObjectOrField(context, cached);
+                } finally {
+                    context.path().remove();
+                }
+                return;
+            }
+            Map<String, Object> config = new HashMap<>(dynamicProperty.mappingForName(currentFieldName));
+            Object typeNode = config.get("type");
+            if (typeNode == null) {
+                throw new MapperParsingException(
+                    "dynamic_property pattern ["
+                        + dynamicProperty.getPattern()
+                        + "] matched field ["
+                        + fullPath
+                        + "] but its mapping has no [type]"
+                );
+            }
+            String type = typeNode.toString();
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+            Mapper.TypeParser typeParser = parserContext.typeParser(type);
+            if (typeParser == null) {
+                throw new MapperParsingException(
+                    "No handler for type ["
+                        + type
+                        + "] in dynamic_property pattern ["
+                        + dynamicProperty.getPattern()
+                        + "] for field ["
+                        + fullPath
+                        + "]"
+                );
+            }
+            Mapper.Builder<?> builder = typeParser.parse(currentFieldName, config, parserContext);
+            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
+            Mapper mapper = builder.build(builderContext);
+            if (fullPath.equals(mapper.name()) == false) {
+                throw new MapperParsingException(
+                    "dynamic_property pattern ["
+                        + dynamicProperty.getPattern()
+                        + "] for field ["
+                        + fullPath
+                        + "] produced mapper with name ["
+                        + mapper.name()
+                        + "], expected ["
+                        + fullPath
+                        + "]"
+                );
+            }
+            context.rememberDynamicPropertyMapper(fullPath, mapper);
+            context.path().add(currentFieldName);
+            try {
+                parseObjectOrField(context, mapper);
+            } finally {
+                context.path().remove();
+            }
+            return;
+        }
+
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
         if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES && builder == null) {
             // For FALSE_ALLOW_TEMPLATES, if no template matches, we still need to consume the token
