@@ -596,8 +596,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private final InternalAggregations reducedAggs;
         private final long estimatedSize;
 
-        ReduceResult(List<SearchShard> processedShards, TopDocs reducedTopDocs, InternalAggregations reducedAggs,
-            long estimatedSize) {
+        ReduceResult(List<SearchShard> processedShards, TopDocs reducedTopDocs, InternalAggregations reducedAggs, long estimatedSize) {
             this.processedShards = processedShards;
             this.reducedTopDocs = reducedTopDocs;
             this.reducedAggs = reducedAggs;
