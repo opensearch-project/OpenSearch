@@ -1559,7 +1559,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats() {
-        IndexingThrottler engine = getIndexingThrottler();
+        IndexingThrottler engine = getIndexingThrottlerOrNull();
         final boolean throttled;
         final long throttleTimeInMillis;
         if (engine == null) {
@@ -2451,6 +2451,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Map<FileMetadata, StoreFileMetadata> getFormatAwareSegmentMetadataMap() throws IOException {
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshotFromEngine()) {
             return extractFormatAwareMetadata(catalogSnapshotRef.getRef());
+        } catch (IOException e) {
+            logger.warn("Failed to extract format aware metadata from catalog snapshot", e);
+            throw e;
         } catch (Exception e) {
             logger.warn("Failed to get format-aware segment metadata", e);
             return Collections.emptyMap();

@@ -12,12 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.store.CompositeDirectory;
 import org.opensearch.index.store.SegmentUploadFailedException;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
@@ -79,6 +81,10 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
         ActionListener<Collection<Void>> mappedListener = ActionListener.map(listener, resp -> null);
         GroupedActionListener<Void> batchUploadListener = new GroupedActionListener<>(mappedListener, fileMetadataCollection.size());
 
+        final Directory directory = isOptimizedIndex
+            ? null
+            : ((FilterDirectory) (((FilterDirectory) storeDirectory).getDelegate())).getDelegate();
+
         for (FileMetadata fileMetadata : fileMetadataCollection) {
             String fileName = fileMetadata.file();
             // Initializing listener here to ensure that the stats increment operations are thread-safe
@@ -93,10 +99,9 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                             fileName, fileMetadata.dataFormat(), fileSize);
 
                 // Once uploaded to Remote, local files become eligible for eviction from FileCache
-                // Todo:@Kamal Update compositeDirectory for ultrawarm support
-//                if (directory instanceof CompositeDirectory) {
-//                    ((CompositeDirectory) directory).afterSyncToRemote(fileName);
-//                }
+                if (directory instanceof CompositeDirectory) {
+                    ((CompositeDirectory) directory).afterSyncToRemote(fileName);
+                }
             }, ex -> {
                 logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", ex), ex);
                 if (ex instanceof CorruptIndexException) {

@@ -252,7 +252,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Creates a temporary ShardPath for testing when none is provided
      */
     private static ShardPath createTempShardPath(ShardId shardId) {
-        Path tempPath = Path.of(System.getProperty("java.io.tmpdir"), "opensearch-test", shardId.toString());
+        Path tempPath = Path.of(
+            System.getProperty("java.io.tmpdir"),
+            "opensearch-test",
+            shardId.getIndex().getUUID(),
+            Integer.toString(shardId.id())
+        );
         return new ShardPath(false, tempPath, tempPath, shardId);
     }
 
@@ -1003,58 +1008,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return SegmentInfos.readCommit(directory, input, segmentsGen);
         }
     }
-
-    private SegmentInfos convertCatalogSnapshotToSegmentInfos(byte[] catalogSnapshotBytes, long segmentsGen) throws IOException {
-        logger.debug("Converting CatalogSnapshot to SegmentInfos for generation: {}", segmentsGen);
-
-        // Step 1: Deserialize CatalogSnapshot
-        CatalogSnapshot catalogSnapshot;
-        try (BytesStreamInput input = new BytesStreamInput(catalogSnapshotBytes)) {
-            catalogSnapshot = new CompositeEngineCatalogSnapshot(input);
-        } catch (Exception e) {
-            throw new IOException("Failed to deserialize CatalogSnapshot bytes", e);
-        }
-
-        // Step 2: Extract user data (should contain translog UUID)
-        Map<String, String> catalogUserData = catalogSnapshot.getUserData();
-        logger.debug("CatalogSnapshot userData: {}", catalogUserData);
-
-        // Step 3: Handle missing translog UUID case
-        String translogUUID = catalogUserData.get(Translog.TRANSLOG_UUID_KEY);
-        if (translogUUID == null) {
-            logger.warn("CatalogSnapshot missing translog UUID, this indicates upload occurred before proper engine initialization");
-
-            // Try to read from local store as fallback
-            try {
-                SegmentInfos localSegmentInfos = readLastCommittedSegmentsInfo();
-                String localTranslogUUID = localSegmentInfos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
-                if (localTranslogUUID != null) {
-                    logger.info("Using local translog UUID as fallback: {}", localTranslogUUID);
-                    catalogUserData = new HashMap<>(catalogUserData);
-                    catalogUserData.put(Translog.TRANSLOG_UUID_KEY, localTranslogUUID);
-                } else {
-                    // Generate new UUID and bootstrap the index
-                    logger.warn("No translog UUID available, generating new one and bootstrapping history");
-                    String newTranslogUUID = org.opensearch.common.UUIDs.randomBase64UUID();
-                    catalogUserData = new HashMap<>(catalogUserData);
-                    catalogUserData.put(Translog.TRANSLOG_UUID_KEY, newTranslogUUID);
-                    catalogUserData.put(Engine.HISTORY_UUID_KEY, org.opensearch.common.UUIDs.randomBase64UUID());
-                }
-            } catch (Exception e) {
-                logger.error("Failed to get fallback translog UUID from local store", e);
-                throw new IOException("Cannot recover translog UUID from CatalogSnapshot or local store", e);
-            }
-        }
-
-        // Step 4: Create SegmentInfos with proper user data
-        SegmentInfos segmentInfos = new SegmentInfos(Version.LATEST.major);
-        segmentInfos.setNextWriteGeneration(segmentsGen);
-        segmentInfos.setUserData(catalogUserData, false);
-
-        logger.info("Successfully converted CatalogSnapshot to SegmentInfos with translogUUID: {}", translogUUID);
-        return segmentInfos;
-    }
-
 
     /**
      * This method formats byte[] containing the primary's SegmentInfos into lucene's {@link ChecksumIndexInput} that can be
