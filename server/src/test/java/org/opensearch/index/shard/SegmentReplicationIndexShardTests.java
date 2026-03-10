@@ -554,7 +554,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // cleans up recently copied over files
             IndexShard spyShard = spy(replicaShard);
             doAnswer(n -> {
-                NRTReplicationEngine engine = (NRTReplicationEngine) replicaShard.getIndexer();
+                NRTReplicationEngine engine = (NRTReplicationEngine) getEngine(replicaShard);
                 // Using engine.close() prevents indexShard.finalizeReplication execution due to engine AlreadyClosedException,
                 // thus as workaround, use updateSegments which eventually calls commitSegmentInfos on latest segment infos.
                 engine.updateSegments(engine.getSegmentInfosSnapshot().get());
