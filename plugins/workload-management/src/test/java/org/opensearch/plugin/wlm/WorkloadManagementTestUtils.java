@@ -43,11 +43,15 @@ import static org.mockito.Mockito.mock;
 public class WorkloadManagementTestUtils {
     public static final String NAME_ONE = "workload_group_one";
     public static final String NAME_TWO = "workload_group_two";
+    public static final String NAME_THREE = "workload_group_three";
     public static final String _ID_ONE = "AgfUO5Ja9yfsYlONlYi3TQ==";
     public static final String _ID_TWO = "G5iIqHy4g7eK1qIAAAAIH53=1";
+    public static final String _ID_THREE = "H6jVP6Kb0zgtZmPOmZj4UQ==";
     public static final String NAME_NONE_EXISTED = "workload_group_none_existed";
     public static final long TIMESTAMP_ONE = 4513232413L;
     public static final long TIMESTAMP_TWO = 4513232415L;
+    public static final long TIMESTAMP_THREE = 4513232417L;
+    public static final Map<String, String> TEST_SEARCH_SETTINGS = Map.of("timeout", "30s");
     public static final WorkloadGroup workloadGroupOne = builder().name(NAME_ONE)
         ._id(_ID_ONE)
         .mutableWorkloadGroupFragment(
@@ -62,6 +66,18 @@ public class WorkloadManagementTestUtils {
             new MutableWorkloadGroupFragment(MutableWorkloadGroupFragment.ResiliencyMode.MONITOR, Map.of(ResourceType.MEMORY, 0.6))
         )
         .updatedAt(TIMESTAMP_TWO)
+        .build();
+
+    public static final WorkloadGroup workloadGroupWithSearchSettings = builder().name(NAME_THREE)
+        ._id(_ID_THREE)
+        .mutableWorkloadGroupFragment(
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.MEMORY, 0.5),
+                TEST_SEARCH_SETTINGS
+            )
+        )
+        .updatedAt(TIMESTAMP_THREE)
         .build();
 
     public static List<WorkloadGroup> workloadGroupList() {
