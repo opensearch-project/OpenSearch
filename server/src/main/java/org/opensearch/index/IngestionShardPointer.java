@@ -10,13 +10,13 @@ package org.opensearch.index;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * An interface for the pointer to a shard in the ingestion engine, and it is used to track the message offset of
  * ingestion.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionShardPointer extends Comparable<IngestionShardPointer> {
     String OFFSET_FIELD = "_offset";
 

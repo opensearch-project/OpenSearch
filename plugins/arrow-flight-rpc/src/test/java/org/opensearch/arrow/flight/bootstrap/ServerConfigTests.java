@@ -12,7 +12,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 
-import static org.opensearch.arrow.flight.bootstrap.ServerComponents.SETTING_FLIGHT_PUBLISH_PORT;
+import static org.opensearch.arrow.flight.bootstrap.ServerConfig.SETTING_FLIGHT_PUBLISH_PORT;
 
 public class ServerConfigTests extends OpenSearchTestCase {
 

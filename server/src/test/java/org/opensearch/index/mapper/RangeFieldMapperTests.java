@@ -405,6 +405,47 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
+    public void testInvalidRangeBounds() throws Exception {
+        final DocumentMapper mapper = createDocumentMapper(rangeFieldMapping("long_range", b -> b.field("store", true)));
+        MapperParsingException mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field").field(GT_FIELD.getPreferredName(), FROM).field(GTE_FIELD.getPreferredName(), TO).endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid lower bound (gt/gte)"));
+
+        mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field")
+                        .field(GT_FIELD.getPreferredName(), FROM)
+                        .field(LT_FIELD.getPreferredName(), TO)
+                        .field(LTE_FIELD.getPreferredName(), TO)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid upper bound (lt/lte)"));
+
+        mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field")
+                        .field(GT_FIELD.getPreferredName(), FROM)
+                        .field(LT_FIELD.getPreferredName(), TO)
+                        .field(GTE_FIELD.getPreferredName(), TO)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid lower bound (gt/gte)"));
+    }
+
     public void testUpdatesWithSameMappings() throws Exception {
         for (final String type : types()) {
             final DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> { b.field("store", true); }));

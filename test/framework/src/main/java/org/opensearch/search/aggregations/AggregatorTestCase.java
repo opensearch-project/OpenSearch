@@ -550,6 +550,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         fieldNameToType.putAll(getFieldAliases(fieldTypes));
 
         when(searchContext.maxAggRewriteFilters()).thenReturn(10_000);
+        when(searchContext.termsAggregationMaxPrecomputeCardinality()).thenReturn(30_000L);
         when(searchContext.cardinalityAggregationContext()).thenReturn(
             new org.opensearch.search.aggregations.metrics.CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100)
         );

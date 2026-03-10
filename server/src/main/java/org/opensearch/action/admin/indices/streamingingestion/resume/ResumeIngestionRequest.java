@@ -12,7 +12,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -29,9 +29,9 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 /**
  * A request to resume ingestion.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionRequest> implements IndicesRequest.Replaceable {
     public static final String RESET_SETTINGS = "reset_settings";
     private String[] indices;
@@ -165,9 +165,9 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
 
     /**
      * Represents reset settings for a given shard to be applied as part of resume operation.
-     * @opensearch.experimental
+     * @opensearch.api
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class ResetSettings implements Writeable {
         private final int shard;
         private final ResetMode mode;
@@ -208,7 +208,7 @@ public class ResumeIngestionRequest extends AcknowledgedRequest<ResumeIngestionR
          * Reset options for Resume API. Offset mode supports kafka offsets or Kinesis sequence numbers and timestamp
          * mode supports a timestamp in milliseconds that will be used to retrieve corresponding offset.
          */
-        @ExperimentalApi
+        @PublicApi(since = "3.6.0")
         public enum ResetMode {
             OFFSET,
             TIMESTAMP
