@@ -99,7 +99,7 @@ public class RemoteStoreUploaderService implements RemoteStoreUploader {
                             fileName, fileMetadata.dataFormat(), fileSize);
 
                 // Once uploaded to Remote, local files become eligible for eviction from FileCache
-                if (directory instanceof CompositeDirectory) {
+                if (isOptimizedIndex == false && directory instanceof CompositeDirectory) {
                     ((CompositeDirectory) directory).afterSyncToRemote(fileName);
                 }
             }, ex -> {
