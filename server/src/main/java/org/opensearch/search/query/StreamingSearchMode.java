@@ -58,7 +58,6 @@ public enum StreamingSearchMode {
             return NO_SCORING; // Default
         }
 
-        // Backward compatibility: coerce older scored modes into NO_SCORING
         if ("SCORED_UNSORTED".equalsIgnoreCase(mode) || "SCORED_SORTED".equalsIgnoreCase(mode) || "NO_SCORING".equalsIgnoreCase(mode)) {
             return NO_SCORING;
         }
@@ -68,7 +67,7 @@ public enum StreamingSearchMode {
                 return m;
             }
         }
-        
+
         throw new IllegalArgumentException("Unknown StreamingSearchMode: " + mode);
     }
 

@@ -73,10 +73,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         this.logger = logger;
     }
 
-    /**
-     * Override the extension point to create streaming listeners instead of regular
-     * listeners
-     */
     @Override
     SearchActionListener<SearchPhaseResult> createShardActionListener(
         final SearchShardTarget shard,
@@ -145,11 +141,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         results.consumeResult(result, next);
     }
 
-    /**
-     * Override onShardResult to handle streaming search results safely.
-     * This prevents the "topDocs already consumed" error when processing
-     * multiple streaming results from the same shard.
-     */
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
         // Trace final shard responses to diagnose coordinator sequencing.
@@ -162,14 +153,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 expectedTotalOps
             );
         }
-        // Always delegate to the parent to ensure shard accounting and phase
-        // transitions.
         super.onShardResult(result, shardIt);
     }
 
-    /**
-     * Override successful shard execution to handle stream result synchronization
-     */
     @Override
     void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
@@ -194,11 +180,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         }
     }
 
-    /**
-     * Handle successful stream execution callback
-     * Partials are not fed into the reducer, so coordinator completion is driven
-     * by {@link #successfulShardExecution(SearchShardIterator)}.
-     */
     private void successfulStreamExecution() {
         // No-op.
     }

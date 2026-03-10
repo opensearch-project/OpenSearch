@@ -38,8 +38,6 @@ public class TopDocsCollectorContextEntrypointTests extends OpenSearchTestCase {
         assertEquals(10, context.numHits());
     }
 
-
-
     public void testNonStreamingBranchWhenStreamingDisabled() throws IOException {
         SearchContext mockSearchContext = mock(SearchContext.class);
         BigArrays mockBigArrays = mock(BigArrays.class);
