@@ -21,6 +21,7 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
@@ -294,7 +295,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                 }
             }, ThreadPool.Names.GENERIC, "");
             latch.await();
-            assertEquals(nextPrimary.getIndexer().getClass(), InternalEngine.class);
+            assertEquals(getEngine(nextPrimary).getClass(), InternalEngine.class);
             nextPrimary.refresh("test");
 
             oldPrimary.close("demoted", false, false);
@@ -409,7 +410,7 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
                         .collect(Collectors.toList());
 
                     // Step 4. Perform a commit on replica shard.
-                    NRTReplicationEngine engine = (NRTReplicationEngine) indexShard.getIndexer();
+                    NRTReplicationEngine engine = (NRTReplicationEngine) ((EngineBackedIndexer) (indexShard.getIndexer())).getEngine();
                     engine.updateSegments(engine.getSegmentInfosSnapshot().get());
 
                     // Step 5. Validate temporary files are not deleted from store.
@@ -605,8 +606,8 @@ public class SegmentReplicationWithNodeToNodeIndexShardTests extends SegmentRepl
         oldPrimary = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
         shards.recoverReplica(oldPrimary);
 
-        assertEquals(NRTReplicationEngine.class, getEngine(oldPrimary));
-        assertEquals(InternalEngine.class, nextPrimary.getIndexer().getClass());
+        assertEquals(NRTReplicationEngine.class, getEngine(oldPrimary).getClass());
+        assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
         assertDocCounts(nextPrimary, totalDocs, totalDocs);
         assertEquals(0, nextPrimary.translogStats().estimatedNumberOfOperations());
 

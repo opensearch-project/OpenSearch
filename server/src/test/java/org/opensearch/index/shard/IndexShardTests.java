@@ -5052,7 +5052,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         final IndexShard primaryShard = newStartedShard(false, primarySettings, new NRTReplicationEngineFactory());
         assertFalse(primaryShard.getIndexer().config().isReadOnlyReplica());
-        assertEquals(primaryShard.getIndexer().getClass(), InternalEngine.class);
+        assertEquals(getEngine(primaryShard).getClass(), InternalEngine.class);
 
         Settings replicaSettings = Settings.builder()
             .put(primarySettings)
@@ -5060,7 +5060,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .build();
         final IndexShard replicaShard = newStartedShard(false, replicaSettings, new NRTReplicationEngineFactory());
         assertTrue(replicaShard.getIndexer().config().isReadOnlyReplica());
-        assertEquals(getEngine(replicaShard), NRTReplicationEngine.class);
+        assertEquals(getEngine(replicaShard).getClass(), NRTReplicationEngine.class);
 
         closeShards(primaryShard, replicaShard);
     }
@@ -5072,11 +5072,11 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         final IndexShard primaryShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
-        assertEquals(primaryShard.getIndexer().getClass(), InternalEngine.class);
+        assertEquals(getEngine(primaryShard).getClass(), InternalEngine.class);
         assertEquals(primaryShard.getIndexer().config().getTranslogFactory().getClass(), InternalTranslogFactory.class);
 
         final IndexShard replicaShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
-        assertEquals(replicaShard.getIndexer().getClass(), InternalEngine.class);
+        assertEquals(getEngine(replicaShard).getClass(), InternalEngine.class);
         assertEquals(replicaShard.getIndexer().config().getTranslogFactory().getClass(), InternalTranslogFactory.class);
 
         closeShards(primaryShard, replicaShard);
@@ -5089,7 +5089,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         final IndexShard primaryShard = newStartedShard(false, primarySettings, new NRTReplicationEngineFactory());
-        assertEquals(getEngine(primaryShard), InternalEngine.class);
+        assertEquals(getEngine(primaryShard).getClass(), InternalEngine.class);
         assertEquals(primaryShard.getIndexer().config().getTranslogFactory().getClass(), InternalTranslogFactory.class);
         closeShards(primaryShard);
     }
@@ -5105,7 +5105,7 @@ public class IndexShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
             .build();
         final IndexShard primaryShard = newStartedShard(true, primarySettings, new NRTReplicationEngineFactory());
-        assertEquals(getEngine(primaryShard), InternalEngine.class);
+        assertEquals(getEngine(primaryShard).getClass(), InternalEngine.class);
         assertEquals(primaryShard.getIndexer().config().getTranslogFactory().getClass(), RemoteBlobStoreInternalTranslogFactory.class);
         closeShards(primaryShard);
     }

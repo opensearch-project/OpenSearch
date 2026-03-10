@@ -156,7 +156,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
-            assertEquals(InternalEngine.class, nextPrimary.getIndexer().getClass());
+            assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
 
             // refresh and push segments to our other replica.
