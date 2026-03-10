@@ -128,9 +128,11 @@ project(':test:fixtures:krb5kdc-fixture').tasks.preProcessFixture {
 
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
+def agentJarProvider = project(':libs:agent-sm:agent').tasks.named('jar').map { it.archiveFile.get() }
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   def tsk = tasks.register(fixtureName, org.opensearch.gradle.test.AntFixture) {
-    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture, project(':libs:agent-sm:agent').prepareAgent
+    dependsOn configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
+    dependsOn { project(':libs:agent-sm:agent').tasks.named('prepareAgent') }
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> configurations.hdfsFixture.asPath}"
     maxWaitInSeconds = 60
@@ -140,10 +142,10 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
     }
-    final List<String> miniHDFSArgs = []
+    final List miniHDFSArgs = []
 
     // See please https://issues.apache.org/jira/browse/HADOOP-19486
-    miniHDFSArgs.add("-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get())
+    miniHDFSArgs.add("-javaagent:${-> agentJarProvider.get()}")
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {

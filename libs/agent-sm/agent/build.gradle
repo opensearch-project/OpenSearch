@@ -7,6 +7,13 @@ base {
 
 configurations {
   bootstrap.extendsFrom(implementation)
+  create('agentDist') {
+    canBeConsumed = true
+    canBeResolved = false
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
+    }
+  }
 }
 
 dependencies {
@@ -51,6 +58,12 @@ task prepareAgent(type: Copy) {
   from(configurations.runtimeClasspath)
   into "$buildDir/distributions"
   dependsOn jar
+}
+
+artifacts {
+  agentDist(file("$buildDir/distributions")) {
+    builtBy prepareAgent
+  }
 }
 
 thirdPartyAudit {
