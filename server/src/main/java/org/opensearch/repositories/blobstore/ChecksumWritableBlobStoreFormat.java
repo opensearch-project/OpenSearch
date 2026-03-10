@@ -59,7 +59,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
     private final Version opensearchVersion;
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader) {
-        this(codec, reader, Version.CURRENT);
+        this(codec, reader, Version.CURRENT.minimumCompatibilityVersion());
     }
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader, Version opensearchVersion) {
