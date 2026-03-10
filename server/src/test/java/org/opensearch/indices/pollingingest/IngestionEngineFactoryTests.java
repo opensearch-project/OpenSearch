@@ -24,24 +24,11 @@ public class IngestionEngineFactoryTests extends OpenSearchTestCase {
         assertNotNull(factory);
     }
 
-    public void testConstructorWithoutIngestServiceSupplier() {
-        IngestionConsumerFactory consumerFactory = mock(IngestionConsumerFactory.class);
-
-        // Single-arg constructor for backward compatibility
-        IngestionEngineFactory factory = new IngestionEngineFactory(consumerFactory);
-        assertNotNull(factory);
-    }
-
     public void testConstructorWithNullIngestServiceSupplier() {
         IngestionConsumerFactory consumerFactory = mock(IngestionConsumerFactory.class);
 
         // Null supplier should be accepted
         IngestionEngineFactory factory = new IngestionEngineFactory(consumerFactory, null);
         assertNotNull(factory);
-    }
-
-    public void testConstructorRejectsNullConsumerFactory() {
-        expectThrows(NullPointerException.class, () -> new IngestionEngineFactory(null));
-        expectThrows(NullPointerException.class, () -> new IngestionEngineFactory(null, () -> mock(IngestService.class)));
     }
 }

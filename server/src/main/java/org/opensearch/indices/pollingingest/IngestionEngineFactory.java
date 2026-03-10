@@ -30,10 +30,6 @@ public class IngestionEngineFactory implements EngineFactory {
     @Nullable
     private final Supplier<IngestService> ingestServiceSupplier;
 
-    public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory) {
-        this(ingestionConsumerFactory, null);
-    }
-
     public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory, Supplier<IngestService> ingestServiceSupplier) {
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.ingestServiceSupplier = ingestServiceSupplier;

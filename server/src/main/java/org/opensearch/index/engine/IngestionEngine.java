@@ -61,7 +61,6 @@ public class IngestionEngine extends InternalEngine {
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final DocumentMapperForType documentMapperForType;
-    @Nullable
     private final IngestService ingestService;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
@@ -69,11 +68,7 @@ public class IngestionEngine extends InternalEngine {
         this(engineConfig, ingestionConsumerFactory, null);
     }
 
-    public IngestionEngine(
-        EngineConfig engineConfig,
-        IngestionConsumerFactory ingestionConsumerFactory,
-        @Nullable IngestService ingestService
-    ) {
+    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.ingestService = ingestService;
