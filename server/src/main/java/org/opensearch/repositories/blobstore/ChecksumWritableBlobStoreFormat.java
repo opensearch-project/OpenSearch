@@ -92,7 +92,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
                     }
                 }; StreamOutput stream = new OutputStreamStreamOutput(compressor.threadLocalOutputStream(indexOutputOutputStream));) {
                     // TODO The stream version should be configurable
-                    stream.setVersion(Version.CURRENT);
+                    stream.setVersion(Version.CURRENT.minimumCompatibilityVersion());
                     writer.write(stream, obj);
                 }
                 CodecUtil.writeFooter(indexOutput);
