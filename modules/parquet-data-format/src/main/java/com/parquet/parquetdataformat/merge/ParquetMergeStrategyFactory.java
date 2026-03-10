@@ -17,7 +17,7 @@ public class ParquetMergeStrategyFactory {
         switch (compactionStrategy) {
             case RECORD_BATCH:
             default:
-                return new RecordBatchMergeStrategy();
+                return new StreamingParquetMergeStrategy();
         }
     }
 }

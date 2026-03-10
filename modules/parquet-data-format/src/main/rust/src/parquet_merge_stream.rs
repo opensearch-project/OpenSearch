@@ -12,8 +12,8 @@
 //! 1. **Tier 1 (single cursor)**: When only one input cursor remains, its
 //!    batches are dumped directly to the output — no heap operations needed.
 //! 2. **Tier 2 (whole batch)**: If the last sort value in a cursor's current
-//!    batch is ≤ the heap's next-smallest value, the entire remaining batch
-//!    is emitted as a zero-copy slice.
+//!    batch is ≤ (or ≥ for reverse) the heap's next-smallest (or next-largest)
+//!    value, the entire remaining batch is emitted as a zero-copy slice.
 //! 3. **Tier 3 (binary search)**: Otherwise, a binary search within the batch
 //!    finds the exact boundary where the cursor's values exceed the heap top,
 //!    and only the safe prefix is emitted.
@@ -98,6 +98,30 @@ const DATA_PAGE_SIZE_LIMIT: usize = 1024 * 1024;
 /// A buffer of 2 allows the merge loop to prepare one row group ahead
 /// while the IO task is still writing the previous one.
 const IO_CHANNEL_BUFFER: usize = 2;
+
+// =============================================================================
+// Sort-direction helpers
+// =============================================================================
+
+/// Returns `true` if value `a` should come before or at the same position as
+/// value `b` in the requested output order.
+///
+/// - **ascending**  (reverse = false): `a <= b`
+/// - **descending** (reverse = true):  `a >= b`
+#[inline(always)]
+fn comes_before_or_equal(a: i64, b: i64, reverse: bool) -> bool {
+    if reverse { a >= b } else { a <= b }
+}
+
+/// Returns `true` if value `a` strictly exceeds value `b` in the sort
+/// direction — i.e. `a` would appear *after* `b` in the output.
+///
+/// - **ascending**  (reverse = false): `a > b`
+/// - **descending** (reverse = true):  `a < b`
+#[inline(always)]
+fn exceeds(a: i64, b: i64, reverse: bool) -> bool {
+    if reverse { a < b } else { a > b }
+}
 
 // =============================================================================
 // Process-wide shared Rayon thread pool
@@ -597,19 +621,28 @@ impl FileCursor {
 }
 
 // =============================================================================
-// Min-heap item for k-way merge
+// Min-heap / Max-heap item for k-way merge
 // =============================================================================
 
-/// An entry in the min-heap representing one input cursor's current sort value.
+/// An entry in the binary heap representing one input cursor's current sort
+/// value.
 ///
-/// The heap is a standard `BinaryHeap` (max-heap), so `Ord` is reversed to
-/// produce min-heap behavior: the smallest sort value is popped first.
+/// The heap is a standard `BinaryHeap` (max-heap internally). The `Ord`
+/// implementation is parameterised by `reverse`:
+///
+/// - **ascending merge** (`reverse = false`): comparison is *reversed* so
+///   that the **smallest** `sort_value` has highest priority (min-heap).
+/// - **descending merge** (`reverse = true`): comparison is *natural* so
+///   that the **largest** `sort_value` has highest priority (max-heap).
 #[derive(Debug)]
 struct HeapItem {
     /// The sort column value at the cursor's current row.
     sort_value: i64,
     /// Index into the cursors array identifying which input file this is from.
     file_id: usize,
+    /// Sort direction: `false` = ascending (min-heap), `true` = descending
+    /// (max-heap).
+    reverse: bool,
 }
 
 impl Eq for HeapItem {}
@@ -621,9 +654,14 @@ impl PartialEq for HeapItem {
 }
 
 impl Ord for HeapItem {
-    /// Reversed comparison: smallest sort_value has highest priority.
     fn cmp(&self, other: &Self) -> Ordering {
-        other.sort_value.cmp(&self.sort_value)
+        if self.reverse {
+            // Descending merge: natural order → largest value popped first.
+            self.sort_value.cmp(&other.sort_value)
+        } else {
+            // Ascending merge: reversed order → smallest value popped first.
+            other.sort_value.cmp(&self.sort_value)
+        }
     }
 }
 
@@ -727,8 +765,9 @@ fn append_row_id(
 /// JNI bridge for `RustBridge.mergeParquetFilesInRust`.
 ///
 /// Accepts a Java `List<String>` of input file paths, an output file path,
-/// a sort column name, and a reverse flag (currently unused — merge is always
-/// ascending). Returns 0 on success, -1 on failure (with a Java exception thrown).
+/// a sort column name, and a reverse flag. When `is_reverse` is non-zero the
+/// merge produces descending output order. Returns 0 on success, -1 on failure
+/// (with a Java exception thrown).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_mergeParquetFilesInRust(
     mut env: JNIEnv,
@@ -765,10 +804,9 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
         }
     };
 
-    // Note: reverse sort is accepted but not yet implemented in the merge algorithm.
-    let _reverse = is_reverse != 0;
+    let reverse = is_reverse != 0;
 
-    match merge_streaming(&input_files_vec, &output_path, &sort_col) {
+    match merge_streaming_full(&input_files_vec, &output_path, &sort_col, reverse) {
         Ok(_) => 0,
         Err(e) => {
             log_error!("[RUST] Merge failed: {:?}", e);
@@ -782,8 +820,8 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 // Public merge API
 // =============================================================================
 
-/// Performs a streaming k-way merge of sorted Parquet files using default
-/// configuration (batch size, flush threshold).
+/// Performs a streaming k-way merge of sorted Parquet files in **ascending**
+/// order using default configuration (batch size, flush threshold).
 ///
 /// # Arguments
 ///
@@ -800,21 +838,38 @@ pub fn merge_streaming(
     output_path: &str,
     sort_column: &str,
 ) -> MergeResult<()> {
+    merge_streaming_full(input_files, output_path, sort_column, false)
+}
+
+/// Performs a streaming k-way merge with an explicit sort direction.
+///
+/// When `reverse` is `true` the inputs are assumed to be sorted in descending
+/// order and the output will also be in descending order.
+pub fn merge_streaming_full(
+    input_files: &[String],
+    output_path: &str,
+    sort_column: &str,
+    reverse: bool,
+) -> MergeResult<()> {
     merge_streaming_with_config(
         input_files,
         output_path,
         sort_column,
+        reverse,
         BATCH_SIZE,
         OUTPUT_FLUSH_ROWS,
     )
 }
 
-/// Performs a streaming k-way merge with explicit configuration for batch size
-/// and output flush threshold. See [`merge_streaming`] for the default version.
+/// Performs a streaming k-way merge with explicit configuration for batch size,
+/// output flush threshold, and sort direction.
+///
+/// See [`merge_streaming`] for the default ascending version.
 pub fn merge_streaming_with_config(
     input_files: &[String],
     output_path: &str,
     sort_column: &str,
+    reverse: bool,
     batch_size: usize,
     output_flush_rows: usize,
 ) -> MergeResult<()> {
@@ -823,10 +878,12 @@ pub fn merge_streaming_with_config(
     }
 
     let pool = get_merge_pool();
+    let direction_label = if reverse { "descending" } else { "ascending" };
 
     log_info!(
-        "[RUST] Starting streaming merge: {} input files, sort_column='{}', \
+        "[RUST] Starting streaming merge ({}): {} input files, sort_column='{}', \
          batch_size={}, flush_rows={}, merge_threads={}, output='{}'",
+        direction_label,
         input_files.len(),
         sort_column,
         batch_size,
@@ -894,7 +951,8 @@ pub fn merge_streaming_with_config(
     let parquet_root = build_parquet_root_schema(&input_files[first_active_idx])?;
 
     log_info!(
-        "[RUST] Merge initialized: {} active cursors, {} columns in output schema",
+        "[RUST] Merge initialized ({}): {} active cursors, {} columns in output schema",
+        direction_label,
         active_count,
         output_schema.fields().len()
     );
@@ -922,7 +980,7 @@ pub fn merge_streaming_with_config(
 
     let mut row_group_index: usize = 0;
 
-    // ── Phase 4: Seed the min-heap ──────────────────────────────────────
+    // ── Phase 4: Seed the min/max-heap ──────────────────────────────────
     let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(active_count);
     for cursor_opt in &cursors {
         if let Some(cursor) = cursor_opt {
@@ -930,6 +988,7 @@ pub fn merge_streaming_with_config(
             heap.push(HeapItem {
                 sort_value: sv,
                 file_id: cursor.file_id,
+                reverse,
             });
         }
     }
@@ -1057,10 +1116,15 @@ pub fn merge_streaming_with_config(
             let heap_top = heap.peek().unwrap().sort_value;
 
             // TIER 2: Check if the entire remaining batch can be emitted.
-            // If the last value in the batch is ≤ the heap's next smallest,
-            // the whole batch is safe to output without per-row inspection.
+            //
+            // Ascending:  last value in batch ≤ heap_top  → all safe
+            // Descending: last value in batch ≥ heap_top  → all safe
+            //
+            // In both cases the batch is monotonic in the sort direction,
+            // so the *last* row is the extremal value for the remaining
+            // slice.
             let last_val = cursor.last_sort_value()?;
-            if last_val <= heap_top {
+            if comes_before_or_equal(last_val, heap_top, reverse) {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 let slice = cursor.take_slice(cursor.row_idx, remaining);
                 output_chunks.push(slice);
@@ -1077,7 +1141,12 @@ pub fn merge_streaming_with_config(
             }
 
             // TIER 3: Binary search for the exact boundary within the batch.
-            // Find the last row whose sort value is ≤ heap_top.
+            //
+            // Ascending:  find the last row whose value ≤ heap_top.
+            // Descending: find the last row whose value ≥ heap_top.
+            //
+            // Because the batch is sorted in the appropriate direction, all
+            // rows before the boundary are safe to emit.
             let run_start = cursor.row_idx;
             let batch_h = cursor.batch_height();
             let batch = cursor.current_batch.as_ref().unwrap();
@@ -1094,7 +1163,7 @@ pub fn merge_streaming_with_config(
                     &cursor.sort_col_type,
                 )?;
 
-                if mid_val <= heap_top {
+                if comes_before_or_equal(mid_val, heap_top, reverse) {
                     lo = mid;
                 } else {
                     hi = mid;
@@ -1120,17 +1189,19 @@ pub fn merge_streaming_with_config(
                 break;
             }
 
-            // Re-insert into the heap if the cursor's next value exceeds heap_top.
+            // Re-insert into the heap if the cursor's next value exceeds
+            // heap_top in the sort direction.
             let next_val = cursor.current_sort_value()?;
-            if next_val > heap_top {
+            if exceeds(next_val, heap_top, reverse) {
                 heap.push(HeapItem {
                     sort_value: next_val,
                     file_id,
+                    reverse,
                 });
                 break;
             }
             // Otherwise, continue the inner loop — this cursor still has the
-            // smallest value and can emit more rows.
+            // best value and can emit more rows.
         }
     }
 
@@ -1153,7 +1224,8 @@ pub fn merge_streaming_with_config(
         .map_err(|_| MergeError::Logic("IO task terminated during close".into()))??;
 
     log_info!(
-        "[RUST] Merge complete: {} total rows written to '{}' in {} row groups",
+        "[RUST] Merge complete ({}): {} total rows written to '{}' in {} row groups",
+        direction_label,
         total_rows_written,
         output_path,
         row_group_index

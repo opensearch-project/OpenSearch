@@ -33,10 +33,10 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
 /**
  * Implements record-batch-based merging of Parquet files.
  */
-public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
+public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
 
     private static final Logger logger =
-        LogManager.getLogger(RecordBatchMergeStrategy.class);
+        LogManager.getLogger(StreamingParquetMergeStrategy.class);
 
     @Override
     public MergeResult mergeParquetFiles(MergeInput mergeInput) {
