@@ -1322,6 +1322,29 @@ final class DocumentParser {
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
             return;
         }
+
+        // If a dynamic_property matches this field, use it without updating the index mapping (no cluster state update)
+        String fullPath = parentMapper.fullPath().isEmpty() ? currentFieldName : parentMapper.fullPath() + "." + currentFieldName;
+        DynamicProperty dynamicProperty = context.root().findDynamicProperty(fullPath);
+        if (dynamicProperty != null) {
+            Map<String, Object> config = dynamicProperty.mappingForName(currentFieldName);
+            Object typeNode = config.get("type");
+            if (typeNode != null) {
+                String type = typeNode.toString();
+                Mapper.TypeParser typeParser = context.docMapperParser().parserContext(null).typeParser(type);
+                if (typeParser != null) {
+                    Mapper.Builder<?> builder = typeParser.parse(currentFieldName, config, context.docMapperParser().parserContext(null));
+                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
+                        context.indexSettings().getSettings(),
+                        context.path()
+                    );
+                    Mapper mapper = builder.build(builderContext);
+                    parseObjectOrField(context, mapper);
+                    return;
+                }
+            }
+        }
+
         final Mapper.Builder<?> builder = createBuilderFromDynamicValue(context, token, currentFieldName, dynamic, parentMapper.fullPath());
         if (dynamic == ObjectMapper.Dynamic.FALSE_ALLOW_TEMPLATES && builder == null) {
             // For FALSE_ALLOW_TEMPLATES, if no template matches, we still need to consume the token

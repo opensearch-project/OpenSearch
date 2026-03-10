@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertNull;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
 
@@ -59,6 +60,28 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             buildFields.accept(b);
             b.endObject();
         });
+    }
+
+    public void testDynamicPropertiesNoMappingUpdate() throws IOException {
+        // When a field matches a dynamic_property pattern, it is indexed without a cluster state mapping update
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("*_s")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("count_i", 42).field("name_s", "foo")));
+        assertThat(doc.rootDoc().get("count_i"), equalTo("42"));
+        assertThat(doc.rootDoc().get("name_s"), equalTo("foo"));
+        assertNull("dynamic_property match must not trigger mapping update", doc.dynamicMappingsUpdate());
     }
 
     public void testDynamicTrue() throws IOException {

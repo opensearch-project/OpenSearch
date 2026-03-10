@@ -171,6 +171,90 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
+    public void testDynamicProperties() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("*_i")
+            .field("type", "long")
+            .endObject()
+            .startObject("*_s")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        RootObjectMapper root = mapper.root();
+        DynamicProperty[] dynProps = root.dynamicProperties();
+        assertEquals(2, dynProps.length);
+        assertEquals("*_i", dynProps[0].getPattern());
+        assertEquals("*_s", dynProps[1].getPattern());
+
+        assertNotNull(root.findDynamicProperty("count_i"));
+        assertNotNull(root.findDynamicProperty("foo_s"));
+        assertNull(root.findDynamicProperty("other"));
+        assertEquals("*_i", root.findDynamicProperty("count_i").getPattern());
+    }
+
+    public void testDynamicPropertiesAmbiguousPatternsRejected() throws Exception {
+        // *_i and i_* both match "i_i" -> must be rejected
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("*_i")
+            .field("type", "long")
+            .endObject()
+            .startObject("i_*")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("ambiguous"));
+        assertThat(e.getMessage(), containsString("*_i"));
+        assertThat(e.getMessage(), containsString("i_*"));
+    }
+
+    public void testDynamicPropertiesExplicitFieldMatchesPatternRejected() throws Exception {
+        // Cannot add explicit property "count_i" when dynamic_property "*_i" exists
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("*_i")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .startObject("properties")
+            .startObject("count_i")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("count_i"));
+        assertThat(e.getMessage(), containsString("*_i"));
+        assertThat(e.getMessage(), containsString("Explicit fields cannot overlap"));
+    }
+
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
         String mapping = XContentFactory.jsonBuilder()
             .startObject()

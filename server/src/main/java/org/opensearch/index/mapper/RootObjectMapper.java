@@ -38,6 +38,7 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -58,6 +59,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.opensearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -92,6 +94,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Builder extends ObjectMapper.Builder<Builder> {
 
         protected Explicit<DynamicTemplate[]> dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        protected Explicit<DynamicProperty[]> dynamicProperties = new Explicit<>(new DynamicProperty[0], false);
         protected Explicit<DateFormatter[]> dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         protected Explicit<Boolean> dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
@@ -111,9 +114,16 @@ public class RootObjectMapper extends ObjectMapper {
             return this;
         }
 
+        public Builder dynamicProperties(Collection<DynamicProperty> dynamicProperties) {
+            this.dynamicProperties = new Explicit<>(dynamicProperties.toArray(new DynamicProperty[0]), true);
+            return this;
+        }
+
         @Override
         public RootObjectMapper build(BuilderContext context) {
-            return (RootObjectMapper) super.build(context);
+            RootObjectMapper root = (RootObjectMapper) super.build(context);
+            root.validateNoExplicitFieldMatchesDynamicProperty();
+            return root;
         }
 
         @Override
@@ -136,6 +146,7 @@ public class RootObjectMapper extends ObjectMapper {
                 mappers,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
+                dynamicProperties,
                 dateDetection,
                 numericDetection,
                 settings
@@ -277,6 +288,50 @@ public class RootObjectMapper extends ObjectMapper {
                 }
                 builder.dynamicTemplates(templates);
                 return true;
+            } else if (fieldName.equals("dynamic_properties")) {
+                if ((fieldNode instanceof Map) == false) {
+                    throw new MapperParsingException("dynamic_properties must be an object with pattern keys and mapping objects as values.");
+                }
+                @SuppressWarnings("unchecked")
+                Map<String, Object> dynPropsNode = (Map<String, Object>) fieldNode;
+                List<DynamicProperty> dynamicProperties = new ArrayList<>();
+                for (Map.Entry<String, Object> entry : dynPropsNode.entrySet()) {
+                    String pattern = entry.getKey();
+                    if (pattern.contains("*") == false) {
+                        throw new MapperParsingException(
+                            "dynamic_properties pattern [" + pattern + "] must contain a wildcard [*]."
+                        );
+                    }
+                    if ((entry.getValue() instanceof Map) == false) {
+                        throw new MapperParsingException(
+                            "dynamic_properties entry [" + pattern + "] must have a mapping object as value."
+                        );
+                    }
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> mapping = new TreeMap<>((Map<String, Object>) entry.getValue());
+                    Object typeNode = mapping.get("type");
+                    if (typeNode == null) {
+                        throw new MapperParsingException("No type specified for dynamic_property pattern [" + pattern + "]");
+                    }
+                    String type = typeNode.toString();
+                    Mapper.TypeParser typeParser = parserContext.typeParser(type);
+                    if (typeParser == null) {
+                        throw new MapperParsingException(
+                            "No handler for type [" + type + "] declared for dynamic_property pattern [" + pattern + "]"
+                        );
+                    }
+                    dynamicProperties.add(new DynamicProperty(pattern, mapping));
+                }
+                // Order so that catch-all "*" is last (lowest priority)
+                dynamicProperties.sort((a, b) -> {
+                    boolean aCatchAll = "*".equals(a.getPattern());
+                    boolean bCatchAll = "*".equals(b.getPattern());
+                    if (aCatchAll == bCatchAll) return 0;
+                    return aCatchAll ? 1 : -1;
+                });
+                validateDynamicProperties(dynamicProperties);
+                builder.dynamicProperties(dynamicProperties);
+                return true;
             } else if (fieldName.equals("date_detection")) {
                 builder.dateDetection = new Explicit<>(nodeBooleanValue(fieldNode, "date_detection"), true);
                 return true;
@@ -292,6 +347,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
+    private Explicit<DynamicProperty[]> dynamicProperties;
 
     RootObjectMapper(
         String name,
@@ -301,6 +357,7 @@ public class RootObjectMapper extends ObjectMapper {
         Map<String, Mapper> mappers,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
+        Explicit<DynamicProperty[]> dynamicProperties,
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection,
         Settings settings
@@ -308,6 +365,7 @@ public class RootObjectMapper extends ObjectMapper {
         super(name, name, enabled, Nested.NO, dynamic, disableObjects, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
+        this.dynamicProperties = dynamicProperties;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
     }
@@ -319,6 +377,7 @@ public class RootObjectMapper extends ObjectMapper {
         // set everything to they implicit default value so that they are not
         // applied at merge time
         update.dynamicTemplates = new Explicit<>(new DynamicTemplate[0], false);
+        update.dynamicProperties = new Explicit<>(new DynamicProperty[0], false);
         update.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         update.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         update.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
@@ -339,6 +398,23 @@ public class RootObjectMapper extends ObjectMapper {
 
     public DynamicTemplate[] dynamicTemplates() {
         return dynamicTemplates.value();
+    }
+
+    public DynamicProperty[] dynamicProperties() {
+        return dynamicProperties.value();
+    }
+
+    /**
+     * Returns the first dynamic property that matches the given field name, or null.
+     * Patterns are checked in order; the catch-all pattern "*" is always last.
+     */
+    public DynamicProperty findDynamicProperty(String fullFieldName) {
+        for (DynamicProperty dp : dynamicProperties.value()) {
+            if (dp.matches(fullFieldName)) {
+                return dp;
+            }
+        }
+        return null;
     }
 
     @SuppressWarnings("rawtypes")
@@ -420,6 +496,23 @@ public class RootObjectMapper extends ObjectMapper {
                 this.dynamicTemplates = mergeWithObject.dynamicTemplates;
             }
         }
+
+        if (mergeWithObject.dynamicProperties.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
+                Map<String, DynamicProperty> byPattern = new LinkedHashMap<>();
+                for (DynamicProperty dp : this.dynamicProperties.value()) {
+                    byPattern.put(dp.getPattern(), dp);
+                }
+                for (DynamicProperty dp : mergeWithObject.dynamicProperties.value()) {
+                    byPattern.put(dp.getPattern(), dp);
+                }
+                List<DynamicProperty> merged = new ArrayList<>(byPattern.values());
+                validateDynamicProperties(merged);
+                this.dynamicProperties = new Explicit<>(merged.toArray(new DynamicProperty[0]), true);
+            } else {
+                this.dynamicProperties = mergeWithObject.dynamicProperties;
+            }
+        }
     }
 
     @Override
@@ -444,12 +537,120 @@ public class RootObjectMapper extends ObjectMapper {
             builder.endArray();
         }
 
+        if (dynamicProperties.explicit() || includeDefaults) {
+            builder.startObject("dynamic_properties");
+            for (DynamicProperty dp : dynamicProperties.value()) {
+                builder.field(dp.getPattern(), dp.getMapping());
+            }
+            builder.endObject();
+        }
+
         if (dateDetection.explicit() || includeDefaults) {
             builder.field("date_detection", dateDetection.value());
         }
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
         }
+    }
+
+    /**
+     * Validates that no explicitly mapped field path is matched by any dynamic_property pattern.
+     * Per the dynamic_properties contract, explicit properties cannot overlap with dynamic patterns.
+     */
+    private void validateNoExplicitFieldMatchesDynamicProperty() {
+        if (dynamicProperties.value().length == 0) {
+            return;
+        }
+        List<String> explicitPaths = new ArrayList<>();
+        collectFullPaths(this, "", explicitPaths);
+        for (String path : explicitPaths) {
+            if (path.isEmpty()) {
+                continue;
+            }
+            for (DynamicProperty dp : dynamicProperties.value()) {
+                if (dp.matches(path)) {
+                    throw new MapperParsingException(
+                        "Cannot add explicit property ["
+                            + path
+                            + "] because it is matched by dynamic_property pattern ["
+                            + dp.getPattern()
+                            + "]. Explicit fields cannot overlap with dynamic_properties."
+                    );
+                }
+            }
+        }
+    }
+
+    private static void collectFullPaths(ObjectMapper obj, String prefix, List<String> paths) {
+        for (Mapper mapper : obj) {
+            String fullPath = prefix.isEmpty() ? mapper.name() : prefix + "." + mapper.name();
+            paths.add(fullPath);
+            if (mapper instanceof ObjectMapper child) {
+                collectFullPaths(child, fullPath, paths);
+            }
+        }
+    }
+
+    private static void validateDynamicProperties(List<DynamicProperty> dynamicProperties) {
+        int catchAllCount = 0;
+        for (DynamicProperty dp : dynamicProperties) {
+            if ("*".equals(dp.getPattern())) {
+                catchAllCount++;
+            }
+        }
+        if (catchAllCount > 1) {
+            throw new MapperParsingException("dynamic_properties may contain at most one catch-all pattern [*].");
+        }
+        if (catchAllCount == 1 && dynamicProperties.size() > 1
+            && "*".equals(dynamicProperties.get(dynamicProperties.size() - 1).getPattern()) == false) {
+            throw new MapperParsingException("dynamic_properties catch-all pattern [*] must be defined last.");
+        }
+        // Check for ambiguous patterns: no two patterns should both match any same string
+        for (int i = 0; i < dynamicProperties.size(); i++) {
+            DynamicProperty p1 = dynamicProperties.get(i);
+            for (int j = i + 1; j < dynamicProperties.size(); j++) {
+                DynamicProperty p2 = dynamicProperties.get(j);
+                if ("*".equals(p1.getPattern()) || "*".equals(p2.getPattern())) {
+                    continue; // * is last, no overlap with rest
+                }
+                if (patternsAreAmbiguous(p1.getPattern(), p2.getPattern())) {
+                    throw new MapperParsingException(
+                        "dynamic_properties patterns [" + p1.getPattern() + "] and [" + p2.getPattern()
+                            + "] are ambiguous (both can match the same field name)."
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns true if there exists at least one string that both patterns match (e.g. *_i and i_* both match "i_i").
+     */
+    private static boolean patternsAreAmbiguous(String pattern1, String pattern2) {
+        // Test 1: replace * with a single char in each; if the other pattern matches, ambiguous
+        String s1 = pattern1.replace("*", "x");
+        String s2 = pattern2.replace("*", "y");
+        if (Regex.simpleMatch(pattern2, s1) || Regex.simpleMatch(pattern1, s2)) {
+            return true;
+        }
+        // Test 2: build overlap candidate (e.g. *_i and i_* both match "i_i")
+        int star1 = pattern1.indexOf('*');
+        int star2 = pattern2.indexOf('*');
+        if (star1 >= 0 && star2 >= 0) {
+            String prefix1 = pattern1.substring(0, star1);
+            String suffix1 = pattern1.substring(star1 + 1);
+            String prefix2 = pattern2.substring(0, star2);
+            String suffix2 = pattern2.substring(star2 + 1);
+            String overlap1 = prefix1 + suffix2;
+            String overlap2 = prefix2 + suffix1;
+            if (overlap1.length() > 0 && Regex.simpleMatch(pattern1, overlap1) && Regex.simpleMatch(pattern2, overlap1)) {
+                return true;
+            }
+            if (overlap2.length() > 0 && Regex.simpleMatch(pattern1, overlap2) && Regex.simpleMatch(pattern2, overlap2)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext, DynamicTemplate dynamicTemplate) {
