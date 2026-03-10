@@ -23,15 +23,18 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.FieldAssignments;
+import org.opensearch.index.engine.exec.FieldSupportRegistry;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import com.parquet.parquetdataformat.bridge.RustBridge;
 import com.parquet.parquetdataformat.engine.ParquetExecutionEngine;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatStoreDirectory;
 import org.opensearch.index.store.GenericStoreDirectory;
 import org.opensearch.plugins.DataSourcePlugin;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
 import org.opensearch.repositories.RepositoriesService;
@@ -82,8 +85,15 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
-        return (IndexingExecutionEngine<T>) new ParquetExecutionEngine(settings, () -> ArrowSchemaBuilder.getSchema(mapperService), shardPath, indexSettings);
+    public <T extends DataFormat> IndexingExecutionEngine<T> indexingEngine(EngineConfig engineConfig, MapperService mapperService, boolean isPrimary, ShardPath shardPath, IndexSettings indexSettings, FieldAssignments fieldAssignments) {
+        ParquetExecutionEngine engine = new ParquetExecutionEngine(
+            settings,
+            isPrimary,
+            () -> ArrowSchemaBuilder.getSchema(mapperService, isPrimary),
+            shardPath,
+            indexSettings
+        );
+        return (IndexingExecutionEngine<T>) engine;
     }
 
     @Override
@@ -134,6 +144,15 @@ public class ParquetDataFormatPlugin extends Plugin implements DataSourcePlugin 
     public BlobContainer createBlobContainer(BlobStore blobStore, BlobPath baseBlobPath) throws IOException {
         BlobPath formatPath = baseBlobPath.add(getDataFormat().name().toLowerCase());
         return blobStore.blobContainer(formatPath);
+    }
+
+    @Override
+    public void registerFieldSupport(FieldSupportRegistry registry) {
+        DataFormat parquet = getDataFormat();
+        for (Map.Entry<String, com.parquet.parquetdataformat.fields.ParquetField> entry :
+                com.parquet.parquetdataformat.fields.ArrowFieldRegistry.getRegisteredFields().entrySet()) {
+            registry.register(entry.getKey(), parquet, entry.getValue().getFieldCapabilities());
+        }
     }
 
     @Override

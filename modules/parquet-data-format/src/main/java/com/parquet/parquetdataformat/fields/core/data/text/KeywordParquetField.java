@@ -6,16 +6,22 @@
  * compatible open source license.
  */
 
-package com.parquet.parquetdataformat.fields.core.data;
+package com.parquet.parquetdataformat.fields.core.data.text;
 
+import org.opensearch.index.engine.exec.FieldCapability;
+import org.opensearch.index.mapper.MappedFieldType;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.opensearch.index.mapper.MappedFieldType;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.charset.StandardCharsets;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * Parquet field implementation for handling keyword data types in OpenSearch documents.
@@ -43,11 +49,15 @@ import java.nio.charset.StandardCharsets;
  */
 public class KeywordParquetField extends ParquetField {
 
+    private static final Logger logger = LogManager.getLogger(KeywordParquetField.class);
+
     @Override
     public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         VarCharVector textVector = (VarCharVector) managedVSR.getVector(mappedFieldType.name());
         int rowIndex = managedVSR.getRowCount();
         textVector.setSafe(rowIndex, parseValue.toString().getBytes(StandardCharsets.UTF_8));
+        // logger.info("[COMPOSITE_DEBUG] KeywordParquetField.addToGroup: field=[{}] value=[{}] rowIndex=[{}] capabilities={}",
+        //     fieldType.name(), parseValue, rowIndex, descriptor.assignedCapabilities());
     }
 
     @Override
@@ -58,5 +68,10 @@ public class KeywordParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldCapability> getFieldCapabilities() {
+        return EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.STORE);
     }
 }

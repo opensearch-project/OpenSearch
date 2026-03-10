@@ -14,7 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import com.parquet.parquetdataformat.fields.ArrowFieldRegistry;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.EngineRole;
 import org.opensearch.index.engine.exec.IndexingExecutionEngine;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
@@ -75,9 +77,11 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final ParquetMerger parquetMerger;
     private final ArrowBufferPool arrowBufferPool;
     private final IndexSettings indexSettings;
+    private final boolean isPrimaryEngine;
 
     public ParquetExecutionEngine(
         Settings settings,
+        boolean isPrimaryEngine,
         Supplier<Schema> schema,
         ShardPath shardPath,
         IndexSettings indexSettings
@@ -87,7 +91,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         this.arrowBufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
         this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH, indexSettings.getIndex().getName());
-
+        this.isPrimaryEngine = isPrimaryEngine;
         // Push current settings to Rust store once on construction, then keep in sync on updates
         pushSettingsToRust(indexSettings);
 
@@ -143,14 +147,15 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     }
 
     @Override
-    public List<String> supportedFieldTypes() {
-        return List.of();
+    public List<String> supportedFieldTypes(boolean isPrimaryEngine) {
+        return new java.util.ArrayList<>(ArrowFieldRegistry.getRegisteredFieldNames());
     }
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
         String fileName = Path.of(shardPath.getDataPath().toString(), getDataFormat().name(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
-        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, indexSettings);
+        EngineRole role = isPrimaryEngine ? EngineRole.PRIMARY : EngineRole.SECONDARY;
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, indexSettings, role);
     }
 
     @Override

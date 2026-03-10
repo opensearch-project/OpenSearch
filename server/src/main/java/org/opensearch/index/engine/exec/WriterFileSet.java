@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 public class WriterFileSet implements Serializable, Writeable {
@@ -25,18 +24,40 @@ public class WriterFileSet implements Serializable, Writeable {
     private final long writerGeneration;
     private final Set<String> files;
     private final long numRows;
+    private boolean isRefreshed;
 
     public WriterFileSet(Path directory, long writerGeneration, long numRows) {
         this.numRows = numRows;
         this.files = new HashSet<>();
         this.writerGeneration = writerGeneration;
         this.directory = directory.toString();
+        this.isRefreshed = false;
     }
+
+    public WriterFileSet(Path directory, long writerGeneration, long numRows, boolean isRefreshed) {
+        this.numRows = numRows;
+        this.files = new HashSet<>();
+        this.writerGeneration = writerGeneration;
+        this.directory = directory.toString();
+        this.isRefreshed = isRefreshed;
+    }
+
+    public WriterFileSet withDirectoryAndFiles(String newDirectory, Set<String> files) {
+        return WriterFileSet.builder()
+            .directory(Path.of(newDirectory))
+            .writerGeneration(this.writerGeneration)
+            .addNumRows(this.numRows)
+            .isRefreshed(this.isRefreshed)
+            .addFiles(files)
+            .build();
+    }
+
 
     public WriterFileSet(StreamInput in) throws IOException {
         this.directory = in.readString();
         this.writerGeneration = in.readLong();
         this.numRows = in.readVInt();
+        this.isRefreshed = in.readBoolean();
 
         int fileCount = in.readVInt();
         this.files = new HashSet<>(fileCount);
@@ -50,6 +71,7 @@ public class WriterFileSet implements Serializable, Writeable {
             .directory(Path.of(newDirectory))
             .writerGeneration(this.writerGeneration)
             .addFiles(this.files)
+            .isRefreshed(this.isRefreshed)
             .build();
     }
 
@@ -61,6 +83,7 @@ public class WriterFileSet implements Serializable, Writeable {
         out.writeString(directory);
         out.writeLong(writerGeneration);
         out.writeVInt((int) numRows);
+        out.writeBoolean(isRefreshed);
         out.writeVInt(files.size());
         for (String file : files) {
             out.writeString(file);
@@ -123,10 +146,20 @@ public class WriterFileSet implements Serializable, Writeable {
         return new Builder();
     }
 
+    public boolean refresh() {
+        // Dummy re-write
+        return isRefreshed;
+    }
+
+    public void setRefreshed(){
+        this.isRefreshed = true;
+    }
+
     public static class Builder {
         private Path directory;
         private Long writerGeneration;
         private long numRows;
+        private boolean isRefreshed = false;
         private final Set<String> files = new HashSet<>();
 
         public Builder directory(Path directory) {
@@ -163,9 +196,14 @@ public class WriterFileSet implements Serializable, Writeable {
                 throw new IllegalStateException("writerGeneration must be set");
             }
 
-            WriterFileSet fileSet = new WriterFileSet(directory, writerGeneration, numRows);
+            WriterFileSet fileSet = new WriterFileSet(directory, writerGeneration, numRows, isRefreshed);
             fileSet.files.addAll(this.files);
             return fileSet;
+        }
+
+        public Builder isRefreshed(boolean isRefreshed) {
+            this.isRefreshed = isRefreshed;
+            return this;
         }
     }
 }

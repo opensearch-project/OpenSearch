@@ -18,8 +18,9 @@ import java.util.Map;
 
 public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable {
 
-    List<String> supportedFieldTypes();
+    List<String> supportedFieldTypes(boolean isPrimaryEngine);
 
+    // Writer should know it's a primary writer or not?
     Writer<? extends DocumentInput<?>> createWriter(long writerGeneration)
         throws IOException; // A writer responsible for data format vended by this engine.
 

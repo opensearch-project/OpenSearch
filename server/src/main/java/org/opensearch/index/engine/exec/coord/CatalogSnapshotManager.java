@@ -10,7 +10,6 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.index.engine.exec.coord.Segment;
 
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.RefreshResult;
@@ -80,16 +79,10 @@ public class CatalogSnapshotManager {
         };
     }
 
-    public synchronized void applyRefreshResult(RefreshResult refreshResult) {
-        commitCatalogSnapshot(
-            new CompositeEngineCatalogSnapshot(
-                latestCatalogSnapshot.getId() + 1,
-                latestCatalogSnapshot.getVersion() + 1,
-                refreshResult.getRefreshedSegments(),
-                catalogSnapshotMap,
-                indexFileDeleter::get
-            )
-        );
+    public synchronized void applyRefreshResult(RefreshResult refreshResult) throws IOException {
+        // Will refresh always trigger a commit? --> It should be a flush?
+        // ApplyRefreshResult --> CatalogSnapshot --> Committer(add Indexes)
+        advanceCatalogSnapshot(refreshResult.getRefreshedSegments());
     }
 
     public synchronized void applyReplicationChanges(CatalogSnapshot catalogSnapshot, ShardPath shardPath) {
@@ -112,7 +105,7 @@ public class CatalogSnapshotManager {
         }
     }
 
-    public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) {
+    public synchronized void applyMergeResults(MergeResult mergeResult, OneMerge oneMerge) throws IOException {
 
         List<Segment> segmentList = new ArrayList<>(latestCatalogSnapshot.getSegments());
 
@@ -147,19 +140,32 @@ public class CatalogSnapshotManager {
         if (!inserted) {
             segmentList.add(0, segmentToAdd);
         }
-        CompositeEngineCatalogSnapshot newCatSnap = new CompositeEngineCatalogSnapshot(latestCatalogSnapshot.getId() + 1, latestCatalogSnapshot.getVersion() + 1, segmentList, catalogSnapshotMap, indexFileDeleter::get);
 
         // Commit new catalog snapshot
-        commitCatalogSnapshot(newCatSnap);
+        advanceCatalogSnapshot(segmentList);
     }
 
-    private synchronized void commitCatalogSnapshot(CompositeEngineCatalogSnapshot newCatSnap) {
-        catalogSnapshotMap.put(newCatSnap.getId(), newCatSnap);
+    private synchronized void advanceCatalogSnapshot(List<Segment> refreshedSegments) throws IOException {
+        logger.debug("[COMPOSITE_DEBUG] advanceCatalogSnapshot: previous id={}, version={}, old segment count={}",
+            latestCatalogSnapshot.getId(), latestCatalogSnapshot.getVersion(), latestCatalogSnapshot.getSegments().size());
+        compositeEngineCommitter.addLuceneIndexes(refreshedSegments);
+        CompositeEngineCatalogSnapshot cecs = new CompositeEngineCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1,
+            latestCatalogSnapshot.getVersion() + 1,
+            refreshedSegments,
+            catalogSnapshotMap,
+            indexFileDeleter::get
+        );
+        catalogSnapshotMap.put(cecs.getId(), cecs);
         if (latestCatalogSnapshot != null) {
             latestCatalogSnapshot.decRef();
         }
-        latestCatalogSnapshot = newCatSnap;
-        compositeEngineCommitter.addLuceneIndexes(latestCatalogSnapshot);
+        latestCatalogSnapshot = cecs;
+        logger.debug("[COMPOSITE_DEBUG] advanceCatalogSnapshot: new id={}, version={}, new segment count={}",
+            latestCatalogSnapshot.getId(), latestCatalogSnapshot.getVersion(), refreshedSegments.size());
+        for (Segment seg : refreshedSegments) {
+            logger.debug("[COMPOSITE_DEBUG]   segment gen={}, formats={}", seg.getGeneration(), seg.getDFGroupedSearchableFiles().keySet());
+        }
     }
 
     private Segment getSegment(Map<DataFormat, WriterFileSet> writerFileSetMap) {
