@@ -323,7 +323,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 pluginsService,
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet(),
-                indexSettings
+                indexSettings,
+                getEngineConfig()
             );
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
@@ -565,6 +566,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Override
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() {
         return engine.createCompositeWriter().newDocumentInput();
+    }
+
+    public EngineConfig getEngineConfig() {
+        return engineConfig;
     }
 
     public Engine.IndexResult index(Engine.Index index) throws IOException {

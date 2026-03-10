@@ -51,11 +51,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         Schema schema,
         long writerGeneration,
         ArrowBufferPool arrowBufferPool,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        String sortColumn,
+        boolean reverseSort
     ) {
         this.file = file;
         this.schema = schema;
-        this.vsrManager = new VSRManager(file, indexSettings.getIndex().getName(), schema, arrowBufferPool);
+        this.vsrManager = new VSRManager(file, indexSettings.getIndex().getName(), schema, arrowBufferPool, sortColumn, reverseSort);
         this.writerGeneration = writerGeneration;
     }
 

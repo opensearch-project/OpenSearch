@@ -15,6 +15,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
@@ -45,7 +47,8 @@ public abstract class MergeHandler {
     private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Logger logger;
-    private final ShardId shardId;
+    private final String sortKey;
+    private final boolean reverseSort;
 
     public MergeHandler(
         CompositeEngine compositeEngine,
@@ -53,12 +56,21 @@ public abstract class MergeHandler {
         Any dataFormats,
         ShardId shardId
     ) {
-        this.shardId = shardId;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.compositeDataFormat = dataFormats;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
         this.compositeEngine = compositeEngine;
         dataFormatMergerMap = new HashMap<>();
+        sortKey =
+            compositeEngine.getEngineConfig().getIndexSort() != null &&
+            compositeEngine.getEngineConfig().getIndexSort().getSort().length > 0 &&
+            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().isPresent()
+                ? Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().get().getField()
+                  : null;
+        reverseSort = compositeEngine.getEngineConfig().getIndexSort() != null &&
+            compositeEngine.getEngineConfig().getIndexSort().getSort().length > 0 &&
+            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().isPresent() &&
+            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().get().getReverse();
 
         compositeIndexingExecutionEngine.getDelegates().forEach(engine -> {
             try {
@@ -141,7 +153,6 @@ public abstract class MergeHandler {
         long mergedWriterGeneration = compositeIndexingExecutionEngine.getNextWriterGeneration();
         Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
         boolean mergeSuccessful = false;
-
         try {
             List<WriterFileSet> filesToMerge =
                 getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat());
@@ -149,7 +160,7 @@ public abstract class MergeHandler {
             // Merging primary data format
             MergeResult primaryMergeResult = dataFormatMergerMap
                 .get(compositeDataFormat.getPrimaryDataFormat())
-                .merge(filesToMerge, mergedWriterGeneration);
+                .merge(getMergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort));
 
             mergedWriterFileSet.put(
                 compositeDataFormat.getPrimaryDataFormat(),
@@ -164,8 +175,7 @@ public abstract class MergeHandler {
                     List<WriterFileSet> files = getFilesToMerge(oneMerge, df);
 
                     MergeResult secondaryMerge = dataFormatMergerMap.get(df)
-                        .merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
-
+                        .merge(getMergeInput(files, mergedWriterGeneration, sortKey, reverseSort), primaryMergeResult.getRowIdMapping());
                     mergedWriterFileSet.put(df,
                         secondaryMerge.getMergedWriterFileSetForDataformat(df));
                 });
@@ -199,6 +209,10 @@ public abstract class MergeHandler {
                 }
             }
         }
+    }
+
+    public MergeInput getMergeInput(List<WriterFileSet> filesToMerge, long mergedWriterGeneration, String sortKey, boolean reverseSort) {
+        return new MergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort);
     }
 
     private List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
