@@ -122,6 +122,13 @@ public interface ActionPlugin {
     }
 
     /**
+     * Returns transients which should be copied through context propagation
+     */
+    default Collection<String> getTransients() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns headers which should be copied from internal requests into tasks.
      */
     default Collection<String> getTaskHeaders() {
@@ -149,6 +156,11 @@ public interface ActionPlugin {
      *
      * Note: Only one installed plugin may implement a rest wrapper.
      */
+    default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext, Set<RestHeaderDefinition> headersToCopy, Set<String> transients) {
+        return this.getRestHandlerWrapper(threadContext);
+    }
+
+    @Deprecated(forRemoval = true)
     default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext, Set<RestHeaderDefinition> headersToCopy) {
         return this.getRestHandlerWrapper(threadContext);
     }

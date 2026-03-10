@@ -54,10 +54,12 @@ import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.action.RestMainAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
+import org.opensearch.telemetry.tracing.TracerContextStorage;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -68,7 +70,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.Collection;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -274,4 +278,62 @@ public class ActionModuleTests extends OpenSearchTestCase {
             threadPool.shutdown();
         }
     }
-}
+
+    public void testTransientsCollectedFromPluginsAndCore() {
+
+        ThreadPool threadPool = new TestThreadPool("test");
+        try {
+            // Create a plugin that tracks what transients it receives
+            final Set<String>[] receivedTransients = new Set[1];
+            ActionPlugin testPlugin = new ActionPlugin() {
+                @Override
+                public Collection<String> getTransients() {
+                    return List.of("custom_transient");
+                }
+
+                @Override
+                public UnaryOperator<RestHandler> getRestHandlerWrapper(
+                    ThreadContext threadContext,
+                    Set<RestHeaderDefinition> headersToCopy,
+                    Set<String> transients
+                ) {
+                    // Capture the transients passed to this method
+                    receivedTransients[0] = transients;
+                    return handler -> handler;
+                }
+            };
+            List<ActionPlugin> plugins = List.of(testPlugin);
+
+            SettingsModule settings = new SettingsModule(Settings.EMPTY);
+            UsageService usageService = new UsageService();
+            ActionModule actionModule = new ActionModule(
+                settings.getSettings(),
+                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+                settings.getIndexScopedSettings(),
+                settings.getClusterSettings(),
+                settings.getSettingsFilter(),
+                threadPool,
+                plugins,
+                null,
+                null,
+                usageService,
+                null,
+                new IdentityService(Settings.EMPTY, mock(ThreadPool.class), new ArrayList<>()),
+                new ExtensionsManager(Set.of(), new IdentityService(Settings.EMPTY, mock(ThreadPool.class), List.of()))
+            );
+
+            // Verify transients were passed to the plugin
+            assertNotNull("Plugin should have received transients", receivedTransients[0]);
+            assertTrue("Should contain custom transient from plugin",
+                receivedTransients[0].contains("custom_transient"));
+            assertTrue("Should contain core CURRENT_SPAN",
+                receivedTransients[0].contains(TracerContextStorage.CURRENT_SPAN));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        finally {
+            threadPool.shutdown();
+        }
+    }
+
+    }
