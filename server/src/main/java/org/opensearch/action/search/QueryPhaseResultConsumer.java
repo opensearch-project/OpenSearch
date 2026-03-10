@@ -147,6 +147,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         this.isTaskCancelled = isTaskCancelled;
     }
 
+    private int getBatchReduceSize(int requestedBatchSize, int expectedResultSize) {
+        return (hasAggs || hasTopDocs) ? Math.min(requestedBatchSize, expectedResultSize) : expectedResultSize;
+    }
+
     @Override
     public void close() {
         Releasables.close(pendingReduces);
@@ -586,8 +590,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      *
      * @opensearch.internal
      */
-    private record ReduceResult(List<SearchShard> processedShards, TopDocs reducedTopDocs, InternalAggregations reducedAggs,
-        long estimatedSize) {
+    private static class ReduceResult {
+        private final List<SearchShard> processedShards;
+        private final TopDocs reducedTopDocs;
+        private final InternalAggregations reducedAggs;
+        private final long estimatedSize;
+
+        ReduceResult(List<SearchShard> processedShards, TopDocs reducedTopDocs, InternalAggregations reducedAggs,
+            long estimatedSize) {
+            this.processedShards = processedShards;
+            this.reducedTopDocs = reducedTopDocs;
+            this.reducedAggs = reducedAggs;
+            this.estimatedSize = estimatedSize;
+        }
     }
 
     /**
