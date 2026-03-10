@@ -42,6 +42,8 @@ import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +54,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class MaxAggregatorFactory extends MetricAggregatorFactory {
+class MaxAggregatorFactory extends MetricAggregatorFactory implements StreamingCostEstimable {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -99,5 +101,10 @@ class MaxAggregatorFactory extends MetricAggregatorFactory {
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        return StreamingCostMetrics.neutral();
     }
 }

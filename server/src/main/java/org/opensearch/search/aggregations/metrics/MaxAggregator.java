@@ -58,8 +58,6 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.startree.StarTreeQueryHelper;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,7 +72,7 @@ import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedSta
  *
  * @opensearch.internal
  */
-class MaxAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector, Streamable {
+class MaxAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat formatter;
@@ -308,10 +306,5 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
     @Override
     public void doReset() {
         maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-    }
-
-    @Override
-    public StreamingCostMetrics getStreamingCostMetrics() {
-        return new StreamingCostMetrics(true, 1, 1, 1, 1);
     }
 }

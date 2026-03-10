@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.Randomness;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -291,7 +292,7 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
                     .initialMaxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(settings).getBytes())
                     .initialMaxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(settings).getBytes())
                     .initialMaxStreamsBidirectional(SETTING_H3_MAX_STREAMS.get(settings).longValue())
-                    .tokenHandler(new SecureQuicTokenHandler())
+                    .tokenHandler(new SecureQuicTokenHandler(Randomness.createSecure()))
                     .handler(new ChannelInitializer<QuicChannel>() {
                         @Override
                         protected void initChannel(QuicChannel ch) {
@@ -329,7 +330,10 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.byteBufSizer = new NettyByteBufSizer();
-            this.requestCreator = new Netty4Http3RequestCreator(transport.maxInitialLineLength);
+            this.requestCreator = new Netty4Http3RequestCreator(
+                transport.maxInitialLineLength,
+                HttpResponseHeadersFactories.newHttp2Aware(transport.settings, transport)
+            );
             this.requestHandler = new Netty4HttpRequestHandler(transport, HTTP_CHANNEL_KEY);
             this.responseCreator = new Netty4HttpResponseCreator();
         }

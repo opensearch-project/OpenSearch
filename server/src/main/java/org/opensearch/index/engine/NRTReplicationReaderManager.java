@@ -83,7 +83,8 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
             referenceToRefresh.directory(),
             currentInfos,
             subs,
-            engineConfig.getLeafSorter()
+            engineConfig.getLeafSorter(),
+            null
         );
         final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
             innerReader,

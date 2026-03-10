@@ -27,6 +27,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,7 +80,7 @@ public class TranslogOperationHelperTests extends MapperServiceTestCase {
         return new EngineConfig.Builder().shardId(shardId)
             .indexSettings(indexSettings)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .documentMapperForTypeSupplier(() -> documentMapperForType)
             .build();
     }

@@ -395,6 +395,8 @@ Backwards compatibility tests exist to test upgrading from each supported versio
 
 The test can be run for any versions which the current version will be compatible with. Tests are run for released versions download the distributions from the artifact repository, see [DistributionDownloadPlugin](./buildSrc/src/main/java/org/opensearch/gradle/DistributionDownloadPlugin.java) for the repository location. Tests are run for versions that are not yet released automatically check out the branch and build from source to get the distributions, see [BwcVersions](./buildSrc/src/main/java/org/opensearch/gradle/BwcVersions.java) and [distribution/bwc/build.gradle](./distribution/bwc/build.gradle) for more information.
 
+**Note:** Rolling upgrade tests run in two modes: with remote publication disabled (default) and with remote publication enabled (using a `-remote` suffix cluster). The remote publication tests verify cluster state persistence to remote storage during upgrades. See [Remote Cluster State documentation](https://docs.opensearch.org/latest/tuning-your-cluster/availability-and-recovery/remote-store/remote-cluster-state/) for more information.
+
 The minimum JDK versions for runtime and compiling need to be installed, and environment variables `JAVAx_HOME`, such as `JAVA8_HOME`, pointing to the JDK installations are required to run the tests against unreleased versions, since the distributions are created by building from source. The required JDK versions for each branch are located at [.ci/java-versions.properties](.ci/java-versions.properties), see [BwcSetupExtension](./buildSrc/src/main/java/org/opensearch/gradle/internal/BwcSetupExtension.java) for more information.
 
 To run all the backwards compatibility tests use:

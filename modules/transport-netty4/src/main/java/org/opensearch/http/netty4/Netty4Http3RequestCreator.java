@@ -46,9 +46,11 @@ import io.netty.handler.codec.http.TooLongHttpLineException;
 @ChannelHandler.Sharable
 class Netty4Http3RequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
     private final ByteSizeValue maxInitialLineLength;
+    private final HttpResponseHeadersFactory responseHeadersFactory;
 
-    Netty4Http3RequestCreator(ByteSizeValue maxInitialLineLength) {
+    Netty4Http3RequestCreator(ByteSizeValue maxInitialLineLength, HttpResponseHeadersFactory responseHeadersFactory) {
         this.maxInitialLineLength = maxInitialLineLength;
+        this.responseHeadersFactory = responseHeadersFactory;
     }
 
     @Override
@@ -62,7 +64,7 @@ class Netty4Http3RequestCreator extends MessageToMessageDecoder<FullHttpRequest>
             } else {
                 nonError = (Exception) cause;
             }
-            out.add(new Netty4HttpRequest(msg.retain(), nonError));
+            out.add(new Netty4HttpRequest(msg.retain(), nonError, responseHeadersFactory));
         } else {
             // The HTTP/3 implementation in Netty does not validate Request URI length, manually
             // applying the validation rules here.
@@ -70,11 +72,12 @@ class Netty4Http3RequestCreator extends MessageToMessageDecoder<FullHttpRequest>
                 out.add(
                     new Netty4HttpRequest(
                         msg.retain(),
-                        new TooLongHttpLineException("An HTTP line is larger than " + maxInitialLineLength.bytesAsInt() + " bytes.")
+                        new TooLongHttpLineException("An HTTP line is larger than " + maxInitialLineLength.bytesAsInt() + " bytes."),
+                        responseHeadersFactory
                     )
                 );
             } else {
-                out.add(new Netty4HttpRequest(msg.retain()));
+                out.add(new Netty4HttpRequest(msg.retain(), responseHeadersFactory));
             }
         }
     }

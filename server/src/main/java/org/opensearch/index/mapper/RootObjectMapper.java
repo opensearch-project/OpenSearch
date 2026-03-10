@@ -123,6 +123,7 @@ public class RootObjectMapper extends ObjectMapper {
             Explicit<Boolean> enabled,
             Nested nested,
             Dynamic dynamic,
+            Explicit<Boolean> disableObjects,
             Map<String, Mapper> mappers,
             @Nullable Settings settings
         ) {
@@ -131,6 +132,7 @@ public class RootObjectMapper extends ObjectMapper {
                 name,
                 enabled,
                 dynamic,
+                disableObjects,
                 mappers,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -295,6 +297,7 @@ public class RootObjectMapper extends ObjectMapper {
         String name,
         Explicit<Boolean> enabled,
         Dynamic dynamic,
+        Explicit<Boolean> disableObjects,
         Map<String, Mapper> mappers,
         Explicit<DateFormatter[]> dynamicDateTimeFormatters,
         Explicit<DynamicTemplate[]> dynamicTemplates,
@@ -302,7 +305,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> numericDetection,
         Settings settings
     ) {
-        super(name, name, enabled, Nested.NO, dynamic, mappers, settings);
+        super(name, name, enabled, Nested.NO, dynamic, disableObjects, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;

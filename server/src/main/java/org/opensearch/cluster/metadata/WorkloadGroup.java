@@ -69,7 +69,7 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         if (mutableWorkloadGroupFragment.getResourceLimits().isEmpty()) {
             throw new IllegalArgumentException("WorkloadGroup.resourceLimits should at least have 1 resource limit");
         }
-        if (!isValid(updatedAt)) {
+        if (updatedAt <= 0L) {
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
         }
 

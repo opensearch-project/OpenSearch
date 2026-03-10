@@ -14,7 +14,7 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.http.StreamingHttpChannel;
-import org.opensearch.transport.reactor.netty4.Netty4Utils;
+import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
 import java.util.List;

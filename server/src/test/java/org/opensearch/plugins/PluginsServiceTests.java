@@ -1184,14 +1184,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "other-plugin"
         );
 
-        List<String> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
-        assertThat(basePluginDependents, containsInAnyOrder("plugin1", "plugin2"));
+        Tuple<List<String>, List<String>> basePluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "base-plugin");
+        assertThat(basePluginDependents.v1(), containsInAnyOrder("plugin1", "plugin2"));
+        assertTrue(basePluginDependents.v2().isEmpty());
 
-        List<String> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
-        assertThat(otherPluginDependents, containsInAnyOrder("plugin2", "plugin3"));
+        Tuple<List<String>, List<String>> otherPluginDependents = PluginsService.findPluginsByDependency(pluginsDir, "other-plugin");
+        assertThat(otherPluginDependents.v1(), containsInAnyOrder("plugin2", "plugin3"));
+        assertTrue(otherPluginDependents.v2().isEmpty());
 
-        List<String> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
-        assertTrue(nonExistentDependents.isEmpty());
+        Tuple<List<String>, List<String>> nonExistentDependents = PluginsService.findPluginsByDependency(pluginsDir, "non-existent");
+        assertTrue(nonExistentDependents.v1().isEmpty());
+        assertTrue(nonExistentDependents.v2().isEmpty());
     }
 
     private PluginInfo getPluginInfoWithWithSemverRange(String semverRange) {

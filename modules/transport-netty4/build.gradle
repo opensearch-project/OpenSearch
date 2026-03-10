@@ -56,6 +56,8 @@ opensearchplugin {
 }
 
 dependencies {
+  api project(':libs:opensearch-netty4')
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec-base:${versions.netty}"
@@ -233,7 +235,6 @@ thirdPartyAudit {
     'io.netty.buffer.FreeChunkEvent',
     'io.netty.buffer.PooledByteBufAllocator',
     'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.buffer.ReturnChunkEvent',
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',

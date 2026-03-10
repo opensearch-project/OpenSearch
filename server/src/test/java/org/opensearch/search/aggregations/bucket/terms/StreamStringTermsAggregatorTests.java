@@ -20,9 +20,11 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.support.StreamSearchChannelListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
@@ -30,6 +32,7 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -42,6 +45,8 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.metrics.Avg;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.Cardinality;
+import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -61,8 +66,6 @@ import org.opensearch.search.profile.aggregation.AggregationProfiler;
 import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.streaming.FlushMode;
-import org.opensearch.search.streaming.Streamable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -294,11 +297,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
 
                     assertThat(result, notNullValue());
-                    // For streaming aggregator, size limitation may not be applied at buildAggregations level
-                    // but rather handled during the reduce phase. Test that we get all terms for this batch.
                     assertThat(result.getBuckets().size(), equalTo(10));
 
-                    // Verify each term appears exactly twice (20 docs / 10 unique terms)
                     for (StringTerms.Bucket bucket : result.getBuckets()) {
                         assertThat(bucket.getDocCount(), equalTo(2L));
                         assertThat(bucket.getKeyAsString().startsWith("term_"), equalTo(true));
@@ -1056,7 +1056,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             StringTerms terms = (StringTerms) reduced;
             assertThat(terms.getBuckets().size(), equalTo(3));
 
-            // Check that electronics bucket has count 2 (from both aggregations)
             StringTerms.Bucket electronicsBucket = terms.getBuckets()
                 .stream()
                 .filter(bucket -> bucket.getKeyAsString().equals("electronics"))
@@ -1065,7 +1064,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
             assertThat(electronicsBucket, notNullValue());
             assertThat(electronicsBucket.getDocCount(), equalTo(2L));
 
-            // Check that books and clothing buckets each have count 1
             StringTerms.Bucket booksBucket = terms.getBuckets()
                 .stream()
                 .filter(bucket -> bucket.getKeyAsString().equals("books"))
@@ -1155,11 +1153,10 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
             StringTerms.Bucket electronicsBucket = terms.getBuckets().get(0);
             assertThat(electronicsBucket.getKeyAsString(), equalTo("electronics"));
-            assertThat(electronicsBucket.getDocCount(), equalTo(3L)); // 2 from first + 1 from second
+            assertThat(electronicsBucket.getDocCount(), equalTo(3L));
 
-            // Check that sub-aggregation values are properly reduced
             InternalSum totalPrice = electronicsBucket.getAggregations().get("total_price");
-            assertThat(totalPrice.getValue(), equalTo(450.0)); // 100 + 200 + 150
+            assertThat(totalPrice.getValue(), equalTo(450.0));
         }
     }
 
@@ -1216,10 +1213,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
             StringTerms terms = (StringTerms) reduced;
 
-            // Size limit should be applied during reduce phase
             assertThat(terms.getBuckets().size(), equalTo(3));
 
-            // Check that overlapping terms (cat_3, cat_4) have doc count 2
             for (StringTerms.Bucket bucket : terms.getBuckets()) {
                 if (bucket.getKeyAsString().equals("cat_3") || bucket.getKeyAsString().equals("cat_4")) {
                     assertThat(bucket.getDocCount(), equalTo(2L));
@@ -1304,21 +1299,16 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                     List<StringTerms.Bucket> buckets = reduced.getBuckets();
 
-                    // Verify the buckets are sorted by count (descending)
-                    // electronics: 2 docs, books: 2 docs, clothing: 1 doc
                     StringTerms.Bucket firstBucket = buckets.get(0);
                     StringTerms.Bucket secondBucket = buckets.get(1);
                     StringTerms.Bucket thirdBucket = buckets.get(2);
 
-                    // First two buckets should have count 2 (electronics and books)
                     assertThat(firstBucket.getDocCount(), equalTo(2L));
                     assertThat(secondBucket.getDocCount(), equalTo(2L));
                     assertThat(thirdBucket.getDocCount(), equalTo(1L));
 
-                    // Third bucket should be clothing with count 1
                     assertThat(thirdBucket.getKeyAsString(), equalTo("clothing"));
 
-                    // Verify that electronics and books are the first two (order may vary for equal counts)
                     assertTrue(
                         "First two buckets should be electronics and books",
                         (firstBucket.getKeyAsString().equals("electronics") || firstBucket.getKeyAsString().equals("books"))
@@ -1326,7 +1316,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                             && !firstBucket.getKeyAsString().equals(secondBucket.getKeyAsString())
                     );
 
-                    // Verify total document count across all buckets
                     long totalDocs = buckets.stream().mapToLong(StringTerms.Bucket::getDocCount).sum();
                     assertThat(totalDocs, equalTo(5L));
                 }
@@ -1361,8 +1350,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                         fieldType
                     );
 
-                    // Execute the aggregator
                     aggregator.preCollection();
+
                     assertThrows(IllegalStateException.class, () -> { searcher.search(new MatchAllDocsQuery(), aggregator); });
                 }
             }
@@ -1418,53 +1407,6 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
         return aggregator.buildTopLevel();
     }
 
-    public void testStreamingCostMetrics() {
-        assertTrue(
-            "StreamStringTermsAggregator should implement Streamable",
-            Streamable.class.isAssignableFrom(StreamStringTermsAggregator.class)
-        );
-    }
-
-    public void testStreamingCostMetricsValues() throws Exception {
-        try (Directory directory = newDirectory()) {
-            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                for (int i = 0; i < 100; i++) {
-                    Document document = new Document();
-                    document.add(new SortedSetDocValuesField("field", new BytesRef("term_" + (i % 10))));
-                    indexWriter.addDocument(document);
-                }
-
-                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
-                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-
-                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field").size(5);
-
-                    StreamStringTermsAggregator aggregator = createStreamAggregator(
-                        null,
-                        aggregationBuilder,
-                        indexSearcher,
-                        createIndexSettings(),
-                        new MultiBucketConsumerService.MultiBucketConsumer(
-                            DEFAULT_MAX_BUCKETS,
-                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                        ),
-                        fieldType
-                    );
-
-                    StreamingCostMetrics metrics = aggregator.getStreamingCostMetrics();
-
-                    assertThat(metrics, notNullValue());
-                    assertTrue("Should be streamable", metrics.streamable());
-                    assertTrue("TopN size should be positive", metrics.topNSize() > 0);
-                    assertEquals("Segment count should be 1", 1, metrics.segmentCount());
-                    assertEquals("Should have 10 unique terms", 10, metrics.estimatedBucketCount());
-                    assertEquals("Should have 100 documents", 100, metrics.estimatedDocCount());
-                }
-            }
-        }
-    }
-
     public void testCollectDebugInfo() throws IOException {
         try (Directory directory = newDirectory()) {
             try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig())) {
@@ -1503,16 +1445,708 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                 assertTrue("Should contain segments_with_single_valued_ords", debugInfo.containsKey("segments_with_single_valued_ords"));
                 assertTrue("Should contain segments_with_multi_valued_ords", debugInfo.containsKey("segments_with_multi_valued_ords"));
+            }
+        }
+    }
 
-                assertTrue("Should contain streaming_enabled", debugInfo.containsKey("streaming_enabled"));
-                assertTrue("Should contain streaming_top_n_size", debugInfo.containsKey("streaming_top_n_size"));
-                assertTrue("Should contain streaming_estimated_buckets", debugInfo.containsKey("streaming_estimated_buckets"));
-                assertTrue("Should contain streaming_estimated_docs", debugInfo.containsKey("streaming_estimated_docs"));
-                assertTrue("Should contain streaming_segment_count", debugInfo.containsKey("streaming_segment_count"));
+    public void testOrderByMaxSubAggregationDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories with varying max values (size=3, total=10)
+                for (int i = 0; i < 10; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                    doc.add(new NumericDocValuesField("value", (i + 1) * 100));
+                    indexWriter.addDocument(doc);
+                }
 
-                assertEquals(Boolean.TRUE, debugInfo.get("streaming_enabled"));
-                assertTrue("streaming_top_n_size should be positive", (Long) debugInfo.get("streaming_top_n_size") > 0);
-                assertTrue("streaming_segment_count should be positive", (Integer) debugInfo.get("streaming_segment_count") > 0);
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", false))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_7"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_8"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_9"));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_value");
+                    Max max1 = buckets.get(1).getAggregations().get("max_value");
+                    Max max2 = buckets.get(2).getAggregations().get("max_value");
+                    assertThat(max0.getValue(), equalTo(800.0));
+                    assertThat(max1.getValue(), equalTo(900.0));
+                    assertThat(max2.getValue(), equalTo(1000.0));
+
+                    // Verify otherDocCount: 10 categories * 1 doc = 10 total, selected 3*1=3, other=7
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(7L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByCardinalitySubAggregationDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories with varying cardinality (size=5, total=10)
+                for (int i = 0; i < 10; i++) {
+                    int uniqueUsers = (i + 1) * 2; // cat_0=2, cat_1=4, ..., cat_9=20
+                    for (int j = 0; j < uniqueUsers; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                        doc.add(new SortedSetDocValuesField("user_id", new BytesRef("user_" + (i * 100 + j))));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType userIdFieldType = new KeywordFieldMapper.KeywordFieldType("user_id");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.aggregation("unique_users", false))
+                        .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        userIdFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_5"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_6"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_7"));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("cat_8"));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_9"));
+
+                    Cardinality card0 = buckets.get(0).getAggregations().get("unique_users");
+                    Cardinality card1 = buckets.get(1).getAggregations().get("unique_users");
+                    Cardinality card2 = buckets.get(2).getAggregations().get("unique_users");
+                    Cardinality card3 = buckets.get(3).getAggregations().get("unique_users");
+                    Cardinality card4 = buckets.get(4).getAggregations().get("unique_users");
+                    assertThat(card0.getValue(), equalTo(12L));
+                    assertThat(card1.getValue(), equalTo(14L));
+                    assertThat(card2.getValue(), equalTo(16L));
+                    assertThat(card3.getValue(), equalTo(18L));
+                    assertThat(card4.getValue(), equalTo(20L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=12+14+16+18+20=80, other=30
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(30L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByCardinalitySubAggregationAscending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories where TOP 3 by cardinality ASC won't be alphabetically first
+                // cat_z=2, cat_y=4, cat_x=6, cat_a=8, cat_b=10, cat_c=12, cat_d=14, cat_e=16, cat_f=18, cat_g=20
+                String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
+                for (int i = 0; i < 10; i++) {
+                    int uniqueUsers = (i + 1) * 2;
+                    for (int j = 0; j < uniqueUsers; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef(names[i])));
+                        doc.add(new SortedSetDocValuesField("user_id", new BytesRef("user_" + (i * 100 + j))));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType userIdFieldType = new KeywordFieldMapper.KeywordFieldType("user_id");
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("unique_users", true))
+                        .subAggregation(new CardinalityAggregationBuilder("unique_users").field("user_id"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        userIdFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_x"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_y"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_z"));
+
+                    Cardinality card0 = buckets.get(0).getAggregations().get("unique_users");
+                    Cardinality card1 = buckets.get(1).getAggregations().get("unique_users");
+                    Cardinality card2 = buckets.get(2).getAggregations().get("unique_users");
+                    assertThat(card0.getValue(), equalTo(6L));
+                    assertThat(card1.getValue(), equalTo(4L));
+                    assertThat(card2.getValue(), equalTo(2L));
+
+                    // Verify otherDocCount: total docs = 2+4+6+8+10+12+14+16+18+20=110, selected=6+4+2=12, other=98
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(98L));
+                }
+            }
+        }
+    }
+
+    public void testNoSortOrder() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create categories where alphabetical order != count order
+                // cat_z=10 docs (highest), cat_y=9, cat_x=8, cat_a=7, cat_b=6, cat_c=5, cat_d=4, cat_e=3, cat_f=2, cat_g=1 (lowest)
+                String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = 10 - i;
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef(names[i])));
+                        doc.add(new NumericDocValuesField("value", (i + 1) * 100 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(5)
+                        .shardSize(5)
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // Default order is count DESC, so top 5 should be cat_z, cat_y, cat_x, cat_a, cat_b (highest counts)
+                    // Returned in alphabetical order at shard level
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_a"));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(7L));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_b"));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(6L));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_x"));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(8L));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("cat_y"));
+                    assertThat(buckets.get(3).getDocCount(), equalTo(9L));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("cat_z"));
+                    assertThat(buckets.get(4).getDocCount(), equalTo(10L));
+
+                    // Verify otherDocCount: total=55 docs (10+9+8+7+6+5+4+3+2+1), selected=40 (10+9+8+7+6), other=15
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(15L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByMaxAscending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories where TOP 3 by max ASC won't be alphabetically first
+                // cat_z=100, cat_y=200, cat_x=300, cat_a=400, ...
+                String[] names = { "cat_z", "cat_y", "cat_x", "cat_a", "cat_b", "cat_c", "cat_d", "cat_e", "cat_f", "cat_g" };
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = 5;
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef(names[i])));
+                        doc.add(new NumericDocValuesField("value", (i + 1) * 100 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", true))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_x"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_y"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_z"));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_value");
+                    Max max1 = buckets.get(1).getAggregations().get("max_value");
+                    Max max2 = buckets.get(2).getAggregations().get("max_value");
+                    assertThat(max0.getValue(), equalTo(304.0));
+                    assertThat(max1.getValue(), equalTo(204.0));
+                    assertThat(max2.getValue(), equalTo(104.0));
+
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
+                }
+            }
+        }
+    }
+
+    public void testOrderByMaxDescending() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create 10 categories with varying max values
+                for (int i = 0; i < 10; i++) {
+                    int numDocs = 5;
+                    for (int j = 0; j < numDocs; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                        doc.add(new NumericDocValuesField("value", (i + 1) * 100 + j));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+                    MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category")
+                        .size(3)
+                        .shardSize(3)
+                        .order(BucketOrder.aggregation("max_value", false))
+                        .subAggregation(new MaxAggregationBuilder("max_value").field("value"));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType,
+                        valueFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_7"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_8"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_9"));
+
+                    Max max0 = buckets.get(0).getAggregations().get("max_value");
+                    Max max1 = buckets.get(1).getAggregations().get("max_value");
+                    Max max2 = buckets.get(2).getAggregations().get("max_value");
+                    assertThat(max0.getValue(), equalTo(804.0));
+                    assertThat(max1.getValue(), equalTo(904.0));
+                    assertThat(max2.getValue(), equalTo(1004.0));
+
+                    // Verify otherDocCount: 10 categories * 5 docs = 50 total, selected 3*5=15, other=35
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(35L));
+                }
+            }
+        }
+    }
+
+    public void testMinDocCount() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create categories with varying doc counts: cat_0=1, cat_1=2, cat_2=3, cat_3=4, cat_4=5
+                for (int i = 0; i < 5; i++) {
+                    for (int j = 0; j <= i; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("category", new BytesRef("cat_" + i)));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType categoryFieldType = new KeywordFieldMapper.KeywordFieldType("category");
+
+                    // Test with minDocCount=3, should only return cat_2, cat_3, cat_4
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("categories").field("category").minDocCount(3);
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        categoryFieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(3));
+
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("cat_2"));
+                    assertThat(buckets.get(0).getDocCount(), equalTo(3L));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("cat_3"));
+                    assertThat(buckets.get(1).getDocCount(), equalTo(4L));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("cat_4"));
+                    assertThat(buckets.get(2).getDocCount(), equalTo(5L));
+
+                    // Verify otherDocCount: cat_0=1 + cat_1=2 = 3 docs excluded
+                    assertThat(result.getSumOfOtherDocCounts(), equalTo(3L));
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != first 5 alphabetically
+                // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
+                // By count: zzz(100), yyy(90), xxx(80), www(70), vvv(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                String[] terms = { "zzz", "yyy", "xxx", "www", "vvv", "aaa", "bbb", "ccc", "ddd", "eee" };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("field", new BytesRef(terms[i])));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    // Request size=5 with key order ascending - should return first 5 alphabetically
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(true));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // With key order ASC, should return first 5 alphabetically: aaa, bbb, ccc, ddd, eee
+                    // NOT the top 5 by doc count (zzz, yyy, xxx, www, vvv)
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("aaa"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("bbb"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("ccc"));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("ddd"));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("eee"));
+                }
+            }
+        }
+    }
+
+    public void testKeyOrderDescendingWithSizeLimitDropsCorrectBuckets() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                // Create terms where top 5 by count != last 5 alphabetically
+                // Alphabetically: aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj
+                // By count: jjj(100), iii(90), hhh(80), ggg(70), fff(60), aaa(50), bbb(40), ccc(30), ddd(20), eee(10)
+                String[] terms = { "jjj", "iii", "hhh", "ggg", "fff", "aaa", "bbb", "ccc", "ddd", "eee" };
+                int[] counts = { 100, 90, 80, 70, 60, 50, 40, 30, 20, 10 };
+                for (int i = 0; i < terms.length; i++) {
+                    for (int j = 0; j < counts[i]; j++) {
+                        Document doc = new Document();
+                        doc.add(new SortedSetDocValuesField("field", new BytesRef(terms[i])));
+                        indexWriter.addDocument(doc);
+                    }
+                }
+
+                try (IndexReader indexReader = maybeWrapReaderEs(DirectoryReader.open(indexWriter))) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
+
+                    // Request size=5 with key order descending - should return last 5 alphabetically
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("test").field("field")
+                        .size(5)
+                        .shardSize(5)
+                        .order(BucketOrder.key(false));
+
+                    IndexSettings indexSettings = new IndexSettings(
+                        IndexMetadata.builder("_index")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .put("index.aggregation.streaming.min_segment_size", 1)
+                            )
+                            .numberOfShards(1)
+                            .numberOfReplicas(0)
+                            .creationDate(System.currentTimeMillis())
+                            .build(),
+                        Settings.EMPTY
+                    );
+
+                    StreamStringTermsAggregator aggregator = createStreamAggregator(
+                        null,
+                        aggregationBuilder,
+                        indexSearcher,
+                        indexSettings,
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        fieldType
+                    );
+
+                    aggregator.preCollection();
+                    assertEquals("strictly single segment", 1, indexSearcher.getIndexReader().leaves().size());
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+
+                    assertThat(result, notNullValue());
+                    List<StringTerms.Bucket> buckets = result.getBuckets();
+                    assertThat(buckets.size(), equalTo(5));
+
+                    // With key order DESC, should return last 5 alphabetically: jjj, iii, hhh, ggg, fff
+                    // NOT the top 5 by doc count
+                    assertThat(buckets.get(0).getKeyAsString(), equalTo("fff"));
+                    assertThat(buckets.get(1).getKeyAsString(), equalTo("ggg"));
+                    assertThat(buckets.get(2).getKeyAsString(), equalTo("hhh"));
+                    assertThat(buckets.get(3).getKeyAsString(), equalTo("iii"));
+                    assertThat(buckets.get(4).getKeyAsString(), equalTo("jjj"));
+                }
             }
         }
     }

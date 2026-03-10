@@ -13,6 +13,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.index.codec.CriteriaBasedCodec;
 
 import java.io.IOException;
@@ -36,8 +37,45 @@ public class CriteriaBasedMergePolicy extends FilterMergePolicy {
         this.in = in;
     }
 
+    private MergeSpecification findMergesInternal(
+        SegmentInfos segmentInfos,
+        MergeContext mergeContext,
+        CheckedFunction<SegmentInfos, MergeSpecification, IOException> mergeFinderFunction
+    ) throws IOException {
+
+        final Set<SegmentCommitInfo> merging = mergeContext.getMergingSegments();
+        final Map<String, List<SegmentCommitInfo>> commitInfos = new HashMap<>();
+
+        for (SegmentCommitInfo si : segmentInfos) {
+            if (merging.contains(si)) {
+                continue;
+            }
+            final String dwptGroupNumber = si.info.getAttribute(CriteriaBasedCodec.BUCKET_NAME);
+            commitInfos.computeIfAbsent(dwptGroupNumber, k -> new ArrayList<>()).add(si);
+        }
+
+        MergeSpecification spec = null;
+        for (Map.Entry<String, List<SegmentCommitInfo>> entry : commitInfos.entrySet()) {
+            List<SegmentCommitInfo> segments = entry.getValue();
+            if (segments.size() > 1) {
+                final SegmentInfos newSIS = new SegmentInfos(segmentInfos.getIndexCreatedVersionMajor());
+                segments.forEach(newSIS::add);
+
+                final MergeSpecification delegateSpec = mergeFinderFunction.apply(newSIS);
+                if (delegateSpec != null) {
+                    if (spec == null) {
+                        spec = new MergeSpecification();
+                    }
+                    spec.merges.addAll(delegateSpec.merges);
+                }
+            }
+        }
+
+        return spec;
+    }
+
     /**
-     * Merges the segments belonging to same group.
+     * Merges the segments belonging to same group
      *
      * @param mergeTrigger the event that triggered the merge
      * @param infos the total set of segments in the index
@@ -47,36 +85,58 @@ public class CriteriaBasedMergePolicy extends FilterMergePolicy {
      */
     @Override
     public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos infos, MergeContext mergeContext) throws IOException {
-        final Set<SegmentCommitInfo> merging = mergeContext.getMergingSegments();
-        MergeSpecification spec = null;
-        final Map<String, List<SegmentCommitInfo>> commitInfos = new HashMap<>();
-        for (SegmentCommitInfo si : infos) {
-            if (merging.contains(si)) {
-                continue;
-            }
+        return findMergesInternal(infos, mergeContext, newSIS -> in.findMerges(mergeTrigger, newSIS, mergeContext));
+    }
 
-            final String dwptGroupNumber = si.info.getAttribute(CriteriaBasedCodec.BUCKET_NAME);
-            commitInfos.computeIfAbsent(dwptGroupNumber, k -> new ArrayList<>()).add(si);
-        }
+    /**
+     * Force merges segments belonging to same group.
+     *
+     * @param segmentInfos the total set of segments in the index
+     * @param maxSegmentCount requested maximum number of segments in the index
+     * @param segmentsToMerge contains the specific SegmentInfo instances that must be merged away.
+     * @param mergeContext the MergeContext to find the merges on
+     * @return
+     * @throws IOException
+     */
+    @Override
+    public MergeSpecification findForcedMerges(
+        SegmentInfos segmentInfos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
+        return findMergesInternal(
+            segmentInfos,
+            mergeContext,
+            newSIS -> in.findForcedMerges(newSIS, maxSegmentCount, segmentsToMerge, mergeContext)
+        );
+    }
 
-        for (String dwptGroupNumber : commitInfos.keySet()) {
-            if (commitInfos.get(dwptGroupNumber).size() > 1) {
-                final SegmentInfos newSIS = new SegmentInfos(infos.getIndexCreatedVersionMajor());
-                for (SegmentCommitInfo info : commitInfos.get(dwptGroupNumber)) {
-                    newSIS.add(info);
-                }
+    /**
+     * Merges segment belonging to same group to expunge deletes.
+     *
+     * @param segmentInfos the total set of segments in the index
+     * @param mergeContext the MergeContext to find the merges on
+     * @return
+     * @throws IOException
+     */
+    @Override
+    public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, MergeContext mergeContext) throws IOException {
+        return findMergesInternal(segmentInfos, mergeContext, newSIS -> in.findForcedDeletesMerges(newSIS, mergeContext));
+    }
 
-                final MergeSpecification tieredMergePolicySpec = in.findMerges(mergeTrigger, newSIS, mergeContext);
-                if (tieredMergePolicySpec != null) {
-                    if (spec == null) {
-                        spec = new MergeSpecification();
-                    }
-
-                    spec.merges.addAll(tieredMergePolicySpec.merges);
-                }
-            }
-        }
-
-        return spec;
+    /**
+     * Identifies merges that we want to execute (synchronously) on commit
+     *
+     * @param mergeTrigger the event that triggered the merge (COMMIT or GET_READER).
+     * @param segmentInfos the total set of segments in the index (while preparing the commit)
+     * @param mergeContext the MergeContext to find the merges on.
+     * @return
+     * @throws IOException
+     */
+    @Override
+    public MergeSpecification findFullFlushMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext)
+        throws IOException {
+        return findMergesInternal(segmentInfos, mergeContext, newSIS -> in.findFullFlushMerges(mergeTrigger, newSIS, mergeContext));
     }
 }

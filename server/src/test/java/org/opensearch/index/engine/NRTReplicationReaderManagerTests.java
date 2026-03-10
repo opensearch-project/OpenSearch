@@ -24,6 +24,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 
 import java.io.IOException;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 
@@ -44,7 +45,7 @@ public class NRTReplicationReaderManagerTests extends EngineTestCase {
                 .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
-                .codecService(new CodecService(null, defaultSettings, logger))
+                .codecService(new CodecService(null, defaultSettings, logger, List.of()))
                 .eventListener(new Engine.EventListener() {
                 })
                 .queryCache(IndexSearcher.getDefaultQueryCache())

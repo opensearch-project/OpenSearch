@@ -10,7 +10,7 @@ package org.opensearch.index.codec.composite;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.lucene103.Lucene103Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
@@ -53,7 +53,7 @@ public class LuceneDocValuesProducerFactoryTests extends OpenSearchTestCase {
             randomInt(),
             false,
             false,
-            new Lucene103Codec(),
+            new Lucene104Codec(),
             new HashMap<>(),
             UUID.randomUUID().toString().substring(0, 16).getBytes(StandardCharsets.UTF_8),
             new HashMap<>(),

@@ -17,6 +17,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
@@ -223,6 +225,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // in the remote store.
             return indexShard.state() != IndexShardState.STARTED || !(indexShard.getEngine() instanceof InternalEngine);
         }
+
+        // Extract crypto metadata once at start of sync
+        IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
+        CryptoMetadata cryptoMetadata = resolveCryptoMetadata(indexMetadata);
+
         beforeSegmentsSync();
         long refreshTimeMs = segmentTracker.getLocalRefreshTimeMs(), refreshClockTimeMs = segmentTracker.getLocalRefreshClockTimeMs();
         long refreshSeqNo = segmentTracker.getLocalRefreshSeqNo();
@@ -267,7 +274,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         public void onResponse(Void unused) {
                             try {
                                 logger.debug("New segments upload successful");
-                                // Start metadata file upload
+                                // Start metadata file upload in plaintext
                                 uploadMetadata(localSegmentsPostRefresh, segmentInfos, checkpoint);
                                 logger.debug("Metadata upload successful");
                                 clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
@@ -296,8 +303,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                         }
                     }, latch);
 
-                    // Start the segments files upload
-                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener);
+                    // Start the segments files upload with crypto
+                    uploadNewSegments(localSegmentsPostRefresh, localSegmentsSizeMap, segmentUploadsCompletedListener, cryptoMetadata);
                     if (latch.await(
                         remoteStoreSettings.getClusterRemoteSegmentTransferTimeout().millis(),
                         TimeUnit.MILLISECONDS
@@ -324,16 +331,31 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
     }
 
     /**
+     * Extracts CryptoMetadata if configured.
+     *
+     * @param indexMetadata Index metadata containing crypto settings
+     * @return CryptoMetadata if encryption is configured, null otherwise
+     */
+    private CryptoMetadata resolveCryptoMetadata(IndexMetadata indexMetadata) {
+        if (indexMetadata == null) {
+            return null;
+        }
+        return CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
+    }
+
+    /**
      * Uploads new segment files to the remote store.
      *
      * @param localSegmentsPostRefresh collection of segment files present after refresh
      * @param localSegmentsSizeMap map of segment file names to their sizes
      * @param segmentUploadsCompletedListener listener to be notified when upload completes
+     * @param cryptoMetadata  CryptoMetadata for index-level encryption
      */
     private void uploadNewSegments(
         Collection<String> localSegmentsPostRefresh,
         Map<String, Long> localSegmentsSizeMap,
-        ActionListener<Void> segmentUploadsCompletedListener
+        ActionListener<Void> segmentUploadsCompletedListener,
+        CryptoMetadata cryptoMetadata
     ) {
         Collection<String> filteredFiles = localSegmentsPostRefresh.stream().filter(file -> !skipUpload(file)).collect(Collectors.toList());
         Function<Map<String, Long>, UploadListener> uploadListenerFunction = (Map<String, Long> sizeMap) -> createUploadListener(
@@ -345,7 +367,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             localSegmentsSizeMap,
             segmentUploadsCompletedListener,
             uploadListenerFunction,
-            isLowPriorityUpload()
+            isLowPriorityUpload(),
+            cryptoMetadata
         );
     }
 

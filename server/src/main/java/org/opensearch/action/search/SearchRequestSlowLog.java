@@ -47,6 +47,7 @@ import org.opensearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -187,6 +188,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
             messageFields.put("search_type", context.getRequest().searchType());
             messageFields.put("shards", searchRequestContext.formattedShardStats());
+            messageFields.put("indices", Arrays.toString(context.getRequest().indices()));
 
             if (context.getRequest().source() != null) {
                 String source = escapeJson(context.getRequest().source().toString(FORMAT_PARAMS));
@@ -196,6 +198,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("request_id", context.getTask().getHeader(Task.X_REQUEST_ID));
             return messageFields;
         }
 
@@ -212,6 +215,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             }
             sb.append("search_type[").append(context.getRequest().searchType()).append("], ");
             sb.append("shards[").append(searchRequestContext.formattedShardStats()).append("], ");
+            sb.append("indices").append(Arrays.toString(context.getRequest().indices())).append(", ");
             if (context.getRequest().source() != null) {
                 sb.append("source[").append(context.getRequest().source().toString(FORMAT_PARAMS)).append("], ");
             } else {
@@ -220,7 +224,12 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
             if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("]");
             } else {
-                sb.append("id[]");
+                sb.append("id[], ");
+            }
+            if (context.getTask().getHeader(Task.X_REQUEST_ID) != null) {
+                sb.append("request_id[").append(context.getTask().getHeader(Task.X_REQUEST_ID)).append("]");
+            } else {
+                sb.append("request_id[]");
             }
             return sb.toString();
         }
