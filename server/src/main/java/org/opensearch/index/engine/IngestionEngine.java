@@ -40,6 +40,7 @@ import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.indices.pollingingest.StreamPoller;
+import org.opensearch.ingest.IngestService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -60,11 +61,17 @@ public class IngestionEngine extends InternalEngine {
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final DocumentMapperForType documentMapperForType;
+    private final IngestService ingestService;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
     public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
+        this(engineConfig, ingestionConsumerFactory, null);
+    }
+
+    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
+        this.ingestService = ingestService;
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
         registerDynamicIndexSettingsHandlers();
     }

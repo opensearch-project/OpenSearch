@@ -626,6 +626,7 @@ public class Node implements Closeable {
             }
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            final SetOnce<IngestService> ingestServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
             localNodeFactory = new RemoteStoreVerifyingLocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -1001,6 +1002,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                ingestServiceReference::get,
                 recoverySettings,
                 cacheService,
                 remoteStoreSettings,
@@ -1022,6 +1024,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 new SystemIngestPipelineCache()
             );
+            ingestServiceReference.set(ingestService);
 
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
