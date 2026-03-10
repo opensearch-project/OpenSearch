@@ -94,6 +94,34 @@ public class WorkloadGroupRequestOperationListener extends SearchRequestOperatio
                                 );
                         }
                         break;
+                    case BATCHED_REDUCE_SIZE:
+                        // Only apply WLM batched reduce size when the request uses the default value
+                        // TODO: batchedReduceSize is a primitive int with no sentinel value, so we cannot
+                        // distinguish between "not set" and "explicitly set to 512 (the default)". If a user
+                        // explicitly sets batched_reduce_size=512, WLM will still override it. Consider adding
+                        // a raw accessor or tracking boolean similar to maxConcurrentShardRequests.
+                        int wlmBatchedReduceSize = Integer.parseInt(entry.getValue());
+                        if (searchRequest.getBatchedReduceSize() == SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE) {
+                            searchRequest.setBatchedReduceSize(wlmBatchedReduceSize);
+                        }
+                        break;
+                    case CANCEL_AFTER_TIME_INTERVAL:
+                        // Only apply WLM cancel_after_time_interval when the request has none set
+                        if (searchRequest.getCancelAfterTimeInterval() == null) {
+                            searchRequest.setCancelAfterTimeInterval(
+                                TimeValue.parseTimeValue(
+                                    entry.getValue(),
+                                    WorkloadGroupSearchSettings.WlmSearchSetting.CANCEL_AFTER_TIME_INTERVAL.getSettingName()
+                                )
+                            );
+                        }
+                        break;
+                    case MAX_CONCURRENT_SHARD_REQUESTS:
+                        // Raw value 0 means not explicitly set; only apply WLM when not explicitly set
+                        if (searchRequest.getMaxConcurrentShardRequestsRaw() == 0) {
+                            searchRequest.setMaxConcurrentShardRequests(Integer.parseInt(entry.getValue()));
+                        }
+                        break;
                 }
             } catch (Exception e) {
                 logger.error("Failed to apply workload group setting [{}={}]: {}", entry.getKey(), entry.getValue(), e);

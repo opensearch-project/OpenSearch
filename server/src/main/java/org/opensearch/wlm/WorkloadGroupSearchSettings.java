@@ -31,6 +31,12 @@ public class WorkloadGroupSearchSettings {
      */
     public enum WlmSearchSetting {
         // Query parameters (applied to SearchRequest)
+        /** Setting for batched reduce size */
+        BATCHED_REDUCE_SIZE("batched_reduce_size", WorkloadGroupSearchSettings::validateBatchedReduceSize),
+        /** Setting for canceling search requests after a time interval */
+        CANCEL_AFTER_TIME_INTERVAL("cancel_after_time_interval", WorkloadGroupSearchSettings::validateTimeValue),
+        /** Setting for maximum concurrent shard requests */
+        MAX_CONCURRENT_SHARD_REQUESTS("max_concurrent_shard_requests", WorkloadGroupSearchSettings::validatePositiveInt),
         /** Setting for search request timeout */
         TIMEOUT("timeout", WorkloadGroupSearchSettings::validateTimeValue);
 
@@ -112,6 +118,40 @@ public class WorkloadGroupSearchSettings {
             return null;
         } catch (Exception e) {
             return e.getMessage();
+        }
+    }
+
+    /**
+     * Validates a positive integer string.
+     * @param value the string to validate
+     * @return null if valid, error message if invalid
+     */
+    private static String validatePositiveInt(String value) {
+        try {
+            int intValue = Integer.parseInt(value);
+            if (intValue < 1) {
+                return "must be positive";
+            }
+            return null;
+        } catch (NumberFormatException e) {
+            return "must be a valid integer";
+        }
+    }
+
+    /**
+     * Validates batched reduce size (must be >= 2).
+     * @param value the string to validate
+     * @return null if valid, error message if invalid
+     */
+    private static String validateBatchedReduceSize(String value) {
+        try {
+            int intValue = Integer.parseInt(value);
+            if (intValue < 2) {
+                return "must be >= 2";
+            }
+            return null;
+        } catch (NumberFormatException e) {
+            return "must be a valid integer";
         }
     }
 }
