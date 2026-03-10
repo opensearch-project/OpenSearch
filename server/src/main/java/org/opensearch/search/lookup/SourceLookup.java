@@ -48,7 +48,6 @@ import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +99,19 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
+            // Lazily initialize fieldReader on first _source access.
+            // All the docs to fetch are adjacent but Lucene stored fields are optimized
+            // for random access and don't optimize for sequential access - except for merging.
+            // So we do a little hack here and pretend we're going to do merges in order to
+            // get better sequential access.
+            if (fieldReader == null) {
+                if (reader instanceof SequentialStoredFieldsLeafReader lf) {
+                    fieldReader = lf.getSequentialStoredFieldsReader()::document;
+                } else {
+                    fieldReader = reader.storedFields()::document;
+                }
+            }
+
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
             fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
@@ -132,20 +144,26 @@ public class SourceLookup implements Map {
         }
         if (this.reader != context.reader()) {
             this.reader = context.reader();
-            // only reset reader and fieldReader when reader changes
-            try {
-                if (context.reader() instanceof SequentialStoredFieldsLeafReader lf) {
-                    // All the docs to fetch are adjacent but Lucene stored fields are optimized
-                    // for random access and don't optimize for sequential access - except for merging.
-                    // So we do a little hack here and pretend we're going to do merges in order to
-                    // get better sequential access.
-                    fieldReader = lf.getSequentialStoredFieldsReader()::document;
-                } else {
-                    fieldReader = context.reader().storedFields()::document;
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            // // only reset reader and fieldReader when reader changes
+            // try {
+            // if (context.reader() instanceof SequentialStoredFieldsLeafReader lf) {
+            // // All the docs to fetch are adjacent but Lucene stored fields are optimized
+            // // for random access and don't optimize for sequential access - except for merging.
+            // // So we do a little hack here and pretend we're going to do merges in order to
+            // // get better sequential access.
+            // fieldReader = lf.getSequentialStoredFieldsReader()::document;
+            // } else {
+            // fieldReader = context.reader().storedFields()::document;
+            // }
+            // } catch (IOException e) {
+            // throw new UncheckedIOException(e);
+            // }
+
+            // Defer fieldReader setup to loadSourceIfNeeded(). Eagerly initializing
+            // fieldReader here triggers madvise(MADV_SEQUENTIAL) on every segment
+            // transition even when the script never reads _source. On kernel 5.10 this
+            // acquires mmap_lock in WRITE mode causing convoy stalls.
+            this.fieldReader = null;
         }
         this.source = null;
         this.sourceAsBytes = null;
