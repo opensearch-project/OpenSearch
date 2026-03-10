@@ -304,6 +304,19 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         assertNull(mockSearchRequest.source());
     }
 
+    public void testApplySearchSettings_EmptySearchSettings() {
+        mockSearchRequest.source(new SearchSourceBuilder());
+
+        String wgId = "test-wg";
+        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of());
+        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertNull(mockSearchRequest.source().timeout()); // No settings applied
+    }
+
     public void testApplySearchSettings_Timeout_WlmAppliedWhenNull() {
         mockSearchRequest.source(new SearchSourceBuilder());
         assertNull(mockSearchRequest.source().timeout());

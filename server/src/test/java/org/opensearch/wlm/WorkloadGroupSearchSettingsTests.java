@@ -73,6 +73,33 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
         assertTrue(exception.getMessage().contains("Invalid value"));
     }
 
+    public void testValidateSearchSettingsNull() {
+        // Should not throw exception for null map
+        WorkloadGroupSearchSettings.validateSearchSettings(null);
+    }
+
+    public void testValidateSearchSettingsNullKey() {
+        Map<String, String> settings = new HashMap<>();
+        settings.put(null, "30s");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.validateSearchSettings(settings)
+        );
+        assertTrue(exception.getMessage().contains("Search setting key cannot be null"));
+    }
+
+    public void testValidateSearchSettingsNullValue() {
+        Map<String, String> settings = new HashMap<>();
+        settings.put("timeout", null);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.validateSearchSettings(settings)
+        );
+        assertTrue(exception.getMessage().contains("Search setting value cannot be null"));
+    }
+
     public void testValidateSearchSettingsEmpty() {
         Map<String, String> settings = new HashMap<>();
 
