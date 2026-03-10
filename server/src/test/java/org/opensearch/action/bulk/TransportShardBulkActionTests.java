@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.OpenSearchStatusException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteResponse;
@@ -112,8 +111,6 @@ import static org.opensearch.index.remote.RemoteStoreTestsHelper.createIndexSett
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -159,7 +156,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = primaryRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -190,7 +187,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = primaryRequest;
         bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext secondContext = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -229,70 +226,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testSkipBulkIndexRequestIfAborted() throws Exception {
-        IndexShard shard = newStartedShard(true);
-
-        BulkItemRequest[] items = new BulkItemRequest[randomIntBetween(2, 5)];
-        for (int i = 0; i < items.length; i++) {
-            DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id_" + i)
-                .source(Requests.INDEX_CONTENT_TYPE)
-                .opType(DocWriteRequest.OpType.INDEX);
-            items[i] = new BulkItemRequest(i, writeRequest);
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
-
-        // Preemptively abort one of the bulk items, but allow the others to proceed
-        BulkItemRequest rejectItem = randomFrom(items);
-        RestStatus rejectionStatus = randomFrom(RestStatus.BAD_REQUEST, RestStatus.CONFLICT, RestStatus.FORBIDDEN, RestStatus.LOCKED);
-        final OpenSearchStatusException rejectionCause = new OpenSearchStatusException("testing rejection", rejectionStatus);
-        rejectItem.abort("index", rejectionCause);
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        TransportShardBulkAction.performOnPrimary(
-            bulkShardRequest,
-            shard,
-            null,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            listener -> {},
-            ActionListener.runAfter(ActionTestUtils.assertNoFailureListener(result -> {
-                // since at least 1 item passed, the tran log location should exist,
-                assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, notNullValue());
-                // and the response should exist and match the item count
-                assertThat(result.finalResponseIfSuccessful, notNullValue());
-                assertThat(result.finalResponseIfSuccessful.getResponses(), arrayWithSize(items.length));
-
-                // check each response matches the input item, including the rejection
-                for (int i = 0; i < items.length; i++) {
-                    BulkItemResponse response = result.finalResponseIfSuccessful.getResponses()[i];
-                    assertThat(response.getItemId(), equalTo(i));
-                    assertThat(response.getIndex(), equalTo("index"));
-                    assertThat(response.getId(), equalTo("id_" + i));
-                    assertThat(response.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
-                    if (response.getItemId() == rejectItem.id()) {
-                        assertTrue(response.isFailed());
-                        assertThat(response.getFailure().getCause(), equalTo(rejectionCause));
-                        assertThat(response.status(), equalTo(rejectionStatus));
-                    } else {
-                        assertFalse(response.isFailed());
-                    }
-                }
-
-                // Check that the non-rejected updates made it to the shard
-                try {
-                    assertDocCount(shard, items.length - 1);
-                    closeShards(shard);
-                } catch (IOException e) {
-                    throw new AssertionError(e);
-                }
-            }), latch::countDown),
-            threadPool,
-            Names.WRITE
-        );
-
-        latch.await();
-    }
-
     public void testExecuteBulkIndexRequestWithMappingUpdates() throws Exception {
 
         BulkItemRequest[] items = new BulkItemRequest[1];
@@ -313,7 +246,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
-        randomlySetIgnoredPrimaryResponse(items[0]);
+        items[0] = randomlySetIgnoredPrimaryResponse(items[0]);
 
         // Pretend the mappings haven't made it to the node yet
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
@@ -372,7 +305,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         boolean errorOnWait = randomBoolean();
 
-        randomlySetIgnoredPrimaryResponse(items[0]);
+        items[0] = randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -425,7 +358,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Translog.Location location = new Translog.Location(0, 0, 0);
 
-        randomlySetIgnoredPrimaryResponse(items[0]);
+        items[0] = randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -472,7 +405,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         location = context.getLocationToSync();
 
-        randomlySetIgnoredPrimaryResponse(items[0]);
+        items[0] = randomlySetIgnoredPrimaryResponse(items[0]);
 
         context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -535,7 +468,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -590,7 +523,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -647,7 +580,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -704,7 +637,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -760,7 +693,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -797,7 +730,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(
@@ -848,7 +781,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.IMMEDIATE, items);
 
-        randomlySetIgnoredPrimaryResponse(primaryRequest);
+        items[0] = randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         // Execute the bulk operation through performOnPrimary
         CountDownLatch latch = new CountDownLatch(1);
@@ -1131,10 +1064,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     public void testNoOpReplicationOnPrimaryDocumentFailure() throws Exception {
         final IndexShard shard = spy(newStartedShard(false));
-        BulkItemRequest itemRequest = new BulkItemRequest(0, new IndexRequest("index").source(Requests.INDEX_CONTENT_TYPE));
         final String failureMessage = "simulated primary failure";
         final IOException exception = new IOException(failureMessage);
-        itemRequest.setPrimaryResponse(
+        BulkItemRequest itemRequest = new BulkItemRequest(
+            0,
+            new IndexRequest("index").source(Requests.INDEX_CONTENT_TYPE),
             new BulkItemResponse(
                 0,
                 randomFrom(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.DELETE, DocWriteRequest.OpType.INDEX),
@@ -1344,7 +1278,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             when(shard.getFailedIndexResult(any(OpenSearchRejectedExecutionException.class), anyLong())).thenCallRealMethod();
             when(shard.mapperService()).thenReturn(mock(MapperService.class));
 
-            randomlySetIgnoredPrimaryResponse(items[0]);
+            items[0] = randomlySetIgnoredPrimaryResponse(items[0]);
 
             AtomicInteger updateCalled = new AtomicInteger();
 
@@ -1570,10 +1504,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         return new TestTransportChannel(listener);
     }
 
-    private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
+    private BulkItemRequest randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
         if (randomBoolean()) {
             // add a response to the request and thereby check that it is ignored for the primary.
-            primaryRequest.setPrimaryResponse(
+            return new BulkItemRequest(
+                primaryRequest.id(),
+                primaryRequest.request(),
                 new BulkItemResponse(
                     0,
                     DocWriteRequest.OpType.INDEX,
@@ -1581,6 +1517,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 )
             );
         }
+        return primaryRequest;
     }
 
     /**

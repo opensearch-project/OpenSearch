@@ -36,15 +36,12 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Transport request for a Single bulk item
@@ -55,9 +52,9 @@ public class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
-    private int id;
-    private DocWriteRequest<?> request;
-    private volatile BulkItemResponse primaryResponse;
+    private final int id;
+    private final DocWriteRequest<?> request;
+    private final BulkItemResponse primaryResponse;
 
     /**
      * @param shardId the shard id
@@ -71,13 +68,20 @@ public class BulkItemRequest implements Writeable, Accountable {
             } else {
                 primaryResponse = new BulkItemResponse(shardId, in);
             }
+        } else {
+            primaryResponse = null;
         }
     }
 
     // NOTE: public for testing only
     public BulkItemRequest(int id, DocWriteRequest<?> request) {
+        this(id, request, null);
+    }
+
+    BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemResponse primaryResponse) {
         this.id = id;
         this.request = request;
+        this.primaryResponse = primaryResponse;
     }
 
     public int id() {
@@ -95,38 +99,6 @@ public class BulkItemRequest implements Writeable, Accountable {
 
     BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
-    }
-
-    void setPrimaryResponse(BulkItemResponse primaryResponse) {
-        this.primaryResponse = primaryResponse;
-    }
-
-    /**
-     * Abort this request, and store a {@link org.opensearch.action.bulk.BulkItemResponse.Failure} response.
-     *
-     * @param index The concrete index that was resolved for this request
-     * @param cause The cause of the rejection (may not be null)
-     * @throws IllegalStateException If a response already exists for this request
-     */
-    public void abort(String index, Exception cause) {
-        if (primaryResponse == null) {
-            final BulkItemResponse.Failure failure = new BulkItemResponse.Failure(index, request.id(), Objects.requireNonNull(cause), true);
-            setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
-        } else {
-            assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["
-                + Strings.toString(MediaTypeRegistry.JSON, primaryResponse)
-                + "]; cause ["
-                + cause
-                + "]";
-            if (primaryResponse.isFailed() && primaryResponse.getFailure().isAborted()) {
-                primaryResponse.getFailure().getCause().addSuppressed(cause);
-            } else {
-                throw new IllegalStateException(
-                    "aborting item that with response [" + primaryResponse + "] that was previously processed",
-                    cause
-                );
-            }
-        }
     }
 
     @Override
