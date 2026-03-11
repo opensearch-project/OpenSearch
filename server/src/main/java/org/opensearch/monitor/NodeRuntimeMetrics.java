@@ -100,18 +100,28 @@ public class NodeRuntimeMetrics implements Closeable {
         this(registry, jvmService, processProbe, osProbe, ManagementFactory.getThreadMXBean());
     }
 
-    NodeRuntimeMetrics(MetricsRegistry registry, JvmService jvmService, ProcessProbe processProbe, OsProbe osProbe,
-                       ThreadMXBean threadMXBean) {
+    NodeRuntimeMetrics(
+        MetricsRegistry registry,
+        JvmService jvmService,
+        ProcessProbe processProbe,
+        OsProbe osProbe,
+        ThreadMXBean threadMXBean
+    ) {
         this.jvmService = jvmService;
         this.threadMXBean = threadMXBean;
 
-        registerMemoryGauges(registry);
-        registerGcGauges(registry);
-        registerBufferPoolGauges(registry);
-        registerThreadGauges(registry);
-        registerClassGauges(registry);
-        registerUptimeGauge(registry);
-        registerCpuGauges(registry, processProbe, osProbe);
+        try {
+            registerMemoryGauges(registry);
+            registerGcGauges(registry);
+            registerBufferPoolGauges(registry);
+            registerThreadGauges(registry);
+            registerClassGauges(registry);
+            registerUptimeGauge(registry);
+            registerCpuGauges(registry, processProbe, osProbe);
+        } catch (Exception e) {
+            closeQuietly();
+            throw e;
+        }
 
         logger.debug("Registered {} node runtime metric gauges", gaugeHandles.size());
     }
@@ -122,43 +132,62 @@ public class NodeRuntimeMetrics implements Closeable {
         Tags heapTags = Tags.of(TAG_TYPE, "heap");
         Tags nonHeapTags = Tags.of(TAG_TYPE, "non_heap");
 
-        gaugeHandles.add(registry.createGauge(
-            JVM_MEMORY_USED, "JVM heap memory used", UNIT_BYTES,
-            () -> (double) jvmService.stats().getMem().getHeapUsed().getBytes(), heapTags
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_MEMORY_COMMITTED, "JVM heap memory committed", UNIT_BYTES,
-            () -> (double) jvmService.stats().getMem().getHeapCommitted().getBytes(), heapTags
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_MEMORY_LIMIT, "JVM heap memory max", UNIT_BYTES,
-            () -> (double) jvmService.stats().getMem().getHeapMax().getBytes(), heapTags
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_MEMORY_USED, "JVM non-heap memory used", UNIT_BYTES,
-            () -> (double) jvmService.stats().getMem().getNonHeapUsed().getBytes(), nonHeapTags
-        ));
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_MEMORY_USED,
+                "JVM heap memory used",
+                UNIT_BYTES,
+                () -> (double) jvmService.stats().getMem().getHeapUsed().getBytes(),
+                heapTags
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_MEMORY_COMMITTED,
+                "JVM heap memory committed",
+                UNIT_BYTES,
+                () -> (double) jvmService.stats().getMem().getHeapCommitted().getBytes(),
+                heapTags
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_MEMORY_LIMIT,
+                "JVM heap memory max",
+                UNIT_BYTES,
+                () -> (double) jvmService.stats().getMem().getHeapMax().getBytes(),
+                heapTags
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_MEMORY_USED,
+                "JVM non-heap memory used",
+                UNIT_BYTES,
+                () -> (double) jvmService.stats().getMem().getNonHeapUsed().getBytes(),
+                nonHeapTags
+            )
+        );
 
         // Per-pool gauges
         JvmStats stats = jvmService.stats();
         for (JvmStats.MemoryPool pool : stats.getMem()) {
             String poolName = pool.getName();
             Tags poolTags = Tags.of(TAG_POOL, poolName);
-            gaugeHandles.add(registry.createGauge(
-                JVM_MEMORY_USED, "JVM memory pool used", UNIT_BYTES,
-                () -> poolBytes(poolName, true), poolTags
-            ));
-            gaugeHandles.add(registry.createGauge(
-                JVM_MEMORY_LIMIT, "JVM memory pool max", UNIT_BYTES,
-                () -> poolBytes(poolName, false), poolTags
-            ));
+            gaugeHandles.add(
+                registry.createGauge(JVM_MEMORY_USED, "JVM memory pool used", UNIT_BYTES, () -> poolBytes(poolName, true), poolTags)
+            );
+            gaugeHandles.add(
+                registry.createGauge(JVM_MEMORY_LIMIT, "JVM memory pool max", UNIT_BYTES, () -> poolBytes(poolName, false), poolTags)
+            );
         }
     }
 
     private double poolBytes(String poolName, boolean used) {
         for (JvmStats.MemoryPool pool : jvmService.stats().getMem()) {
             if (pool.getName().equals(poolName)) {
-                return (double) (used ? pool.getUsed() : pool.getMax()).getBytes();
+                long bytes = (used ? pool.getUsed() : pool.getMax()).getBytes();
+                return bytes < 0 ? 0.0 : (double) bytes;
             }
         }
         return 0;
@@ -174,14 +203,18 @@ public class NodeRuntimeMetrics implements Closeable {
         for (JvmStats.GarbageCollector gc : stats.getGc()) {
             String collectorName = gc.getName();
             Tags gcTags = Tags.of(TAG_GC, collectorName);
-            gaugeHandles.add(registry.createGauge(
-                JVM_GC_DURATION, "GC cumulative collection time", UNIT_SECONDS,
-                () -> gcMetric(collectorName, false), gcTags
-            ));
-            gaugeHandles.add(registry.createGauge(
-                JVM_GC_COUNT, "GC collection count", UNIT_1,
-                () -> gcMetric(collectorName, true), gcTags
-            ));
+            gaugeHandles.add(
+                registry.createGauge(
+                    JVM_GC_DURATION,
+                    "GC cumulative collection time",
+                    UNIT_SECONDS,
+                    () -> gcMetric(collectorName, false),
+                    gcTags
+                )
+            );
+            gaugeHandles.add(
+                registry.createGauge(JVM_GC_COUNT, "GC collection count", UNIT_1, () -> gcMetric(collectorName, true), gcTags)
+            );
         }
     }
 
@@ -201,31 +234,54 @@ public class NodeRuntimeMetrics implements Closeable {
         for (JvmStats.BufferPool bp : stats.getBufferPools()) {
             String bpName = bp.getName();
             Tags bpTags = Tags.of(TAG_POOL, bpName);
-            gaugeHandles.add(registry.createGauge(
-                JVM_BUFFER_MEMORY_USED, "Buffer pool memory used", UNIT_BYTES,
-                () -> bufferPoolMetric(bpName, BufferPoolField.USED), bpTags
-            ));
-            gaugeHandles.add(registry.createGauge(
-                JVM_BUFFER_MEMORY_LIMIT, "Buffer pool total capacity", UNIT_BYTES,
-                () -> bufferPoolMetric(bpName, BufferPoolField.LIMIT), bpTags
-            ));
-            gaugeHandles.add(registry.createGauge(
-                JVM_BUFFER_COUNT, "Buffer pool buffer count", UNIT_1,
-                () -> bufferPoolMetric(bpName, BufferPoolField.COUNT), bpTags
-            ));
+            gaugeHandles.add(
+                registry.createGauge(
+                    JVM_BUFFER_MEMORY_USED,
+                    "Buffer pool memory used",
+                    UNIT_BYTES,
+                    () -> bufferPoolMetric(bpName, BufferPoolField.USED),
+                    bpTags
+                )
+            );
+            gaugeHandles.add(
+                registry.createGauge(
+                    JVM_BUFFER_MEMORY_LIMIT,
+                    "Buffer pool total capacity",
+                    UNIT_BYTES,
+                    () -> bufferPoolMetric(bpName, BufferPoolField.LIMIT),
+                    bpTags
+                )
+            );
+            gaugeHandles.add(
+                registry.createGauge(
+                    JVM_BUFFER_COUNT,
+                    "Buffer pool buffer count",
+                    UNIT_1,
+                    () -> bufferPoolMetric(bpName, BufferPoolField.COUNT),
+                    bpTags
+                )
+            );
         }
     }
 
-    private enum BufferPoolField { USED, LIMIT, COUNT }
+    private enum BufferPoolField {
+        USED,
+        LIMIT,
+        COUNT
+    }
 
     private double bufferPoolMetric(String bpName, BufferPoolField field) {
         for (JvmStats.BufferPool bp : jvmService.stats().getBufferPools()) {
             if (bp.getName().equals(bpName)) {
                 switch (field) {
-                    case USED: return (double) bp.getUsed().getBytes();
-                    case LIMIT: return (double) bp.getTotalCapacity().getBytes();
-                    case COUNT: return (double) bp.getCount();
-                    default: return 0;
+                    case USED:
+                        return (double) bp.getUsed().getBytes();
+                    case LIMIT:
+                        return (double) bp.getTotalCapacity().getBytes();
+                    case COUNT:
+                        return (double) bp.getCount();
+                    default:
+                        return 0;
                 }
             }
         }
@@ -235,18 +291,28 @@ public class NodeRuntimeMetrics implements Closeable {
     // ---- Threads ----
 
     private void registerThreadGauges(MetricsRegistry registry) {
-        gaugeHandles.add(registry.createGauge(
-            JVM_THREAD_COUNT, "JVM thread count", UNIT_1,
-            () -> (double) jvmService.stats().getThreads().getCount(), Tags.EMPTY
-        ));
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_THREAD_COUNT,
+                "JVM thread count",
+                UNIT_1,
+                () -> (double) jvmService.stats().getThreads().getCount(),
+                Tags.EMPTY
+            )
+        );
 
         for (Thread.State state : Thread.State.values()) {
             String stateName = state.name().toLowerCase(Locale.ROOT);
             Tags stateTags = Tags.of(TAG_STATE, stateName);
-            gaugeHandles.add(registry.createGauge(
-                JVM_THREAD_COUNT, "JVM threads in this state", UNIT_1,
-                () -> (double) getThreadStateCount(state), stateTags
-            ));
+            gaugeHandles.add(
+                registry.createGauge(
+                    JVM_THREAD_COUNT,
+                    "JVM threads in this state",
+                    UNIT_1,
+                    () -> (double) getThreadStateCount(state),
+                    stateTags
+                )
+            );
         }
     }
 
@@ -283,40 +349,74 @@ public class NodeRuntimeMetrics implements Closeable {
     // ---- Classes ----
 
     private void registerClassGauges(MetricsRegistry registry) {
-        gaugeHandles.add(registry.createGauge(
-            JVM_CLASS_COUNT, "Currently loaded class count", UNIT_1,
-            () -> (double) jvmService.stats().getClasses().getLoadedClassCount(), Tags.EMPTY
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_CLASS_LOADED, "Total loaded class count since JVM start", UNIT_1,
-            () -> (double) jvmService.stats().getClasses().getTotalLoadedClassCount(), Tags.EMPTY
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_CLASS_UNLOADED, "Total unloaded class count since JVM start", UNIT_1,
-            () -> (double) jvmService.stats().getClasses().getUnloadedClassCount(), Tags.EMPTY
-        ));
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_CLASS_COUNT,
+                "Currently loaded class count",
+                UNIT_1,
+                () -> (double) jvmService.stats().getClasses().getLoadedClassCount(),
+                Tags.EMPTY
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_CLASS_LOADED,
+                "Total loaded class count since JVM start",
+                UNIT_1,
+                () -> (double) jvmService.stats().getClasses().getTotalLoadedClassCount(),
+                Tags.EMPTY
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_CLASS_UNLOADED,
+                "Total unloaded class count since JVM start",
+                UNIT_1,
+                () -> (double) jvmService.stats().getClasses().getUnloadedClassCount(),
+                Tags.EMPTY
+            )
+        );
     }
 
     // ---- Uptime ----
 
     private void registerUptimeGauge(MetricsRegistry registry) {
-        gaugeHandles.add(registry.createGauge(
-            JVM_UPTIME, "JVM uptime", UNIT_SECONDS,
-            () -> jvmService.stats().getUptime().getMillis() / 1000.0, Tags.EMPTY
-        ));
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_UPTIME,
+                "JVM uptime",
+                UNIT_SECONDS,
+                () -> jvmService.stats().getUptime().getMillis() / 1000.0,
+                Tags.EMPTY
+            )
+        );
     }
 
     // ---- CPU ----
 
     private void registerCpuGauges(MetricsRegistry registry, ProcessProbe processProbe, OsProbe osProbe) {
-        gaugeHandles.add(registry.createGauge(
-            JVM_CPU_RECENT_UTILIZATION, "Recent JVM CPU utilization", UNIT_1,
-            () -> processProbe.getProcessCpuPercent() / 100.0, Tags.EMPTY
-        ));
-        gaugeHandles.add(registry.createGauge(
-            JVM_SYSTEM_CPU_UTILIZATION, "System CPU utilization", UNIT_1,
-            () -> osProbe.getSystemCpuPercent() / 100.0, Tags.EMPTY
-        ));
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_CPU_RECENT_UTILIZATION,
+                "Recent JVM CPU utilization",
+                UNIT_1,
+                () -> clampCpuPercent(processProbe.getProcessCpuPercent()),
+                Tags.EMPTY
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_SYSTEM_CPU_UTILIZATION,
+                "System CPU utilization",
+                UNIT_1,
+                () -> clampCpuPercent(osProbe.getSystemCpuPercent()),
+                Tags.EMPTY
+            )
+        );
+    }
+
+    private static double clampCpuPercent(short pct) {
+        return pct < 0 ? 0.0 : pct / 100.0;
     }
 
     @Override
@@ -324,6 +424,10 @@ public class NodeRuntimeMetrics implements Closeable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
+        closeQuietly();
+    }
+
+    private void closeQuietly() {
         for (Closeable handle : gaugeHandles) {
             try {
                 handle.close();

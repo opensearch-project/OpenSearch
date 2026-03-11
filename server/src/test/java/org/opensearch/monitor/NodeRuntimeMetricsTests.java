@@ -50,12 +50,11 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         osProbe = OsProbe.getInstance();
         createdHandles = new ArrayList<>();
 
-        when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), any(Tags.class)))
-            .thenAnswer(invocation -> {
-                Closeable handle = mock(Closeable.class);
-                createdHandles.add(handle);
-                return handle;
-            });
+        when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), any(Tags.class))).thenAnswer(invocation -> {
+            Closeable handle = mock(Closeable.class);
+            createdHandles.add(handle);
+            return handle;
+        });
     }
 
     public void testRegistersMemoryGauges() {
@@ -64,10 +63,34 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         Tags heapTags = Tags.of(NodeRuntimeMetrics.TAG_TYPE, "heap");
         Tags nonHeapTags = Tags.of(NodeRuntimeMetrics.TAG_TYPE, "non_heap");
 
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_USED), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(heapTags));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_COMMITTED), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(heapTags));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_LIMIT), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(heapTags));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_USED), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(nonHeapTags));
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_MEMORY_USED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_BYTES),
+            any(),
+            eq(heapTags)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_MEMORY_COMMITTED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_BYTES),
+            any(),
+            eq(heapTags)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_MEMORY_LIMIT),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_BYTES),
+            any(),
+            eq(heapTags)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_MEMORY_USED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_BYTES),
+            any(),
+            eq(nonHeapTags)
+        );
     }
 
     public void testRegistersMemoryPoolGauges() {
@@ -76,8 +99,20 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         JvmStats stats = jvmService.stats();
         for (JvmStats.MemoryPool pool : stats.getMem()) {
             Tags expectedTags = Tags.of(NodeRuntimeMetrics.TAG_POOL, pool.getName());
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_USED), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(expectedTags));
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_MEMORY_LIMIT), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(expectedTags));
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_MEMORY_USED),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_BYTES),
+                any(),
+                eq(expectedTags)
+            );
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_MEMORY_LIMIT),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_BYTES),
+                any(),
+                eq(expectedTags)
+            );
         }
     }
 
@@ -87,8 +122,20 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         JvmStats stats = jvmService.stats();
         for (JvmStats.GarbageCollector gc : stats.getGc()) {
             Tags expectedTags = Tags.of(NodeRuntimeMetrics.TAG_GC, gc.getName());
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_GC_DURATION), anyString(), eq(NodeRuntimeMetrics.UNIT_SECONDS), any(), eq(expectedTags));
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_GC_COUNT), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(expectedTags));
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_GC_DURATION),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_SECONDS),
+                any(),
+                eq(expectedTags)
+            );
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_GC_COUNT),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_1),
+                any(),
+                eq(expectedTags)
+            );
         }
     }
 
@@ -98,42 +145,108 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         JvmStats stats = jvmService.stats();
         for (JvmStats.BufferPool bp : stats.getBufferPools()) {
             Tags expectedTags = Tags.of(NodeRuntimeMetrics.TAG_POOL, bp.getName());
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_USED), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(expectedTags));
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_LIMIT), anyString(), eq(NodeRuntimeMetrics.UNIT_BYTES), any(), eq(expectedTags));
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_BUFFER_COUNT), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(expectedTags));
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_USED),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_BYTES),
+                any(),
+                eq(expectedTags)
+            );
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_LIMIT),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_BYTES),
+                any(),
+                eq(expectedTags)
+            );
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_BUFFER_COUNT),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_1),
+                any(),
+                eq(expectedTags)
+            );
         }
     }
 
     public void testRegistersThreadGauges() {
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_THREAD_COUNT), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_THREAD_COUNT),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
 
         for (Thread.State state : Thread.State.values()) {
             Tags expectedTags = Tags.of(NodeRuntimeMetrics.TAG_STATE, state.name().toLowerCase(Locale.ROOT));
-            verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_THREAD_COUNT), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(expectedTags));
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_THREAD_COUNT),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_1),
+                any(),
+                eq(expectedTags)
+            );
         }
     }
 
     public void testRegistersClassGauges() {
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_COUNT), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_LOADED), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_UNLOADED), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_CLASS_COUNT),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_CLASS_LOADED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_CLASS_UNLOADED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
     }
 
     public void testRegistersUptimeGauge() {
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_UPTIME), anyString(), eq(NodeRuntimeMetrics.UNIT_SECONDS), any(), eq(Tags.EMPTY));
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_UPTIME),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_SECONDS),
+            any(),
+            eq(Tags.EMPTY)
+        );
     }
 
     public void testRegistersCpuGauges() {
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_CPU_RECENT_UTILIZATION), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
-        verify(registry).createGauge(eq(NodeRuntimeMetrics.JVM_SYSTEM_CPU_UTILIZATION), anyString(), eq(NodeRuntimeMetrics.UNIT_1), any(), eq(Tags.EMPTY));
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_CPU_RECENT_UTILIZATION),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_SYSTEM_CPU_UTILIZATION),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_1),
+            any(),
+            eq(Tags.EMPTY)
+        );
     }
 
     public void testTotalGaugeCount() {
@@ -141,7 +254,8 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
 
         JvmStats stats = jvmService.stats();
         int memoryPools = 0;
-        for (JvmStats.MemoryPool ignored : stats.getMem()) memoryPools++;
+        for (JvmStats.MemoryPool ignored : stats.getMem())
+            memoryPools++;
         int gcCollectors = stats.getGc().getCollectors().length;
         int bufferPools = stats.getBufferPools().size();
 
@@ -154,8 +268,13 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
             + 1                                     // uptime
             + 2;                                    // CPU
 
-        verify(registry, org.mockito.Mockito.times(expected))
-            .createGauge(anyString(), anyString(), anyString(), any(Supplier.class), any(Tags.class));
+        verify(registry, org.mockito.Mockito.times(expected)).createGauge(
+            anyString(),
+            anyString(),
+            anyString(),
+            any(Supplier.class),
+            any(Tags.class)
+        );
     }
 
     public void testCloseClosesAllHandles() throws Exception {
@@ -245,11 +364,18 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testGcDurationInSeconds() {
         final Supplier<Double>[] captured = new Supplier[1];
-        when(registry.createGauge(eq(NodeRuntimeMetrics.JVM_GC_DURATION), anyString(), eq(NodeRuntimeMetrics.UNIT_SECONDS), any(Supplier.class), any(Tags.class)))
-            .thenAnswer(invocation -> {
-                captured[0] = invocation.getArgument(3);
-                return mock(Closeable.class);
-            });
+        when(
+            registry.createGauge(
+                eq(NodeRuntimeMetrics.JVM_GC_DURATION),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_SECONDS),
+                any(Supplier.class),
+                any(Tags.class)
+            )
+        ).thenAnswer(invocation -> {
+            captured[0] = invocation.getArgument(3);
+            return mock(Closeable.class);
+        });
 
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
@@ -262,11 +388,18 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     public void testCpuUtilizationIsRatio() {
         final Supplier<Double>[] captured = new Supplier[1];
-        when(registry.createGauge(eq(NodeRuntimeMetrics.JVM_CPU_RECENT_UTILIZATION), anyString(), anyString(), any(Supplier.class), any(Tags.class)))
-            .thenAnswer(invocation -> {
-                captured[0] = invocation.getArgument(3);
-                return mock(Closeable.class);
-            });
+        when(
+            registry.createGauge(
+                eq(NodeRuntimeMetrics.JVM_CPU_RECENT_UTILIZATION),
+                anyString(),
+                anyString(),
+                any(Supplier.class),
+                any(Tags.class)
+            )
+        ).thenAnswer(invocation -> {
+            captured[0] = invocation.getArgument(3);
+            return mock(Closeable.class);
+        });
 
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
@@ -279,15 +412,72 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
     public void testDynamicPoolDiscovery() {
         JvmStats stats = jvmService.stats();
         int poolCount = 0;
-        for (JvmStats.MemoryPool ignored : stats.getMem()) poolCount++;
+        for (JvmStats.MemoryPool ignored : stats.getMem())
+            poolCount++;
 
         assertTrue("JVM should have at least one memory pool", poolCount > 0);
 
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
         verify(registry, atLeastOnce()).createGauge(
-            eq(NodeRuntimeMetrics.JVM_MEMORY_USED), anyString(), anyString(), any(), any(Tags.class)
+            eq(NodeRuntimeMetrics.JVM_MEMORY_USED),
+            anyString(),
+            anyString(),
+            any(),
+            any(Tags.class)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCpuGuardAgainstNegativeValues() {
+        ProcessProbe negativeCpuProbe = mock(ProcessProbe.class);
+        when(negativeCpuProbe.getProcessCpuPercent()).thenReturn((short) -1);
+        OsProbe negativeOsProbe = mock(OsProbe.class);
+        when(negativeOsProbe.getSystemCpuPercent()).thenReturn((short) -1);
+
+        final Supplier<Double>[] processCpu = new Supplier[1];
+        final Supplier<Double>[] systemCpu = new Supplier[1];
+        when(
+            registry.createGauge(
+                eq(NodeRuntimeMetrics.JVM_CPU_RECENT_UTILIZATION),
+                anyString(),
+                anyString(),
+                any(Supplier.class),
+                any(Tags.class)
+            )
+        ).thenAnswer(invocation -> {
+            processCpu[0] = invocation.getArgument(3);
+            return mock(Closeable.class);
+        });
+        when(
+            registry.createGauge(
+                eq(NodeRuntimeMetrics.JVM_SYSTEM_CPU_UTILIZATION),
+                anyString(),
+                anyString(),
+                any(Supplier.class),
+                any(Tags.class)
+            )
+        ).thenAnswer(invocation -> {
+            systemCpu[0] = invocation.getArgument(3);
+            return mock(Closeable.class);
+        });
+
+        new NodeRuntimeMetrics(registry, jvmService, negativeCpuProbe, negativeOsProbe);
+
+        assertNotNull(processCpu[0]);
+        assertNotNull(systemCpu[0]);
+        assertEquals(0.0, processCpu[0].get(), 0.0);
+        assertEquals(0.0, systemCpu[0].get(), 0.0);
+    }
+
+    public void testConstructorCleansUpOnFailure() {
+        MetricsRegistry failingRegistry = mock(MetricsRegistry.class);
+        Closeable successHandle = mock(Closeable.class);
+        when(failingRegistry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), any(Tags.class))).thenReturn(
+            successHandle
+        ).thenReturn(successHandle).thenThrow(new RuntimeException("registration failure"));
+
+        expectThrows(RuntimeException.class, () -> new NodeRuntimeMetrics(failingRegistry, jvmService, processProbe, osProbe));
     }
 
     public void testDynamicBufferPoolDiscovery() {
@@ -299,7 +489,11 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
 
         verify(registry, atLeastOnce()).createGauge(
-            eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_USED), anyString(), anyString(), any(), any(Tags.class)
+            eq(NodeRuntimeMetrics.JVM_BUFFER_MEMORY_USED),
+            anyString(),
+            anyString(),
+            any(),
+            any(Tags.class)
         );
     }
 }
