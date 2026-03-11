@@ -16,6 +16,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
@@ -133,7 +134,6 @@ public class DefaultStreamPoller implements StreamPoller {
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
             IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
-            IngestionMessageMapper.create(mapperType.getName(), shardId),
             warmupConfig
         );
     }
@@ -238,7 +238,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
                 // Check warmup status if not yet complete
                 if (!warmupComplete && warmupConfig.isEnabled()) {
-                    checkWarmupStatus();
+                    updateWarmupStatus();
                 }
 
                 if (paused || isWriteBlockEnabled) {
@@ -446,7 +446,7 @@ public class DefaultStreamPoller implements StreamPoller {
      * Note: cachedPointerBasedLag is 0 by default and is only updated after updatePointerBasedLagIfNeeded()
      * is called.
      */
-    private void checkWarmupStatus() {
+    private void updateWarmupStatus() {
         // Skip warmup if poller is paused
         if (paused) {
             warmupComplete = true;
@@ -740,7 +740,12 @@ public class DefaultStreamPoller implements StreamPoller {
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
         // Warmup configuration - default matches IndexMetadata settings
-        private IngestionSource.WarmupConfig warmupConfig = IngestionSource.WarmupConfig.DEFAULT;
+        private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
+            false,
+            TimeValue.timeValueMinutes(5),
+            100L,
+            false
+        );
 
         /**
          * Initialize the builder with mandatory parameters

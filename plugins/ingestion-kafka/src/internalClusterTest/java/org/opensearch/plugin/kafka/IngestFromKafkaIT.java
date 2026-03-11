@@ -1350,6 +1350,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && "diana".equals(docs.get("jkl").get("name"))
                 && !docs.get("jkl").containsKey("expired");
         });
+    }
 
     public void testWarmupPhase() throws Exception {
         // Step 1: Publish 10 messages before creating the index
@@ -1388,8 +1389,12 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
         });
 
-        // Step 5: Validate all 10 documents are searchable
-        waitForSearchableDocs(10, List.of(nodeA));
+        // Step 5: Validate all 10 documents are searchable after warmup
+        // Refresh to make all docs visible, then assert directly (not waitForSearchableDocs)
+        // since all 10 docs should already be indexed during the warmup phase
+        client(nodeA).admin().indices().prepareRefresh(indexName).get();
+        long docCount = client(nodeA).prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
+        assertEquals("All 10 documents should be searchable immediately after warmup completes", 10L, docCount);
 
         // Step 6: Verify stats
         PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
