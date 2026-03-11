@@ -119,7 +119,7 @@ public final class AnalysisModule {
         );
     }
 
-    HunspellService getHunspellService() {
+    public HunspellService getHunspellService() {
         return hunspellService;
     }
 
