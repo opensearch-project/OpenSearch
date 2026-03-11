@@ -8,14 +8,20 @@
 
 package org.opensearch.wlm.listeners;
 
+import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchRequestContext;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.ResourceType;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -48,6 +54,8 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
     Map<String, WorkloadGroupState> workloadGroupStateMap;
     String testWorkloadGroupId;
     WorkloadGroupRequestOperationListener sut;
+    SearchRequestContext mockSearchRequestContext;
+    SearchRequest mockSearchRequest;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -63,6 +71,9 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         when(mockClusterState.metadata()).thenReturn(mockMetaData);
         workloadGroupService = mock(WorkloadGroupService.class);
         sut = new WorkloadGroupRequestOperationListener(workloadGroupService, testThreadPool);
+        mockSearchRequest = new SearchRequest();
+        mockSearchRequestContext = mock(SearchRequestContext.class);
+        when(mockSearchRequestContext.getRequest()).thenReturn(mockSearchRequest);
     }
 
     public void tearDown() throws Exception {
@@ -74,7 +85,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         final String testWorkloadGroupId = "asdgasgkajgkw3141_3rt4t";
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
         doThrow(OpenSearchRejectedExecutionException.class).when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
-        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(null));
+        assertThrows(OpenSearchRejectedExecutionException.class, () -> sut.onRequestStart(mockSearchRequestContext));
     }
 
     public void testNonRejectionCase() {
@@ -82,7 +93,7 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, testWorkloadGroupId);
         doNothing().when(workloadGroupService).rejectIfNeeded(testWorkloadGroupId);
 
-        sut.onRequestStart(null);
+        sut.onRequestStart(mockSearchRequestContext);
     }
 
     public void testValidWorkloadGroupRequestFailure() throws IOException {
@@ -272,5 +283,90 @@ public class WorkloadGroupRequestOperationListenerTests extends OpenSearchTestCa
         when(mockClusterService.state()).thenReturn(state);
         when(state.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
+    }
+
+    // Tests for applyWorkloadGroupSearchSettings
+
+    public void testApplySearchSettings_NullWorkloadGroupId() {
+        // No workload group ID in thread context
+        sut.onRequestStart(mockSearchRequestContext);
+
+        // Request should remain unchanged - source is null, no timeout set
+        assertNull(mockSearchRequest.source());
+    }
+
+    public void testApplySearchSettings_WorkloadGroupNotFound() {
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "non-existent-id");
+        when(workloadGroupService.getWorkloadGroupById("non-existent-id")).thenReturn(null);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertNull(mockSearchRequest.source());
+    }
+
+    public void testApplySearchSettings_EmptySearchSettings() {
+        mockSearchRequest.source(new SearchSourceBuilder());
+
+        String wgId = "test-wg";
+        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of());
+        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertNull(mockSearchRequest.source().timeout()); // No settings applied
+    }
+
+    public void testApplySearchSettings_Timeout_WlmAppliedWhenNull() {
+        mockSearchRequest.source(new SearchSourceBuilder());
+        assertNull(mockSearchRequest.source().timeout());
+
+        String wgId = "test-wg";
+        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "1m"));
+        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertEquals(TimeValue.timeValueMinutes(1), mockSearchRequest.source().timeout());
+    }
+
+    public void testApplySearchSettings_Timeout_RequestAlreadySet() {
+        mockSearchRequest.source(new SearchSourceBuilder().timeout(TimeValue.timeValueSeconds(30)));
+
+        String wgId = "test-wg";
+        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "10s"));
+        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertEquals(TimeValue.timeValueSeconds(30), mockSearchRequest.source().timeout()); // Request value preserved
+    }
+
+    public void testApplySearchSettings_Timeout_NullSource() {
+        assertNull(mockSearchRequest.source());
+
+        String wgId = "test-wg";
+        WorkloadGroup wg = createWorkloadGroup(wgId, Map.of("timeout", "30s"));
+        when(workloadGroupService.getWorkloadGroupById(wgId)).thenReturn(wg);
+        testThreadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, wgId);
+
+        sut.onRequestStart(mockSearchRequestContext);
+
+        assertNull(mockSearchRequest.source()); // Should not throw, source remains null
+    }
+
+    private WorkloadGroup createWorkloadGroup(String id, Map<String, String> searchSettings) {
+        return new WorkloadGroup(
+            "test-name",
+            id,
+            new MutableWorkloadGroupFragment(
+                MutableWorkloadGroupFragment.ResiliencyMode.SOFT,
+                Map.of(ResourceType.MEMORY, 0.5),
+                searchSettings
+            ),
+            System.currentTimeMillis()
+        );
     }
 }
