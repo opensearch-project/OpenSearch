@@ -253,7 +253,7 @@ jobs:
           CURRENT="$(bash build-scripts/product_version.sh)"
           PREVIOUS=$(curl -s https://api.github.com/repos/wazuh/wazuh-indexer/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | grep -E '^4\.[0-9]+\.[0-9]+$' | \
           grep -v "^${CURRENT}$" | sort -V | awk -v current="$CURRENT" '$0 < current' | tail -n1)
-          
+
           echo "Current version: $CURRENT"
           echo "Latest release detected: $PREVIOUS"
           echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
@@ -431,7 +431,9 @@ jobs:
 
   build:
     needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, build-wazuh-engine]
-    runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
+    runs-on:
+      group: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'wz-linux-amd64' }}
+      labels: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64-2' || 'wz-linux-amd64' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -455,7 +457,7 @@ jobs:
           pattern: wazuh-engine-*-linux-${{ matrix.architecture == 'x64' && 'amd64' || 'arm64' }}
           merge-multiple: true
           path: ./artifacts/engine
-      
+
       - name: Display structure of downloaded files
         run: ls -lR ./artifacts/
 
@@ -468,7 +470,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Provision
-        if: ${{ matrix.distribution == 'deb' }}
         run: |
           sudo bash build-scripts/provision.sh
 

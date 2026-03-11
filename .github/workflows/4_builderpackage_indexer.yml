@@ -123,7 +123,9 @@ jobs:
 
   build:
     needs: [setup]
-    runs-on: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'ubuntu-24.04' }}
+    runs-on:
+      group: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'wz-linux-amd64' }}
+      labels: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64-2' || 'wz-linux-amd64' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -138,7 +140,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Provision
-        if: ${{ matrix.distribution == 'deb' }}
         run: |
           sudo bash packaging_scripts/provision.sh
 
@@ -200,9 +201,9 @@ jobs:
         run: |
           bash packaging_scripts/rpm_setup_environment.sh ${{ matrix.architecture }} ${{ github.run_id }}
 
-          ansible_host=$(grep 'ansible_host:' /tmp/inventory.yaml | sed 's/.*: *//') 
-          ansible_port=$(grep 'ansible_port:' /tmp/inventory.yaml | sed 's/.*: *//') 
-          ansible_user=$(grep 'ansible_user:' /tmp/inventory.yaml | sed 's/.*: *//') 
+          ansible_host=$(grep 'ansible_host:' /tmp/inventory.yaml | sed 's/.*: *//')
+          ansible_port=$(grep 'ansible_port:' /tmp/inventory.yaml | sed 's/.*: *//')
+          ansible_user=$(grep 'ansible_user:' /tmp/inventory.yaml | sed 's/.*: *//')
           ansible_ssh_private_key_file=$(grep 'ansible_ssh_private_key_file:' /tmp/inventory.yaml | sed 's/.*: *//')
           ssh_command="ssh -o StrictHostKeyChecking=no -i $ansible_ssh_private_key_file -p $ansible_port $ansible_user@$ansible_host"
           scp_command="scp -o StrictHostKeyChecking=no -i $ansible_ssh_private_key_file -P $ansible_port"
@@ -221,7 +222,7 @@ jobs:
           # This step sends the package to the Allocator machine and installs it
 
           # echo "hello" is needed to create the SSH connection
-          ${{ steps.setup_rpm_env.outputs.ssh_command }} 'echo "hello"' 
+          ${{ steps.setup_rpm_env.outputs.ssh_command }} 'echo "hello"'
           ${{ steps.setup_rpm_env.outputs.scp_command }} artifacts/dist/${{ steps.package.outputs.name }} ${{ steps.setup_rpm_env.outputs.ansible_user }}@${{ steps.setup_rpm_env.outputs.ansible_host }}:/home/${{ steps.setup_rpm_env.outputs.ansible_user }}/
           ${{ steps.setup_rpm_env.outputs.ssh_command }} 'sudo yum localinstall -y /home/${{ steps.setup_rpm_env.outputs.ansible_user }}/${{ steps.package.outputs.name }}'
 
