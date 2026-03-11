@@ -39,8 +39,8 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
     public void testResolvePhysicalShardIdWithOverrides() {
         int numPhysicalShards = 5;
         Map<String, String> overrides = new HashMap<>();
-        overrides.put("7", "1"); // mapped out of standard routing
-        overrides.put("8", "2"); // mapped out of standard routing
+        overrides.put("7", "1");
+        overrides.put("8", "2");
 
         IndexMetadata.Builder builder = IndexMetadata.builder("test")
             .settings(
@@ -57,7 +57,6 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
         assertEquals(1, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 7));
         assertEquals(2, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 8));
 
-        // Default falls back to range-based formula (20 / 5 = 4 vshards per pshard)
         assertEquals(0, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 0));
         assertEquals(2, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 9));
     }
@@ -81,19 +80,14 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
 
         IndexMetadata metadata = builder.build();
 
-        // Standard range-based routing expects 4 vshards per physical shard
-        // vShard 7 -> 7 / 4 = 1
         assertEquals(1, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 7));
-        // vShard 8 -> 8 / 4 = 2
         assertEquals(2, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 8));
-        // vShard 19 -> 19 / 4 = 4
         assertEquals(4, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 19));
     }
 
     public void testResolvePhysicalShardIdInvalidConfigurations() {
         int numPhysicalShards = 5;
 
-        // Disabled virtual shards
         IndexMetadata metadataDisabled = org.mockito.Mockito.mock(IndexMetadata.class);
         org.mockito.Mockito.when(metadataDisabled.getNumberOfVirtualShards()).thenReturn(-1);
         org.mockito.Mockito.when(metadataDisabled.getNumberOfShards()).thenReturn(numPhysicalShards);
@@ -104,7 +98,6 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
         );
         assertTrue(e1.getMessage().contains("must be enabled and be a multiple"));
 
-        // Invalid multiple
         IndexMetadata metadataInvalid = org.mockito.Mockito.mock(IndexMetadata.class);
         org.mockito.Mockito.when(metadataInvalid.getNumberOfVirtualShards()).thenReturn(13);
         org.mockito.Mockito.when(metadataInvalid.getNumberOfShards()).thenReturn(numPhysicalShards);
@@ -114,5 +107,17 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
             () -> VirtualShardRoutingHelper.resolvePhysicalShardId(metadataInvalid, 0)
         );
         assertTrue(e2.getMessage().contains("must be enabled and be a multiple"));
+    }
+
+    public void testResolvePhysicalShardIdOutOfBoundsNormalization() {
+        int numPhysicalShards = 5;
+        IndexMetadata metadata = org.mockito.Mockito.mock(IndexMetadata.class);
+        org.mockito.Mockito.when(metadata.getNumberOfVirtualShards()).thenReturn(20);
+        org.mockito.Mockito.when(metadata.getNumberOfShards()).thenReturn(numPhysicalShards);
+
+        assertEquals(4, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, -1));
+
+        assertEquals(0, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 20));
+        assertEquals(1, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 25));
     }
 }
