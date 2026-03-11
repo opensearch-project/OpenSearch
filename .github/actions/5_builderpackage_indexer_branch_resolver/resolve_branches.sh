@@ -7,12 +7,14 @@ REPOS=(
     "wazuh-indexer-plugins"
     "wazuh-indexer-reporting"
     "wazuh-indexer-security-analytics"
+    "wazuh-indexer-notifications"
     "wazuh"
 )
 REPO_URLS=(
     "https://github.com/wazuh/wazuh-indexer-plugins.git"
     "https://github.com/wazuh/wazuh-indexer-reporting.git"
     "https://github.com/wazuh/wazuh-indexer-security-analytics.git"
+    "https://github.com/wazuh/wazuh-indexer-notifications.git"
     "https://github.com/wazuh/wazuh.git"
 )
 

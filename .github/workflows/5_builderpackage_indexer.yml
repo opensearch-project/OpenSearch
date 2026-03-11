@@ -123,6 +123,7 @@ jobs:
       wazuh_plugins_ref: ${{ steps.branches.outputs.wazuh_indexer_plugins_branch }}
       reporting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_reporting_branch }}
       security_analytics_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_security_analytics_branch }}
+      notifications_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_notifications_branch }}
       wazuh_ref: ${{ steps.branches.outputs.wazuh_branch }}
     steps:
       - uses: actions/checkout@v6
@@ -213,17 +214,38 @@ jobs:
             opensearch_version=$(bash tools/opensearch_version.sh)
             echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
 
+  get-versions-wazuh-indexer-notifications:
+    needs: [branches]
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.notifications_version.outputs.version }}
+      opensearch_version: ${{ steps.notifications_version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wazuh/wazuh-indexer-notifications
+          ref: ${{ needs.branches.outputs.notifications_plugin_ref }}
+
+      - name: Read versions from wazuh-indexer-notifications
+        id: notifications_version
+        run: |
+           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+
+            # Extracts the Opensearch version
+            opensearch_version=$(bash tools/opensearch_version.sh)
+            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+
   compatibility-check:
     runs-on: ubuntu-24.04
-    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins,  get-versions-wazuh-indexer-reporting, get-versions-wazuh-indexer-security-analytics]
+    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins, get-versions-wazuh-indexer-reporting, get-versions-wazuh-indexer-security-analytics, get-versions-wazuh-indexer-notifications]
     steps:
       - name: Check version compatibility
         run: |
-          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}") ]]; then
-            echo "The Wazuh Indexer version is not compatible with the plugins, reporting, or security analytics version."
+          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-notifications.outputs.version }}") ]]; then
+            echo "The Wazuh Indexer version is not compatible with the plugins, reporting, security analytics, or notifications version."
             exit 1
-          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.opensearch_version }}") ]]; then
-            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins, reporting, or security analytics Opensearch version."
+          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-notifications.outputs.opensearch_version }}") ]]; then
+            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins, reporting, security analytics, or notifications Opensearch version."
             exit 1
           else
             echo "The Wazuh Indexer version and the plugins version are compatible."
@@ -429,8 +451,58 @@ jobs:
           path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           if-no-files-found: error
 
+  build-notifications-plugin:
+    needs: [compatibility-check, branches]
+    if: ${{ needs.branches.outputs.notifications_plugin_ref != '' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      hash: ${{ steps.save-hash.outputs.hash }}
+    env:
+      plugin_name: wazuh-indexer-notifications
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wazuh/wazuh-indexer-notifications
+          ref: ${{ needs.branches.outputs.notifications_plugin_ref }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Setup Gradle # Used for caching
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Build with Gradle
+        working-directory: ./notifications
+        run: ./gradlew build -Dversion=${{ steps.version.outputs.version }} -Dbuild.revision=${{ inputs.revision }}
+
+      - run: ls -lR notifications/notifications/build/distributions notifications/core/build/distributions
+
+      - name: Save commit hash
+        id: save-hash
+        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload notifications artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          path: notifications/notifications/build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          if-no-files-found: error
+
+      - name: Upload notifications-core artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.plugin_name }}-core-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          path: notifications/core/build/distributions/${{ env.plugin_name }}-core-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
+          if-no-files-found: error
+
   build:
-    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, build-wazuh-engine]
+    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, build-notifications-plugin, build-wazuh-engine]
     runs-on:
       group: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'wz-linux-amd64' }}
       labels: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64-2' || 'wz-linux-amd64' }}
@@ -482,6 +554,7 @@ jobs:
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
             -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -496,6 +569,7 @@ jobs:
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
             -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
           echo "name=$name" >> $GITHUB_OUTPUT
@@ -517,6 +591,7 @@ jobs:
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
             -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             -o ${{ github.workspace }}/artifacts
 
       - name: Test RPM package installation

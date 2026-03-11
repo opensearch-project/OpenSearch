@@ -31,8 +31,6 @@ else
         "opensearch-knn"
         "opensearch-ml-plugin" # "opensearch-ml"
         "neural-search"        # "opensearch-neural-search"
-        "opensearch-notifications-core"
-        "notifications" # "opensearch-notifications". Requires "opensearch-notifications-core"
         "opensearch-observability"
         "opensearch-security"
         "opensearch-sql-plugin" # "opensearch-sql"
@@ -42,6 +40,8 @@ else
         "wazuh-indexer-security-analytics" # Flagged as Trojan by some antivirus software
         "wazuh-indexer-content-manager"
         "wazuh-indexer-reports-scheduler"
+        "wazuh-indexer-notifications-core"
+        "wazuh-indexer-notifications"
     )
 fi
 
@@ -59,6 +59,7 @@ function usage() {
     echo -e "-l PLUGINS_HASH\t[Optional] wazuh-indexer-plugins commit hash, default is '0'."
     echo -e "-e REPORTING_HASH\t[Optional] wazuh-indexer-reporting commit hash, default is '0'."
     echo -e "-s SECURITY_HASH\t[Optional] wazuh-indexer-security-analytics commit hash, default is '0'."
+    echo -e "-n NOTIFICATIONS_HASH\t[Optional] wazuh-indexer-notifications commit hash, default is '0'."
     echo -e "-o OUTPUT\t[Optional] Output path, default is 'artifacts'."
     echo -e "-h help"
 }
@@ -68,7 +69,7 @@ function usage() {
 # ====
 function parse_args() {
 
-    while getopts ":ho:p:a:d:r:l:e:s:" arg; do
+    while getopts ":ho:p:a:d:r:l:e:s:n:" arg; do
         case $arg in
         h)
             usage
@@ -98,6 +99,9 @@ function parse_args() {
         s)
             SECURITY_HASH=$OPTARG
             ;;
+        n)
+            NOTIFICATIONS_HASH=$OPTARG
+            ;;
         :)
             echo "Error: -${OPTARG} requires an argument"
             usage
@@ -122,6 +126,7 @@ function parse_args() {
     [ -z "$PLUGINS_HASH" ] && PLUGINS_HASH="0"
     [ -z "$REPORTING_HASH" ] && REPORTING_HASH="0"
     [ -z "$SECURITY_HASH" ] && SECURITY_HASH="0"
+    [ -z "$NOTIFICATIONS_HASH" ] && NOTIFICATIONS_HASH="0"
 
     case $PLATFORM-$DISTRIBUTION-$ARCHITECTURE in
     linux-tar-x64 | darwin-tar-x64)
@@ -317,7 +322,7 @@ function generate_installer_version_file() {
     local dir
     dir="${1}"
     jq \
-      --arg commit "${INDEXER_HASH}-${PLUGINS_HASH}-${REPORTING_HASH}-${SECURITY_HASH}" \
+      --arg commit "${INDEXER_HASH}-${PLUGINS_HASH}-${REPORTING_HASH}-${SECURITY_HASH}-${NOTIFICATIONS_HASH}" \
       '. + {"commit": $commit}' \
       "${REPO_PATH}"/VERSION.json > "${dir}"/VERSION.json
 }
