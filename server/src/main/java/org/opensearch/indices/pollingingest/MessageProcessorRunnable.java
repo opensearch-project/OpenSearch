@@ -109,7 +109,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy,
-        @Nullable IngestService ingestService
+        IngestService ingestService
     ) {
         this(
             blockingQueue,
@@ -145,7 +145,6 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     static class MessageProcessor {
         private final IngestionEngine engine;
         private final String index;
-        @Nullable
         private final IngestService ingestService;
 
         // TODO: consider making this configurable via index settings if use cases with slow processors arise
@@ -159,7 +158,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             this(engine, null);
         }
 
-        MessageProcessor(IngestionEngine engine, @Nullable IngestService ingestService) {
+        MessageProcessor(IngestionEngine engine, IngestService ingestService) {
             this(engine, engine.config().getIndexSettings().getIndex().getName(), ingestService);
         }
 
@@ -169,7 +168,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
          * @param index the index name
          * @param ingestService the ingest service for pipeline execution
          */
-        MessageProcessor(IngestionEngine engine, String index, @Nullable IngestService ingestService) {
+        MessageProcessor(IngestionEngine engine, String index, IngestService ingestService) {
             this.engine = engine;
             this.index = index;
             this.ingestService = ingestService;
@@ -224,7 +223,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
          */
         @SuppressWarnings("unchecked")
         private Map<String, Object> executePipelines(String id, Map<String, Object> sourceMap) throws Exception {
-            if (ingestService == null || !hasPipelines()) {
+            if (!hasPipelines()) {
                 return sourceMap;
             }
 

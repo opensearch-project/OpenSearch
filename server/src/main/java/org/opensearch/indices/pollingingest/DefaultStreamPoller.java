@@ -109,7 +109,7 @@ public class DefaultStreamPoller implements StreamPoller {
         long pointerBasedLagUpdateIntervalMs,
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
-        @Nullable IngestService ingestService
+        IngestService ingestService
     ) {
         this(
             startPointer,
@@ -729,7 +729,7 @@ public class DefaultStreamPoller implements StreamPoller {
         /**
          * Set ingest service for pipeline execution
          */
-        public Builder ingestService(@Nullable IngestService ingestService) {
+        public Builder ingestService(IngestService ingestService) {
             this.ingestService = ingestService;
             return this;
         }

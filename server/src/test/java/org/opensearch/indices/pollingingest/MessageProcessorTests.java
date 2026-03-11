@@ -60,7 +60,15 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index", null);
+        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index", mock(IngestService.class));
+        // Pre-set pipeline resolution state to avoid lazy resolution calling engine.config()
+        markPipelinesResolved(processor);
+    }
+
+    private void markPipelinesResolved(MessageProcessorRunnable.MessageProcessor proc) throws Exception {
+        java.lang.reflect.Field field = MessageProcessorRunnable.MessageProcessor.class.getDeclaredField("pipelinesResolved");
+        field.setAccessible(true);
+        field.set(proc, true);
     }
 
     public void testGetIndexOperation() throws IOException {
@@ -384,25 +392,6 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         // IngestService should NOT be called when no pipelines configured
         verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
-    }
-
-    public void testProcessWithNullIngestService() throws IOException {
-        // null IngestService — backward compatibility
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index", null);
-
-        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
-        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
-
-        ParsedDocument parsedDocument = mock(ParsedDocument.class);
-        when(documentMapper.parse(any())).thenReturn(parsedDocument);
-        when(parsedDocument.rootDoc()).thenReturn(new ParseContext.Document());
-
-        MessageProcessorRunnable.MessageOperation operation = processor.getOperation(
-            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
-            MessageProcessorRunnable.MessageProcessorMetrics.create()
-        );
-
-        assertTrue(operation.engineOperation() instanceof Engine.Index);
     }
 
     public void testPipelineDropsDocument() throws Exception {

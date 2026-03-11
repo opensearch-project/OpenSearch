@@ -10,7 +10,6 @@ package org.opensearch.indices.pollingingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.Nullable;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
@@ -52,7 +51,7 @@ public class PartitionedBlockingQueueContainer {
         IngestionEngine ingestionEngine,
         IngestionErrorStrategy errorStrategy,
         int blockingQueueSize,
-        @Nullable IngestService ingestService
+        IngestService ingestService
     ) {
         assert numPartitions > 0 : "Number of processor threads / partitions must be greater than 0";
         partitionToQueueMap = new ConcurrentHashMap<>();
