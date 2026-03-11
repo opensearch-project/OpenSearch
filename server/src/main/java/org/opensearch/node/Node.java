@@ -199,6 +199,9 @@ import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.NodeRuntimeMetrics;
+import org.opensearch.monitor.os.OsProbe;
+import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.fs.FsServiceProvider;
@@ -1034,6 +1037,14 @@ public class Node implements Closeable {
                 indicesService
             );
             final MonitorService monitorService = new MonitorService(settings, threadPool, fsServiceProvider);
+
+            final NodeRuntimeMetrics nodeRuntimeMetrics = new NodeRuntimeMetrics(
+                metricsRegistry,
+                monitorService.jvmService(),
+                ProcessProbe.getInstance(),
+                OsProbe.getInstance()
+            );
+            resourcesToClose.add(nodeRuntimeMetrics);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
