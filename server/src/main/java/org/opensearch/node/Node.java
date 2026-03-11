@@ -182,6 +182,7 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.analysis.AnalysisModule;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -1162,6 +1163,7 @@ public class Node implements Closeable {
                     ).toArray(SearchRequestOperationsListener[]::new)
                 );
 
+            HunspellService hunspellService = analysisModule.getHunspellService();
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -1175,7 +1177,8 @@ public class Node implements Closeable {
                 usageService,
                 systemIndices,
                 identityService,
-                extensionsManager
+                extensionsManager,
+                hunspellService
             );
             modules.add(actionModule);
 
