@@ -1385,7 +1385,7 @@ final class DocumentParser {
                 }
                 copyAction.accept(copyToContext, field);
             }
-        } 
+        }
     }
 
     /** Creates an copy of the current field with given field name and boost */
