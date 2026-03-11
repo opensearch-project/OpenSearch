@@ -140,15 +140,8 @@ public class BulkItemRequest implements Writeable, Accountable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
 
-        BulkItemResponse primaryResponse = this.primaryResponse;
-
-        // Explicitly check if primaryResponse is null to avoid branching/mispredictions in a lambda
-        if (primaryResponse != null) {
-            out.writeBoolean(true);
-            primaryResponse.writeThin(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        BulkItemResponse primaryResponse = this.primaryResponse; // Read volatile once
+        out.writeOptionalWriteable((o, resp) -> resp.writeThin(o), primaryResponse);
     }
 
     @Override
