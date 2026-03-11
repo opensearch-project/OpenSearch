@@ -38,14 +38,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Introduced strategy planner interfaces for indexing and deletion ([#20585](https://github.com/opensearch-project/OpenSearch/pull/20585))
 - Implement FieldMappingIngestionMessageMapper for pull-based ingestion ([#20729](https://github.com/opensearch-project/OpenSearch/pull/20729))
 - Added support of WarmerRefreshListener in NRTReplicationEngine to trigger warmer after replication on replica shards ([#20650](https://github.com/opensearch-project/OpenSearch/pull/20650))
+- WLM group custom search settings - groundwork and timeout ([#20536](https://github.com/opensearch-project/OpenSearch/issues/20536))
 
 ### Changed
+- Make telemetry `Tags` immutable ([#20788](https://github.com/opensearch-project/OpenSearch/pull/20788))
 - Move Randomness from server to libs/common ([#20570](https://github.com/opensearch-project/OpenSearch/pull/20570))
 - Use env variable (OPENSEARCH_FIPS_MODE) to enable opensearch to run in FIPS enforced mode instead of checking for existence of bcFIPS jars ([#20625](https://github.com/opensearch-project/OpenSearch/pull/20625))
 - Update streaming flag to use search request context ([#20530](https://github.com/opensearch-project/OpenSearch/pull/20530))
 - Move pull-based ingestion classes from experimental to publicAPI ([#20704](https://github.com/opensearch-project/OpenSearch/pull/20704))
 
 ### Fixed
+- Fix `AutoForceMergeMetrics` silently dropping tags due to unreassigned `addTag()` return value ([#20788](https://github.com/opensearch-project/OpenSearch/pull/20788))
 - Fix flaky test failures in ShardsLimitAllocationDeciderIT ([#20375](https://github.com/opensearch-project/OpenSearch/pull/20375))
 - Prevent criteria update for context aware indices ([#20250](https://github.com/opensearch-project/OpenSearch/pull/20250))
 - Update EncryptedBlobContainer to adhere limits while listing blobs in specific sort order if wrapped blob container supports ([#20514](https://github.com/opensearch-project/OpenSearch/pull/20514))
@@ -65,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix TLS cert hot-reload for Arrow Flight transport ([#20732](https://github.com/opensearch-project/OpenSearch/pull/20732))
 - Fix misleading heap usage cancellation message in SearchBackpressureService ([#20779](https://github.com/opensearch-project/OpenSearch/pull/20779))
 - Fix JSON escaping in task details log metadata ([#20802](https://github.com/opensearch-project/OpenSearch/pull/20802))
+- Delegate getMin/getMax methods for ExitableTerms ([#20775](https://github.com/opensearch-project/OpenSearch/pull/20775))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
@@ -77,12 +81,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `reactor` from 3.8.2 to 3.8.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
 - Bump `org.jruby.jcodings:jcodings` from 1.0.63 to 1.0.64 ([#20713](https://github.com/opensearch-project/OpenSearch/pull/20713))
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.7 ([#20714](https://github.com/opensearch-project/OpenSearch/pull/20714), [#20759](https://github.com/opensearch-project/OpenSearch/pull/20759))
-- Bump `tj-actions/changed-files` from 47.0.1 to 47.0.4 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716))
+- Bump `tj-actions/changed-files` from 47.0.1 to 47.0.5 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716), [#20801](https://github.com/opensearch-project/OpenSearch/pull/20801))
 - Bump `com.nimbusds:nimbus-jose-jwt` from 10.7 to 10.8 ([#20715](https://github.com/opensearch-project/OpenSearch/pull/20715))
 - Bump OpenTelemetry to 1.60.1 and OpenTelemetry Semconv to 1.40.0 ([#20737](https://github.com/opensearch-project/OpenSearch/pull/20737), [#20797](https://github.com/opensearch-project/OpenSearch/pull/20797))
 - Bump `ch.qos.logback:logback-classic` from 1.5.27 to 1.5.32 ([#20761](https://github.com/opensearch-project/OpenSearch/pull/20761))
 - Bump `actions/upload-artifact` from 6 to 7 ([#20762](https://github.com/opensearch-project/OpenSearch/pull/20762))
 - Bump `org.tukaani:xz` from 1.11 to 1.12 ([#20760](https://github.com/opensearch-project/OpenSearch/pull/20760))
+- Bump `org.jline:jline` from 3.30.6 to 4.0.0 ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
+- Bump `com.netflix.nebula.ospackage-base` from 12.2.0 to 12.3.0 ([#20799](https://github.com/opensearch-project/OpenSearch/pull/20799))
+- Bump `com.netflix.nebula:gradle-info-plugin` to 16.2.1 ([#20825](https://github.com/opensearch-project/OpenSearch/pull/20825))
 
 ### Removed
 

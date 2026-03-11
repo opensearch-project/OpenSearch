@@ -73,6 +73,15 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
             throw new IllegalArgumentException("WorkloadGroup.updatedAtInMillis is not a valid epoch");
         }
 
+        // Normalize null searchSettings to empty map for storage
+        if (mutableWorkloadGroupFragment.getSearchSettings() == null) {
+            mutableWorkloadGroupFragment = new MutableWorkloadGroupFragment(
+                mutableWorkloadGroupFragment.getResiliencyMode(),
+                mutableWorkloadGroupFragment.getResourceLimits(),
+                new HashMap<>()
+            );
+        }
+
         this.name = name;
         this._id = _id;
         this.mutableWorkloadGroupFragment = mutableWorkloadGroupFragment;
@@ -104,10 +113,23 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
         final ResiliencyMode mode = Optional.ofNullable(mutableWorkloadGroupFragment.getResiliencyMode())
             .orElse(existingGroup.getResiliencyMode());
+        // Handle search_settings update:
+        // null = not specified (keep existing)
+        // empty map = explicitly clear (set to empty)
+        // non-empty map = replace with new values
+        final Map<String, String> mutableFragmentSearchSettings = mutableWorkloadGroupFragment.getSearchSettings();
+        final Map<String, String> updatedSearchSettings;
+        if (mutableFragmentSearchSettings == null) {
+            // Not specified - keep existing
+            updatedSearchSettings = new HashMap<>(existingGroup.getSearchSettings());
+        } else {
+            // Specified (empty or non-empty) - use the new value
+            updatedSearchSettings = new HashMap<>(mutableFragmentSearchSettings);
+        }
         return new WorkloadGroup(
             existingGroup.getName(),
             existingGroup.get_id(),
-            new MutableWorkloadGroupFragment(mode, updatedResourceLimits),
+            new MutableWorkloadGroupFragment(mode, updatedResourceLimits, updatedSearchSettings),
             Instant.now().getMillis()
         );
     }
@@ -177,6 +199,10 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
 
     public Map<ResourceType, Double> getResourceLimits() {
         return getMutableWorkloadGroupFragment().getResourceLimits();
+    }
+
+    public Map<String, String> getSearchSettings() {
+        return getMutableWorkloadGroupFragment().getSearchSettings();
     }
 
     public String get_id() {

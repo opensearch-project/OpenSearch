@@ -111,9 +111,9 @@ public class AutoForceMergeMetrics {
         Tags tags = Tags.create();
 
         if (shardId.isPresent()) {
-            tags.addTag(SHARD_ID, shardId.get());
+            tags = tags.addTag(SHARD_ID, shardId.get());
         } else if (nodeId.isPresent()) {
-            tags.addTag(NODE_ID, nodeId.get());
+            tags = tags.addTag(NODE_ID, nodeId.get());
         }
 
         return Optional.of(tags);
