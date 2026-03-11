@@ -272,11 +272,6 @@ public class IngestionSource {
      */
     @ExperimentalApi
     public static class WarmupConfig {
-        /**
-         * Default warmup configuration matching IndexMetadata setting defaults.
-         */
-        public static final WarmupConfig DEFAULT = new WarmupConfig(true, TimeValue.timeValueMinutes(5), 100L, false);
-
         private final boolean enabled;
         private final TimeValue timeout;
         private final long lagThreshold;
