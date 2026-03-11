@@ -78,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump Apache Lucene from 10.3.2 to 10.4.0 ([#20735](https://github.com/opensearch-project/OpenSearch/pull/20735))
 - Bump `reactor-netty` from 1.3.2 to 1.3.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
 - Bump `reactor` from 3.8.2 to 3.8.3 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589))
+- Bump `com.azure:azure-storage-blob` from 12.31.2 to 12.32.0 ([#19783](https://github.com/opensearch-project/OpenSearch/pull/19783))
 - Bump `org.jruby.jcodings:jcodings` from 1.0.63 to 1.0.64 ([#20713](https://github.com/opensearch-project/OpenSearch/pull/20713))
 - Bump `org.jruby.joni:joni` from 2.2.3 to 2.2.7 ([#20714](https://github.com/opensearch-project/OpenSearch/pull/20714), [#20759](https://github.com/opensearch-project/OpenSearch/pull/20759))
 - Bump `tj-actions/changed-files` from 47.0.1 to 47.0.5 ([#20638](https://github.com/opensearch-project/OpenSearch/pull/20638), [#20716](https://github.com/opensearch-project/OpenSearch/pull/20716), [#20801](https://github.com/opensearch-project/OpenSearch/pull/20801))
