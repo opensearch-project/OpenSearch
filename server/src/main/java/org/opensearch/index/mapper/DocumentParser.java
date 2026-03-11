@@ -1364,7 +1364,7 @@ final class DocumentParser {
         List<String> copyToFields,
         CheckedBiConsumer<ParseContext, String, IOException> copyAction
     ) throws IOException {
-       if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
                 // In case of a hierarchy of nested documents, we need to figure out
@@ -1576,8 +1576,8 @@ final class DocumentParser {
                         childBytes)
             ) {
                 innerParser.nextToken();
-                context = context.switchParser(innerParser);
-                fieldMapper.parse(context);
+                ParseContext innerContext = context.switchParser(innerParser);
+                fieldMapper.parse(innerContext);
             }
             parseCopyFields(context, fieldMapper.copyTo().copyToFields(), childBytes);
         } else {
