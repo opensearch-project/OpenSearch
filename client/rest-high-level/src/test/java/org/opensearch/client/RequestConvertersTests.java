@@ -1972,7 +1972,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             if (randomBoolean()) {
                 boolean fetchSource = randomBoolean();
-                consumer.accept(new FetchSourceContext(fetchSource));
+                consumer.accept(fetchSource ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE);
                 if (fetchSource == false) {
                     expectedParams.put("_source", "false");
                 }

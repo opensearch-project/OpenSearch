@@ -72,7 +72,7 @@ public class MultiGetShardRequestTests extends OpenSearchTestCase {
                 item.versionType(randomFrom(VersionType.values()));
             }
             if (randomBoolean()) {
-                item.fetchSourceContext(new FetchSourceContext(randomBoolean()));
+                item.fetchSourceContext(randomBoolean() ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE);
             }
             multiGetShardRequest.add(0, item);
         }

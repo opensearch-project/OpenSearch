@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add security policy to allow `accessUnixDomainSocket` in `transport-grpc` module ([#20463](https://github.com/opensearch-project/OpenSearch/pull/20463))
 
 ### Changed
+- Optimize `FetchSourceContext` to reduce redundant object instantiation by using existing constants ([#20743](https://github.com/opensearch-project/OpenSearch/issues/20743))
 - Move Randomness from server to libs/common ([#20570](https://github.com/opensearch-project/OpenSearch/pull/20570))
 
 ### Fixed

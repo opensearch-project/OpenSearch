@@ -77,7 +77,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
 
-    public FetchSourceContext(boolean fetchSource) {
+    private FetchSourceContext(boolean fetchSource) {
         this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
@@ -133,7 +133,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+            boolean fetch = fetchSource == null ? true : fetchSource;
+            if ((sourceIncludes == null || sourceIncludes.length == 0) && (sourceExcludes == null || sourceExcludes.length == 0)) {
+                return fetch ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
+            }
+            return new FetchSourceContext(fetch, sourceIncludes, sourceExcludes);
         }
         return null;
     }
@@ -226,6 +230,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     + "]",
                 parser.getTokenLocation()
             );
+        }
+        if (includes.length == 0 && excludes.length == 0) {
+            return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
     }

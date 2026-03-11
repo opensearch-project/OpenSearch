@@ -165,13 +165,13 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
                 if (randomBoolean()) {
                     fetchSourceContext = new FetchSourceContext(
                         true,
-                        generateRandomStringArray(16, 8, false),
+                        generateRandomStringArray(5, 4, false),
                         generateRandomStringArray(5, 4, false)
                     );
-                } else {
-                    fetchSourceContext = new FetchSourceContext(false);
-                }
-                item.fetchSourceContext(fetchSourceContext);
+                    } else {
+                    fetchSourceContext = FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                    }
+                    item.fetchSourceContext(fetchSourceContext);
             }
             if (randomBoolean()) {
                 item.storedFields(generateRandomStringArray(16, 8, false));

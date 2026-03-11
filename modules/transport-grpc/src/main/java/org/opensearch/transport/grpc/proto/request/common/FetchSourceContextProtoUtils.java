@@ -64,7 +64,11 @@ public class FetchSourceContextProtoUtils {
             sourceExcludes = request.getXSourceExcludesList().toArray(new String[0]);
         }
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+            boolean fetch = fetchSource == null ? true : fetchSource;
+            if ((sourceIncludes == null || sourceIncludes.length == 0) && (sourceExcludes == null || sourceExcludes.length == 0)) {
+                return fetch ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
+            }
+            return new FetchSourceContext(fetch, sourceIncludes, sourceExcludes);
         }
         return null;
     }
@@ -100,7 +104,11 @@ public class FetchSourceContextProtoUtils {
         }
 
         if (fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
-            return new FetchSourceContext(fetchSource == null ? true : fetchSource, sourceIncludes, sourceExcludes);
+            boolean fetch = fetchSource == null ? true : fetchSource;
+            if ((sourceIncludes == null || sourceIncludes.length == 0) && (sourceExcludes == null || sourceExcludes.length == 0)) {
+                return fetch ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
+            }
+            return new FetchSourceContext(fetch, sourceIncludes, sourceExcludes);
         }
         return null;
     }
@@ -134,6 +142,9 @@ public class FetchSourceContextProtoUtils {
                 }
                 excludes = excludesList.toArray(new String[0]);
             }
+        }
+        if (includes.length == 0 && excludes.length == 0) {
+            return fetchSource ? FetchSourceContext.FETCH_SOURCE : FetchSourceContext.DO_NOT_FETCH_SOURCE;
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
     }
