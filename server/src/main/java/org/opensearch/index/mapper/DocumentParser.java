@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
@@ -1340,45 +1341,30 @@ final class DocumentParser {
 
     /** Creates instances of the fields that the current field should be copied to */
     private static void parseCopyFields(ParseContext context, List<String> copyToFields, byte[] sourceBytes) throws IOException {
-        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
-            context = context.createCopyToContext();
-            for (String field : copyToFields) {
-                // In case of a hierarchy of nested documents, we need to figure out
-                // which document the field should go to
-                ParseContext.Document targetDoc = null;
-                for (ParseContext.Document doc = context.doc(); doc != null; doc = doc.getParent()) {
-                    if (field.startsWith(doc.getPrefix())) {
-                        targetDoc = doc;
-                        break;
-                    }
-                }
-                assert targetDoc != null;
-                ParseContext copyToContext;
-                if (targetDoc == context.doc()) {
-                    copyToContext = context;
-                } else {
-                    copyToContext = context.switchDoc(targetDoc);
-                }
-
-                XContentParser parser = copyToContext.parser();
-                try (
-                    XContentParser innerParser = parser.contentType()
-                        .xContent()
-                        .createParser(parser.getXContentRegistry(),
-                        parser.getDeprecationHandler(),
-                        sourceBytes)
-                ) {
-                    innerParser.nextToken();
-                    copyToContext = copyToContext.switchParser(innerParser);
-                    parseCopy(field, copyToContext);
-                }
-                
+        parseCopyFieldsInternal(context, copyToFields, (copyToContext, field) -> {
+            XContentParser parser = copyToContext.parser();
+            try (
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), sourceBytes)
+            ) {
+                innerParser.nextToken();
+                copyToContext = copyToContext.switchParser(innerParser);
+                parseCopy(field, copyToContext);
             }
-        }
+        });
     }
 
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
-        if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
+        parseCopyFieldsInternal(context, copyToFields, (copyToContext, field) -> parseCopy(field, copyToContext));
+    }
+
+    private static void parseCopyFieldsInternal(
+        ParseContext context,
+        List<String> copyToFields,
+        CheckedBiConsumer<ParseContext, String, IOException> copyAction
+    ) throws IOException {
+       if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
                 // In case of a hierarchy of nested documents, we need to figure out
@@ -1397,9 +1383,9 @@ final class DocumentParser {
                 } else {
                     copyToContext = context.switchDoc(targetDoc);
                 }
-                parseCopy(field, copyToContext);
+                copyAction.accept(copyToContext, field);
             }
-        }
+        } 
     }
 
     /** Creates an copy of the current field with given field name and boost */

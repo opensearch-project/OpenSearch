@@ -3557,7 +3557,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertTrue(copiedFields.length > 0);
     }
 
-    public void testGetPointArrayWithMultipleCopyTo() throws Exception {
+    public void testGeoPointArrayWithMultipleCopyTo() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("point");
             {
