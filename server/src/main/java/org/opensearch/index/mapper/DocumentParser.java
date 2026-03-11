@@ -1556,17 +1556,20 @@ final class DocumentParser {
 
     private static byte[] parseChildToBytes(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
-        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-        builder.copyCurrentStructure(parser);
-        return BytesReference.toBytes(BytesReference.bytes(builder));
+        try(XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+            builder.copyCurrentStructure(parser);
+            return BytesReference.toBytes(BytesReference.bytes(builder));
+        }
     }
 
     private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
         XContentParser.Token token = context.parser().currentToken();
         if ((token == XContentParser.Token.START_ARRAY || 
             token == XContentParser.Token.START_OBJECT) && 
-            fieldMapper.copyTo().copyToFields().size() > 0) {
+            !fieldMapper.copyTo().copyToFields().isEmpty()) {
             byte[] childBytes = parseChildToBytes(context);
+            // After parseChildToBytes, the original parser has consumed the full structure.
+            // Parse the field using a fresh parser over the captured bytes.
             XContentParser parser = context.parser();
             try (
                 XContentParser innerParser = parser.contentType()
