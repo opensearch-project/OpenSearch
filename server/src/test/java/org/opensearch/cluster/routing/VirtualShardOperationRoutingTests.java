@@ -32,7 +32,7 @@ public class VirtualShardOperationRoutingTests extends OpenSearchTestCase {
         String routing = "user1";
         int routingHash = Murmur3HashFunction.hash(routing);
         int expectedVShard = Math.floorMod(routingHash, numVirtualShards);
-        int expectedPShard = Math.floorMod(expectedVShard, numPhysicalShards);
+        int expectedPShard = expectedVShard / (numVirtualShards / numPhysicalShards);
 
         assertEquals(expectedPShard, OperationRouting.generateShardId(metadata, "doc1", routing));
     }
@@ -75,6 +75,23 @@ public class VirtualShardOperationRoutingTests extends OpenSearchTestCase {
         );
 
         assertTrue(e.getMessage().contains("must be >= number of shards"));
+
+        int numVirtualShardsInvalid = 15;
+
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.builder("test2")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_VIRTUAL_SHARDS, numVirtualShardsInvalid)
+                )
+                .numberOfShards(numPhysicalShards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        assertTrue(e2.getMessage().contains("must be a multiple of number of shards"));
     }
 
     public void testVirtualShardWithRoutingPartition() {
@@ -99,7 +116,7 @@ public class VirtualShardOperationRoutingTests extends OpenSearchTestCase {
         int partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), partitionSize);
         int routingHash = Murmur3HashFunction.hash(routing) + partitionOffset;
         int expectedVShard = Math.floorMod(routingHash, numVirtualShards);
-        int expectedPShard = Math.floorMod(expectedVShard, numPhysicalShards);
+        int expectedPShard = expectedVShard / (numVirtualShards / numPhysicalShards);
 
         assertEquals(expectedPShard, OperationRouting.generateShardId(metadata, id, routing));
     }

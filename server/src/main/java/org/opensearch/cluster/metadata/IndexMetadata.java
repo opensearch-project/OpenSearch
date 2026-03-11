@@ -2210,16 +2210,29 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final int numberOfVirtualShards = INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING.get(settings);
-            if (numberOfVirtualShards != -1 && numberOfVirtualShards < numberOfShards) {
-                throw new IllegalArgumentException(
-                    "number of virtual shards ["
-                        + numberOfVirtualShards
-                        + "] must be >= number of shards ["
-                        + numberOfShards
-                        + "] for ["
-                        + index
-                        + "]"
-                );
+            if (numberOfVirtualShards != -1) {
+                if (numberOfVirtualShards < numberOfShards) {
+                    throw new IllegalArgumentException(
+                        "number of virtual shards ["
+                            + numberOfVirtualShards
+                            + "] must be >= number of shards ["
+                            + numberOfShards
+                            + "] for ["
+                            + index
+                            + "]"
+                    );
+                }
+                if (numberOfVirtualShards % numberOfShards != 0) {
+                    throw new IllegalArgumentException(
+                        "number of virtual shards ["
+                            + numberOfVirtualShards
+                            + "] must be a multiple of number of shards ["
+                            + numberOfShards
+                            + "] for ["
+                            + index
+                            + "]"
+                    );
+                }
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable

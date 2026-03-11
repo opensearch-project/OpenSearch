@@ -15,8 +15,6 @@ import java.util.Map;
 
 /**
  * Resolves virtual shard routing to physical shard IDs.
- *
- * @opensearch.api
  */
 
 public final class VirtualShardRoutingHelper {
@@ -54,6 +52,7 @@ public final class VirtualShardRoutingHelper {
             }
         }
 
-        return Math.floorMod(vShardId, indexMetadata.getNumberOfShards());
+        int virtualShardsPerPhysical = indexMetadata.getNumberOfVirtualShards() / indexMetadata.getNumberOfShards();
+        return vShardId / virtualShardsPerPhysical;
     }
 }
