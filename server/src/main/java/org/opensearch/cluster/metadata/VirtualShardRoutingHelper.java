@@ -52,7 +52,16 @@ public final class VirtualShardRoutingHelper {
             }
         }
 
-        int virtualShardsPerPhysical = indexMetadata.getNumberOfVirtualShards() / indexMetadata.getNumberOfShards();
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        int numPhysicalShards = indexMetadata.getNumberOfShards();
+
+        if (numVirtualShards < numPhysicalShards || numVirtualShards % numPhysicalShards != 0) {
+            throw new IllegalArgumentException(
+                "Virtual shards must be enabled and be a multiple of the number of physical shards to resolve routing."
+            );
+        }
+
+        int virtualShardsPerPhysical = numVirtualShards / numPhysicalShards;
         return vShardId / virtualShardsPerPhysical;
     }
 }

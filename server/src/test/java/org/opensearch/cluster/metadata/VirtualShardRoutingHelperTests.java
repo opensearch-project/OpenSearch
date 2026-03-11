@@ -89,4 +89,30 @@ public class VirtualShardRoutingHelperTests extends OpenSearchTestCase {
         // vShard 19 -> 19 / 4 = 4
         assertEquals(4, VirtualShardRoutingHelper.resolvePhysicalShardId(metadata, 19));
     }
+
+    public void testResolvePhysicalShardIdInvalidConfigurations() {
+        int numPhysicalShards = 5;
+
+        // Disabled virtual shards
+        IndexMetadata metadataDisabled = org.mockito.Mockito.mock(IndexMetadata.class);
+        org.mockito.Mockito.when(metadataDisabled.getNumberOfVirtualShards()).thenReturn(-1);
+        org.mockito.Mockito.when(metadataDisabled.getNumberOfShards()).thenReturn(numPhysicalShards);
+
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> VirtualShardRoutingHelper.resolvePhysicalShardId(metadataDisabled, 0)
+        );
+        assertTrue(e1.getMessage().contains("must be enabled and be a multiple"));
+
+        // Invalid multiple
+        IndexMetadata metadataInvalid = org.mockito.Mockito.mock(IndexMetadata.class);
+        org.mockito.Mockito.when(metadataInvalid.getNumberOfVirtualShards()).thenReturn(13);
+        org.mockito.Mockito.when(metadataInvalid.getNumberOfShards()).thenReturn(numPhysicalShards);
+
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> VirtualShardRoutingHelper.resolvePhysicalShardId(metadataInvalid, 0)
+        );
+        assertTrue(e2.getMessage().contains("must be enabled and be a multiple"));
+    }
 }
