@@ -200,6 +200,18 @@ public class HunspellService {
      * @throws Exception if loading fails
      */
     private Dictionary loadDictionaryFromPackage(String packageId, String locale) throws Exception {
+        // Validate raw inputs before path resolution (defense-in-depth, caller should also validate)
+        if (packageId.contains("/") || packageId.contains("\\") || packageId.contains("..")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid package ID: [%s]. Must not contain path separators or '..' sequences.", packageId)
+            );
+        }
+        if (locale.contains("/") || locale.contains("\\") || locale.contains("..")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid locale: [%s]. Must not contain path separators or '..' sequences.", locale)
+            );
+        }
+
         // Resolve packages base directory: config/packages/
         Path packagesBaseDir = env.configDir().resolve("packages");
 
