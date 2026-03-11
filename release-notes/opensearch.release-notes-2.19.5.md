@@ -2,16 +2,9 @@
 
 Compatible with OpenSearch and OpenSearch Dashboards version 2.19.5
 
-### Features
-
-* Add case sensitivity as an argument to XContentMapValues.filter ([#19976](https://github.com/opensearch-project/OpenSearch/pull/19976))
-
-### Enhancements
-
-* Fix SearchPhaseExecutionException to properly initCause ([#20320](https://github.com/opensearch-project/OpenSearch/pull/20320))
-
 ### Bug Fixes
 
+* Add case sensitivity as an argument to XContentMapValues.filter ([#19976](https://github.com/opensearch-project/OpenSearch/pull/19976))
 * Fix segment replication failure during rolling restart ([#20498](https://github.com/opensearch-project/OpenSearch/pull/20498))
 
 ### Infrastructure
