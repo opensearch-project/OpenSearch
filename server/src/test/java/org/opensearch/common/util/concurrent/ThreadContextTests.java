@@ -852,8 +852,8 @@ public class ThreadContextTests extends OpenSearchTestCase {
         };
     }
 
-    //We are simulating behavior that happens in Netty4HttpRequestHeaderVerifier
-    //It take a snapshot of state and stores in CONTEXT_TO_RESTORE and
+    // We are simulating behavior that happens in Netty4HttpRequestHeaderVerifier
+    // It take a snapshot of state and stores in CONTEXT_TO_RESTORE and
     // later tries to restore the same in SecurityFilter. Any transients added in between are lost
     public void testPropagatedTransientsAreRestored() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -879,19 +879,18 @@ public class ThreadContextTests extends OpenSearchTestCase {
         });
 
         ThreadContext.StoredContext storedContext = null;
-        try(ThreadContext.StoredContext sc = threadContext.newStoredContext(false, Collections.emptyList())) {
-            //now we add something to original thread
+        try (ThreadContext.StoredContext sc = threadContext.newStoredContext(false, Collections.emptyList())) {
+            // now we add something to original thread
             // Simulate the tracing infrastructure writing CURRENT_SPAN into the stashed context.
             storedContext = sc;
             threadContext.putTransient(PROPAGATED_KEY, PROPAGATED_VALUE);
-        }
-        catch(Exception e) {
-            //unlikey to get exception, if we got one, test should fail
+        } catch (Exception e) {
+            // unlikey to get exception, if we got one, test should fail
             throw e;
         }
-        //storedContext would have closed. Now we restore and after that, our original thread should have it
+        // storedContext would have closed. Now we restore and after that, our original thread should have it
         storedContext.restore();
-        //we should be able to find the key now
+        // we should be able to find the key now
         assertEquals(threadContext.getTransient(PROPAGATED_KEY), PROPAGATED_VALUE);
     }
 }

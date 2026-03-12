@@ -302,11 +302,11 @@ public final class ThreadContext implements Writeable {
                 enrichedOriginalContext = new ThreadContextStruct(
                     enrichedOriginalContext.requestHeaders,
                     enrichedOriginalContext.responseHeaders,
-                                            merged,
+                    merged,
                     enrichedOriginalContext.persistentHeaders,
                     enrichedOriginalContext.isSystemContext,
                     enrichedOriginalContext.warningHeadersSize
-                                        );
+                );
             }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
                 threadLocal.set(enrichedOriginalContext.putResponseHeaders(threadLocal.get().responseHeaders));
