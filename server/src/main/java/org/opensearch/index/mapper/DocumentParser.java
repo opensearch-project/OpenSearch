@@ -1349,8 +1349,8 @@ final class DocumentParser {
                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), sourceBytes)
             ) {
                 innerParser.nextToken();
-                copyToContext = copyToContext.switchParser(innerParser);
-                parseCopy(field, copyToContext);
+                ParseContext parserSwitchedContext = copyToContext.switchParser(innerParser);
+                parseCopy(field, parserSwitchedContext);
             }
         });
     }
