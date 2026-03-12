@@ -75,6 +75,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final AtomicInteger fieldNumberAcrossCompositeFields;
 
     private final Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
+    private final Map<String, DocValuesProducer> mergedFieldProducerMap = new HashMap<>();
     private final Map<String, SortedSetDocValues> fieldDocIdSetIteratorMap = new HashMap<>();
 
     public Composite912DocValuesWriter(DocValuesConsumer delegate, SegmentWriteState segmentWriteState, MapperService mapperService)
@@ -165,6 +166,11 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
+            }
+        }
     }
 
     @Override
@@ -184,6 +190,11 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         if (mergeState.get() == null && segmentHasCompositeFields) {
             createCompositeIndicesIfPossible(valuesProducer, field);
         }
+        if (mergeState.get() != null) {
+            if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
+            }
+        }
     }
 
     @Override
@@ -195,6 +206,7 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
         }
         if (mergeState.get() != null) {
             if (compositeFieldSet.contains(field.name)) {
+                mergedFieldProducerMap.put(field.name, valuesProducer);
                 fieldDocIdSetIteratorMap.put(field.name, valuesProducer.getSortedSet(field));
             }
         }
@@ -357,9 +369,68 @@ public class Composite912DocValuesWriter extends DocValuesConsumer {
                 }
             }
         }
-        try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
-            starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+        if (starTreeSubsPerField.isEmpty() && compositeMappedFieldTypes.isEmpty() == false) {
+            // No source segments have star tree data, but mapping has star tree config.
+            // This is the upgrade case: build from raw doc values (same as flush path).
+            // Only attempt this if the merged segment actually contains ALL the required
+            // dimension/metric fields in its doc values. A partial match (e.g., only "field1"
+            // present but not "sndv", "dv1", etc.) means the segment doesn't actually have
+            // the star tree fields and we should skip the fallback.
+            boolean hasAllCompositeFields = true;
+            for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
+                for (String field : type.fields()) {
+                    // Skip _doc_count — it's a virtual field handled by addDocValuesForEmptyField
+                    if (field.equals(DocCountFieldMapper.NAME)) {
+                        continue;
+                    }
+                    if (mergedFieldProducerMap.containsKey(field) == false) {
+                        hasAllCompositeFields = false;
+                        break;
+                    }
+                }
+                if (hasAllCompositeFields == false) break;
+            }
+            if (hasAllCompositeFields) {
+                Map<String, DocValuesProducer> fieldProducerMapForMerge = buildFieldProducerMapFromMergeState(mergeState);
+                try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                    starTreesBuilder.build(metaOut, dataOut, fieldProducerMapForMerge, compositeDocValuesConsumer);
+                }
+            } else {
+                try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                    starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+                }
+            }
+        } else {
+            try (StarTreesBuilder starTreesBuilder = new StarTreesBuilder(state, mapperService, fieldNumberAcrossCompositeFields)) {
+                starTreesBuilder.buildDuringMerge(metaOut, dataOut, starTreeSubsPerField, compositeDocValuesConsumer);
+            }
         }
+    }
+
+    /**
+     * Builds a fieldProducerMap from the merged segment's doc values for use with the
+     * flush-path star tree builder. Uses the doc values producers captured during
+     * {@code super.merge()} and adds empty producers for any composite fields not
+     * present in the merged segment, following the same pattern as
+     * {@link #addDocValuesForEmptyField(String)}.
+     *
+     * @param mergeState the merge state containing doc values producers for the merged segment
+     * @return a map of field name to DocValuesProducer
+     */
+    private Map<String, DocValuesProducer> buildFieldProducerMapFromMergeState(MergeState mergeState) {
+        Map<String, DocValuesProducer> resultMap = new HashMap<>(mergedFieldProducerMap);
+
+        // For any composite fields not present in the merged segment, add empty producers
+        for (CompositeMappedFieldType type : compositeMappedFieldTypes) {
+            for (String field : type.fields()) {
+                if (resultMap.containsKey(field) == false) {
+                    addDocValuesForEmptyField(field);
+                    resultMap.put(field, fieldProducerMap.get(field));
+                }
+            }
+        }
+
+        return resultMap;
     }
 
     private static SegmentWriteState getSegmentWriteState(SegmentWriteState segmentWriteState) {

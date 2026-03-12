@@ -292,6 +292,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
     private final CodecService codecService;
+    // Volatile override for the codec service, used during star tree upgrade to switch to composite codec
+    // without modifying the final codecService field. Reset to null after the engine restart.
+    private volatile CodecService codecServiceOverride;
     private final Engine.Warmer warmer;
     private final SimilarityService similarityService;
     private final TranslogConfig translogConfig;
@@ -2291,6 +2294,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    /**
+     * Upgrades this shard to use star tree indexing. Restarts the engine so the composite codec
+     * is selected, then runs a force merge to build star tree data from raw doc values.
+     *
+     * @throws IOException if an I/O error occurs during engine restart or force merge
+     * @throws InterruptedException if the calling thread is interrupted while blocking operations
+     * @throws TimeoutException if timed out waiting for in-flight operations to finish
+     */
+    public void upgradeToStarTree() throws IOException, InterruptedException, TimeoutException {
+        verifyActive();
+        logger.info("{} starting star tree upgrade", shardId);
+        // Create a fresh CodecService that picks up the composite codec.
+        this.codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
+        try {
+            // Engine restart to pick up composite codec
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+            // After engine restart, there may be only 1 segment. Lucene's forceMerge(1) is a no-op
+            // with a single segment. We need to flush to create a second (empty) segment so that
+            // forceMerge(1) actually triggers a merge that rewrites through the composite codec.
+            flush(new FlushRequest().waitIfOngoing(true).force(true));
+            // Now force merge — with 2+ segments, this will merge them all through the composite
+            // codec's Composite912DocValuesWriter which builds star tree data from raw doc values.
+            forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            logger.info("{} star tree upgrade completed successfully — star tree data built", shardId);
+        } finally {
+            this.codecServiceOverride = null;
+        }
     }
 
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
@@ -4345,7 +4377,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings.getMergePolicy(isTimeSeriesIndex),
             mapperService != null ? mapperService.indexAnalyzer() : null,
             similarityService.similarity(mapperService),
-            engineConfigFactory.newCodecServiceOrDefault(indexSettings, mapperService, logger, codecService),
+            engineConfigFactory.newCodecServiceOrDefault(
+                indexSettings,
+                mapperService,
+                logger,
+                codecServiceOverride != null ? codecServiceOverride : codecService
+            ),
             shardEventListener,
             indexCache != null ? indexCache.query() : null,
             cachingPolicy,

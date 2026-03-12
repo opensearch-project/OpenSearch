@@ -121,7 +121,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          * if a shard was moved to a different node or for administrative
          * purposes.
          */
-        MAPPING_RECOVERY;
+        MAPPING_RECOVERY,
+        /**
+         * Star tree upgrade on an existing index. Bypasses composite index
+         * setting checks so that a star tree field can be added to an index
+         * that was created without {@code index.composite_index} enabled.
+         */
+        STAR_TREE_UPGRADE;
     }
 
     public static final String SINGLE_MAPPING_NAME = "_doc";

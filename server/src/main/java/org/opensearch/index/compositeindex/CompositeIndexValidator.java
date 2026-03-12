@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeValidator;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.util.Locale;
 
@@ -33,7 +34,23 @@ public class CompositeIndexValidator {
         IndexSettings indexSettings,
         boolean isCompositeFieldPresent
     ) {
-        if (!isCompositeFieldPresent && mapperService.isCompositeIndexPresent()) {
+        validate(mapperService, compositeIndexSettings, indexSettings, isCompositeFieldPresent, MergeReason.MAPPING_UPDATE);
+    }
+
+    public static void validate(
+        MapperService mapperService,
+        CompositeIndexSettings compositeIndexSettings,
+        IndexSettings indexSettings,
+        boolean isCompositeFieldPresent,
+        MergeReason mergeReason
+    ) {
+        if (mergeReason == MergeReason.STAR_TREE_UPGRADE) {
+            // Skip the "no new composite fields during update" check for star tree upgrade.
+            // Still validate dims/metrics against existing fields.
+            StarTreeValidator.validate(mapperService, compositeIndexSettings, indexSettings);
+            return;
+        }
+        if (isCompositeFieldPresent == false && mapperService.isCompositeIndexPresent()) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
