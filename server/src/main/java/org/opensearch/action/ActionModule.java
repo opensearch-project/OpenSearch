@@ -48,6 +48,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.admin.cluster.loadsearchplugins.LoadSearchPluginsAction;
+import org.opensearch.action.admin.cluster.loadsearchplugins.TransportLoadSearchPluginsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -791,6 +793,9 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSearchPipelineAction.INSTANCE, GetSearchPipelineTransportAction.class);
         actions.register(DeleteSearchPipelineAction.INSTANCE, DeleteSearchPipelineTransportAction.class);
 
+        // Search Plugin Hot Reload
+        actions.register(LoadSearchPluginsAction.INSTANCE, TransportLoadSearchPluginsAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -993,6 +998,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSearchPipelineAction());
         registerHandler.accept(new RestGetSearchPipelineAction());
         registerHandler.accept(new RestDeleteSearchPipelineAction());
+
+        // Search Plugin Hot Reload API
+        registerHandler.accept(new org.opensearch.rest.action.admin.cluster.RestLoadSearchPluginsAction());
 
         // Extensions API
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
