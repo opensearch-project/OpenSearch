@@ -23,6 +23,11 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
 
+    /**
+     * Creates a plan executor with the given back-end plugins.
+     *
+     * @param backEnds registered back-end engine plugins
+     */
     public DefaultPlanExecutor(List<AnalyticsBackEndPlugin> backEnds) {
         // TODO: use back-ends
     }

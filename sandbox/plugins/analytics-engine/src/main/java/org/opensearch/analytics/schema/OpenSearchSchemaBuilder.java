@@ -34,6 +34,8 @@ public class OpenSearchSchemaBuilder {
     /**
      * Builds a Calcite SchemaPlus from the given ClusterState.
      * Each index becomes a table; each mapped field becomes a column.
+     *
+     * @param clusterState the current cluster state to derive schema from
      */
     public static SchemaPlus buildSchema(ClusterState clusterState) {
         CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
@@ -79,6 +81,8 @@ public class OpenSearchSchemaBuilder {
      *   <li>nested/object -> skip (not mapped)</li>
      *   <li>unknown -> VARCHAR (default)</li>
      * </ul>
+     *
+     * @param opensearchType the OpenSearch field type string
      */
     public static SqlTypeName mapFieldType(String opensearchType) {
         switch (opensearchType) {

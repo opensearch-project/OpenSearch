@@ -14,9 +14,12 @@ import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.plugins.Plugin;
 
 /**
- * DataFusionPlugin native execution engine plugin.
+ * DataFusion native execution engine plugin.
  */
 public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
+
+    /** Creates a new DataFusion plugin. */
+    public DataFusionPlugin() {}
 
     private final DataFusionBridge bridge = new DataFusionBridge();
 

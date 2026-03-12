@@ -38,6 +38,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
 
+    /** Creates a new analytics engine hub plugin. */
+    public AnalyticsPlugin() {}
+
     private final List<AnalyticsBackEndPlugin> backEnds = new ArrayList<>();
 
     // Lazy references populated in createComponents, resolved by Guice providers

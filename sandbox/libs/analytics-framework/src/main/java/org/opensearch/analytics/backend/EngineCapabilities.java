@@ -32,11 +32,18 @@ public class EngineCapabilities {
     private final Set<Class<? extends RelNode>> supportedOperators;
     private final Set<SqlOperator> supportedFunctions;
 
+    /**
+     * Creates capabilities from explicit operator and function sets.
+     *
+     * @param supportedOperators relational operator classes the engine can execute
+     * @param supportedFunctions scalar and aggregate functions the engine supports
+     */
     public EngineCapabilities(Set<Class<? extends RelNode>> supportedOperators, Set<SqlOperator> supportedFunctions) {
         this.supportedOperators = Set.copyOf(supportedOperators);
         this.supportedFunctions = Set.copyOf(supportedFunctions);
     }
 
+    /** Returns capabilities covering standard Calcite logical operators and all built-in functions. */
     public static EngineCapabilities defaultCapabilities() {
         return new EngineCapabilities(
             Set.of(LogicalTableScan.class, LogicalFilter.class, LogicalAggregate.class, LogicalSort.class),
@@ -44,10 +51,20 @@ public class EngineCapabilities {
         );
     }
 
+    /**
+     * Returns {@code true} if the engine can execute the given relational operator.
+     *
+     * @param node the relational operator to check
+     */
     public boolean supportsOperator(RelNode node) {
         return supportedOperators.contains(node.getClass());
     }
 
+    /**
+     * Returns {@code true} if every scalar function in the expression tree is supported.
+     *
+     * @param expression the row expression tree to check
+     */
     public boolean supportsAllFunctions(RexNode expression) {
         if (expression == null) {
             return true;
@@ -76,6 +93,11 @@ public class EngineCapabilities {
         }
     }
 
+    /**
+     * Returns {@code true} if every aggregate function in the list is supported.
+     *
+     * @param aggCalls the aggregate calls to check
+     */
     public boolean supportsAllAggFunctions(List<AggregateCall> aggCalls) {
         if (aggCalls == null || aggCalls.isEmpty()) {
             return true;

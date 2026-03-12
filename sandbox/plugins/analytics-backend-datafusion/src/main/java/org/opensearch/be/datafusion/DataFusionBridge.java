@@ -13,10 +13,13 @@ import org.opensearch.analytics.backend.EngineBridge;
 
 /**
  * DataFusion EngineBridge implementation.
- * Uses a byte[] representing serialized plan to execute
+ * Uses a byte[] representing serialized plan to execute.
  */
 public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
     // S=byte[] (Substrait), H=Long (stream pointer), L=RelNode (logical plan)
+
+    /** Creates a new DataFusion bridge. */
+    public DataFusionBridge() {}
 
     /**
      * Convert calcite fragment to an executable native fragment.
