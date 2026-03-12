@@ -9,9 +9,6 @@
 package fe.ppl.action;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.analytics.backend.EngineCapabilities;
-import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
@@ -22,7 +19,6 @@ import org.opensearch.ppl.action.UnifiedQueryService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -60,21 +56,12 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
 
         when(mockClusterService.state()).thenReturn(mockClusterState);
 
-        // Construct the action with dummy injected dependencies — we'll replace
-        // the internally-built unifiedQueryService via reflection.
         action = new TestPPLTransportAction(
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
             mockClusterService,
-            mock(QueryPlanExecutor.class),
-            mock(SchemaProvider.class),
-            mock(EngineCapabilities.class)
+            mockUnifiedQueryService
         );
-
-        // Inject the mock UnifiedQueryService so tests control the pipeline output.
-        Field serviceField = TestPPLTransportAction.class.getDeclaredField("unifiedQueryService");
-        serviceField.setAccessible(true);
-        serviceField.set(action, mockUnifiedQueryService);
     }
 
     /**

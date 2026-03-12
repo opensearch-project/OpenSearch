@@ -21,7 +21,6 @@ import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedPPLExecuteAction;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -45,14 +44,6 @@ public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(ClickBenchUnifiedPipelineIT.class);
     private static final String HITS_INDEX = "hits";
-
-    @BeforeClass
-    public static void setupNettyProperties() {
-        System.setProperty("io.netty.allocator.numDirectArenas", "1");
-        System.setProperty("io.netty.noUnsafe", "false");
-        System.setProperty("io.netty.tryUnsafe", "true");
-        System.setProperty("io.netty.tryReflectionSetAccessible", "true");
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

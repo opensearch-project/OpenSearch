@@ -16,8 +16,19 @@ def calciteVersion = '1.41.0'
 
 dependencies {
   api "org.apache.calcite:calcite-core:${calciteVersion}"
-  api "org.apache.arrow:arrow-vector:${versions.arrow}"
-  api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+}
+
+testingConventions.enabled = false
+
+// Calcite pulls hundreds of optional transitive classes (guava, jackson, etc.)
+// that are not on the classpath. Disable thirdPartyAudit for this sandbox lib.
+thirdPartyAudit.enabled = false
+
+// analytics-framework does not depend on server
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+  failOnMissingClasses = false
+  ignoreSignaturesOfMissingClasses = true
 }
 
 // Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars

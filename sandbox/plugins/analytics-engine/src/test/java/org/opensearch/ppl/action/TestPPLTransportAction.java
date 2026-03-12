@@ -57,6 +57,18 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
         this.unifiedQueryService = new UnifiedQueryService(pushDownPlanner, schemaProvider);
     }
 
+    /** Test-only constructor that accepts a pre-built {@link UnifiedQueryService}. */
+    public TestPPLTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        UnifiedQueryService unifiedQueryService
+    ) {
+        super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
+        this.clusterService = clusterService;
+        this.unifiedQueryService = unifiedQueryService;
+    }
+
     @Override
     protected void doExecute(Task task, PPLRequest request, ActionListener<PPLResponse> listener) {
         try {

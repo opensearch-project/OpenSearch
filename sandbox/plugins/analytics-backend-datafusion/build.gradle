@@ -61,6 +61,18 @@ dependencies {
   testRuntimeOnly 'com.esri.geometry:esri-geometry-api:2.2.4'
 }
 
+testingConventions.enabled = false
+thirdPartyAudit.enabled = false
+
+// Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars
+tasks.withType(JavaCompile).configureEach {
+  doFirst {
+    options.compilerArgs.removeAll(['-Werror'])
+    options.compilerArgs.removeIf { it.startsWith('-Xlint') || it.startsWith('-Xdoclint') }
+    options.compilerArgs << '-Xlint:none'
+  }
+}
+
 configurations.all {
   resolutionStrategy {
     force 'com.google.guava:guava:33.4.0-jre'

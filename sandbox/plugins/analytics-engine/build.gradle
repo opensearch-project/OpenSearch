@@ -118,6 +118,9 @@ configurations.all {
   }
 }
 
+// Calcite pulls hundreds of optional transitive classes (guava, jackson, etc.)
+thirdPartyAudit.enabled = false
+
 // Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars
 tasks.withType(JavaCompile).configureEach {
   doFirst {
