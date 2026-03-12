@@ -17,7 +17,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 def calciteVersion = '1.41.0'
 
 // SQL Unified Query API version (aligned with OpenSearch build version)
-def sqlUnifiedQueryVersion = '3.6.0.0-SNAPSHOT'
+def sqlUnifiedQueryVersion = '3.5.0.0'
 
 opensearchplugin {
   description = 'Analytics engine hub: discovers and wires query extensions via ExtensiblePlugin SPI.'

@@ -99,10 +99,3 @@ configurations.all {
     force "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
   }
 }
-
-test {
-  dependsOn cargoBuild
-  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
-  jvmArgs '-Darrow.memory.debug.allocator=false'
-  systemProperty 'java.library.path', cargoBuildDir
-}

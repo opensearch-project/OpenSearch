@@ -25,8 +25,8 @@ package org.opensearch.analytics.backend;
  * Consumers read from the native stream via Arrow Flight or
  * direct native-memory access using the returned handle.
  *
- * @param <Stream>       serialised plan type (e.g., {@code byte[]} for Substrait)
- * @param <Fragment>     result handle type (e.g., {@code Long} native stream pointer)
+ * @param <Fragment>     serialised plan type (e.g., {@code byte[]} for Substrait)
+ * @param <Stream>       result stream handle
  * @param <LogicalPlan>> logical plan type (e.g., Calcite {@code RelNode})
  * @opensearch.internal
  */
