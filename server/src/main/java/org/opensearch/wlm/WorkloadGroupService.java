@@ -325,6 +325,15 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
         return activeWorkloadGroups;
     }
 
+    /**
+     * Returns the workload group with the given ID, or null if not found.
+     * @param workloadGroupId the workload group identifier
+     * @return the WorkloadGroup or null
+     */
+    public WorkloadGroup getWorkloadGroupById(String workloadGroupId) {
+        return clusterService.state().metadata().workloadGroups().get(workloadGroupId);
+    }
+
     public Set<WorkloadGroup> getDeletedWorkloadGroups() {
         return deletedWorkloadGroups;
     }
