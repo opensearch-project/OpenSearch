@@ -65,6 +65,6 @@ public class TokenCountParquetField extends ParquetField {
 
     @Override
     public Set<FieldCapability> getFieldCapabilities() {
-        return EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.INDEX, FieldCapability.STORE);
+        return EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.STORE);
     }
 }

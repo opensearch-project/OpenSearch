@@ -40,6 +40,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
@@ -58,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.opensearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
+import static org.opensearch.index.mapper.Mapper.isOptimisedIndexEnabled;
 
 /**
  * A parser for documents, given mappings from a DocumentMapper
@@ -826,12 +828,14 @@ final class DocumentParser {
                     if (builder == null) {
                         return handleNoTemplateFound(dynamic, () -> {
                             boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
+                            boolean isOptimizedIndexEnabled = isOptimisedIndexEnabled(context.indexSettings().getSettings());
                             return new DateFieldMapper.Builder(
                                 currentFieldName,
                                 DateFieldMapper.Resolution.MILLISECONDS,
                                 dateTimeFormatter,
                                 ignoreMalformed,
-                                IndexMetadata.indexCreated(context.indexSettings().getSettings())
+                                IndexMetadata.indexCreated(context.indexSettings().getSettings()),
+                                isOptimizedIndexEnabled
                             );
                         });
                     }

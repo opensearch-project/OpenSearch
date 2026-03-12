@@ -218,7 +218,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected DerivedFieldGenerator derivedFieldGenerator;
-    protected Boolean isPluggableDataFormatFeatureEnabled;
+    protected int isPluggableDataFormatFeatureEnabled;
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -231,6 +231,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
         this.derivedFieldGenerator = derivedFieldGenerator();
+        isPluggableDataFormatFeatureEnabled = -1;
     }
 
     @Override
@@ -348,11 +349,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected final boolean isPluggableDataFormatFeatureEnabled(ParseContext parseContext) {
-        if(isPluggableDataFormatFeatureEnabled == null) {
-            isPluggableDataFormatFeatureEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) && parseContext.indexSettings().isOptimizedIndex();
+        if(isPluggableDataFormatFeatureEnabled == -1) {
+            boolean featureFlagEnabled = isOptimisedIndexEnabled(parseContext.indexSettings().getSettings());
+            isPluggableDataFormatFeatureEnabled = featureFlagEnabled ? 1 : 0;
         }
 
-        return isPluggableDataFormatFeatureEnabled;
+        return isPluggableDataFormatFeatureEnabled == 1;
     }
 
     @Override

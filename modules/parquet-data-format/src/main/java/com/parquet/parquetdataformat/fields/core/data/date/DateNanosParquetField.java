@@ -64,6 +64,6 @@ public class DateNanosParquetField extends ParquetField {
 
     @Override
     public Set<FieldCapability> getFieldCapabilities() {
-        return java.util.EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.INDEX, FieldCapability.STORE);
+        return java.util.EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.STORE);
     }
 }

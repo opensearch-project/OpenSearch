@@ -135,9 +135,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
+        private boolean isOptimisedIndexEnabled;
 
         public Builder(String name, NumberType type, Settings settings) {
             this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            this.isOptimisedIndexEnabled = isOptimisedIndexEnabled(settings);
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
@@ -2122,11 +2124,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean isOptimizedIndexEnabled;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type;
-        this.indexed = builder.indexed.getValue();
+        this.isOptimizedIndexEnabled = builder.isOptimisedIndexEnabled;
+        // Set Index flag to none for NumberFieldMapper
+        this.indexed = builder.indexed.getValue() && !isOptimizedIndexEnabled;
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
         this.skiplist = builder.skiplist.getValue();
