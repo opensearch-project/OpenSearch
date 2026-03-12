@@ -325,7 +325,7 @@ public class MockScriptEngine implements ScriptEngine {
             ContextAwareGroupingScript.Factory factory = () -> new ContextAwareGroupingScript() {
                 @Override
                 public String execute(Map<String, Object> ctx) {
-                    return (String) script.apply(ctx);
+                    return String.valueOf(script.apply(ctx));
                 }
             };
             return context.factoryClazz.cast(factory);
