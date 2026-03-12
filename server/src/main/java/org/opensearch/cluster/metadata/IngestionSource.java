@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -270,7 +269,7 @@ public class IngestionSource {
      * When warmup is enabled, shards will wait for lag to catch up before serving queries
      * after node restart or shard relocation.
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class WarmupConfig {
         private final boolean enabled;
         private final TimeValue timeout;
