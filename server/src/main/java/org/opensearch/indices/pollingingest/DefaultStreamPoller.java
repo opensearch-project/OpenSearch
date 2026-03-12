@@ -59,7 +59,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile boolean reinitializeConsumer;
 
     private volatile long lastPolledMessageTimestamp = 0;
-    private volatile long cachedPointerBasedLag = -1;
+    private volatile long cachedPointerBasedLag = -1; // -1 indicates poller has not consumed any message yet
     private volatile long lastPointerBasedLagUpdateTime = 0;
 
     // Warmup configuration and state

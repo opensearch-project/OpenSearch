@@ -665,13 +665,6 @@ public class IngestionEngine extends InternalEngine {
     }
 
     /**
-     * Returns true if the warmup phase is complete and the shard is ready to serve.
-     */
-    public boolean isWarmupComplete() {
-        return streamPoller.isWarmupComplete();
-    }
-
-    /**
      * Block until warmup is complete or timeout occurs.
      * This method handles all warmup logic internally including timeout handling and error throwing.
      *
