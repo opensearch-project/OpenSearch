@@ -16,6 +16,9 @@ def calciteVersion = '1.41.0'
 
 dependencies {
   api "org.apache.calcite:calcite-core:${calciteVersion}"
+  // Calcite's bytecode contains @API(status=INTERNAL) annotations from apiguardian.
+  // Without this, javadoc warns "unknown enum constant Status.INTERNAL" and -Xwerror fails.
+  compileOnly 'org.apiguardian:apiguardian-api:1.1.2'
 }
 
 testingConventions.enabled = false
