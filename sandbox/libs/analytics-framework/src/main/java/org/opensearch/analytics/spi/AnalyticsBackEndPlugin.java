@@ -12,12 +12,7 @@ import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.backend.EngineCapabilities;
 
 /**
- * SPI extension point for back-end execution engines (DataFusion, Lucene, etc.).
- *
- * <p>Implementations are discovered by the analytics engine hub via
- * {@code ExtensiblePlugin.loadExtensions} and passed to the
- * {@link QueryPlanExecutorPlugin} during initialization.
- *
+ * SPI extension point for back-end query engines (DataFusion, Lucene, etc.).
  * @opensearch.internal
  */
 public interface AnalyticsBackEndPlugin {
@@ -25,7 +20,7 @@ public interface AnalyticsBackEndPlugin {
     String name();
 
     /** JNI boundary for executing serialized plans, or null for engines without native execution. */
-    EngineBridge<?> bridge();
+    EngineBridge<?, ?, ?> bridge();
 
     /** Engine capabilities describing supported operators/functions, or null. */
     EngineCapabilities getEngineCapabilities();

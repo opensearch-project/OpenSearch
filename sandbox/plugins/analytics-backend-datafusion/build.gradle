@@ -27,7 +27,7 @@ dependencies {
   // Shared types and SPI interfaces (EngineBridge, EngineCapabilities, AnalyticsBackEndPlugin, etc.)
   api project(':sandbox:libs:analytics-framework')
   // Query executor plugin (provides transitive access to server interfaces including QueryBackEndPlugin)
-  testImplementation project(':sandbox:plugins:analytics-engine-executor')
+  testImplementation project(':sandbox:plugins:analytics-engine')
   // Arrow Flight streaming transport (for BufferAllocator, VectorSchemaRoot)
   api project(':plugins:arrow-flight-rpc')
 

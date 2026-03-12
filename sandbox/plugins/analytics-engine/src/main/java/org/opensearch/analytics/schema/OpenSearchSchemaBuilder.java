@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * <p>One Calcite table per index. Reads field types from index mapping properties.
  * Navigates: IndexMetadata -> MappingMetadata -> sourceAsMap() -> "properties" -> per-field "type".
- * // TODO: The engine should provide this, move it there and consume here
+ * // TODO: This is for illustation - use version sql plugin has built and re-purpose to not call node-client
  */
 public class OpenSearchSchemaBuilder {
 

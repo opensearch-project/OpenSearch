@@ -8,9 +8,9 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.backend.EngineCapabilities;
+import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.plugins.Plugin;
 
 /**
@@ -26,7 +26,7 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public EngineBridge<?> bridge() {
+    public EngineBridge<?, ?, ?> bridge() {
         return bridge;
     }
 
