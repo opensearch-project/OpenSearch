@@ -293,25 +293,31 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
 
         return () -> {
+            // Re-apply propagator-declared transients from the current context back into the
+            // snapshot being restored. This ensures that transients written after the snapshot
+            // was taken using newStoredContext (e.g. CURRENT_SPAN set by the tracing infrastructure) are not silently
+            // dropped when the security plugin (or any other caller) calls storedContext.restore().
+            // Without this, restore() would blindly overwrite the threadLocal with the original
+            // snapshot, losing any propagated transients that were set after newStoredContext() was called.
             ThreadContextStruct current = threadLocal.get();
-            ThreadContextStruct enrichedOriginalContext = originalContext;
+            ThreadContextStruct restoredContext = originalContext;
             final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
             if (!propagated.isEmpty()) {
                 Map<String, Object> merged = new HashMap<>(originalContext.transientHeaders);
                 propagated.forEach(merged::putIfAbsent);
-                enrichedOriginalContext = new ThreadContextStruct(
-                    enrichedOriginalContext.requestHeaders,
-                    enrichedOriginalContext.responseHeaders,
+                restoredContext = new ThreadContextStruct(
+                    restoredContext.requestHeaders,
+                    restoredContext.responseHeaders,
                     merged,
-                    enrichedOriginalContext.persistentHeaders,
-                    enrichedOriginalContext.isSystemContext,
-                    enrichedOriginalContext.warningHeadersSize
+                    restoredContext.persistentHeaders,
+                    restoredContext.isSystemContext,
+                    restoredContext.warningHeadersSize
                 );
             }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(enrichedOriginalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+                threadLocal.set(restoredContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(enrichedOriginalContext);
+                threadLocal.set(restoredContext);
             }
         };
     }
