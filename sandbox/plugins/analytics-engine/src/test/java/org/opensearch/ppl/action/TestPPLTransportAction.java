@@ -15,7 +15,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.analytics.spi.SchemaProvider;
+import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;

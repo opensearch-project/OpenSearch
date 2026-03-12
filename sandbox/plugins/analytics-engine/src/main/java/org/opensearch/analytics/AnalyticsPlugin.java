@@ -9,20 +9,19 @@
 package org.opensearch.analytics;
 
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.schema.SchemaPlus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineCapabilities;
-import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
+import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
+import org.opensearch.analytics.schema.SchemaProvider;
+import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
-import org.opensearch.analytics.spi.SchemaProvider;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,8 +46,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsBackEndPlugin.class));
-        SchemaProvider schemaProvider = clusterState ->
-            OpenSearchSchemaBuilder.buildSchema((ClusterState) clusterState);
+        SchemaProvider schemaProvider = clusterState -> OpenSearchSchemaBuilder.buildSchema((ClusterState) clusterState);
         schemaProviderRef.set(schemaProvider);
     }
 
@@ -56,8 +54,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     @SuppressWarnings("unchecked")
     public Collection<Module> createGuiceModules() {
         return List.of(b -> {
-            b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {})
-                .toProvider(() -> new DefaultPlanExecutor(backEnds));
+            b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
+            }).toProvider(() -> new DefaultPlanExecutor(backEnds));
             b.bind(SchemaProvider.class).toProvider(schemaProviderRef::get);
             b.bind(EngineCapabilities.class).toInstance(EngineCapabilities.defaultCapabilities());
         });

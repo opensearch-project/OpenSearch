@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.spi;
+package org.opensearch.analytics.schema;
 
 import org.apache.calcite.schema.SchemaPlus;
 

@@ -8,14 +8,15 @@
 
 package fe.ppl.action;
 
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.jdbc.CalciteSchema;
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.Version;
+import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -24,7 +25,6 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.UnifiedQueryService;
 import org.opensearch.ppl.planner.PushDownPlanner;
-import org.opensearch.analytics.spi.SchemaProvider;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -272,14 +272,32 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
                             if (ft == null || "nested".equals(ft) || "object".equals(ft)) continue;
                             SqlTypeName sqlType;
                             switch (ft) {
-                                case "keyword": case "text": case "ip": sqlType = SqlTypeName.VARCHAR; break;
-                                case "long": sqlType = SqlTypeName.BIGINT; break;
-                                case "integer": sqlType = SqlTypeName.INTEGER; break;
-                                case "double": sqlType = SqlTypeName.DOUBLE; break;
-                                case "float": sqlType = SqlTypeName.FLOAT; break;
-                                case "boolean": sqlType = SqlTypeName.BOOLEAN; break;
-                                case "date": sqlType = SqlTypeName.TIMESTAMP; break;
-                                default: sqlType = SqlTypeName.VARCHAR; break;
+                                case "keyword":
+                                case "text":
+                                case "ip":
+                                    sqlType = SqlTypeName.VARCHAR;
+                                    break;
+                                case "long":
+                                    sqlType = SqlTypeName.BIGINT;
+                                    break;
+                                case "integer":
+                                    sqlType = SqlTypeName.INTEGER;
+                                    break;
+                                case "double":
+                                    sqlType = SqlTypeName.DOUBLE;
+                                    break;
+                                case "float":
+                                    sqlType = SqlTypeName.FLOAT;
+                                    break;
+                                case "boolean":
+                                    sqlType = SqlTypeName.BOOLEAN;
+                                    break;
+                                case "date":
+                                    sqlType = SqlTypeName.TIMESTAMP;
+                                    break;
+                                default:
+                                    sqlType = SqlTypeName.VARCHAR;
+                                    break;
                             }
                             builder.add(f.getKey(), typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
                         }
@@ -304,7 +322,9 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
-                .putMapping("{\"properties\":{\"name\":{\"type\":\"keyword\"},\"value\":{\"type\":\"double\"},\"active\":{\"type\":\"boolean\"}}}")
+                .putMapping(
+                    "{\"properties\":{\"name\":{\"type\":\"keyword\"},\"value\":{\"type\":\"double\"},\"active\":{\"type\":\"boolean\"}}}"
+                )
                 .build();
 
             IndexMetadata emptyIndex = IndexMetadata.builder("empty")
@@ -323,12 +343,7 @@ public class UnifiedQueryServiceTests extends OpenSearchTestCase {
 
             return ClusterState.builder(new ClusterName("test"))
                 .metadata(
-                    Metadata.builder()
-                        .put(logsIndex, false)
-                        .put(dataIndex, false)
-                        .put(emptyIndex, false)
-                        .put(testIndex, false)
-                        .build()
+                    Metadata.builder().put(logsIndex, false).put(dataIndex, false).put(emptyIndex, false).put(testIndex, false).build()
                 )
                 .build();
         } catch (Exception e) {

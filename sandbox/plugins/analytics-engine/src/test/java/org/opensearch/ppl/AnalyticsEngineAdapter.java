@@ -10,7 +10,7 @@ package org.opensearch.ppl;
 
 import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.analytics.spi.SchemaProvider;
+import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.common.inject.Inject;
 
 public class AnalyticsEngineAdapter {
@@ -31,13 +31,8 @@ public class AnalyticsEngineAdapter {
     SchemaProvider schemaProvider;
     EngineCapabilities capabilities;
 
-
     @Inject(optional = true)
-    void setEngineComponents(
-        QueryPlanExecutor executor,
-        SchemaProvider schemaProvider,
-        EngineCapabilities engineCapabilities
-    ) {
+    void setEngineComponents(QueryPlanExecutor executor, SchemaProvider schemaProvider, EngineCapabilities engineCapabilities) {
         this.executor = executor;
         this.schemaProvider = schemaProvider;
         this.capabilities = engineCapabilities;

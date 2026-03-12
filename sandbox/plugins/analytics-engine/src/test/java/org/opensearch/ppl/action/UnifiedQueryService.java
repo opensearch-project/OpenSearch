@@ -10,8 +10,8 @@ package org.opensearch.ppl.action;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.schema.SchemaPlus;
+import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.analytics.spi.SchemaProvider;
 import org.opensearch.ppl.compiler.OpenSearchQueryCompiler;
 import org.opensearch.ppl.planner.PushDownPlanner;
 import org.opensearch.sql.api.UnifiedQueryContext;

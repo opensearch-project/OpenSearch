@@ -11,13 +11,13 @@ package fe.ppl.action;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.analytics.spi.SchemaProvider;
+import org.opensearch.analytics.schema.SchemaProvider;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.PPLResponse;
 import org.opensearch.ppl.action.TestPPLTransportAction;
-import org.opensearch.ppl.action.PPLRequest;
 import org.opensearch.ppl.action.UnifiedQueryService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
@@ -141,8 +141,7 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      * Exactly-one-callback on failure: only {@code onFailure} is called, never {@code onResponse}.
      */
     public void testExactlyOneCallbackOnFailure() {
-        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class)))
-            .thenThrow(new RuntimeException("fail"));
+        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class))).thenThrow(new RuntimeException("fail"));
 
         AtomicInteger responseCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);

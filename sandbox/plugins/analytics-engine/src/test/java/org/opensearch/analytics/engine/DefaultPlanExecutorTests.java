@@ -20,7 +20,6 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
