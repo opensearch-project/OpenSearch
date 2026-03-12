@@ -187,7 +187,7 @@ public abstract class MergeHandler {
                 Path path = Path.of(wfs.getDirectory(), file);
                 try {
                     Files.deleteIfExists(path);
-                    logger.info("Stale Merged File Deleted at : [{}]", path);
+                    // logger.info("Stale Merged File Deleted at : [{}]", path);
                 } catch (Exception exception) {
                     logger.error(
                         () -> new ParameterizedMessage(

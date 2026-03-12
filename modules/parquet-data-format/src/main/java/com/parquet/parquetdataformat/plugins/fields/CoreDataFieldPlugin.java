@@ -10,13 +10,9 @@ package com.parquet.parquetdataformat.plugins.fields;
 
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.fields.core.data.BinaryParquetField;
-import com.parquet.parquetdataformat.fields.core.data.date.DateNanosParquetField;
-import com.parquet.parquetdataformat.fields.core.data.TokenCountParquetField;
 import com.parquet.parquetdataformat.fields.core.data.BooleanParquetField;
+import com.parquet.parquetdataformat.fields.core.data.date.DateNanosParquetField;
 import com.parquet.parquetdataformat.fields.core.data.date.DateParquetField;
-import com.parquet.parquetdataformat.fields.core.data.IpParquetField;
-import com.parquet.parquetdataformat.fields.core.data.KeywordParquetField;
-import com.parquet.parquetdataformat.fields.core.data.TextParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.ByteParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.DoubleParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.FloatParquetField;
@@ -24,7 +20,11 @@ import com.parquet.parquetdataformat.fields.core.data.number.HalfFloatParquetFie
 import com.parquet.parquetdataformat.fields.core.data.number.IntegerParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.ShortParquetField;
+import com.parquet.parquetdataformat.fields.core.data.number.TokenCountParquetField;
 import com.parquet.parquetdataformat.fields.core.data.number.UnsignedLongParquetField;
+import com.parquet.parquetdataformat.fields.core.data.text.IpParquetField;
+import com.parquet.parquetdataformat.fields.core.data.text.KeywordParquetField;
+import com.parquet.parquetdataformat.fields.core.data.text.TextParquetField;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper;

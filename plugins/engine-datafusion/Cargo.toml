@@ -49,7 +49,7 @@ object_store = "=0.12.4"
 url = "2.0"
 
 # Substrait support
-substrait = "0.47"
+substrait = "=0.62.0"
 
 # Temporary directory support
 tempfile = "3.0"

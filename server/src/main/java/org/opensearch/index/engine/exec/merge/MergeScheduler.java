@@ -81,8 +81,8 @@ public class MergeScheduler {
             return;
         }
 
-        logger.info(() -> new ParameterizedMessage("Updating from merge scheduler config: maxThreadCount {} -> {}, " +
-            "maxMergeCount {} -> {}", this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount));
+        // logger.info(() -> new ParameterizedMessage("Updating from merge scheduler config: maxThreadCount {} -> {}, " +
+        //     "maxMergeCount {} -> {}", this.maxConcurrentMerges, newMaxThreadCount, this.maxMergeCount, newMaxMergeCount));
 
         this.maxConcurrentMerges = newMaxThreadCount;
         this.maxMergeCount = newMaxMergeCount;
@@ -172,7 +172,7 @@ public class MergeScheduler {
             long tookMS = 0;
             try {
                 if (isShutdown.get()) {
-                    logger.debug("[{}] MergeScheduler is shutdown, skipping merge", getName());
+                    // logger.debug("[{}] MergeScheduler is shutdown, skipping merge", getName());
                     return;
                 }
 
@@ -180,15 +180,15 @@ public class MergeScheduler {
                 currentMergesNumDocs.inc(totalNumDocs);
                 currentMergesSizeInBytes.inc(totalSizeInBytes);
 
-                logger.debug("[{}] Starting merge for: {}", getName(), oneMerge);
+                // logger.debug("[{}] Starting merge for: {}", getName(), oneMerge);
 
                 MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
                 compositeEngine.applyMergeChanges(mergeResult, oneMerge);
                 mergeHandler.onMergeFinished(oneMerge);
 
                 tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
-                logger.info("[{}] Merge completed in {}ms for: {} and output is stored in: {}",
-                    getName(), tookMS, oneMerge, mergeResult);
+                // logger.info("[{}] Merge completed in {}ms for: {} and output is stored in: {}",
+                //     getName(), tookMS, oneMerge, mergeResult);
 
             } catch (Exception e) {
                 logger.error("[{}] Unexpected error during merge for: {}", getName(), oneMerge, e);
@@ -262,7 +262,7 @@ public class MergeScheduler {
     //TODO see where we want to call this function for the Merge shutdown
     public void shutdown() {
         if (isShutdown.compareAndSet(false, true)) {
-            logger.info("Shutting down MergeScheduler with {} active merges", activeMerges.get());
+            // logger.info("Shutting down MergeScheduler with {} active merges", activeMerges.get());
 
             for (MergeThread thread : mergeThreads) {
                 try {

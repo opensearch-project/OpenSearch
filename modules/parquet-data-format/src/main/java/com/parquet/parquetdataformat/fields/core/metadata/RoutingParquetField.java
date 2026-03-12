@@ -8,14 +8,16 @@
 
 package com.parquet.parquetdataformat.fields.core.metadata;
 
+import org.opensearch.index.engine.exec.FieldCapability;
+import org.opensearch.index.mapper.MappedFieldType;
 import com.parquet.parquetdataformat.fields.ParquetField;
 import com.parquet.parquetdataformat.vsr.ManagedVSR;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.opensearch.index.mapper.MappedFieldType;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 /**
  * Parquet field implementation for handling routing metadata in OpenSearch documents.
@@ -57,5 +59,10 @@ public class RoutingParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldCapability> getFieldCapabilities() {
+        return java.util.EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.STORE);
     }
 }

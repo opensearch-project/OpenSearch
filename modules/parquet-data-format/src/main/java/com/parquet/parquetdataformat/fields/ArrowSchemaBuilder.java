@@ -46,10 +46,10 @@ public final class ArrowSchemaBuilder {
      * @throws IllegalArgumentException if mapperService is null
      * @throws IllegalStateException if no valid fields are found or if a field type is not supported
      */
-    public static Schema getSchema(final MapperService mapperService) {
+    public static Schema getSchema(final MapperService mapperService, boolean isPrimary) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
 
-        final List<Field> fields = extractFieldsFromMappers(mapperService);
+        final List<Field> fields = extractFieldsFromMappers(mapperService, isPrimary);
 
         if (fields.isEmpty()) {
             throw new IllegalStateException("No valid fields found in mapper service");
@@ -62,9 +62,10 @@ public final class ArrowSchemaBuilder {
      * Extracts Arrow fields from the mapper service, filtering out metadata fields.
      *
      * @param mapperService the mapper service to extract fields from
+     * @param isPrimary whether this is a primary engine context
      * @return a list of Arrow fields
      */
-    private static List<Field> extractFieldsFromMappers(final MapperService mapperService) {
+    private static List<Field> extractFieldsFromMappers(final MapperService mapperService, boolean isPrimary) {
         final List<Field> fields = new ArrayList<>();
 
         for (final Mapper mapper : mapperService.documentMapper().mappers()) {
@@ -72,12 +73,15 @@ public final class ArrowSchemaBuilder {
                 continue;
             }
 
-            final Field arrowField = createArrowField(mapper);
-            fields.add(arrowField);
+            final Field arrowField = createArrowField(mapper, isPrimary);
+            if (arrowField != null) {
+                fields.add(arrowField);
+            }
         }
 
-        fields.add(new Field(CompositeDataFormatWriter.ROW_ID, new LongParquetField().getFieldType(), null));
-        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField().getFieldType(), null));
+        LongParquetField longField = new LongParquetField();
+        fields.add(new Field(CompositeDataFormatWriter.ROW_ID, longField.getFieldType(), null));
+        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, longField.getFieldType(), null));
 
         return fields;
     }
@@ -98,20 +102,27 @@ public final class ArrowSchemaBuilder {
     }
 
     /**
-     * Creates an Arrow Field from an OpenSearch Mapper.
+     * Creates an Arrow Field from an OpenSearch Mapper using the ArrowFieldRegistry.
+     * For non-primary contexts, returns null if the field type has no eligible ParquetField,
+     * allowing the caller to skip the field. For primary contexts, throws IllegalStateException
+     * if no ParquetField is found.
      *
      * @param mapper the mapper to convert
-     * @return a new Arrow Field
-     * @throws IllegalStateException if the mapper type is not supported
+     * @param isPrimary whether this is a primary engine context
+     * @return a new Arrow Field, or null if the field is not eligible for the role
+     * @throws IllegalStateException if the mapper type is not supported in primary context
      */
-    private static Field createArrowField(final Mapper mapper) {
+    private static Field createArrowField(final Mapper mapper, boolean isPrimary) {
         final ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
 
         if (parquetField == null) {
-            throw new IllegalStateException(
-                String.format("Unsupported field type '%s' for field '%s'",
-                    mapper.typeName(), mapper.name())
-            );
+            if (isPrimary) {
+                throw new IllegalStateException(
+                    String.format("Unsupported field type '%s' for field '%s'",
+                        mapper.typeName(), mapper.name())
+                );
+            }
+            return null;
         }
 
         return new Field(mapper.name(), parquetField.getFieldType(), null);
