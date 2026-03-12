@@ -1,8 +1,7 @@
 .claude
 CLAUDE.md
 .cursor*
-plugins/examples/stream-transport-example/native/
-.kiro
+
 # intellij files
 .idea/
 *.iml
