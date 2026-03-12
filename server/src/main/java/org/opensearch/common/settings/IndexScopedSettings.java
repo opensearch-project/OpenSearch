@@ -292,6 +292,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_SEARCH_QUERY_PLAN_EXPLAIN_SETTING,
                 IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING,
                 IndexSettings.INDEX_COMPOSITE_PRIMARY_DATA_FORMAT_SETTING,
+                IndexSettings.INDEX_COMPOSITE_SECONDARY_DATA_FORMATS_SETTING,
                 IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MODE,
                 IndexSettings.OPTIMIZED_INDEX_CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT,
 

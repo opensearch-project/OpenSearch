@@ -27,6 +27,8 @@ curl --location --request DELETE 'localhost:9200/index-7'
 ```
 
 2. Create index with name : `index-7`
+
+To enable **Lucene as a secondary data format**, add `"index.composite.secondary_data_formats": ["lucene"]` to the index settings:
 ```
 curl --location --request PUT 'http://localhost:9200/index-7' \
 --header 'Content-Type: application/json' \
@@ -35,7 +37,8 @@ curl --location --request PUT 'http://localhost:9200/index-7' \
         "number_of_shards": 1,
         "number_of_replicas": 0,
         "refresh_interval": -1,
-        "optimized.enabled": true
+        "optimized.enabled": true,
+        "index.composite.secondary_data_formats": ["Lucene"]
     },
     "mappings": {
         "properties": {

@@ -70,18 +70,29 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             .stream().toList();
         if (dataSourcePlugins.isEmpty()) throw new IllegalStateException("No data formats found, can't initialise Engine");
 
-        boolean singlePlugin = dataSourcePlugins.size() == 1;
-
         // Setting-based role resolution
         String primaryDataFormatName = indexSettings.getValue(IndexSettings.INDEX_COMPOSITE_PRIMARY_DATA_FORMAT_SETTING);
-        this.roleMap = resolveRoles(primaryDataFormatName, dataSourcePlugins, singlePlugin);
+        List<String> secondaryDataFormatNames = indexSettings.getValue(IndexSettings.INDEX_COMPOSITE_SECONDARY_DATA_FORMATS_SETTING);
+
+        // Filter plugins to only those allowed by primary + secondary settings
+        List<DataSourcePlugin> allowedPlugins = filterAllowedPlugins(
+            primaryDataFormatName, secondaryDataFormatNames, dataSourcePlugins
+        );
+        if (allowedPlugins.isEmpty()) throw new IllegalStateException("No data formats found after filtering, can't initialise Engine");
+
+        boolean singlePlugin = allowedPlugins.size() == 1;
+
+        this.roleMap = resolveRoles(primaryDataFormatName, allowedPlugins, singlePlugin);
+        logger.info("Composite engine initialized with data formats: {}", roleMap.entrySet().stream()
+            .map(e -> e.getKey().name() + "=" + e.getValue())
+            .collect(java.util.stream.Collectors.joining(", ")));
         logger.debug("[COMPOSITE_DEBUG] Resolved engine roles: {}", roleMap.entrySet().stream()
             .map(e -> e.getKey().name() + " -> " + e.getValue())
             .collect(java.util.stream.Collectors.joining(", ")));
 
         // Build FieldSupportRegistry from plugin registrations
         this.fieldSupportRegistry = new FieldSupportRegistry();
-        for (DataSourcePlugin plugin : dataSourcePlugins) {
+        for (DataSourcePlugin plugin : allowedPlugins) {
             plugin.registerFieldSupport(fieldSupportRegistry);
         }
         logger.debug("[COMPOSITE_DEBUG] FieldSupportRegistry built. Registered formats: {}",
@@ -107,7 +118,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             .orElseThrow();
 
         List<DataFormat> dataFormats = new ArrayList<>();
-        for (DataSourcePlugin plugin : dataSourcePlugins) {
+        for (DataSourcePlugin plugin : allowedPlugins) {
             dataFormats.add(plugin.getDataFormat());
             boolean isPrimary = roleMap.get(plugin.getDataFormat()) == EngineRole.PRIMARY;
             FieldAssignments assignments = fieldAssignmentsMap.get(plugin.getDataFormat());
@@ -166,6 +177,64 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             "index.composite.primary_data_format is required when multiple data formats are registered. Available: "
                 + plugins.stream().map(p -> p.getDataFormat().name()).toList()
         );
+    }
+
+    /**
+     * Filters plugins to only those whose data format name matches the primary or is listed
+     * in the secondary data formats setting. If the primary setting is non-empty and no plugin
+     * matches it, throws an error. If secondary list is non-empty and any name doesn't match
+     * a registered plugin, throws an error.
+     * When both settings are at their defaults (primary="" and secondary=[]), throws an error
+     * since we cannot conclude which plugins to use.
+     */
+    static List<DataSourcePlugin> filterAllowedPlugins(
+        String primaryDataFormatName,
+        List<String> secondaryDataFormatNames,
+        List<DataSourcePlugin> allPlugins
+    ) {
+        boolean hasPrimarySetting = primaryDataFormatName != null && !primaryDataFormatName.isEmpty();
+        boolean hasSecondarySetting = secondaryDataFormatNames != null && !secondaryDataFormatNames.isEmpty();
+        List<String> allPluginNames = allPlugins.stream().map(p -> p.getDataFormat().name()).toList();
+
+        // If neither setting is configured, we can't determine which plugins to use
+        if (!hasPrimarySetting && !hasSecondarySetting) {
+            throw new IllegalArgumentException(
+                "index.composite.primary_data_format and index.composite.secondary_data_formats must be configured. "
+                    + "Cannot determine data format roles without explicit settings. Available plugins: " + allPluginNames
+            );
+        }
+
+        // Validate primary exists among registered plugins
+        if (hasPrimarySetting && allPlugins.stream().noneMatch(p -> p.getDataFormat().name().equals(primaryDataFormatName))) {
+            throw new IllegalArgumentException(
+                "Primary data format [" + primaryDataFormatName + "] not found among registered plugins. Available: " + allPluginNames
+            );
+        }
+
+        // Validate all secondary names exist among registered plugins
+        if (hasSecondarySetting) {
+            for (String secondaryName : secondaryDataFormatNames) {
+                if (allPlugins.stream().noneMatch(p -> p.getDataFormat().name().equals(secondaryName))) {
+                    throw new IllegalArgumentException(
+                        "Secondary data format [" + secondaryName + "] not found among registered plugins. Available: " + allPluginNames
+                    );
+                }
+            }
+        }
+
+        // Build the allowed set: primary + secondaries
+        List<DataSourcePlugin> allowed = new ArrayList<>();
+        for (DataSourcePlugin plugin : allPlugins) {
+            String name = plugin.getDataFormat().name();
+            boolean isPrimary = hasPrimarySetting && name.equals(primaryDataFormatName);
+            boolean isSecondary = hasSecondarySetting && secondaryDataFormatNames.contains(name);
+
+            if (isPrimary || isSecondary) {
+                allowed.add(plugin);
+            }
+        }
+
+        return allowed;
     }
 
     public FieldSupportRegistry getFieldSupportRegistry() {

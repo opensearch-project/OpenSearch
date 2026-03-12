@@ -875,6 +875,18 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    /**
+     * Declares which data formats are secondary for a composite index.
+     * Only plugins whose data format name appears in this list (or matches the primary)
+     * will be registered. Defaults to an empty list (all non-primary plugins are allowed).
+     */
+    public static final Setting<List<String>> INDEX_COMPOSITE_SECONDARY_DATA_FORMATS_SETTING = Setting.listSetting(
+        "index.composite.secondary_data_formats",
+        Collections.emptyList(),
+        s -> s,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
