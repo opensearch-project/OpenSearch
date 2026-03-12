@@ -37,7 +37,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         RelNode fragment = logicalFragment;
         int fieldCount = fragment.getRowType().getFieldCount();
 
-        logger.info("[DefaultPlanExecutor] Executing fragment with {} fields: {}", fieldCount, fragment.explain());
+        logger.debug("[DefaultPlanExecutor] Executing fragment with {} fields: {}", fieldCount, fragment.explain());
 
         // Stub: return empty result set.
         return new ArrayList<>();

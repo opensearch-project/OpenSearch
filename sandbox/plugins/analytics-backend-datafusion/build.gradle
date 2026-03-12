@@ -14,15 +14,6 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
-// --- Cargo build for native DataFusion JNI library ---
-def nativeDir = "${projectDir}/native"
-def cargoBuildDir = "${nativeDir}/target/release"
-
-tasks.register('cargoBuild', Exec) {
-  workingDir nativeDir
-  commandLine 'cargo', 'build', '--release'
-}
-
 dependencies {
   // Shared types and SPI interfaces (EngineBridge, EngineCapabilities, AnalyticsBackEndPlugin, etc.)
   api project(':sandbox:libs:analytics-framework')
@@ -30,10 +21,6 @@ dependencies {
   testImplementation project(':sandbox:plugins:analytics-engine')
   // Arrow Flight streaming transport (for BufferAllocator, VectorSchemaRoot)
   api project(':plugins:arrow-flight-rpc')
-
-  // Annotation dependencies (needed to suppress -Werror on Arrow annotation warnings)
-  compileOnly 'org.checkerframework:checker-qual:3.43.0'
-  compileOnly 'org.apiguardian:apiguardian-api:1.1.2'
 
   // Arrow memory implementation needed at test runtime for RootAllocator
   testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
@@ -72,10 +59,6 @@ dependencies {
   testRuntimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   testRuntimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
   testRuntimeOnly 'com.esri.geometry:esri-geometry-api:2.2.4'
-
-  // Annotation dependencies for test compilation
-  testCompileOnly 'org.checkerframework:checker-qual:3.43.0'
-  testCompileOnly 'org.apiguardian:apiguardian-api:1.1.2'
 }
 
 configurations.all {
