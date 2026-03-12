@@ -293,10 +293,25 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
 
         return () -> {
+            ThreadContextStruct current = threadLocal.get();
+            ThreadContextStruct enrichedOriginalContext = originalContext;
+            final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
+            if (!propagated.isEmpty()) {
+                Map<String, Object> merged = new HashMap<>(originalContext.transientHeaders);
+                propagated.forEach(merged::putIfAbsent);
+                enrichedOriginalContext = new ThreadContextStruct(
+                    enrichedOriginalContext.requestHeaders,
+                    enrichedOriginalContext.responseHeaders,
+                                            merged,
+                    enrichedOriginalContext.persistentHeaders,
+                    enrichedOriginalContext.isSystemContext,
+                    enrichedOriginalContext.warningHeadersSize
+                                        );
+            }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+                threadLocal.set(enrichedOriginalContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(originalContext);
+                threadLocal.set(enrichedOriginalContext);
             }
         };
     }

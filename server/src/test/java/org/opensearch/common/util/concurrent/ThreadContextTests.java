@@ -851,4 +851,47 @@ public class ThreadContextTests extends OpenSearchTestCase {
             }
         };
     }
+
+    //We are simulating behavior that happens in Netty4HttpRequestHeaderVerifier
+    //It take a snapshot of state and stores in CONTEXT_TO_RESTORE and
+    // later tries to restore the same in SecurityFilter. Any transients added in between are lost
+    public void testPropagatedTransientsAreRestored() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String PROPAGATED_KEY = "test_propagated_transient";
+        final Object PROPAGATED_VALUE = new Object();
+
+        // Register a propagator that declares PROPAGATED_KEY as a transient to carry across stashes.
+        threadContext.registerThreadContextStatePropagator(new ThreadContextStatePropagator() {
+            @Override
+            @SuppressWarnings("removal")
+            public Map<String, Object> transients(Map<String, Object> source) {
+                if (source.containsKey(PROPAGATED_KEY)) {
+                    return Collections.singletonMap(PROPAGATED_KEY, source.get(PROPAGATED_KEY));
+                }
+                return Collections.emptyMap();
+            }
+
+            @Override
+            @SuppressWarnings("removal")
+            public Map<String, String> headers(Map<String, Object> source) {
+                return Collections.emptyMap();
+            }
+        });
+
+        ThreadContext.StoredContext storedContext = null;
+        try(ThreadContext.StoredContext sc = threadContext.newStoredContext(false, Collections.emptyList())) {
+            //now we add something to original thread
+            // Simulate the tracing infrastructure writing CURRENT_SPAN into the stashed context.
+            storedContext = sc;
+            threadContext.putTransient(PROPAGATED_KEY, PROPAGATED_VALUE);
+        }
+        catch(Exception e) {
+            //unlikey to get exception, if we got one, test should fail
+            throw e;
+        }
+        //storedContext would have closed. Now we restore and after that, our original thread should have it
+        storedContext.restore();
+        //we should be able to find the key now
+        assertEquals(threadContext.getTransient(PROPAGATED_KEY), PROPAGATED_VALUE);
+    }
 }
