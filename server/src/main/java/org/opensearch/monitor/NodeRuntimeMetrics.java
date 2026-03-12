@@ -61,6 +61,7 @@ public class NodeRuntimeMetrics implements Closeable {
     static final String JVM_MEMORY_USED = "jvm.memory.used";
     static final String JVM_MEMORY_COMMITTED = "jvm.memory.committed";
     static final String JVM_MEMORY_LIMIT = "jvm.memory.limit";
+    static final String JVM_MEMORY_USED_AFTER_LAST_GC = "jvm.memory.used_after_last_gc";
 
     // GC
     static final String JVM_GC_DURATION = "jvm.gc.duration";
@@ -174,23 +175,30 @@ public class NodeRuntimeMetrics implements Closeable {
         for (JvmStats.MemoryPool pool : stats.getMem()) {
             String poolName = pool.getName();
             Tags poolTags = Tags.of(TAG_POOL, poolName);
-            gaugeHandles.add(
-                registry.createGauge(JVM_MEMORY_USED, "JVM memory pool used", UNIT_BYTES, () -> poolBytes(poolName, true), poolTags)
-            );
-            gaugeHandles.add(
-                registry.createGauge(JVM_MEMORY_LIMIT, "JVM memory pool max", UNIT_BYTES, () -> poolBytes(poolName, false), poolTags)
-            );
+            gaugeHandles.add(registry.createGauge(JVM_MEMORY_USED, "JVM memory pool used", UNIT_BYTES, () -> {
+                JvmStats.MemoryPool p = getPoolByName(poolName);
+                return p == null ? 0.0 : (double) p.getUsed().getBytes();
+            }, poolTags));
+            gaugeHandles.add(registry.createGauge(JVM_MEMORY_LIMIT, "JVM memory pool max", UNIT_BYTES, () -> {
+                JvmStats.MemoryPool p = getPoolByName(poolName);
+                if (p == null) return 0.0;
+                long bytes = p.getMax().getBytes();
+                return bytes < 0 ? 0.0 : (double) bytes;
+            }, poolTags));
+            gaugeHandles.add(registry.createGauge(JVM_MEMORY_USED_AFTER_LAST_GC, "JVM memory pool used after last GC", UNIT_BYTES, () -> {
+                JvmStats.MemoryPool p = getPoolByName(poolName);
+                return p == null ? 0.0 : (double) p.getLastGcStats().getUsed().getBytes();
+            }, poolTags));
         }
     }
 
-    private double poolBytes(String poolName, boolean used) {
+    private JvmStats.MemoryPool getPoolByName(String poolName) {
         for (JvmStats.MemoryPool pool : jvmService.stats().getMem()) {
             if (pool.getName().equals(poolName)) {
-                long bytes = (used ? pool.getUsed() : pool.getMax()).getBytes();
-                return bytes < 0 ? 0.0 : (double) bytes;
+                return pool;
             }
         }
-        return 0;
+        return null;
     }
 
     // ---- GC (cumulative gauges) ----
@@ -203,28 +211,24 @@ public class NodeRuntimeMetrics implements Closeable {
         for (JvmStats.GarbageCollector gc : stats.getGc()) {
             String collectorName = gc.getName();
             Tags gcTags = Tags.of(TAG_GC, collectorName);
-            gaugeHandles.add(
-                registry.createGauge(
-                    JVM_GC_DURATION,
-                    "GC cumulative collection time",
-                    UNIT_SECONDS,
-                    () -> gcMetric(collectorName, false),
-                    gcTags
-                )
-            );
-            gaugeHandles.add(
-                registry.createGauge(JVM_GC_COUNT, "GC collection count", UNIT_1, () -> gcMetric(collectorName, true), gcTags)
-            );
+            gaugeHandles.add(registry.createGauge(JVM_GC_DURATION, "GC cumulative collection time", UNIT_SECONDS, () -> {
+                JvmStats.GarbageCollector c = getCollectorByName(collectorName);
+                return c == null ? 0.0 : c.getCollectionTime().getMillis() / 1000.0;
+            }, gcTags));
+            gaugeHandles.add(registry.createGauge(JVM_GC_COUNT, "GC collection count", UNIT_1, () -> {
+                JvmStats.GarbageCollector c = getCollectorByName(collectorName);
+                return c == null ? 0.0 : (double) c.getCollectionCount();
+            }, gcTags));
         }
     }
 
-    private double gcMetric(String collectorName, boolean count) {
+    private JvmStats.GarbageCollector getCollectorByName(String collectorName) {
         for (JvmStats.GarbageCollector gc : jvmService.stats().getGc()) {
             if (gc.getName().equals(collectorName)) {
-                return count ? (double) gc.getCollectionCount() : gc.getCollectionTime().getMillis() / 1000.0;
+                return gc;
             }
         }
-        return 0;
+        return null;
     }
 
     // ---- Buffer pools ----
@@ -234,58 +238,28 @@ public class NodeRuntimeMetrics implements Closeable {
         for (JvmStats.BufferPool bp : stats.getBufferPools()) {
             String bpName = bp.getName();
             Tags bpTags = Tags.of(TAG_POOL, bpName);
-            gaugeHandles.add(
-                registry.createGauge(
-                    JVM_BUFFER_MEMORY_USED,
-                    "Buffer pool memory used",
-                    UNIT_BYTES,
-                    () -> bufferPoolMetric(bpName, BufferPoolField.USED),
-                    bpTags
-                )
-            );
-            gaugeHandles.add(
-                registry.createGauge(
-                    JVM_BUFFER_MEMORY_LIMIT,
-                    "Buffer pool total capacity",
-                    UNIT_BYTES,
-                    () -> bufferPoolMetric(bpName, BufferPoolField.LIMIT),
-                    bpTags
-                )
-            );
-            gaugeHandles.add(
-                registry.createGauge(
-                    JVM_BUFFER_COUNT,
-                    "Buffer pool buffer count",
-                    UNIT_1,
-                    () -> bufferPoolMetric(bpName, BufferPoolField.COUNT),
-                    bpTags
-                )
-            );
+            gaugeHandles.add(registry.createGauge(JVM_BUFFER_MEMORY_USED, "Buffer pool memory used", UNIT_BYTES, () -> {
+                JvmStats.BufferPool b = getBufferPoolByName(bpName);
+                return b == null ? 0.0 : (double) b.getUsed().getBytes();
+            }, bpTags));
+            gaugeHandles.add(registry.createGauge(JVM_BUFFER_MEMORY_LIMIT, "Buffer pool total capacity", UNIT_BYTES, () -> {
+                JvmStats.BufferPool b = getBufferPoolByName(bpName);
+                return b == null ? 0.0 : (double) b.getTotalCapacity().getBytes();
+            }, bpTags));
+            gaugeHandles.add(registry.createGauge(JVM_BUFFER_COUNT, "Buffer pool buffer count", UNIT_1, () -> {
+                JvmStats.BufferPool b = getBufferPoolByName(bpName);
+                return b == null ? 0.0 : (double) b.getCount();
+            }, bpTags));
         }
     }
 
-    private enum BufferPoolField {
-        USED,
-        LIMIT,
-        COUNT
-    }
-
-    private double bufferPoolMetric(String bpName, BufferPoolField field) {
+    private JvmStats.BufferPool getBufferPoolByName(String bpName) {
         for (JvmStats.BufferPool bp : jvmService.stats().getBufferPools()) {
             if (bp.getName().equals(bpName)) {
-                switch (field) {
-                    case USED:
-                        return (double) bp.getUsed().getBytes();
-                    case LIMIT:
-                        return (double) bp.getTotalCapacity().getBytes();
-                    case COUNT:
-                        return (double) bp.getCount();
-                    default:
-                        return 0;
-                }
+                return bp;
             }
         }
-        return 0;
+        return null;
     }
 
     // ---- Threads ----

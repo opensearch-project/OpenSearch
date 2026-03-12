@@ -113,6 +113,13 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
                 any(),
                 eq(expectedTags)
             );
+            verify(registry).createGauge(
+                eq(NodeRuntimeMetrics.JVM_MEMORY_USED_AFTER_LAST_GC),
+                anyString(),
+                eq(NodeRuntimeMetrics.UNIT_BYTES),
+                any(),
+                eq(expectedTags)
+            );
         }
     }
 
@@ -260,7 +267,7 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         int bufferPools = stats.getBufferPools().size();
 
         int expected = 4                            // memory aggregates (3 heap + 1 non-heap)
-            + (memoryPools * 2)                     // memory pools (used + limit per pool)
+            + (memoryPools * 3)                     // memory pools (used + limit + used_after_last_gc per pool)
             + (gcCollectors * 2)                    // GC (duration + count per collector)
             + (bufferPools * 3)                     // buffer pools (used + limit + count per pool)
             + 1 + Thread.State.values().length      // threads (total + per-state)
@@ -495,5 +502,96 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
             any(),
             any(Tags.class)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMemoryPoolSupplierReturnsValidValues() {
+        JvmStats stats = jvmService.stats();
+        JvmStats.MemoryPool firstPool = stats.getMem().iterator().next();
+        Tags poolTags = Tags.of(NodeRuntimeMetrics.TAG_POOL, firstPool.getName());
+
+        List<Supplier<Double>> poolSuppliers = new ArrayList<>();
+        when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), eq(poolTags))).thenAnswer(invocation -> {
+            poolSuppliers.add(invocation.getArgument(3));
+            return mock(Closeable.class);
+        });
+
+        new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
+
+        assertEquals("Expected 3 per-pool gauges (used, limit, used_after_last_gc)", 3, poolSuppliers.size());
+        for (Supplier<Double> supplier : poolSuppliers) {
+            double value = supplier.get();
+            assertTrue("Pool metric should be >= 0", value >= 0);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGcSupplierReturnsValidValues() {
+        JvmStats stats = jvmService.stats();
+        JvmStats.GarbageCollector firstGc = stats.getGc().getCollectors()[0];
+        Tags gcTags = Tags.of(NodeRuntimeMetrics.TAG_GC, firstGc.getName());
+
+        List<Supplier<Double>> gcSuppliers = new ArrayList<>();
+        when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), eq(gcTags))).thenAnswer(invocation -> {
+            gcSuppliers.add(invocation.getArgument(3));
+            return mock(Closeable.class);
+        });
+
+        new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
+
+        assertEquals("Expected 2 per-collector gauges (duration, count)", 2, gcSuppliers.size());
+        for (Supplier<Double> supplier : gcSuppliers) {
+            double value = supplier.get();
+            assertTrue("GC metric should be >= 0", value >= 0);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testBufferPoolSupplierReturnsValidValues() {
+        JvmStats stats = jvmService.stats();
+        JvmStats.BufferPool firstBp = stats.getBufferPools().get(0);
+        Tags bpTags = Tags.of(NodeRuntimeMetrics.TAG_POOL, firstBp.getName());
+
+        List<Supplier<Double>> bpSuppliers = new ArrayList<>();
+        when(registry.createGauge(anyString(), anyString(), anyString(), any(Supplier.class), eq(bpTags))).thenAnswer(invocation -> {
+            bpSuppliers.add(invocation.getArgument(3));
+            return mock(Closeable.class);
+        });
+
+        new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
+
+        assertEquals("Expected 3 per-buffer-pool gauges (used, limit, count)", 3, bpSuppliers.size());
+        for (Supplier<Double> supplier : bpSuppliers) {
+            double value = supplier.get();
+            assertTrue("Buffer pool metric should be >= 0", value >= 0);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testClassLoadingSupplierReturnsValidValues() {
+        List<Supplier<Double>> classSuppliers = new ArrayList<>();
+        when(registry.createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_COUNT), anyString(), anyString(), any(Supplier.class), eq(Tags.EMPTY)))
+            .thenAnswer(invocation -> {
+                classSuppliers.add(invocation.getArgument(3));
+                return mock(Closeable.class);
+            });
+        when(registry.createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_LOADED), anyString(), anyString(), any(Supplier.class), eq(Tags.EMPTY)))
+            .thenAnswer(invocation -> {
+                classSuppliers.add(invocation.getArgument(3));
+                return mock(Closeable.class);
+            });
+        when(registry.createGauge(eq(NodeRuntimeMetrics.JVM_CLASS_UNLOADED), anyString(), anyString(), any(Supplier.class), eq(Tags.EMPTY)))
+            .thenAnswer(invocation -> {
+                classSuppliers.add(invocation.getArgument(3));
+                return mock(Closeable.class);
+            });
+
+        new NodeRuntimeMetrics(registry, jvmService, processProbe, osProbe);
+
+        assertEquals("Expected 3 class loading gauges", 3, classSuppliers.size());
+        for (Supplier<Double> supplier : classSuppliers) {
+            double value = supplier.get();
+            assertTrue("Class loading metric should be >= 0", value >= 0);
+        }
     }
 }
