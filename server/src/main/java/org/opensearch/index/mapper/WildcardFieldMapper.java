@@ -715,7 +715,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         private final Query firstPhaseQuery;
         private final Predicate<String> secondPhaseMatcher;
         private final String patternString; // For toString
-        private final ValueFetcher valueFetcher;
+        private final Supplier<ValueFetcher> valueFetcherSupplier;
         private final SearchLookup searchLookup;
 
         WildcardMatchingQuery(String fieldName, Query firstPhaseQuery, String patternString) {
@@ -736,10 +736,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             this.patternString = Objects.requireNonNull(patternString);
             if (context != null) {
                 this.searchLookup = context.lookup();
-                this.valueFetcher = fieldType.valueFetcher(context, context.lookup(), null);
+                this.valueFetcherSupplier = () -> fieldType.valueFetcher(context, context.lookup(), null);
             } else {
                 this.searchLookup = null;
-                this.valueFetcher = null;
+                this.valueFetcherSupplier = null;
             }
         }
 
@@ -748,14 +748,14 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             Query firstPhaseQuery,
             Predicate<String> secondPhaseMatcher,
             String patternString,
-            ValueFetcher valueFetcher,
+            Supplier<ValueFetcher> valueFetcherSupplier,
             SearchLookup searchLookup
         ) {
             this.fieldName = fieldName;
             this.firstPhaseQuery = firstPhaseQuery;
             this.secondPhaseMatcher = secondPhaseMatcher;
             this.patternString = patternString;
-            this.valueFetcher = valueFetcher;
+            this.valueFetcherSupplier = valueFetcherSupplier;
             this.searchLookup = searchLookup;
         }
 
@@ -793,7 +793,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     rewriteFirstPhase,
                     secondPhaseMatcher,
                     patternString,
-                    valueFetcher,
+                    valueFetcherSupplier,
                     searchLookup
                 );
             }
@@ -826,6 +826,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                             Scorer approximateScorer = firstPhaseSupplier.get(leadCost);
                             DocIdSetIterator approximation = approximateScorer.iterator();
                             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(context);
+                            // Create a new ValueFetcher per thread.
+                            // ValueFetcher.setNextReader is not thread safe.
+                            final ValueFetcher valueFetcher = valueFetcherSupplier.get();
                             valueFetcher.setNextReader(context);
 
                             TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approximation) {
