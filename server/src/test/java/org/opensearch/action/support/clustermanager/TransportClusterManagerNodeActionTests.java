@@ -610,6 +610,94 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
+    /**
+     * Tests that when the local master steps down and no new master is elected yet,
+     * the retry mechanism waits via the observer (early predicate check returns false
+     * because there's no master), and then correctly forwards the request once a new
+     * master is elected.
+     */
+    public void testStepDownToNoMasterThenNewMasterElected() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueHours(1));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Response response = new Response();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
+                // Master steps down but no new master elected yet (master = null)
+                setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
+                listener.onFailure(new NotClusterManagerException("Fake error"));
+            }
+        }.execute(request, listener);
+
+        // No transport request yet, waiting for a master to appear
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        assertFalse(listener.isDone());
+
+        // Now a new master is elected (remoteNode)
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        // The request should now be forwarded to the new master
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertTrue(capturedRequest.node.isClusterManagerNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+
+        transport.handleResponse(capturedRequest.requestId, response);
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+    }
+
+    /**
+     * Tests that when the local master steps down with no new master, and then the
+     * SAME node becomes master again (with a higher version), the retry correctly
+     * re-executes locally.
+     */
+    public void testStepDownToNoMasterThenSameNodeReelected() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueHours(1));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Response response = new Response();
+        final int[] callCount = { 0 };
+
+        // Set initial state with a higher base version so re-election produces a version
+        // that the predicate recognizes as newer than the original
+        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes)).version(10));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
+                callCount[0]++;
+                if (callCount[0] == 1) {
+                    // First call: master steps down, no new master yet
+                    setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
+                    listener.onFailure(new FailedToCommitClusterStateException("Fake error"));
+                } else {
+                    // Second call: we're master again, succeed
+                    listener.onResponse(response);
+                }
+            }
+        }.execute(request, listener);
+
+        // Waiting for a master, no transport request, not done yet
+        assertFalse(listener.isDone());
+        assertThat(transport.capturedRequests().length, equalTo(0));
+
+        // Same node becomes master again with higher version
+        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes)).version(11));
+
+        // Should have re-executed locally and succeeded
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+        assertThat(callCount[0], equalTo(2));
+    }
+
     // Validate TransportMasterNodeAction.testDelegateToClusterManager() works correctly on node with the deprecated MASTER_ROLE.
     public void testDelegateToClusterManagerOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
         DiscoveryNode localNode = new DiscoveryNode(
@@ -805,6 +893,87 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
         Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
         return ClusterState.builder(state).version(version).metadata(newMetadata).build();
+    }
+
+    /**
+     * Tests that when the clusterStateLatestChecker's GetTermVersion request fails with a
+     * ConnectTransportException, the handleTransportException path correctly triggers a retry
+     * and the request is eventually forwarded to a new master.
+     */
+    public void testClusterStateLatestCheckerHandlesTransportException() throws ExecutionException, InterruptedException {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo1");
+        attributes.put(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo2");
+
+        localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        allNodes = new DiscoveryNode[] { localNode, remoteNode };
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Action action = new Action("internal:testAction", transportService, clusterService, threadPool, remoteClusterStateService);
+        action.execute(request, listener);
+
+        // The first captured request is the GetTermVersion request to the remote master
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+
+        // Simulate a ConnectTransportException on the GetTermVersion request
+        transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake connection error"));
+
+        // The action should now be waiting for a new master via the observer
+        assertFalse(listener.isDone());
+
+        // Elect localNode as the new master — this triggers the observer and re-executes locally
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        assertTrue(listener.isDone());
+        listener.get();
+    }
+
+    /**
+     * Tests that when executeOnClusterManager's transport request fails with a NodeClosedException
+     * wrapped in a RemoteTransportException, the handleTransportException path correctly retries.
+     */
+    public void testExecuteOnClusterManagerHandlesNodeClosedException() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+
+        // Simulate a NodeClosedException (remote master shutting down)
+        transport.handleRemoteError(capturedRequest.requestId, new NodeClosedException(remoteNode));
+
+        // Should be waiting for a new master
+        assertFalse(listener.isDone());
+
+        // New master elected (localNode)
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        assertTrue(listener.isDone());
+        listener.get();
     }
 
     public void testDontAllowSwitchingToStrictCompatibilityModeForMixedCluster() {
