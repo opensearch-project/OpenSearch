@@ -3517,16 +3517,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("location_copy").field("type", "geo_point").endObject();
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> {
-            b.startObject("point")
-                .field("lat", 40.71)
-                .field("lon", 74.00)
-            .endObject();
-        }));
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
 
         // Verify that the geo_point field itself exists
         assertNotNull(doc.rootDoc().getField("point"));
-        
+
         // Verify that the field was copied to the copy_to target
         IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
         assertNotNull(copiedFields);
@@ -3544,13 +3539,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("location_copy").field("type", "geo_point").endObject();
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> {
-            b.array("point", 74.00, 40.71);
-        }));
+        ParsedDocument doc = mapper.parse(source(b -> { b.array("point", 74.00, 40.71); }));
 
         // Verify that the geo_point field itself exists
         assertNotNull(doc.rootDoc().getField("point"));
-        
+
         // Verify that the field was copied to the copy_to target
         IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
         assertNotNull(copiedFields);
@@ -3569,16 +3562,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startObject("location_copy2").field("type", "geo_point").endObject();
         }));
 
-        ParsedDocument doc = mapper.parse(source(b -> {
-            b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject();
-        }));
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
 
         assertNotNull(doc.rootDoc().getField("point"));
-        
+
         IndexableField[] copy1Fields = doc.rootDoc().getFields("location_copy1");
         assertNotNull(copy1Fields);
         assertTrue(copy1Fields.length > 0);
-        
+
         IndexableField[] copy2Fields = doc.rootDoc().getFields("location_copy2");
         assertNotNull(copy2Fields);
         assertTrue(copy2Fields.length > 0);

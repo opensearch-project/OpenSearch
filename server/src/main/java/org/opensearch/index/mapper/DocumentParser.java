@@ -37,17 +37,17 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.core.common.Strings;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.script.ContextAwareGroupingScript;
@@ -1556,7 +1556,7 @@ final class DocumentParser {
 
     private static byte[] parseChildToBytes(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
-        try(XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
             builder.copyCurrentStructure(parser);
             return BytesReference.toBytes(BytesReference.bytes(builder));
         }
@@ -1564,9 +1564,8 @@ final class DocumentParser {
 
     private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
         XContentParser.Token token = context.parser().currentToken();
-        if ((token == XContentParser.Token.START_ARRAY || 
-            token == XContentParser.Token.START_OBJECT) && 
-            !fieldMapper.copyTo().copyToFields().isEmpty()) {
+        if ((token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)
+            && !fieldMapper.copyTo().copyToFields().isEmpty()) {
             byte[] childBytes = parseChildToBytes(context);
             // After parseChildToBytes, the original parser has consumed the full structure.
             // Parse the field using a fresh parser over the captured bytes.
@@ -1574,9 +1573,7 @@ final class DocumentParser {
             try (
                 XContentParser innerParser = parser.contentType()
                     .xContent()
-                    .createParser(parser.getXContentRegistry(),
-                        parser.getDeprecationHandler(),
-                        childBytes)
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), childBytes)
             ) {
                 innerParser.nextToken();
                 ParseContext innerContext = context.switchParser(innerParser);
