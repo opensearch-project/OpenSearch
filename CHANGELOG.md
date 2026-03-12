@@ -14,7 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support TLS cert hot-reload for Arrow Flight transport ([#20700](https://github.com/opensearch-project/OpenSearch/pull/20700))
 - [Workload Management] Enhance Scroll API support for autotagging ([#20151](https://github.com/opensearch-project/OpenSearch/pull/20151))
 - Add indices to search request slowlog ([#20588](https://github.com/opensearch-project/OpenSearch/pull/20588))
-- Add intra segment support for single-value metric aggregations  ([#20503](https://github.com/opensearch-project/OpenSearch/pull/20503))
 - Add mapper_settings support and field_mapping mapper type for pull-based ingestion([#20722](https://github.com/opensearch-project/OpenSearch/pull/20722))
 - Add support for fields containing dots in their name as literals ([#19958](https://github.com/opensearch-project/OpenSearch/pull/19958))
 - Add support for forward translog reading ([#20163](https://github.com/opensearch-project/OpenSearch/pull/20163))
@@ -34,12 +33,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update to `almalinux:10` ([#20482](https://github.com/opensearch-project/OpenSearch/pull/20482))
 - Add X-Request-Id to uniquely identify a search request ([#19798](https://github.com/opensearch-project/OpenSearch/pull/19798))
 - Added TopN selection logic for streaming terms aggregations ([#20481](https://github.com/opensearch-project/OpenSearch/pull/20481))
+- Added support for Intra Segment Search ([#19704](https://github.com/opensearch-project/OpenSearch/pull/19704))
 - Introduce AdditionalCodecs and EnginePlugin::getAdditionalCodecs hook to allow additional Codec registration ([#20411](https://github.com/opensearch-project/OpenSearch/pull/20411))
 - Introduced strategy planner interfaces for indexing and deletion ([#20585](https://github.com/opensearch-project/OpenSearch/pull/20585))
 - Implement FieldMappingIngestionMessageMapper for pull-based ingestion ([#20729](https://github.com/opensearch-project/OpenSearch/pull/20729))
 - Added support of WarmerRefreshListener in NRTReplicationEngine to trigger warmer after replication on replica shards ([#20650](https://github.com/opensearch-project/OpenSearch/pull/20650))
 - WLM group custom search settings - groundwork and timeout ([#20536](https://github.com/opensearch-project/OpenSearch/issues/20536))
-- Added support for Intra Segment Search ([#19704](https://github.com/opensearch-project/OpenSearch/pull/19704))
+- Add intra segment support for single-value metric aggregations  ([#20503](https://github.com/opensearch-project/OpenSearch/pull/20503))
 
 ### Changed
 - Make telemetry `Tags` immutable ([#20788](https://github.com/opensearch-project/OpenSearch/pull/20788))
@@ -69,6 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix TLS cert hot-reload for Arrow Flight transport ([#20732](https://github.com/opensearch-project/OpenSearch/pull/20732))
 - Fix misleading heap usage cancellation message in SearchBackpressureService ([#20779](https://github.com/opensearch-project/OpenSearch/pull/20779))
 - - Delegate getMin/getMax methods for ExitableTerms ([#20775](https://github.com/opensearch-project/OpenSearch/pull/20775))
+- Fix terms lookup subquery fetch limit reading from non-existent index setting instead of cluster `max_clause_count` ([#20823](https://github.com/opensearch-project/OpenSearch/pull/20823))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
