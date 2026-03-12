@@ -724,6 +724,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+        logger.debug("postUpload: added={}, mapSize={}", src, segmentsUploadedToRemoteStore.size());
     }
 
     /**
@@ -948,9 +949,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
+        long startNanos = System.nanoTime();
+        logger.debug("deleteStaleSegments: entering, mapSize={}", segmentsUploadedToRemoteStore.size());
         List<String> sortedMetadataFileList = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.METADATA_PREFIX,
             Integer.MAX_VALUE
+        );
+        long listingTimeMs = (System.nanoTime() - startNanos) / 1_000_000;
+        logger.debug(
+            "deleteStaleSegments: metadataFileCount={}, listingTimeMs={}, mapSize={}",
+            sortedMetadataFileList.size(),
+            listingTimeMs,
+            segmentsUploadedToRemoteStore.size()
         );
         if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
             logger.debug(
@@ -989,6 +999,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             return;
         }
 
+        logger.debug("deleteStaleSegments: lockFiles={}, implicitLockedFiles={}", allLockFiles.size(), implicitLockedFiles.size());
+
         List<String> metadataFilesEligibleToDelete = new ArrayList<>(
             sortedMetadataFileList.subList(lastNMetadataFilesToKeep, sortedMetadataFileList.size())
         );
@@ -1002,7 +1014,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         );
 
         if (metadataFilesEligibleToDelete.isEmpty()) {
-            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age");
+            long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+            logger.debug("No metadata files are eligible to be deleted based on lastNMetadataFilesToKeep and age, elapsedMs={}", elapsedMs);
             return;
         }
 
@@ -1011,9 +1024,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             .collect(Collectors.toList());
 
         logger.debug(
-            "metadataFilesEligibleToDelete={} metadataFilesToBeDeleted={}",
-            metadataFilesEligibleToDelete,
-            metadataFilesToBeDeleted
+            "deleteStaleSegments: eligible={}, toBeDeleted={}, elapsedMs={}",
+            metadataFilesEligibleToDelete.size(),
+            metadataFilesToBeDeleted.size(),
+            (System.nanoTime() - startNanos) / 1_000_000
         );
 
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
@@ -1032,6 +1046,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
             );
         }
+        logger.debug(
+            "deleteStaleSegments: metadataFilesToFilterActive={}, activeSegments={}, elapsedMs={}",
+            metadataFilesToFilterActiveSegments.size(),
+            activeSegmentRemoteFilenames.size(),
+            (System.nanoTime() - startNanos) / 1_000_000
+        );
         Set<String> deletedSegmentFiles = new HashSet<>();
         for (String metadataFile : metadataFilesToBeDeleted) {
             Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
@@ -1045,6 +1065,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 .filter(file -> activeSegmentRemoteFilenames.contains(file) == false)
                 .filter(file -> deletedSegmentFiles.contains(file) == false)
                 .collect(Collectors.toList());
+            logger.debug(
+                "deleteStaleSegments: metadataFile={}, staleSegments={}, filesToDelete={}",
+                metadataFile,
+                staleSegmentRemoteFilenames.size(),
+                filesToDelete.size()
+            );
 
             AtomicBoolean deletionSuccessful = new AtomicBoolean(true);
             try {
@@ -1073,7 +1099,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 remoteMetadataDirectory.deleteFile(metadataFile);
             }
         }
-        logger.debug("deletedSegmentFiles={}", deletedSegmentFiles);
+        logger.debug(
+            "deletedSegmentFiles={}, mapSize={}, totalTimeMs={}",
+            deletedSegmentFiles,
+            segmentsUploadedToRemoteStore.size(),
+            (System.nanoTime() - startNanos) / 1_000_000
+        );
     }
 
     public void deleteStaleSegmentsAsync(int lastNMetadataFilesToKeep) {
@@ -1108,6 +1139,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 canDeleteStaleCommits.set(true);
                 listener.onFailure(e);
             }
+        } else {
+            logger.debug("deleteStaleSegmentsAsync: skipped, gate held by another run, mapSize={}", segmentsUploadedToRemoteStore.size());
         }
     }
 
