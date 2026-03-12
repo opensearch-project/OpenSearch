@@ -25,6 +25,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -108,8 +109,11 @@ public class NodeRuntimeMetrics implements Closeable {
         OsProbe osProbe,
         ThreadMXBean threadMXBean
     ) {
-        this.jvmService = jvmService;
-        this.threadMXBean = threadMXBean;
+        this.jvmService = Objects.requireNonNull(jvmService, "jvmService");
+        this.threadMXBean = Objects.requireNonNull(threadMXBean, "threadMXBean");
+        Objects.requireNonNull(registry, "registry");
+        Objects.requireNonNull(processProbe, "processProbe");
+        Objects.requireNonNull(osProbe, "osProbe");
 
         try {
             registerMemoryGauges(registry);
@@ -166,6 +170,15 @@ public class NodeRuntimeMetrics implements Closeable {
                 "JVM non-heap memory used",
                 UNIT_BYTES,
                 () -> (double) jvmService.stats().getMem().getNonHeapUsed().getBytes(),
+                nonHeapTags
+            )
+        );
+        gaugeHandles.add(
+            registry.createGauge(
+                JVM_MEMORY_COMMITTED,
+                "JVM non-heap memory committed",
+                UNIT_BYTES,
+                () -> (double) jvmService.stats().getMem().getNonHeapCommitted().getBytes(),
                 nonHeapTags
             )
         );

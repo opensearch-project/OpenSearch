@@ -91,6 +91,13 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
             any(),
             eq(nonHeapTags)
         );
+        verify(registry).createGauge(
+            eq(NodeRuntimeMetrics.JVM_MEMORY_COMMITTED),
+            anyString(),
+            eq(NodeRuntimeMetrics.UNIT_BYTES),
+            any(),
+            eq(nonHeapTags)
+        );
     }
 
     public void testRegistersMemoryPoolGauges() {
@@ -266,7 +273,7 @@ public class NodeRuntimeMetricsTests extends OpenSearchTestCase {
         int gcCollectors = stats.getGc().getCollectors().length;
         int bufferPools = stats.getBufferPools().size();
 
-        int expected = 4                            // memory aggregates (3 heap + 1 non-heap)
+        int expected = 5                            // memory aggregates (3 heap + 2 non-heap)
             + (memoryPools * 3)                     // memory pools (used + limit + used_after_last_gc per pool)
             + (gcCollectors * 2)                    // GC (duration + count per collector)
             + (bufferPools * 3)                     // buffer pools (used + limit + count per pool)
