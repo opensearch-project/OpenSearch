@@ -45,8 +45,10 @@ import java.util.List;
 public class OpenSearchBoundaryTableScan extends TableScan implements EnumerableRel {
 
     private final RelNode logicalFragment;
+    @SuppressWarnings("rawtypes")
     private final QueryPlanExecutor planExecutor;
 
+    @SuppressWarnings("rawtypes")
     public OpenSearchBoundaryTableScan(
         RelOptCluster cluster,
         RelTraitSet traitSet,
@@ -75,6 +77,7 @@ public class OpenSearchBoundaryTableScan extends TableScan implements Enumerable
     }
 
     /** Returns the engine executor used for execution. */
+    @SuppressWarnings("rawtypes")
     public QueryPlanExecutor getEngineExecutor() {
         return planExecutor;
     }

@@ -86,9 +86,9 @@ public class PushDownPlanner {
      * logical fragment.
      */
     private static class BoundaryTableScanShuttle extends RelShuttleImpl {
-        private final QueryPlanExecutor planExecutor;
+        private final QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor;
 
-        BoundaryTableScanShuttle(QueryPlanExecutor planExecutor) {
+        BoundaryTableScanShuttle(QueryPlanExecutor<RelNode, Iterable<Object[]>> planExecutor) {
             this.planExecutor = planExecutor;
         }
 

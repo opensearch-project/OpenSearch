@@ -6,8 +6,6 @@
  * compatible open source license.
  */
 
-def calciteVersion = '1.41.0'
-
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
@@ -16,81 +14,9 @@ opensearchplugin {
 
 dependencies {
   // Shared types and SPI interfaces (EngineBridge, EngineCapabilities, AnalyticsBackEndPlugin, etc.)
+  // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
-  // Query executor plugin (provides transitive access to server interfaces including QueryBackEndPlugin)
-  testImplementation project(':sandbox:plugins:analytics-engine')
-  // Arrow Flight streaming transport (for BufferAllocator, VectorSchemaRoot)
-  api project(':plugins:arrow-flight-rpc')
-
-  // Arrow memory implementation needed at test runtime for RootAllocator
-  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
-
-  // Isthmus: SQL -> Substrait conversion (test only — for building Substrait plans)
-  testImplementation('io.substrait:isthmus:0.78.0') {
-    exclude group: 'org.apache.calcite'
-    exclude group: 'org.apache.calcite.avatica'
-  }
-  testImplementation('io.substrait:core:0.78.0') {
-    exclude group: 'org.apache.calcite'
-    exclude group: 'org.apache.calcite.avatica'
-  }
-  testImplementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
-
-  // Calcite (needed by Isthmus for catalog/type resolution)
-  testImplementation "org.apache.calcite:calcite-core:${calciteVersion}"
-  testImplementation "org.apache.calcite:calcite-linq4j:${calciteVersion}"
-  testImplementation "org.apache.calcite.avatica:avatica-core:1.27.0"
-  testRuntimeOnly "org.apache.calcite:calcite-server:${calciteVersion}"
-
-  // Jackson (needed by Isthmus/Substrait for extension YAML parsing)
-  testImplementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-  testImplementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
-  testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-
-  // Runtime dependencies for Calcite/Isthmus
-  testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
-  testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
-  testRuntimeOnly 'org.jooq:joou-java-6:0.9.4'
-  testRuntimeOnly "org.apache.commons:commons-math3:3.6.1"
-  testRuntimeOnly "com.jayway.jsonpath:json-path:2.9.0"
-  testRuntimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
-  testRuntimeOnly "org.yaml:snakeyaml:${versions.snakeyaml}"
-  testRuntimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
-  testRuntimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
-  testRuntimeOnly 'com.esri.geometry:esri-geometry-api:2.2.4'
 }
 
+// TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
-thirdPartyAudit.enabled = false
-
-// Suppress -Werror and annotation warnings from Calcite/Arrow dependency jars
-tasks.withType(JavaCompile).configureEach {
-  doFirst {
-    options.compilerArgs.removeAll(['-Werror'])
-    options.compilerArgs.removeIf { it.startsWith('-Xlint') || it.startsWith('-Xdoclint') }
-    options.compilerArgs << '-Xlint:none'
-  }
-}
-
-configurations.all {
-  resolutionStrategy {
-    force 'com.google.guava:guava:33.4.0-jre'
-    force 'com.google.guava:failureaccess:1.0.2'
-    force 'com.google.errorprone:error_prone_annotations:2.36.0'
-    force 'org.checkerframework:checker-qual:3.43.0'
-    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
-    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-    force "org.slf4j:slf4j-api:${versions.slf4j}"
-    force "org.locationtech.jts:jts-core:${versions.jts}"
-    force "org.yaml:snakeyaml:${versions.snakeyaml}"
-    force "commons-codec:commons-codec:${versions.commonscodec}"
-    force "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
-    force "commons-logging:commons-logging:1.2"
-    force "org.apache.commons:commons-lang3:3.13.0"
-    force "org.apache.httpcomponents.client5:httpclient5:5.5"
-    force "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
-  }
-}

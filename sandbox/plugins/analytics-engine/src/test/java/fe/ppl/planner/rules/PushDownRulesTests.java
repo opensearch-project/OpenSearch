@@ -13,6 +13,7 @@ import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
+import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.Linq4j;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.RelOptCluster;
@@ -54,7 +55,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
     private RelOptCluster cluster;
     private RexBuilder rexBuilder;
     private RelOptTable table;
-    private QueryPlanExecutor planExecutor;
+    private QueryPlanExecutor<RelNode, Enumerable<Object[]>> planExecutor;
 
     @Override
     public void setUp() throws Exception {

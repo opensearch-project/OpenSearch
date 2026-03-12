@@ -85,7 +85,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
     public void testExtendsTableScanNotLogicalTableScan() {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, executor);
 
@@ -96,7 +96,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
     public void testImplementsEnumerableRel() {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, executor);
 
@@ -113,8 +113,8 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
         final RelNode[] capturedFragment = new RelNode[1];
         final Object[] capturedContext = new Object[1];
         Object[][] rows = { new Object[] { 1, "a", 1.0 } };
-        QueryPlanExecutor executor = (fragment, ctx) -> {
-            capturedFragment[0] = (RelNode) fragment;
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> {
+            capturedFragment[0] = fragment;
             capturedContext[0] = ctx;
             return Linq4j.asEnumerable(rows);
         };
@@ -135,8 +135,8 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
 
         final RelNode[] capturedFragment = new RelNode[1];
-        QueryPlanExecutor executor = (fragment, ctx) -> {
-            capturedFragment[0] = (RelNode) fragment;
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> {
+            capturedFragment[0] = fragment;
             return Linq4j.emptyEnumerable();
         };
 
@@ -152,7 +152,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
     public void testCopyPreservesLogicalFragment() {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, executor);
 
@@ -166,7 +166,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
     public void testCopyPreservesTable() {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, executor);
 
@@ -181,7 +181,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
     public void testGetLogicalFragmentReturnsScanSubtree() {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, executor);
 
@@ -193,7 +193,7 @@ public class OpenSearchBoundaryTableScanTests extends OpenSearchTestCase {
         RexNode condition = rexBuilder.makeLiteral(true);
         LogicalFilter filter = LogicalFilter.create(scan, condition);
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
-        QueryPlanExecutor executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
+        QueryPlanExecutor<RelNode, Enumerable<Object[]>> executor = (fragment, ctx) -> Linq4j.emptyEnumerable();
 
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, filter, executor);
 

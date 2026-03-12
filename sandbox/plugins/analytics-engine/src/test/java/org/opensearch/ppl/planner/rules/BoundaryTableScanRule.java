@@ -25,6 +25,7 @@ import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
  */
 public class BoundaryTableScanRule extends ConverterRule {
 
+    @SuppressWarnings("rawtypes")
     private final QueryPlanExecutor queryPlanExecutor;
 
     /**
@@ -33,6 +34,7 @@ public class BoundaryTableScanRule extends ConverterRule {
      * @param QueryPlanExecutor the engine executor passed to the boundary node for bind-time execution
      * @return a new BoundaryTableScanRule
      */
+    @SuppressWarnings("rawtypes")
     public static BoundaryTableScanRule create(QueryPlanExecutor QueryPlanExecutor) {
         return new BoundaryTableScanRule(
             Config.INSTANCE.withConversion(LogicalTableScan.class, Convention.NONE, EnumerableConvention.INSTANCE, "BoundaryTableScanRule"),
@@ -40,6 +42,7 @@ public class BoundaryTableScanRule extends ConverterRule {
         );
     }
 
+    @SuppressWarnings("rawtypes")
     private BoundaryTableScanRule(Config config, QueryPlanExecutor queryPlanExecutor) {
         super(config);
         this.queryPlanExecutor = queryPlanExecutor;
