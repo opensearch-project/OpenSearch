@@ -41,7 +41,7 @@ impl AbsoluteRowIdOptimizer {
         datasource_exec_schema: SchemaRef,
     ) -> (SchemaRef, Vec<usize>) {
         // Clone projection and add new field index
-        let mut projected_schema = datasource.projected_schema().clone();
+        let projected_schema = datasource.projected_schema().expect("projected_schema failed");
         let file_source_schema = datasource.file_schema().clone();
 
         let mut new_projections = vec![];
@@ -109,12 +109,21 @@ impl AbsoluteRowIdOptimizer {
     ) -> Result<ProjectionExec, DataFusionError> {
         let (new_schema, new_projections) =
             self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
+        
+        let table_partition_cols = datasource.table_partition_cols().clone();
+        let new_table_schema = TableSchema::new(new_schema.clone(), table_partition_cols);
+        
+        use datafusion::datasource::physical_plan::ParquetSource;
+        let new_file_source = Arc::new(ParquetSource::new(new_table_schema));
+        
         let file_scan_config = FileScanConfigBuilder::from(datasource.clone())
-            .with_source(datasource.file_source.with_schema(TableSchema::from_file_schema(new_schema.clone())))
+            .with_source(new_file_source)
             .with_projection_indices(Some(new_projections))
+            .expect("Failed to set projection indices")
             .build();
 
         let new_datasource = DataSourceExec::from_data_source(file_scan_config);
+        
         let projection_exprs = self
             .build_projection_exprs(&new_datasource.schema())
             .expect("Failed to build projection expressions");
