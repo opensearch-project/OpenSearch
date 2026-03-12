@@ -32,7 +32,11 @@ if [[ "$ARCH" == "aarch64" ]]; then
     # Install Maven, RPM, and CPIO
     sudo apt-get update
     sudo apt-get install -y maven rpm cpio
-
+    sudo apt-get update && sudo apt-get install -y unzip
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    sudo ./aws/install --update
+    
     if ! command -v docker &> /dev/null; then
         echo "Installing Docker..."
 
