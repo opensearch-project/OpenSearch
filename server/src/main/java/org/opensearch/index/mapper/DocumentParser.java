@@ -37,13 +37,16 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
@@ -766,8 +769,7 @@ final class DocumentParser {
         if (mapper instanceof ObjectMapper objectMapper) {
             parseObjectMapper(context, objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
-            fieldMapper.parse(context);
-            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+            parseFieldWithCopyTo(context, fieldMapper);
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
         } else {
@@ -847,8 +849,7 @@ final class DocumentParser {
         throws IOException {
         switch (existingMapper) {
             case FieldMapper fm -> {
-                fm.parse(context);
-                parseCopyFields(context, fm.copyTo().copyToFields());
+                parseFieldWithCopyTo(context, fm);
             }
             case ObjectMapper om -> {
                 // Even with disable_objects, we can have nested ObjectMappers for explicitly defined sub-objects
@@ -1339,7 +1340,30 @@ final class DocumentParser {
     }
 
     /** Creates instances of the fields that the current field should be copied to */
+    private static void parseCopyFields(ParseContext context, List<String> copyToFields, byte[] sourceBytes) throws IOException {
+        parseCopyFieldsInternal(context, copyToFields, (copyToContext, field) -> {
+            XContentParser parser = copyToContext.parser();
+            try (
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), sourceBytes)
+            ) {
+                innerParser.nextToken();
+                ParseContext parserSwitchedContext = copyToContext.switchParser(innerParser);
+                parseCopy(field, parserSwitchedContext);
+            }
+        });
+    }
+
     private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
+        parseCopyFieldsInternal(context, copyToFields, (copyToContext, field) -> parseCopy(field, copyToContext));
+    }
+
+    private static void parseCopyFieldsInternal(
+        ParseContext context,
+        List<String> copyToFields,
+        CheckedBiConsumer<ParseContext, String, IOException> copyAction
+    ) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
@@ -1353,13 +1377,13 @@ final class DocumentParser {
                     }
                 }
                 assert targetDoc != null;
-                final ParseContext copyToContext;
+                ParseContext copyToContext;
                 if (targetDoc == context.doc()) {
                     copyToContext = context;
                 } else {
                     copyToContext = context.switchDoc(targetDoc);
                 }
-                parseCopy(field, copyToContext);
+                copyAction.accept(copyToContext, field);
             }
         }
     }
@@ -1528,6 +1552,38 @@ final class DocumentParser {
             }
         }
         return objectMapper.getMapper(subfields[subfields.length - 1]);
+    }
+
+    private static byte[] parseChildToBytes(ParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+            builder.copyCurrentStructure(parser);
+            return BytesReference.toBytes(BytesReference.bytes(builder));
+        }
+    }
+
+    private static void parseFieldWithCopyTo(ParseContext context, FieldMapper fieldMapper) throws IOException {
+        XContentParser.Token token = context.parser().currentToken();
+        if ((token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)
+            && !fieldMapper.copyTo().copyToFields().isEmpty()) {
+            byte[] childBytes = parseChildToBytes(context);
+            // After parseChildToBytes, the original parser has consumed the full structure.
+            // Parse the field using a fresh parser over the captured bytes.
+            XContentParser parser = context.parser();
+            try (
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), childBytes)
+            ) {
+                innerParser.nextToken();
+                ParseContext innerContext = context.switchParser(innerParser);
+                fieldMapper.parse(innerContext);
+            }
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields(), childBytes);
+        } else {
+            fieldMapper.parse(context);
+            parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+        }
     }
 
     // Throws exception if no dynamic templates found but `dynamic` is set to strict_allow_templates
