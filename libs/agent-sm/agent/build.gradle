@@ -7,11 +7,18 @@ base {
 
 configurations {
   bootstrap.extendsFrom(implementation)
-  create('agentDist') {
+  agentDist {
     canBeConsumed = true
     canBeResolved = false
     attributes {
       attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
+    }
+  }
+  agentJar {
+    canBeConsumed = true
+    canBeResolved = false
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-jar'))
     }
   }
 }
@@ -61,6 +68,7 @@ task prepareAgent(type: Copy) {
 }
 
 artifacts {
+  add("agentJar", project.jar.archiveFile.get())
   agentDist(file("$buildDir/distributions")) {
     builtBy prepareAgent
   }

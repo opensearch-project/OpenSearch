@@ -33,6 +33,16 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 apply from: "$rootDir/gradle/fips.gradle"
 
+configurations {
+  agent {
+    canBeConsumed = false
+    canBeResolved = true
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-jar'))
+    }
+  }
+}
+
 dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
@@ -60,6 +70,8 @@ dependencies {
   compileOnly "com.github.spotbugs:spotbugs-annotations:4.9.8"
 
   annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  agent project(path: ':libs:agent-sm:agent', configuration: 'agentJar')
 }
 
 compileJava.options.compilerArgs -= '-Xlint:cast'
@@ -105,11 +117,7 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 
-  def agentJarFile = project(':libs:agent-sm:agent').tasks.named('jar').map { it.archiveFile.get() }
-  dependsOn { project(':libs:agent-sm:agent').tasks.named('prepareAgent') }
-  doFirst {
-    jvmArgs "-javaagent:" + agentJarFile.get()
-  }
+  jvmArgs += ["-javaagent:${-> configurations.agent.incoming.artifactView({}).files.getAt(0)}"]
 }
 
 tasks.register("integTest", Test) {
