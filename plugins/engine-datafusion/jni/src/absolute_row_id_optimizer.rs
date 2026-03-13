@@ -26,6 +26,7 @@ use datafusion::{
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{projection::ProjectionExec, ExecutionPlan},
 };
+use datafusion::physical_plan::ColumnStatistics;
 use datafusion_datasource::TableSchema;
 
 #[derive(Debug)]
@@ -109,21 +110,22 @@ impl AbsoluteRowIdOptimizer {
     ) -> Result<ProjectionExec, DataFusionError> {
         let (new_schema, new_projections) =
             self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
-        
+
         let table_partition_cols = datasource.table_partition_cols().clone();
         let new_table_schema = TableSchema::new(new_schema.clone(), table_partition_cols);
-        
+
         use datafusion::datasource::physical_plan::ParquetSource;
         let new_file_source = Arc::new(ParquetSource::new(new_table_schema));
-        
+
         let file_scan_config = FileScanConfigBuilder::from(datasource.clone())
             .with_source(new_file_source)
             .with_projection_indices(Some(new_projections))
             .expect("Failed to set projection indices")
+            .with_statistics(datasource.statistics().add_column_statistics(ColumnStatistics::new_unknown()))
             .build();
 
         let new_datasource = DataSourceExec::from_data_source(file_scan_config);
-        
+
         let projection_exprs = self
             .build_projection_exprs(&new_datasource.schema())
             .expect("Failed to build projection expressions");
@@ -153,7 +155,7 @@ impl PhysicalOptimizerRule for AbsoluteRowIdOptimizer {
                 return Ok(Transformed::new(Arc::new(projection), true, TreeNodeRecursion::Continue));
 
             }
-            
+
             Ok(Transformed::no(node))
         })?;
 
