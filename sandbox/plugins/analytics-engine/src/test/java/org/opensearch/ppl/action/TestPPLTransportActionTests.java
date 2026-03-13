@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package fe.ppl.action;
+package org.opensearch.ppl.action;
 
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;

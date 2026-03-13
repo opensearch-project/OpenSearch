@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package fe.ppl.planner.rel;
+package org.opensearch.ppl.planner.rel;
 
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableRel;

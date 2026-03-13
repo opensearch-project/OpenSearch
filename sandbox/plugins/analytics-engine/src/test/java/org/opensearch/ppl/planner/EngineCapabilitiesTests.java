@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package fe.ppl.planner;
+package org.opensearch.ppl.planner;
 
 import org.apache.calcite.config.CalciteConnectionConfig;
 import org.apache.calcite.config.CalciteConnectionConfigImpl;

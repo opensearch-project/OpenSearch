@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package fe.ppl.action;
+package org.opensearch.ppl.action;
 
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.rel.RelNode;
