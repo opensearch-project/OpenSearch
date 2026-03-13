@@ -81,9 +81,12 @@ import org.opensearch.search.fetch.FetchSearchResult;
 import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
 import org.opensearch.search.profile.Timer;
+import org.opensearch.search.profile.query.ConcurrentQueryProfileBreakdown;
 import org.opensearch.search.profile.query.ProfileWeight;
 import org.opensearch.search.profile.query.QueryProfiler;
 import org.opensearch.search.profile.query.QueryTimingType;
+import org.opensearch.search.profile.query.SegmentInformation;
+import org.opensearch.search.profile.query.SingleSliceInformation;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -584,6 +587,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (targetMaxSlice == 0) {
             LeafSlice[] leafSlices = super.slices(leaves);
             logger.debug("Slice count using lucene default [{}]", leafSlices.length);
+            profileSliceInformation(leafSlices);
             return leafSlices;
         }
         LeafSlice[] leafSlices = MaxTargetSliceSupplier.getSlices(
@@ -594,7 +598,23 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             searchContext.getPartitionMinSegmentSize()
         );
         logger.debug("Slice count using max target slice supplier [{}]", leafSlices.length);
+        profileSliceInformation(leafSlices);
         return leafSlices;
+    }
+
+    private void profileSliceInformation(LeafSlice[] leafSlices) {
+        if (profiler != null) {
+            ContextualProfileBreakdown breakdown = (ContextualProfileBreakdown) profiler.getProfileBreakdown(searchContext.query());
+            if (breakdown instanceof ConcurrentQueryProfileBreakdown concurrentBreakdown) {
+                for (LeafSlice slice : leafSlices) {
+                    SingleSliceInformation sliceInfo = new SingleSliceInformation();
+                    for (LeafReaderContextPartition leafPartition : slice.partitions) {
+                        sliceInfo.addSegment(new SegmentInformation(leafPartition.ctx.ord, leafPartition.minDocId, leafPartition.maxDocId));
+                    }
+                    concurrentBreakdown.addSlice(sliceInfo);
+                }
+            }
+        }
     }
 
     public DirectoryReader getDirectoryReader() {
