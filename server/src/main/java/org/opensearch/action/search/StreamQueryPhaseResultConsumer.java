@@ -16,13 +16,10 @@ import java.util.function.Consumer;
 
 /**
  * Query phase result consumer for streaming search.
- * Supports progressive batch reduction with a fixed batch policy suitable for unsorted streaming.
  *
  * @opensearch.internal
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
-
-
 
     /**
      * Creates a streaming query phase result consumer.
@@ -49,18 +46,9 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         );
     }
 
-    /**
-     * Controls partial reduction frequency.
-     * With NO_SCORING streaming, we reduce immediately for fastest TTFB.
-     *
-     * @param requestBatchedReduceSize request batch size
-     * @param minBatchReduceSize       minimum batch size
-     */
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
         // Reduce immediately for fastest TTFB
         return Math.min(requestBatchedReduceSize, 1);
     }
 }
-
-

@@ -73,10 +73,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         this.logger = logger;
     }
 
-    /**
-     * Override the extension point to create streaming listeners instead of regular
-     * listeners
-     */
     @Override
     SearchActionListener<SearchPhaseResult> createShardActionListener(
         final SearchShardTarget shard,
@@ -145,14 +141,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         results.consumeResult(result, next);
     }
 
-    /**
-     * Override onShardResult to handle streaming search results safely.
-     * This prevents the "topDocs already consumed" error when processing
-     * multiple streaming results from the same shard.
-     */
     @Override
     protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
-        // Safety log: track final shard response receipt in coordinator
+        // Trace final shard responses to diagnose coordinator sequencing.
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "COORDINATOR: received final shard result from shard={}, target={}, totalOps={}, expectedOps={}",
@@ -162,14 +153,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 expectedTotalOps
             );
         }
-        // Always delegate to the parent to ensure shard accounting and phase
-        // transitions.
         super.onShardResult(result, shardIt);
     }
 
-    /**
-     * Override successful shard execution to handle stream result synchronization
-     */
     @Override
     void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
@@ -194,14 +180,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         }
     }
 
-    /**
-     * Handle successful stream execution callback
-     * Since partials are no longer fed into the reducer, this callback is not
-     * needed for coordination.
-     */
     private void successfulStreamExecution() {
-        // No-op: partials are bypassed from reducer, completion is handled by
-        // successfulShardExecution only
+        // No-op.
     }
 
 }

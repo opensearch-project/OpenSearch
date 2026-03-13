@@ -39,7 +39,6 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;

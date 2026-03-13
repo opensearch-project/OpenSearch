@@ -475,9 +475,7 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
                 return StreamingCostMetrics.nonStreamable();
             }
 
-            // Calculate metrics (simplified for now to match StreamNumericTermsAggregator
-            // pattern essentially)
-            // But we need total bucket count from ordinals
+            // Estimate streaming cost using segment ordinals.
             ValuesSource.Bytes.WithOrdinals ordinalValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
             List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
             long maxCardinality = 0;

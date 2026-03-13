@@ -17,8 +17,8 @@ import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.util.Collection;
 
