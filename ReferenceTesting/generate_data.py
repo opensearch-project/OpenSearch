@@ -12,7 +12,7 @@ manufacturers = ["Elitelligence", "Oceanavigations", "Pyramidustries", "Champion
 
 base_date = datetime(2024, 1, 1)
 
-for i in range(1000000):
+for i in range(100000):
     # Action line
     print(json.dumps({"index": {"_index": "ecommerce", "_id": i}}))
 

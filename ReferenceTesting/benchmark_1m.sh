@@ -52,11 +52,10 @@ done
 echo "  Total: $COUNT docs"
 
 echo ""
-echo "=== Step 5: Force merge both to 1 segment ==="
+echo "=== Step 5: Force merge bench_no_st to 1 segment ==="
 curl -s -X POST "$HOST/bench_no_st/_forcemerge?max_num_segments=1" > /dev/null
 echo "  bench_no_st merged"
-curl -s -X POST "$HOST/bench_st/_forcemerge?max_num_segments=1" > /dev/null
-echo "  bench_st merged"
+echo "  (bench_st NOT merged — the upgrade API handles it)"
 
 echo ""
 echo "=== Step 6: Upgrade bench_st to star tree ==="
@@ -82,30 +81,35 @@ sleep 2
 
 echo ""
 echo "=== Step 7: Verify doc counts ==="
+RESP="/tmp/_os_bench_resp.json"
+
 echo -n "  bench_no_st: "
-curl -s "$HOST/bench_no_st/_count" | python3 -c "import sys,json;print(json.load(sys.stdin)['count'])"
+curl -s "$HOST/bench_no_st/_count" > $RESP
+python3 -c "import json; print(json.load(open('$RESP'))['count'])"
 echo -n "  bench_st:    "
-curl -s "$HOST/bench_st/_count" | python3 -c "import sys,json;print(json.load(sys.stdin)['count'])"
+curl -s "$HOST/bench_st/_count" > $RESP
+python3 -c "import json; print(json.load(open('$RESP'))['count'])"
 
 QUERY='{"size":0,"aggs":{"by_gender":{"terms":{"field":"customer_gender"},"aggs":{"revenue":{"sum":{"field":"taxful_total_price"}},"avg_price":{"avg":{"field":"taxful_total_price"}},"max_price":{"max":{"field":"taxful_total_price"}},"min_price":{"min":{"field":"taxful_total_price"}}}}}}'
 
 echo ""
 echo "=========================================="
-echo "  BENCHMARK: 1M docs aggregation query"
+echo "  BENCHMARK: 100K docs aggregation query"
 echo "=========================================="
 echo ""
 echo "--- WITHOUT star tree (bench_no_st) ---"
 for i in 1 2 3 4 5; do
-  T=$(curl -s -X POST "$HOST/bench_no_st/_search" -H 'Content-Type: application/json' -d "$QUERY" | python3 -c "import sys,json;print(json.load(sys.stdin)['took'])")
-  echo "  Run $i: ${T}ms"
+  curl -s -X POST "$HOST/bench_no_st/_search" -H 'Content-Type: application/json' -d "$QUERY" > $RESP
+  python3 -c "import json; print(f'  Run $i:', json.load(open('$RESP'))['took'], 'ms')"
 done
 
 echo ""
 echo "--- WITH star tree (bench_st) ---"
 for i in 1 2 3 4 5; do
-  T=$(curl -s -X POST "$HOST/bench_st/_search" -H 'Content-Type: application/json' -d "$QUERY" | python3 -c "import sys,json;print(json.load(sys.stdin)['took'])")
-  echo "  Run $i: ${T}ms"
+  curl -s -X POST "$HOST/bench_st/_search" -H 'Content-Type: application/json' -d "$QUERY" > $RESP
+  python3 -c "import json; print(f'  Run $i:', json.load(open('$RESP'))['took'], 'ms')"
 done
 
+rm -f $RESP
 echo ""
 echo "=== Done ==="

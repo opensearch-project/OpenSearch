@@ -2319,6 +2319,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Now force merge — with 2+ segments, this will merge them all through the composite
             // codec's Composite912DocValuesWriter which builds star tree data from raw doc values.
             forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            // Refresh to ensure the searcher sees the merged segment with star tree data.
+            // Without this, queries may hit stale segments that lack star tree values.
+            refresh("star-tree-upgrade");
             logger.info("{} star tree upgrade completed successfully — star tree data built", shardId);
         } finally {
             this.codecServiceOverride = null;
