@@ -18,7 +18,6 @@ import java.util.function.Function;
 
 /**
  * Utility class for parsing common fields from ValuesSource-based aggregation Protocol Buffer messages.
- * Mirrors {@link ValuesSourceAggregationBuilder#declareFields} using {@link ObjectParserProtoUtils}.
  */
 public class ValuesSourceAggregationProtoUtils {
 

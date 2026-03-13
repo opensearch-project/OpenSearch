@@ -20,7 +20,6 @@ import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistr
 
 /**
  * Registry for AggregationBuilderProtoConverter implementations.
- * Wraps the SPI registry and registers built-in converters (Min, Max).
  */
 @Singleton
 public class AggregationBuilderProtoConverterRegistryImpl implements AggregationBuilderProtoConverterRegistry {

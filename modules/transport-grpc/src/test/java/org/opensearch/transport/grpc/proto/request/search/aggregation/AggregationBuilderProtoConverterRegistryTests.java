@@ -288,4 +288,55 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
         //     exception.getMessage().contains("cannot accept sub-aggregations")
         // );
     }
+
+    /**
+     * Test that invalid aggregation names are rejected.
+     * Verifies that aggregation name validation matches REST API behavior.
+     * See {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators}.
+     */
+    public void testInvalidAggregationNames() {
+        AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();
+        AggregationContainer container = AggregationContainer.newBuilder()
+            .setMin(MinAggregation.newBuilder().setField("price").build())
+            .build();
+
+        // Test name with '[' character
+        IllegalArgumentException ex1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.fromProto("invalid[name", container)
+        );
+        assertTrue(
+            "Exception should mention invalid aggregation name",
+            ex1.getMessage().contains("Invalid aggregation name")
+        );
+        assertTrue(
+            "Exception should mention forbidden characters",
+            ex1.getMessage().contains("'[', ']', and '>'")
+        );
+
+        // Test name with ']' character
+        IllegalArgumentException ex2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.fromProto("invalid]name", container)
+        );
+        assertTrue(
+            "Exception should mention invalid aggregation name",
+            ex2.getMessage().contains("Invalid aggregation name")
+        );
+
+        // Test name with '>' character
+        IllegalArgumentException ex3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> registry.fromProto("invalid>name", container)
+        );
+        assertTrue(
+            "Exception should mention invalid aggregation name",
+            ex3.getMessage().contains("Invalid aggregation name")
+        );
+
+        // Test that valid names work fine
+        AggregationBuilder validBuilder = registry.fromProto("valid_name-with.dots:and_more", container);
+        assertNotNull("Valid aggregation name should be accepted", validBuilder);
+        assertEquals("valid_name-with.dots:and_more", validBuilder.getName());
+    }
 }

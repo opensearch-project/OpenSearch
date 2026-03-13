@@ -16,8 +16,6 @@ import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Utility class for converting MinAggregation Protocol Buffers to MinAggregationBuilder.
- *
- * @see MinAggregationBuilder#PARSER
  */
 public class MinAggregationProtoUtils {
 
@@ -31,9 +29,7 @@ public class MinAggregationProtoUtils {
      * <p>This method parallels the REST parsing logic in {@link MinAggregationBuilder#PARSER},
      * processing fields in the exact same sequence to ensure consistent validation and behavior.
      *
-     * <p>Name validation is handled by the registry before this method is called.
-     *
-     * @param name The name of the aggregation (validated by registry)
+     * @param name The name of the aggregation
      * @param minAggProto The Protocol Buffer MinAggregation to convert
      * @return A configured MinAggregationBuilder
      * @throws IllegalArgumentException if required fields are missing or validation fails

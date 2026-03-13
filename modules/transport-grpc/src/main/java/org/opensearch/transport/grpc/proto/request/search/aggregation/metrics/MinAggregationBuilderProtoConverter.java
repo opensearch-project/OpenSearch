@@ -12,8 +12,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 
 /**
- * Converter for Min aggregation. Delegates to {@link MinAggregationProtoUtils}.
- * Mirrors REST parsing via {@link org.opensearch.search.aggregations.metrics.MinAggregationBuilder#PARSER}.
+ * Converter for Min aggregation.
  */
 public class MinAggregationBuilderProtoConverter implements AggregationBuilderProtoConverter {
 

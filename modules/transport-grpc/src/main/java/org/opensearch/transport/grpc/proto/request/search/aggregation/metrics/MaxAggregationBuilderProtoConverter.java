@@ -12,8 +12,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 
 /**
- * Converter for Max aggregation. Delegates to {@link MaxAggregationProtoUtils}.
- * Mirrors REST parsing via {@link org.opensearch.search.aggregations.metrics.MaxAggregationBuilder#PARSER}.
+ * Converter for Max aggregation.
  */
 public class MaxAggregationBuilderProtoConverter implements AggregationBuilderProtoConverter {
 

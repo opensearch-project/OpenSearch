@@ -16,8 +16,6 @@ import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Utility class for converting MaxAggregation Protocol Buffers to MaxAggregationBuilder.
- *
- * @see MaxAggregationBuilder#PARSER
  */
 public class MaxAggregationProtoUtils {
 
@@ -31,9 +29,7 @@ public class MaxAggregationProtoUtils {
      * <p>This method parallels the REST parsing logic in {@link MaxAggregationBuilder#PARSER},
      * processing fields in the exact same sequence to ensure consistent validation and behavior.
      *
-     * <p>Name validation is handled by the registry before this method is called.
-     *
-     * @param name The name of the aggregation (validated by registry)
+     * @param name The name of the aggregation
      * @param maxAggProto The Protocol Buffer MaxAggregation to convert
      * @return A configured MaxAggregationBuilder
      * @throws IllegalArgumentException if required fields are missing or validation fails

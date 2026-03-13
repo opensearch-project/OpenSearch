@@ -12,9 +12,6 @@ import org.opensearch.script.Script;
 /**
  * Wrapper for common ValuesSource aggregation fields extracted from proto messages.
  * Reduces parameter count in {@link ValuesSourceAggregationProtoUtils#declareFields}.
- *
- * <p>All fields use null to indicate "not set". The proto3 limitation (strings default to "",
- * enums default to first value) is handled at the proto boundary when constructing this wrapper.
  */
 public class ValuesSourceProtoFields {
     private final String field;

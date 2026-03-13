@@ -20,6 +20,7 @@ import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistr
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
 
 /**
  * SPI registry for AggregationBuilderProtoConverter implementations.
@@ -49,6 +50,13 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
 
         if (name == null || name.isEmpty()) {
             throw new IllegalArgumentException("Aggregation name cannot be null or empty");
+        }
+
+        Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher(name);
+        if (!validAggMatcher.matches()) {
+            throw new IllegalArgumentException(
+                "Invalid aggregation name [" + name + "]. Aggregation names can contain any character except '[', ']', and '>'"
+            );
         }
 
         AggregationContainer.AggregationContainerCase aggregationCase = container.getAggregationContainerCase();
