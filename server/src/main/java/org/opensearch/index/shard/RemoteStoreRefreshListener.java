@@ -243,6 +243,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
                 if (isRefreshAfterCommit()) {
+                    logger.debug("isRefreshAfterCommit=true, triggering deleteStaleSegmentsAsync");
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
