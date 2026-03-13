@@ -11,10 +11,5 @@
  *
  * <p>This package uses the converter/registry pattern via {@link org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry}
  * to route aggregation containers to their type-specific converters with plugin extensibility support.
- *
- * <p>Sub-packages:
- * <ul>
- *   <li>{@code metrics} - Metric aggregations (Min, Max, etc.)</li>
- * </ul>
  */
 package org.opensearch.transport.grpc.proto.request.search.aggregation;
