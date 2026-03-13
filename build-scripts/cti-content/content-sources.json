@@ -1,0 +1,14 @@
+{
+  "ioc": {
+    "context": "ioc_provider_v3",
+    "consumer": "iocs_v3"
+  },
+  "cve": {
+    "context": "vd_1.0.0",
+    "consumer": "vd_4.8.0"
+  },
+  "ruleset": {
+    "context": "development_0.0.3",
+    "consumer": "development_0.0.3_test"
+  }
+}

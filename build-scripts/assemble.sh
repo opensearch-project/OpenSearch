@@ -307,6 +307,22 @@ function install_wazuh_engine() {
 }
 
 # ====
+# Install CTI snapshots
+# ====
+function install_cti_snapshots() {
+    local dest="${PATH_PLUGINS}/wazuh-indexer-content-manager/snapshots"
+    # Working directory at this point is: artifacts/tmp/{rpm|deb|tar}
+    local src="$(pwd)/../../cti-snapshots"
+    if [ -d "${src}" ]; then
+        echo "Installing CTI snapshots to ${dest}"
+        mkdir -p "${dest}"
+        cp "${src}"/*.zip "${dest}/"
+    else
+        echo "No CTI snapshots found at ${src}, skipping"
+    fi
+}
+
+# ====
 # Clean
 # ====
 function clean() {
@@ -347,7 +363,8 @@ function assemble_tar() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    
+    install_cti_snapshots
+
     # Install Wazuh Engine
     install_wazuh_engine "${decompressed_tar_dir}"
 
@@ -387,7 +404,8 @@ function assemble_rpm() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    
+    install_cti_snapshots
+
     # Install Wazuh Engine
     install_wazuh_engine "${src_path}"
 
@@ -441,7 +459,8 @@ function assemble_deb() {
 
     # Install plugins
     install_plugins "${PRODUCT_VERSION}"
-    
+    install_cti_snapshots
+
     # Install Wazuh Engine
     install_wazuh_engine "${src_path}"
 

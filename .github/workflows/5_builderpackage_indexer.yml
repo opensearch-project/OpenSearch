@@ -582,6 +582,15 @@ jobs:
             -d ${{ matrix.distribution }} \
             -n ${{ steps.min_package.outputs.name }}
 
+      # Download CTI snapshots so assemble.sh can install them
+      # alongside the content-manager plugin.
+      - name: Download CTI snapshots
+        if: ${{ vars.CTI_API_URL != '' }}
+        run: |
+          bash build-scripts/cti-content/download-cti-snapshots.sh \
+            --env "${{ vars.CTI_API_URL }}" \
+            --output-dir ${{ github.workspace }}/artifacts/cti-snapshots
+
       - name: Run `assemble.sh`
         run: |
           bash build-scripts/assemble.sh \
