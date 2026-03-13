@@ -9,9 +9,6 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -25,7 +22,7 @@ import java.util.Set;
  * This class is serializable and can be transmitted across nodes.
  */
 @ExperimentalApi
-public class WriterFileSet implements Serializable, Writeable {
+public class WriterFileSet implements Serializable {
 
     private final String directory;
     private final long writerGeneration;
@@ -37,49 +34,6 @@ public class WriterFileSet implements Serializable, Writeable {
         this.files = new HashSet<>();
         this.writerGeneration = writerGeneration;
         this.directory = directory.toString();
-    }
-
-    public WriterFileSet(StreamInput in) throws IOException {
-        this.directory = in.readString();
-        this.writerGeneration = in.readLong();
-        this.numRows = in.readVInt();
-
-        int fileCount = in.readVInt();
-        this.files = new HashSet<>(fileCount);
-        for (int i = 0; i < fileCount; i++) {
-            this.files.add(in.readString());
-        }
-    }
-
-    /**
-     * Creates a new WriterFileSet with a different directory path while preserving other attributes.
-     *
-     * @param newDirectory the new directory path
-     * @return a new WriterFileSet instance with the updated directory
-     */
-    public WriterFileSet withDirectory(String newDirectory) {
-        return WriterFileSet.builder()
-            .directory(Path.of(newDirectory))
-            .writerGeneration(this.writerGeneration)
-            .addFiles(this.files)
-            .build();
-    }
-
-    /**
-     * Serializes this WriterFileSet to StreamOutput.
-     *
-     * @param out the stream output to write to
-     * @throws IOException if an I/O error occurs during serialization
-     */
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(directory);
-        out.writeLong(writerGeneration);
-        out.writeVInt((int) numRows);
-        out.writeVInt(files.size());
-        for (String file : files) {
-            out.writeString(file);
-        }
     }
 
     public void add(String file) {

@@ -9,8 +9,8 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.Segment;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -19,32 +19,5 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class RefreshResult {
-
-    private List<org.opensearch.index.engine.exec.coord.Segment> refreshedSegments;
-
-    /**
-     * Constructs a new refresh result with an empty list of segments.
-     */
-    public RefreshResult() {
-        this.refreshedSegments = new ArrayList<>();
-    }
-
-    /**
-     * Gets the list of refreshed segments.
-     *
-     * @return the refreshed segments list
-     */
-    public List<org.opensearch.index.engine.exec.coord.Segment> getRefreshedSegments() {
-        return refreshedSegments;
-    }
-
-    /**
-     * Sets the refreshed segments.
-     *
-     * @param refreshedSegments the list of refreshed segments
-     */
-    public void setRefreshedSegments(List<org.opensearch.index.engine.exec.coord.Segment> refreshedSegments) {
-        this.refreshedSegments = refreshedSegments;
-    }
+public record RefreshResult(List<Segment> refreshedSegments) {
 }

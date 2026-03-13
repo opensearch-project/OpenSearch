@@ -24,8 +24,18 @@ public interface Merger {
      * Merges a list of writer file sets into a single merged result.
      *
      * @param fileMetadataList list of writer file sets to merge
-     * @param writerGeneration the writer generation number
+     * @param newWriterGeneration the writer generation number
      * @return merge result containing row ID mapping and merged file metadata
      */
-    MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration);
+    MergeResult merge(List<WriterFileSet> fileMetadataList, long newWriterGeneration);
+
+    /**
+     * Merges files in secondary data formats using an existing row ID mapping.
+     *
+     * @param fileMetadataList list of writer file sets to merge
+     * @param rowIdMapping the row ID mapping from a prior merge
+     * @param newWriterGeneration the writer generation number
+     * @return merge result containing merged file metadata
+     */
+    MergeResult merge(List<WriterFileSet> fileMetadataList, RowIdMapping rowIdMapping, long newWriterGeneration);
 }

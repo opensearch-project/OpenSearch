@@ -8,9 +8,7 @@
 
 package org.opensearch.index.engine.exec;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -23,9 +21,6 @@ import org.opensearch.index.translog.TranslogManager;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
-
-import static org.opensearch.index.engine.Engine.HISTORY_UUID_KEY;
 
 /**
  * Unified interface for indexing operations in OpenSearch.
@@ -146,42 +141,6 @@ public interface Indexer
      * @return a gated closeable wrapping the catalog snapshot
      */
     GatedCloseable<CatalogSnapshot> acquireSnapshot();
-
-    /**
-     * Checks if the throwable contains a fatal error and throws it if present.
-     * Fatal errors (like OutOfMemoryError) should not be caught and must propagate
-     * to the uncaught exception handler.
-     *
-     * @param logger the logger to use for error messages
-     * @param maybeMessage the message to log if a fatal error is found
-     * @param maybeFatal the throwable to check for fatal errors
-     */
-    @SuppressWarnings("finally")
-    default void maybeDie(final Logger logger, final String maybeMessage, final Throwable maybeFatal) {
-        ExceptionsHelper.maybeError(maybeFatal).ifPresent(error -> {
-            try {
-                logger.error(maybeMessage, error);
-            } finally {
-                throw error;
-            }
-        });
-    }
-
-    /**
-     * Reads the history UUID from commit user data.
-     * The history UUID identifies the lineage of operations in this index.
-     *
-     * @param commitData the commit user data map
-     * @return the history UUID
-     * @throws IllegalStateException if the commit data doesn't contain a history UUID
-     */
-    default String loadHistoryUUID(Map<String, String> commitData) {
-        final String uuid = commitData.get(HISTORY_UUID_KEY);
-        if (uuid == null) {
-            throw new IllegalStateException("commit doesn't contain history uuid");
-        }
-        return uuid;
-    }
 
     /**
      * Acquires a safe index commit for snapshot or recovery operations.

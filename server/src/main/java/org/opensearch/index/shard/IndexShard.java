@@ -1173,7 +1173,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.IndexResult applyIndexOperation(
-        Indexer engine,
+        Indexer indexer,
         long seqNo,
         long opPrimaryTerm,
         long version,
@@ -1214,7 +1214,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ensureWriteAllowed(origin);
         Engine.Index operation;
         try {
-            operation = engine.prepareIndex(
+            operation = indexer.prepareIndex(
                 docMapper(),
                 sourceToParse,
                 seqNo,
@@ -1240,7 +1240,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo);
         }
 
-        return index(engine, operation);
+        return index(indexer, operation);
     }
 
     /**
@@ -1284,7 +1284,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    private Engine.IndexResult index(Indexer engine, Engine.Index index) throws IOException {
+    private Engine.IndexResult index(Indexer indexer, Engine.Index index) throws IOException {
         active.set(true);
         final Engine.IndexResult result;
         index = indexingOperationListeners.preIndex(shardId, index);
@@ -1301,7 +1301,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     index.origin()
                 );
             }
-            result = engine.index(index);
+            result = indexer.index(index);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
@@ -1723,7 +1723,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for (Segment segment : getIndexer().segments(false)) {
+        for (Segment segment : applyOnEngine(getIndexer(), engine -> engine.segments(false))) {
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
@@ -3414,7 +3414,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public List<Segment> segments(boolean verbose) {
-        return getIndexer().segments(verbose);
+        return applyOnEngine(getIndexer(), engine -> engine.segments(verbose));
     }
 
     public String getHistoryUUID() {
