@@ -79,6 +79,7 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
@@ -1420,6 +1421,77 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
         searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
+    }
+
+    public void testTermsLookupSubqueryRespectsMaxClauseCount() throws Exception {
+        assertAcked(prepareCreate("tl_lookup").setMapping("val", "type=keyword"));
+        assertAcked(prepareCreate("tl_test").setMapping("val", "type=keyword"));
+
+        // Index 6 docs in the lookup index and matching docs in the test index
+        indexRandom(
+            true,
+            client().prepareIndex("tl_lookup").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_lookup").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_lookup").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_lookup").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_lookup").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_lookup").setId("6").setSource("val", "6"),
+            client().prepareIndex("tl_test").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_test").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_test").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_test").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_test").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_test").setId("6").setSource("val", "6")
+        );
+
+        indexRandomForConcurrentSearch("tl_lookup");
+        indexRandomForConcurrentSearch("tl_test");
+
+        try {
+            // Set max_clause_count to 3, which should limit fetchSize to 3
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 3))
+                .get();
+
+            // The subquery matches all 6 docs in tl_lookup, but fetchSize is 3 => should fail
+            // The IllegalArgumentException may be wrapped in SearchPhaseExecutionException
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().prepareSearch("tl_test")
+                    .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                    .get()
+            );
+            String errorMsg = ex.getMessage() != null ? ex.getMessage() : ex.getCause().getMessage();
+            assertThat(errorMsg, containsString("exceed fetch limit"));
+
+            // Raise the limit so the same query succeeds
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(),
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getDefault(Settings.EMPTY)
+                        )
+                )
+                .get();
+
+            SearchResponse searchResponse = client().prepareSearch("tl_test")
+                .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                .get();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 6L);
+        } finally {
+            // Reset transient setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+                .get();
+        }
     }
 
     public void testBasicQueryById() throws Exception {
