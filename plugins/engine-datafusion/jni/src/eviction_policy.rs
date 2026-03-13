@@ -126,7 +126,6 @@ impl CachePolicy for LruPolicy {
     }
 
     fn select_for_eviction(&self, target_size: usize) -> Vec<String> {
-        println!("info seleectpon");
         if target_size == 0 {
             return Vec::new();
         }

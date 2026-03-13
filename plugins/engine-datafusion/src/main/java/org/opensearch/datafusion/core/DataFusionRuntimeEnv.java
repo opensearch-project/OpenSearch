@@ -59,7 +59,7 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
         NativeBridge.startTokioRuntimeMonitoring(); // TODO : do we need this control in java ?
         this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit);
         System.out.println("Runtime : " + this.runtimeHandle);
-        this.cacheManager = new CacheManager(this.runtimeHandle);
+        this.cacheManager = new CacheManager(clusterService.getClusterSettings(), this.runtimeHandle);
     }
 
     /**

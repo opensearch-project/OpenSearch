@@ -109,8 +109,10 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
         if (this.cacheManager != null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
-                // Handle new files added during refresh
                 cacheManager.addFilesToCacheManager(files);
+            });
+            datafusionReaderManager.setOnFilesDeleted(files -> {
+                cacheManager.removeFilesFromCacheManager(files);
             });
         }
     }
@@ -299,7 +301,8 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 Map<String, List<Object>> finalResColumns = new HashMap<>();
                 List<Long> rowIdResult = new ArrayList<>();
                 if(streamPointer == null) {
-                    throw new RuntimeException(error);
+                    listener.onFailure(new RuntimeException(error));
+                    return;
                 }
                 RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
                 RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
