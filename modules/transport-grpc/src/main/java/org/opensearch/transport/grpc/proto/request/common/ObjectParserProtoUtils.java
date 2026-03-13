@@ -28,20 +28,7 @@ public class ObjectParserProtoUtils {
      * Declares a field, mirroring {@link org.opensearch.core.xcontent.ObjectParser#declareField(BiConsumer, org.opensearch.core.xcontent.ObjectParser.ContextParser, ParseField, org.opensearch.core.xcontent.ObjectParser.ValueType)}.
      *
      * <p>This method dispatches to the consumer when value is not null, optionally transforming
-     * the value via the parser function first. Validation happens in the consumer (setter), just like REST.
-     *
-     * <p>REST always uses a parser to extract values from the stream. In gRPC, values are already
-     * extracted from proto, so the parser is used for transformation only. For simple fields that
-     * need no transformation, use {@link Function#identity()}.
-     *
-     * <p><b>Null handling (matches REST):</b>
-     * <ul>
-     *   <li>If value is null: parser and consumer are NOT called (no-op), matching REST behavior
-     *       when a field is not present in JSON</li>
-     *   <li>If value is not null: parser transforms it, then consumer is called with the result</li>
-     *   <li>If parser returns null: consumer is STILL called - the setter is responsible for
-     *       null validation, just like REST</li>
-     * </ul>
+     * the value via the parser function first. Validation happens in the consumer, just like REST.
      *
      * @param builder The builder to set the field on
      * @param consumer The consumer to set the field value (e.g., Builder::field, Builder::missing)

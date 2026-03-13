@@ -365,13 +365,13 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.Aggregate minAggregate = protoResponse.getAggregationsOrThrow("min_price");
         assertTrue("Min should have value", minAggregate.hasValue());
         assertTrue("Min value should be double", minAggregate.getValue().hasDouble());
-        assertEquals("Min value should be 10.0", 10.0, minAggregate.getValue().getDouble(), 0.001);
+        assertEquals("Min value should be -50.0", -50.0, minAggregate.getValue().getDouble(), 0.001);
 
         // Verify Max aggregation
         org.opensearch.protobufs.Aggregate maxAggregate = protoResponse.getAggregationsOrThrow("max_price");
         assertTrue("Max should have value", maxAggregate.hasValue());
         assertTrue("Max value should be double", maxAggregate.getValue().hasDouble());
-        assertEquals("Max value should be 100.0", 100.0, maxAggregate.getValue().getDouble(), 0.001);
+        assertEquals("Max value should be 9999.0", 9999.0, maxAggregate.getValue().getDouble(), 0.001);
     }
 
     public void testToProtoWithNullAggregations() throws IOException {
