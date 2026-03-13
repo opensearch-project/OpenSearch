@@ -8,6 +8,8 @@
 
 package org.opensearch.fe.planner.unified;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.AnalyticsPlugin;
@@ -26,6 +28,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -44,6 +47,21 @@ public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(ClickBenchUnifiedPipelineIT.class);
     private static final String HITS_INDEX = "hits";
+
+    private final String queryId;
+
+    public ClickBenchUnifiedPipelineIT(String queryId) {
+        this.queryId = queryId;
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        List<Object[]> params = new ArrayList<>();
+        for (int i = 1; i <= 43; i++) {
+            params.add(new Object[] { "q" + i });
+        }
+        return params;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -186,181 +204,9 @@ public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
             .endObject();
     }
 
-    // --- ClickBench query tests ---
-
-    public void testClickBenchQ1() throws Exception {
-        runClickBenchQuery("q1");
+    public void testClickBenchQuery() throws Exception {
+        runClickBenchQuery(queryId);
     }
-
-    public void testClickBenchQ2() throws Exception {
-        runClickBenchQuery("q2");
-    }
-
-    public void testClickBenchQ3() throws Exception {
-        runClickBenchQuery("q3");
-    }
-
-    public void testClickBenchQ4() throws Exception {
-        runClickBenchQuery("q4");
-    }
-
-    public void testClickBenchQ5() throws Exception {
-        runClickBenchQuery("q5");
-    }
-
-    public void testClickBenchQ6() throws Exception {
-        runClickBenchQuery("q6");
-    }
-
-    public void testClickBenchQ7() throws Exception {
-        runClickBenchQuery("q7");
-    }
-
-    public void testClickBenchQ8() throws Exception {
-        runClickBenchQuery("q8");
-    }
-
-    public void testClickBenchQ9() throws Exception {
-        runClickBenchQuery("q9");
-    }
-
-    public void testClickBenchQ10() throws Exception {
-        runClickBenchQuery("q10");
-    }
-
-    public void testClickBenchQ11() throws Exception {
-        runClickBenchQuery("q11");
-    }
-
-    public void testClickBenchQ12() throws Exception {
-        runClickBenchQuery("q12");
-    }
-
-    public void testClickBenchQ13() throws Exception {
-        runClickBenchQuery("q13");
-    }
-
-    public void testClickBenchQ14() throws Exception {
-        runClickBenchQuery("q14");
-    }
-
-    public void testClickBenchQ15() throws Exception {
-        runClickBenchQuery("q15");
-    }
-
-    public void testClickBenchQ16() throws Exception {
-        runClickBenchQuery("q16");
-    }
-
-    public void testClickBenchQ17() throws Exception {
-        runClickBenchQuery("q17");
-    }
-
-    public void testClickBenchQ18() throws Exception {
-        runClickBenchQuery("q18");
-    }
-
-    public void testClickBenchQ19() throws Exception {
-        runClickBenchQuery("q19");
-    }
-
-    public void testClickBenchQ20() throws Exception {
-        runClickBenchQuery("q20");
-    }
-
-    public void testClickBenchQ21() throws Exception {
-        runClickBenchQuery("q21");
-    }
-
-    public void testClickBenchQ22() throws Exception {
-        runClickBenchQuery("q22");
-    }
-
-    public void testClickBenchQ23() throws Exception {
-        runClickBenchQuery("q23");
-    }
-
-    public void testClickBenchQ24() throws Exception {
-        runClickBenchQuery("q24");
-    }
-
-    public void testClickBenchQ25() throws Exception {
-        runClickBenchQuery("q25");
-    }
-
-    public void testClickBenchQ26() throws Exception {
-        runClickBenchQuery("q26");
-    }
-
-    public void testClickBenchQ27() throws Exception {
-        runClickBenchQuery("q27");
-    }
-
-    public void testClickBenchQ28() throws Exception {
-        runClickBenchQuery("q28");
-    }
-
-    public void testClickBenchQ29() throws Exception {
-        runClickBenchQuery("q29");
-    }
-
-    public void testClickBenchQ30() throws Exception {
-        runClickBenchQuery("q30");
-    }
-
-    public void testClickBenchQ31() throws Exception {
-        runClickBenchQuery("q31");
-    }
-
-    public void testClickBenchQ32() throws Exception {
-        runClickBenchQuery("q32");
-    }
-
-    public void testClickBenchQ33() throws Exception {
-        runClickBenchQuery("q33");
-    }
-
-    public void testClickBenchQ34() throws Exception {
-        runClickBenchQuery("q34");
-    }
-
-    public void testClickBenchQ35() throws Exception {
-        runClickBenchQuery("q35");
-    }
-
-    public void testClickBenchQ36() throws Exception {
-        runClickBenchQuery("q36");
-    }
-
-    public void testClickBenchQ37() throws Exception {
-        runClickBenchQuery("q37");
-    }
-
-    public void testClickBenchQ38() throws Exception {
-        runClickBenchQuery("q38");
-    }
-
-    public void testClickBenchQ39() throws Exception {
-        runClickBenchQuery("q39");
-    }
-
-    public void testClickBenchQ40() throws Exception {
-        runClickBenchQuery("q40");
-    }
-
-    public void testClickBenchQ41() throws Exception {
-        runClickBenchQuery("q41");
-    }
-
-    public void testClickBenchQ42() throws Exception {
-        runClickBenchQuery("q42");
-    }
-
-    public void testClickBenchQ43() throws Exception {
-        runClickBenchQuery("q43");
-    }
-
-    // --- Core test runner ---
 
     private void runClickBenchQuery(String queryId) throws Exception {
         String rawPpl = loadQuery(queryId);
