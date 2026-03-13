@@ -57,7 +57,7 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
 
         try {
             // Merge files in Rust
-            mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.getSortingField(), mergeInput.isReverseSort());
+            mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.getIndexName(), mergeInput.getSortingField(), mergeInput.isReverseSort());
 
             // Build row ID mapping
             Map<RowId, Long> rowIdMapping = new HashMap<>();

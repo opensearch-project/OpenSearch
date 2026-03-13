@@ -61,13 +61,14 @@ impl NativeParquetWriter {
 
     fn create_writer(
         filename: String,
+        index_name: String,
         schema_address: i64,
         sort_column: Option<String>,
         reverse_sort: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_info!(
-            "[RUST] create_writer called for file: {}, schema_address: {}, sort_column: {:?}, reverse_sort: {}",
-            filename, schema_address, sort_column, reverse_sort
+            "[RUST] create_writer called for file: {}, index: {}, schema_address: {}, sort_column: {:?}, reverse_sort: {}",
+            filename, index_name, schema_address, sort_column, reverse_sort
         );
 
         if (schema_address as *mut u8).is_null() {
@@ -96,8 +97,11 @@ impl NativeParquetWriter {
         let file_clone = file.try_clone()?;
         FILE_MANAGER.insert(temp_filename.clone(), file_clone);
 
-        // Fall back to defaults for writer properties
-        let config = NativeSettings::default();
+        // Look up settings for this index; fall back to defaults if not found
+        let config: NativeSettings = SETTINGS_STORE
+            .get(&index_name)
+            .map(|r| r.clone())
+            .unwrap_or_default();
         let props = WriterPropertiesBuilder::build(&config);
 
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
@@ -586,17 +590,19 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_init
 }
 
 /// JNI entry point for createWriter.
-/// Matches Java: createWriter(String file, long schemaAddress, String sortColumn, boolean reverseSort) throws IOException
+/// Matches Java: createWriter(String file, String indexName, long schemaAddress, String sortColumn, boolean reverseSort) throws IOException
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_createWriter(
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
+    index_name: JString,
     schema_address: jlong,
     sort_column: JString,
     reverse_sort: jboolean,
 ) {
     let filename: String = env.get_string(&file).expect("Couldn't get file string!").into();
+    let index_name: String = env.get_string(&index_name).expect("Couldn't get index_name string!").into();
 
     // sort_column can be null from Java — handle it safely
     let sort_col: Option<String> = if sort_column.is_null() {
@@ -607,7 +613,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_crea
 
     let reverse = reverse_sort != 0;
 
-    match NativeParquetWriter::create_writer(filename, schema_address as i64, sort_col, reverse) {
+    match NativeParquetWriter::create_writer(filename, index_name, schema_address as i64, sort_col, reverse) {
         Ok(_) => {},
         Err(e) => {
             log_error!("[RUST] create_writer failed: {}", e);
@@ -945,7 +951,7 @@ mod tests {
     /// Create a writer with no sorting
     fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
-        let result = NativeParquetWriter::create_writer(filename.to_string(), schema_ptr, None, false);
+        let result = NativeParquetWriter::create_writer(filename.to_string(), "test-index".to_string(), schema_ptr, None, false);
         assert!(result.is_ok());
         (schema, schema_ptr)
     }
@@ -954,7 +960,7 @@ mod tests {
     fn create_sorted_writer_and_assert_success(filename: &str, sort_column: &str, reverse: bool) -> (Arc<Schema>, i64) {
         let (schema, schema_ptr) = create_test_ffi_schema();
         let result = NativeParquetWriter::create_writer(
-            filename.to_string(), schema_ptr, Some(sort_column.to_string()), reverse
+            filename.to_string(), "test-index".to_string(), schema_ptr, Some(sort_column.to_string()), reverse
         );
         assert!(result.is_ok());
         (schema, schema_ptr)
@@ -996,7 +1002,7 @@ mod tests {
         let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
         let (_schema, schema_ptr) = create_test_ffi_schema();
 
-        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr, None, false);
+        let result = NativeParquetWriter::create_writer(invalid_path.to_string(), "test-index".to_string(), schema_ptr, None, false);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No such file or directory"));
 
@@ -1008,7 +1014,7 @@ mod tests {
         let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
 
         // Test with null schema pointer
-        let result = NativeParquetWriter::create_writer(filename, 0, None, false);
+        let result = NativeParquetWriter::create_writer(filename, "test-index".to_string(), 0, None, false);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
     }
@@ -1020,7 +1026,7 @@ mod tests {
 
         // Second writer creation for same file should fail
         let (_, schema_ptr2) = create_test_ffi_schema();
-        let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr2, None, false);
+        let result2 = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr2, None, false);
         assert!(result2.is_err());
         assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
 
@@ -1321,7 +1327,7 @@ mod tests {
                 let filename = file_path.to_string_lossy().to_string();
                 let (_schema, schema_ptr) = create_test_ffi_schema();
 
-                if NativeParquetWriter::create_writer(filename.clone(), schema_ptr, None, false).is_ok() {
+                if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, None, false).is_ok() {
                     success_count.fetch_add(1, Ordering::SeqCst);
                     // Write data so close can produce a valid file
                     let (ap, sp) = create_test_ffi_data().unwrap();

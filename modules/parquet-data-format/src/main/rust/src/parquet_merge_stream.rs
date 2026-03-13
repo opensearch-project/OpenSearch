@@ -44,9 +44,8 @@ use arrow::datatypes::{
 };
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::{ArrowRowGroupWriterFactory, compute_leaves};
-use parquet::basic::{Compression, Repetition};
+use parquet::basic::Repetition;
 use parquet::file::metadata::ParquetMetaData;
-use parquet::file::properties::WriterProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::Type;
@@ -59,7 +58,8 @@ use tokio::sync::{mpsc as tokio_mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 use crate::rate_limited_writer::RateLimitedWriter;
-use crate::{log_debug, log_error, log_info};
+use crate::{log_debug, log_error, log_info, SETTINGS_STORE};
+use crate::writer_properties_builder::WriterPropertiesBuilder;
 
 // =============================================================================
 // Constants
@@ -85,14 +85,6 @@ const RAYON_NUM_THREADS: usize = 4;
 /// Disk write rate limit in MB/s. Throttles merge IO to avoid saturating
 /// shared storage (e.g. EBS, NFS) and impacting search latency.
 const RATE_LIMIT_MB_PER_SEC: f64 = 20.0;
-
-/// Maximum number of rows per output row group. Aligns with Parquet best
-/// practices for query performance.
-const MAX_ROW_GROUP_ROWS: usize = 1_000_000;
-
-/// Target data page size in bytes. Smaller pages improve predicate pushdown
-/// granularity at the cost of slightly more metadata overhead.
-const DATA_PAGE_SIZE_LIMIT: usize = 1024 * 1024;
 
 /// Bounded channel capacity between the merge loop and the IO task.
 /// A buffer of 2 allows the merge loop to prepare one row group ahead
@@ -774,6 +766,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
     _class: JClass,
     input_files: JObject,
     output_file: JString,
+    index_name: JString,
     sort_column: JString,
     is_reverse: jint,
 ) -> jint {
@@ -795,6 +788,15 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
         }
     };
 
+    let idx_name: String = match env.get_string(&index_name) {
+        Ok(s) => s.into(),
+        Err(e) => {
+            log_error!("[RUST] Failed to read index name: {}", e);
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            return -1;
+        }
+    };
+
     let sort_col: String = match env.get_string(&sort_column) {
         Ok(s) => s.into(),
         Err(e) => {
@@ -806,7 +808,7 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 
     let reverse = is_reverse != 0;
 
-    match merge_streaming_full(&input_files_vec, &output_path, &sort_col, reverse) {
+    match merge_streaming_full(&input_files_vec, &output_path, &idx_name, &sort_col, reverse) {
         Ok(_) => 0,
         Err(e) => {
             log_error!("[RUST] Merge failed: {:?}", e);
@@ -836,9 +838,10 @@ pub extern "system" fn Java_com_parquet_parquetdataformat_bridge_RustBridge_merg
 pub fn merge_streaming(
     input_files: &[String],
     output_path: &str,
+    index_name: &str,
     sort_column: &str,
 ) -> MergeResult<()> {
-    merge_streaming_full(input_files, output_path, sort_column, false)
+    merge_streaming_full(input_files, output_path, index_name, sort_column, false)
 }
 
 /// Performs a streaming k-way merge with an explicit sort direction.
@@ -848,12 +851,14 @@ pub fn merge_streaming(
 pub fn merge_streaming_full(
     input_files: &[String],
     output_path: &str,
+    index_name: &str,
     sort_column: &str,
     reverse: bool,
 ) -> MergeResult<()> {
     merge_streaming_with_config(
         input_files,
         output_path,
+        index_name,
         sort_column,
         reverse,
         BATCH_SIZE,
@@ -868,6 +873,7 @@ pub fn merge_streaming_full(
 pub fn merge_streaming_with_config(
     input_files: &[String],
     output_path: &str,
+    index_name: &str,
     sort_column: &str,
     reverse: bool,
     batch_size: usize,
@@ -962,13 +968,12 @@ pub fn merge_streaming_with_config(
     let throttled_writer = RateLimitedWriter::new(output_file, RATE_LIMIT_MB_PER_SEC)
         .map_err(MergeError::Io)?;
 
-    let writer_props = Arc::new(
-        WriterProperties::builder()
-            .set_compression(Compression::ZSTD(Default::default()))
-            .set_max_row_group_row_count(Some(MAX_ROW_GROUP_ROWS))
-            .set_data_page_size_limit(DATA_PAGE_SIZE_LIMIT)
-            .build(),
-    );
+    // Look up settings for this index; fall back to defaults if not found
+    let config = SETTINGS_STORE
+        .get(index_name)
+        .map(|r| r.clone())
+        .unwrap_or_default();
+    let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
 
     let writer =
         SerializedFileWriter::new(throttled_writer, parquet_root, writer_props.clone())?;

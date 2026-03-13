@@ -16,16 +16,13 @@ import org.opensearch.index.engine.exec.merge.MergeResult;
 public class ParquetMergeExecutor extends ParquetMerger {
 
     private final ParquetMergeStrategy strategy;
-    private final String indexName;
 
-    public ParquetMergeExecutor(CompactionStrategy compactionStrategy, String indexName) {
+    public ParquetMergeExecutor(CompactionStrategy compactionStrategy) {
         this.strategy = ParquetMergeStrategyFactory.getStrategy(compactionStrategy);
-        this.indexName = indexName;
     }
 
     @Override
     public MergeResult merge(MergeInput mergeInput) {
-        MergeResult result = strategy.mergeParquetFiles(mergeInput);
-        return result;
+        return strategy.mergeParquetFiles(mergeInput);
     }
 }

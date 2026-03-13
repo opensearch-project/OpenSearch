@@ -88,7 +88,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
-        this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH, indexSettings.getIndex().getName());
+        this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
 
         // Push current settings to Rust store once on construction, then keep in sync on updates
         pushSettingsToRust(indexSettings);

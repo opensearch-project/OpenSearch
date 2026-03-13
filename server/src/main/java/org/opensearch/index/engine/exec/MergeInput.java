@@ -15,12 +15,18 @@ public class MergeInput {
     private long writerGeneration;
     private String sortingField;
     private boolean reverseSort;
+    private String indexName;
 
     public MergeInput(List<WriterFileSet> fileMetadataList, long writerGeneration, String sortingField, boolean reverseSort) {
+        this(fileMetadataList, writerGeneration, sortingField, reverseSort, null);
+    }
+
+    public MergeInput(List<WriterFileSet> fileMetadataList, long writerGeneration, String sortingField, boolean reverseSort, String indexName) {
         this.fileMetadataList = fileMetadataList;
         this.writerGeneration = writerGeneration;
         this.sortingField = sortingField;
         this.reverseSort = reverseSort;
+        this.indexName = indexName;
     }
 
     public List<WriterFileSet> getFileMetadataList() {
@@ -37,5 +43,9 @@ public class MergeInput {
 
     public boolean isReverseSort() {
         return reverseSort;
+    }
+
+    public String getIndexName() {
+        return indexName;
     }
 }

@@ -42,11 +42,13 @@ public class VSRManager implements AutoCloseable {
     private final VSRPool vsrPool;
     private final String sortColumn;
     private final boolean reverseSort;
+    private final String indexName;
     private NativeParquetWriter writer;
 
 
     public VSRManager(String fileName, String indexName, Schema schema, ArrowBufferPool arrowBufferPool, String sortColumn, boolean reverseSort) {
         this.fileName = fileName;
+        this.indexName = indexName;
         this.sortColumn = sortColumn;
         this.reverseSort = reverseSort;
 
@@ -63,7 +65,7 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         try {
             try (ArrowExport export = managedVSR.get().exportSchema()) {
-                writer = new NativeParquetWriter(fileName, export.getSchemaAddress(), sortColumn, reverseSort);
+                writer = new NativeParquetWriter(fileName, indexName, export.getSchemaAddress(), sortColumn, reverseSort);
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);

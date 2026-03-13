@@ -49,6 +49,7 @@ public abstract class MergeHandler {
     private final Logger logger;
     private final String sortKey;
     private final boolean reverseSort;
+    private final String indexName;
 
     public MergeHandler(
         CompositeEngine compositeEngine,
@@ -57,6 +58,7 @@ public abstract class MergeHandler {
         ShardId shardId
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.indexName = shardId.getIndexName();
         this.compositeDataFormat = dataFormats;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
         this.compositeEngine = compositeEngine;
@@ -212,7 +214,7 @@ public abstract class MergeHandler {
     }
 
     public MergeInput getMergeInput(List<WriterFileSet> filesToMerge, long mergedWriterGeneration, String sortKey, boolean reverseSort) {
-        return new MergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort);
+        return new MergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort, indexName);
     }
 
     private List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
