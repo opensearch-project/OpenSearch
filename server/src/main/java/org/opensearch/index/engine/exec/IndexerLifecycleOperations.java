@@ -12,11 +12,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.engine.EngineException;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Lifecycle operations for the indexer including flush, refresh, merge, and throttling.
@@ -88,14 +86,6 @@ public interface IndexerLifecycleOperations {
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException;
-
-    /**
-     * Returns information about all segments in the index.
-     *
-     * @param verbose if true, includes detailed segment information
-     * @return list of segment metadata
-     */
-    List<Segment> segments(boolean verbose);
 
     /**
      * Returns the amount of RAM currently used by the indexing buffer.

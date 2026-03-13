@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ import java.util.List;
 @ExperimentalApi
 public class RefreshInput {
 
-    private List<org.opensearch.index.engine.exec.coord.Segment> existingSegments;
+    private List<Segment> existingSegments;
     private final List<WriterFileSet> writerFiles;
 
     /**
@@ -38,7 +39,7 @@ public class RefreshInput {
      *
      * @param existingSegments the list of existing segments
      */
-    public void setExistingSegments(List<org.opensearch.index.engine.exec.coord.Segment> existingSegments) {
+    public void setExistingSegments(List<Segment> existingSegments) {
         this.existingSegments = existingSegments;
     }
 
@@ -65,7 +66,7 @@ public class RefreshInput {
      *
      * @return the existing segments list
      */
-    public List<org.opensearch.index.engine.exec.coord.Segment> getExistingSegments() {
+    public List<Segment> getExistingSegments() {
         return existingSegments;
     }
 }

@@ -9,7 +9,6 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
@@ -17,7 +16,6 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Indexer;
-import org.opensearch.index.engine.exec.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -30,8 +28,6 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -80,11 +76,6 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public long getIndexBufferRAMBytesUsed() {
         return engine.getIndexBufferRAMBytesUsed();
-    }
-
-    @Override
-    public List<Segment> segments(boolean verbose) {
-        return engine.segments(verbose);
     }
 
     @Override
@@ -384,11 +375,6 @@ public class EngineBackedIndexer implements Indexer {
         return Indexer.super.getNativeBytesUsed();
     }
 
-    @Override
-    public String loadHistoryUUID(Map<String, String> commitData) {
-        return Indexer.super.loadHistoryUUID(commitData);
-    }
-
     /**
      * Returns a snapshot of the catalog of segments in this engine. This snapshot is
      * guaranteed to be consistent and can be used for recovery purposes.
@@ -396,9 +382,9 @@ public class EngineBackedIndexer implements Indexer {
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
-        GatedCloseable<SegmentInfos> segmentInfos = engine.getSegmentInfosSnapshot();
-        SegmentInfosCatalogSnapshot catalogSnapshot = new SegmentInfosCatalogSnapshot(segmentInfos.get());
-        return new GatedCloseable<>(catalogSnapshot, segmentInfos::close);
+        // TODO: Replace with a SegmentInfosCatalogSnapshot
+        // For now we throw an exception as this is not yet implemented
+        throw new UnsupportedOperationException("acquireSnapshot is not supported in EngineBackedIndexer");
     }
 
     public Engine getEngine() {

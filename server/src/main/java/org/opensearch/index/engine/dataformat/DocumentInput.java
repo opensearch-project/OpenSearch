@@ -11,8 +11,6 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.MappedFieldType;
 
-import java.io.IOException;
-
 /**
  * Represents a document input for adding fields and metadata to a writer.
  *
@@ -22,14 +20,12 @@ import java.io.IOException;
  */
 @ExperimentalApi
 public interface DocumentInput<T> extends AutoCloseable {
-
     /**
-     * Adds a row ID field to the document.
+     * Gets the final input representation.
      *
-     * @param fieldName the name of the row ID field
-     * @param rowId the row ID value
+     * @return the final input of type T
      */
-    void addRowIdField(String fieldName, long rowId);
+    T getFinalInput();
 
     /**
      * Adds a field to the document.
@@ -40,26 +36,19 @@ public interface DocumentInput<T> extends AutoCloseable {
     void addField(MappedFieldType fieldType, Object value);
 
     /**
-     * Gets the final input representation.
+     * Adds a row ID field to the document.
      *
-     * @return the final input of type T
+     * @param rowIdFieldName the name of the row ID field
+     * @param rowId the row ID value
      */
-    T getFinalInput();
-
-    /**
-     * Adds this document to the writer.
-     *
-     * @return the write result
-     * @throws IOException if an I/O error occurs
-     */
-    WriteResult addToWriter() throws IOException;
+    void setRowId(String rowIdFieldName, long rowId);
 
     /**
      * Sets the version for this document.
      *
      * @param version the version number
      */
-    default void setVersion(long version) {
+    default void setVersion(String fieldName, long version) {
         // Default no-op implementations, override as needed
     }
 
@@ -68,7 +57,7 @@ public interface DocumentInput<T> extends AutoCloseable {
      *
      * @param seqNo the sequence number
      */
-    default void setSeqNo(long seqNo) {
+    default void setSeqNo(String fieldName, long seqNo) {
         // Default no-op implementations, override as needed
     }
 

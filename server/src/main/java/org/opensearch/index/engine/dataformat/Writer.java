@@ -50,11 +50,4 @@ public interface Writer<P extends DocumentInput<?>> {
      * Closes the writer and releases resources.
      */
     void close();
-
-    /**
-     * Creates a new document input instance.
-     *
-     * @return a new document input
-     */
-    P newDocumentInput();
 }

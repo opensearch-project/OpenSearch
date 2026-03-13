@@ -10,9 +10,6 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,7 +25,7 @@ import java.util.function.Supplier;
  * Subclasses must implement methods for accessing file metadata, segments, and user data.
  */
 @ExperimentalApi
-public abstract class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cloneable {
+public abstract class CatalogSnapshot extends AbstractRefCounted {
 
     /**
      * Key for storing catalog snapshot in user data.
@@ -52,24 +49,6 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
         this.version = version;
     }
 
-    /**
-     * Constructs a CatalogSnapshot from a StreamInput for deserialization.
-     *
-     * @param in the stream input to read from
-     * @throws IOException if an I/O error occurs during deserialization
-     */
-    public CatalogSnapshot(StreamInput in) throws IOException {
-        super("catalog_snapshot");
-        this.generation = in.readLong();
-        this.version = in.readLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(generation);
-        out.writeLong(version);
-    }
-
     public long getGeneration() {
         return generation;
     }
@@ -77,14 +56,6 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
     public long getVersion() {
         return version;
     }
-
-    /**
-     * Retrieves all file metadata in this catalog snapshot.
-     *
-     * @return collection of FileMetadata objects
-     * @throws IOException if an I/O error occurs
-     */
-    public abstract Collection<FileMetadata> getFileMetadataList() throws IOException;
 
     /**
      * Gets user-defined metadata associated with this catalog snapshot.
@@ -105,7 +76,7 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
      *
      * @return list of Segment objects
      */
-    public abstract List<org.opensearch.index.engine.exec.coord.Segment> getSegments();
+    public abstract List<Segment> getSegments();
 
     /**
      * Retrieves searchable files for a specific data format.
