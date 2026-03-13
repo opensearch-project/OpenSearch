@@ -2312,16 +2312,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             // Engine restart to pick up composite codec
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
-            // After engine restart, there may be only 1 segment. Lucene's forceMerge(1) is a no-op
-            // with a single segment. We need to flush to create a second (empty) segment so that
-            // forceMerge(1) actually triggers a merge that rewrites through the composite codec.
-            flush(new FlushRequest().waitIfOngoing(true).force(true));
-            // Now force merge — with 2+ segments, this will merge them all through the composite
-            // codec's Composite912DocValuesWriter which builds star tree data from raw doc values.
-            forceMerge(new ForceMergeRequest().maxNumSegments(1));
-            // Refresh to ensure the searcher sees the merged segment with star tree data.
-            // Without this, queries may hit stale segments that lack star tree values.
-            refresh("star-tree-upgrade");
+
+            // After engine restart, if the translog was empty (data fully committed), there may be
+            // only 1 segment. Lucene's forceMerge(1) is a no-op with a single segment because there's
+            // nothing to merge down to. We need at least 2 segments so the merge actually fires and
+            // the composite codec's merge path builds the star tree data.
+            //
+            // NOTE: We cannot use forceMerge with upgrade=true here because OpenSearchMergePolicy's
+            // shouldUpgrade() checks Lucene version — segments written by the current version won't
+            // be selected for upgrade merging.
+            //
+            // Write a no-op tombstone to the IndexWriter, then flush to commit it as a new segment.
+            // This guarantees at least 2 segments exist, so forceMerge(1) will merge them through
+            // the composite codec.
+            final Engine engine = getEngine();
+            final long seqNo = getLocalCheckpoint() + 1;
+            engine.noOp(
+                new Engine.NoOp(seqNo, getOperationPrimaryTerm(), Engine.Operation.Origin.PRIMARY, System.nanoTime(), "star-tree-upgrade")
+            );
+            engine.flush(false, true);
+
+            // Now forceMerge(1) will merge the 2+ segments through the composite codec,
+            // triggering Composite912DocValuesWriter's fallback path that builds star tree
+            // data from raw doc values.
+            engine.forceMerge(true, 1, false, false, false, null);
             logger.info("{} star tree upgrade completed successfully — star tree data built", shardId);
         } finally {
             this.codecServiceOverride = null;
