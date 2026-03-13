@@ -199,6 +199,7 @@ import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.opensearch.search.aggregations.metrics.InternalTopHits;
+import org.opensearch.search.aggregations.metrics.InternalTopMetrics;
 import org.opensearch.search.aggregations.metrics.InternalValueCount;
 import org.opensearch.search.aggregations.metrics.InternalWeightedAvg;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -210,6 +211,7 @@ import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuild
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.TopMetricsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
@@ -649,6 +651,11 @@ public class SearchModule {
         registerAggregation(
             new AggregationSpec(TopHitsAggregationBuilder.NAME, TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse)
                 .addResultReader(InternalTopHits::new),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(TopMetricsAggregationBuilder.NAME, TopMetricsAggregationBuilder::new, TopMetricsAggregationBuilder::parse)
+                .addResultReader(InternalTopMetrics::new),
             builder
         );
         registerAggregation(
