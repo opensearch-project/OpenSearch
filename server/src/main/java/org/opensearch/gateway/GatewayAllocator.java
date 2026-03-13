@@ -180,6 +180,10 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         assert shardRouting.unassigned();
+        // Skip allocation for closed index shards
+        if (shardRouting.isClosedIndexShard()) {
+            return;
+        }
         if (shardRouting.primary()) {
             primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
         } else {

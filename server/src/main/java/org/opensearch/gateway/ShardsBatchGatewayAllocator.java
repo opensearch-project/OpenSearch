@@ -401,6 +401,10 @@ public class ShardsBatchGatewayAllocator implements ExistingShardsAllocator {
         Set<ShardId> batchedShardsToAssign = Sets.newHashSet();
         // add all unassigned shards to the batch if they are not already in a batch
         unassigned.forEach(shardRouting -> {
+            // Skip allocation for closed index shards - for new shards and already-batched shards whose index subsequently closed
+            if (shardRouting.isClosedIndexShard()) {
+                return;
+            }
             if ((currentBatchedShards.containsKey(shardRouting.shardId()) == false) && (shardRouting.primary() == primary)) {
                 assert shardRouting.unassigned();
                 newShardsToBatch.put(shardRouting.shardId(), shardRouting);
