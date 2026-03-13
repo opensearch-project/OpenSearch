@@ -152,7 +152,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     final List miniHDFSArgs = []
 
     // See please https://issues.apache.org/jira/browse/HADOOP-19486
-    miniHDFSArgs.add("-javaagent:${-> configurations.agent.incoming.artifactView({}).files.getAt(0)}")
+    miniHDFSArgs.add("-javaagent:${-> configurations.agent.incoming.artifactView({}).files.singleFile}")
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {

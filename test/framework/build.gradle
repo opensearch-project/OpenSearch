@@ -117,7 +117,7 @@ test {
   systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
 
-  jvmArgs += ["-javaagent:${-> configurations.agent.incoming.artifactView({}).files.getAt(0)}"]
+  jvmArgs += ["-javaagent:${-> configurations.agent.incoming.artifactView({}).files.singleFile}"]
 }
 
 tasks.register("integTest", Test) {

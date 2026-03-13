@@ -68,7 +68,7 @@ task prepareAgent(type: Copy) {
 }
 
 artifacts {
-  add("agentJar", project.jar.archiveFile.get())
+  agentJar(jar)
   agentDist(file("$buildDir/distributions")) {
     builtBy prepareAgent
   }
