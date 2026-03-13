@@ -13,7 +13,7 @@ opensearchplugin {
 }
 
 dependencies {
-  // Shared types and SPI interfaces (EngineBridge, EngineCapabilities, AnalyticsBackEndPlugin, etc.)
+  // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
 }

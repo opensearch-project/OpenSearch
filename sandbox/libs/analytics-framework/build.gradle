@@ -8,7 +8,7 @@
 
 /*
  * Shared Calcite/Arrow types for the analytics engine plugins.
- * Contains EngineBridge, EngineCapabilities, QueryPlanExecutor, SchemaProvider.
+ * Contains EngineBridge, QueryPlanExecutor, AnalyticsEngineContext.
  * Plugins depend on this; the /modules SPI layer does NOT.
  */
 
@@ -16,6 +16,16 @@ def calciteVersion = '1.41.0'
 
 dependencies {
   api "org.apache.calcite:calcite-core:${calciteVersion}"
+  // Calcite's expression tree and Enumerable runtime — required by calcite-core API
+  api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
+  // Calcite's JDBC abstraction layer — required by calcite-core internals
+  runtimeOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+  // Guava — required by Calcite internally, forbidden on compile classpaths by OpenSearch policy
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  // SLF4J — Calcite's logging facade
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+
   // Calcite bytecode references annotations from apiguardian (@API) and
   // checker-framework (@EnsuresNonNullIf). compileOnlyApi propagates to
   // consumers' compile/javadoc classpath without becoming a runtime dep.
@@ -32,14 +42,12 @@ tasks.named('forbiddenApisMain').configure {
   ignoreSignaturesOfMissingClasses = true
 }
 
-// Calcite-core pulls many optional transitive dependencies (Guava, Avatica, JTS,
-// Janino, Jackson, etc.) that are not on the compile classpath. These are optional
-// features of Calcite we don't use at runtime. Explicitly acknowledge them here
-// so the audit runs and would catch any NEW unexpected missing classes.
+// Calcite-core's optional runtime-scope transitive deps are not on the classpath.
+// These are features of Calcite we don't use (spatial, JSON path, JDBC pooling, etc.).
 // Split into multiple calls to stay under the JVM method parameter limit.
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
-    // --- Jackson (optional JSON support in Calcite) ---
+    // Jackson (optional JSON serialization in Calcite)
     'com.fasterxml.jackson.core.JsonParser$Feature',
     'com.fasterxml.jackson.core.PrettyPrinter',
     'com.fasterxml.jackson.core.type.TypeReference',
@@ -51,99 +59,60 @@ tasks.named('thirdPartyAudit').configure {
     'com.fasterxml.jackson.databind.ObjectMapper',
     'com.fasterxml.jackson.databind.ObjectWriter',
 
-    // --- Guava (excluded from compile classpath by OpenSearch policy) ---
-    'com.google.common.base.CaseFormat',
-    'com.google.common.base.Equivalence',
-    'com.google.common.base.Function',
-    'com.google.common.base.MoreObjects',
-    'com.google.common.base.MoreObjects$ToStringHelper',
-    'com.google.common.base.Preconditions',
-    'com.google.common.base.Predicate',
-    'com.google.common.base.Predicates',
-    'com.google.common.base.Splitter',
-    'com.google.common.base.Strings',
-    'com.google.common.base.Supplier',
-    'com.google.common.base.Suppliers',
-    'com.google.common.base.Throwables',
-    'com.google.common.base.Utf8',
-    'com.google.common.base.Verify',
-    'com.google.common.cache.Cache',
-    'com.google.common.cache.CacheBuilder',
-    'com.google.common.cache.CacheLoader',
-    'com.google.common.cache.LoadingCache',
-    'com.google.common.collect.ArrayListMultimap',
-    'com.google.common.collect.BiMap',
-    'com.google.common.collect.BoundType',
-    'com.google.common.collect.Collections2',
-    'com.google.common.collect.FluentIterable',
-    'com.google.common.collect.HashBasedTable',
-    'com.google.common.collect.HashBiMap',
-    'com.google.common.collect.HashMultimap',
-    'com.google.common.collect.HashMultiset',
-    'com.google.common.collect.ImmutableCollection',
-    'com.google.common.collect.ImmutableCollection$Builder',
-    'com.google.common.collect.ImmutableList',
-    'com.google.common.collect.ImmutableList$Builder',
-    'com.google.common.collect.ImmutableListMultimap',
-    'com.google.common.collect.ImmutableListMultimap$Builder',
-    'com.google.common.collect.ImmutableMap',
-    'com.google.common.collect.ImmutableMap$Builder',
-    'com.google.common.collect.ImmutableMultimap',
-    'com.google.common.collect.ImmutableMultimap$Builder',
-    'com.google.common.collect.ImmutableRangeSet',
-    'com.google.common.collect.ImmutableRangeSet$Builder',
-    'com.google.common.collect.ImmutableSet',
-    'com.google.common.collect.ImmutableSet$Builder',
-    'com.google.common.collect.ImmutableSetMultimap',
-    'com.google.common.collect.ImmutableSetMultimap$Builder',
-    'com.google.common.collect.ImmutableSortedMap',
-    'com.google.common.collect.ImmutableSortedMap$Builder',
-    'com.google.common.collect.ImmutableSortedMultiset',
-    'com.google.common.collect.ImmutableSortedSet',
-    'com.google.common.collect.ImmutableSortedSet$Builder',
-    'com.google.common.collect.Interner',
-    'com.google.common.collect.Interners',
-    'com.google.common.collect.Iterables',
-    'com.google.common.collect.Iterators',
-    'com.google.common.collect.LinkedHashMultimap',
-    'com.google.common.collect.LinkedListMultimap',
-    'com.google.common.collect.Lists',
-    'com.google.common.collect.Maps',
-    'com.google.common.collect.Multimap',
-    'com.google.common.collect.MultimapBuilder$MultimapBuilderWithKeys',
-    'com.google.common.collect.MultimapBuilder$SortedSetMultimapBuilder',
-    'com.google.common.collect.Multiset$Entry',
-    'com.google.common.collect.Ordering',
-    'com.google.common.collect.Range',
-    'com.google.common.collect.RangeSet',
-    'com.google.common.collect.SetMultimap',
-    'com.google.common.collect.Sets',
-    'com.google.common.collect.SortedSetMultimap',
-    'com.google.common.collect.Table',
-    'com.google.common.collect.TreeMultimap',
-    'com.google.common.collect.TreeRangeSet',
-    'com.google.common.collect.UnmodifiableIterator',
-    'com.google.common.collect.UnmodifiableListIterator',
-    'com.google.common.io.ByteSource',
-    'com.google.common.io.CharSource',
-    'com.google.common.math.IntMath',
-    'com.google.common.primitives.Booleans',
-    'com.google.common.primitives.Ints',
-    'com.google.common.primitives.Longs',
-    'com.google.common.util.concurrent.UncheckedExecutionException',
+    // Protobuf (Avatica RPC serialization, not used)
+    'com.google.protobuf.AbstractMessageLite$Builder',
+    'com.google.protobuf.AbstractParser',
+    'com.google.protobuf.ByteString',
+    'com.google.protobuf.CodedInputStream',
+    'com.google.protobuf.CodedOutputStream',
+    'com.google.protobuf.Descriptors$Descriptor',
+    'com.google.protobuf.Descriptors$EnumDescriptor',
+    'com.google.protobuf.Descriptors$EnumValueDescriptor',
+    'com.google.protobuf.Descriptors$FieldDescriptor',
+    'com.google.protobuf.Descriptors$FileDescriptor',
+    'com.google.protobuf.Descriptors$OneofDescriptor',
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.GeneratedMessageV3',
+    'com.google.protobuf.GeneratedMessageV3$Builder',
+    'com.google.protobuf.GeneratedMessageV3$BuilderParent',
+    'com.google.protobuf.GeneratedMessageV3$FieldAccessorTable',
+    'com.google.protobuf.GeneratedMessageV3$UnusedPrivateParameter',
+    'com.google.protobuf.Internal',
+    'com.google.protobuf.Internal$EnumLiteMap',
+    'com.google.protobuf.Internal$IntList',
+    'com.google.protobuf.Internal$LongList',
+    'com.google.protobuf.InvalidProtocolBufferException',
+    'com.google.protobuf.LazyStringArrayList',
+    'com.google.protobuf.MapEntry',
+    'com.google.protobuf.MapEntry$Builder',
+    'com.google.protobuf.MapField',
+    'com.google.protobuf.MapFieldReflectionAccessor',
+    'com.google.protobuf.Message',
+    'com.google.protobuf.MessageOrBuilder',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.ProtocolMessageEnum',
+    'com.google.protobuf.ProtocolStringList',
+    'com.google.protobuf.RepeatedFieldBuilderV3',
+    'com.google.protobuf.SingleFieldBuilderV3',
+    'com.google.protobuf.TextFormat',
+    'com.google.protobuf.UninitializedMessageException',
+    'com.google.protobuf.UnknownFieldSet',
+    'com.google.protobuf.UnsafeByteOperations',
+    'com.google.protobuf.WireFormat$FieldType',
 
-    // --- Uzaygezen (optional Hilbert curve spatial indexing) ---
+    // Uzaygezen (optional Hilbert curve spatial indexing)
     'com.google.uzaygezen.core.BacktrackingQueryBuilder',
     'com.google.uzaygezen.core.BitVector',
     'com.google.uzaygezen.core.BitVectorFactories',
     'com.google.uzaygezen.core.CompactHilbertCurve',
     'com.google.uzaygezen.core.FilteredIndexRange',
     'com.google.uzaygezen.core.Query',
+    'com.google.uzaygezen.core.SimpleRegionInspector',
     'com.google.uzaygezen.core.ranges.LongRange',
     'com.google.uzaygezen.core.ranges.LongRangeHome',
-    'com.google.uzaygezen.core.SimpleRegionInspector',
 
-    // --- JsonPath (optional JSON path support) ---
+    // JsonPath (optional JSON path support)
     'com.jayway.jsonpath.Configuration',
     'com.jayway.jsonpath.Configuration$ConfigurationBuilder',
     'com.jayway.jsonpath.DocumentContext',
@@ -154,156 +123,17 @@ tasks.named('thirdPartyAudit').configure {
     'com.jayway.jsonpath.spi.json.JacksonJsonProvider',
     'com.jayway.jsonpath.spi.mapper.MappingProvider',
 
-    // --- Yahoo Sketches (optional approximate distinct counting) ---
+    // Yahoo Sketches (optional approximate distinct counting)
     'com.yahoo.sketches.hll.HllSketch',
-    'com.yahoo.sketches.hll.HllSketchBuilder'
-  )
+    'com.yahoo.sketches.hll.HllSketchBuilder',
 
-  ignoreMissingClasses(
-    // --- Calcite Avatica (JDBC driver framework, not used) ---
-    'org.apache.calcite.avatica.AvaticaConnection',
-    'org.apache.calcite.avatica.AvaticaConnection$Trojan',
-    'org.apache.calcite.avatica.AvaticaDatabaseMetaData',
-    'org.apache.calcite.avatica.AvaticaFactory',
-    'org.apache.calcite.avatica.AvaticaPreparedStatement',
-    'org.apache.calcite.avatica.AvaticaResultSet',
-    'org.apache.calcite.avatica.AvaticaSite',
-    'org.apache.calcite.avatica.AvaticaStatement',
-    'org.apache.calcite.avatica.AvaticaUtils',
-    'org.apache.calcite.avatica.BuiltInConnectionProperty',
-    'org.apache.calcite.avatica.ColumnMetaData',
-    'org.apache.calcite.avatica.ColumnMetaData$AvaticaType',
-    'org.apache.calcite.avatica.ColumnMetaData$Rep',
-    'org.apache.calcite.avatica.ColumnMetaData$StructType',
-    'org.apache.calcite.avatica.ConnectionConfig',
-    'org.apache.calcite.avatica.ConnectionConfigImpl',
-    'org.apache.calcite.avatica.ConnectionConfigImpl$PropEnv',
-    'org.apache.calcite.avatica.ConnectionPropertiesImpl',
-    'org.apache.calcite.avatica.ConnectionProperty',
-    'org.apache.calcite.avatica.ConnectionProperty$Type',
-    'org.apache.calcite.avatica.DriverVersion',
-    'org.apache.calcite.avatica.Handler',
-    'org.apache.calcite.avatica.HandlerImpl',
-    'org.apache.calcite.avatica.Helper',
-    'org.apache.calcite.avatica.InternalProperty',
-    'org.apache.calcite.avatica.Meta',
-    'org.apache.calcite.avatica.Meta$ConnectionHandle',
-    'org.apache.calcite.avatica.Meta$ConnectionProperties',
-    'org.apache.calcite.avatica.Meta$CursorFactory',
-    'org.apache.calcite.avatica.Meta$DatabaseProperty',
-    'org.apache.calcite.avatica.Meta$ExecuteBatchResult',
-    'org.apache.calcite.avatica.Meta$ExecuteResult',
-    'org.apache.calcite.avatica.Meta$Frame',
-    'org.apache.calcite.avatica.Meta$MetaResultSet',
-    'org.apache.calcite.avatica.Meta$Pat',
-    'org.apache.calcite.avatica.Meta$PrepareCallback',
-    'org.apache.calcite.avatica.Meta$Signature',
-    'org.apache.calcite.avatica.Meta$StatementHandle',
-    'org.apache.calcite.avatica.Meta$StatementType',
-    'org.apache.calcite.avatica.Meta$Style',
-    'org.apache.calcite.avatica.MetaImpl',
-    'org.apache.calcite.avatica.MetaImpl$MetaCatalog',
-    'org.apache.calcite.avatica.MetaImpl$MetaColumn',
-    'org.apache.calcite.avatica.MetaImpl$MetaFunction',
-    'org.apache.calcite.avatica.MetaImpl$MetaSchema',
-    'org.apache.calcite.avatica.MetaImpl$MetaTable',
-    'org.apache.calcite.avatica.MetaImpl$MetaTableType',
-    'org.apache.calcite.avatica.MetaImpl$MetaTypeInfo',
-    'org.apache.calcite.avatica.MetaImpl$Named',
-    'org.apache.calcite.avatica.QueryState',
-    'org.apache.calcite.avatica.remote.TypedValue',
-    'org.apache.calcite.avatica.SqlType',
-    'org.apache.calcite.avatica.UnregisteredDriver',
-    'org.apache.calcite.avatica.UnregisteredDriver$JdbcVersion',
-    'org.apache.calcite.avatica.util.AbstractCursor$Getter',
-    'org.apache.calcite.avatica.util.ArrayImpl',
-    'org.apache.calcite.avatica.util.ByteString',
-    'org.apache.calcite.avatica.util.Casing',
-    'org.apache.calcite.avatica.util.Cursor',
-    'org.apache.calcite.avatica.util.DateTimeUtils',
-    'org.apache.calcite.avatica.util.DateTimeUtils$PrecisionTime',
-    'org.apache.calcite.avatica.util.PositionedCursor',
-    'org.apache.calcite.avatica.util.Quoting',
-    'org.apache.calcite.avatica.util.Spacer',
-    'org.apache.calcite.avatica.util.Spaces',
-    'org.apache.calcite.avatica.util.TimeUnit',
-    'org.apache.calcite.avatica.util.TimeUnitRange',
+    // Avatica metrics (optional metrics subsystem)
+    'org.apache.calcite.avatica.metrics.MetricsSystem',
+    'org.apache.calcite.avatica.metrics.Timer',
+    'org.apache.calcite.avatica.metrics.Timer$Context',
+    'org.apache.calcite.avatica.metrics.noop.NoopMetricsSystem',
 
-    // --- Calcite Linq4j (expression tree / enumerable runtime) ---
-    'org.apache.calcite.linq4j.AbstractEnumerable',
-    'org.apache.calcite.linq4j.AbstractQueryable',
-    'org.apache.calcite.linq4j.BaseQueryable',
-    'org.apache.calcite.linq4j.CartesianProductEnumerator',
-    'org.apache.calcite.linq4j.Enumerable',
-    'org.apache.calcite.linq4j.EnumerableDefaults',
-    'org.apache.calcite.linq4j.Enumerator',
-    'org.apache.calcite.linq4j.ExtendedEnumerable',
-    'org.apache.calcite.linq4j.function.EqualityComparer',
-    'org.apache.calcite.linq4j.function.Function0',
-    'org.apache.calcite.linq4j.function.Function1',
-    'org.apache.calcite.linq4j.function.Function2',
-    'org.apache.calcite.linq4j.function.Functions',
-    'org.apache.calcite.linq4j.function.Hints',
-    'org.apache.calcite.linq4j.function.Parameter',
-    'org.apache.calcite.linq4j.function.Predicate1',
-    'org.apache.calcite.linq4j.function.Predicate2',
-    'org.apache.calcite.linq4j.function.SemiStrict',
-    'org.apache.calcite.linq4j.function.Strict',
-    'org.apache.calcite.linq4j.JoinType',
-    'org.apache.calcite.linq4j.Linq4j',
-    'org.apache.calcite.linq4j.MemoryFactory',
-    'org.apache.calcite.linq4j.MemoryFactory$Memory',
-    'org.apache.calcite.linq4j.Nullness',
-    'org.apache.calcite.linq4j.Ord',
-    'org.apache.calcite.linq4j.OrderedQueryable',
-    'org.apache.calcite.linq4j.Queryable',
-    'org.apache.calcite.linq4j.QueryableDefaults$Replayable',
-    'org.apache.calcite.linq4j.QueryableFactory',
-    'org.apache.calcite.linq4j.QueryProvider',
-    'org.apache.calcite.linq4j.QueryProviderImpl',
-    'org.apache.calcite.linq4j.TransformedEnumerator',
-    'org.apache.calcite.linq4j.tree.BinaryExpression',
-    'org.apache.calcite.linq4j.tree.BlockBuilder',
-    'org.apache.calcite.linq4j.tree.Blocks',
-    'org.apache.calcite.linq4j.tree.BlockStatement',
-    'org.apache.calcite.linq4j.tree.CatchBlock',
-    'org.apache.calcite.linq4j.tree.ClassDeclaration',
-    'org.apache.calcite.linq4j.tree.ConstantExpression',
-    'org.apache.calcite.linq4j.tree.ConstantUntypedNull',
-    'org.apache.calcite.linq4j.tree.DeclarationStatement',
-    'org.apache.calcite.linq4j.tree.Expression',
-    'org.apache.calcite.linq4j.tree.Expressions',
-    'org.apache.calcite.linq4j.tree.Expressions$FluentList',
-    'org.apache.calcite.linq4j.tree.ExpressionType',
-    'org.apache.calcite.linq4j.tree.FieldDeclaration',
-    'org.apache.calcite.linq4j.tree.FunctionExpression',
-    'org.apache.calcite.linq4j.tree.FunctionExpression$Invokable',
-    'org.apache.calcite.linq4j.tree.GotoStatement',
-    'org.apache.calcite.linq4j.tree.IndexExpression',
-    'org.apache.calcite.linq4j.tree.MemberDeclaration',
-    'org.apache.calcite.linq4j.tree.MemberExpression',
-    'org.apache.calcite.linq4j.tree.MethodCallExpression',
-    'org.apache.calcite.linq4j.tree.MethodDeclaration',
-    'org.apache.calcite.linq4j.tree.NewArrayExpression',
-    'org.apache.calcite.linq4j.tree.NewExpression',
-    'org.apache.calcite.linq4j.tree.ParameterExpression',
-    'org.apache.calcite.linq4j.tree.Primitive',
-    'org.apache.calcite.linq4j.tree.Primitive$Flavor',
-    'org.apache.calcite.linq4j.tree.PseudoField',
-    'org.apache.calcite.linq4j.tree.Statement',
-    'org.apache.calcite.linq4j.tree.TableExpressionFactory',
-    'org.apache.calcite.linq4j.tree.Types',
-    'org.apache.calcite.linq4j.tree.Types$ArrayType',
-    'org.apache.calcite.linq4j.tree.Types$MapType',
-    'org.apache.calcite.linq4j.tree.Types$RecordField',
-    'org.apache.calcite.linq4j.tree.Types$RecordType',
-    'org.apache.calcite.linq4j.tree.UnaryExpression',
-    'org.apache.calcite.linq4j.tree.UnsignedType',
-    'org.apache.calcite.linq4j.tree.VisitorImpl'
-  )
-
-  ignoreMissingClasses(
-    // --- Apache Commons (optional Calcite features) ---
+    // Apache Commons (optional Calcite features)
     'org.apache.commons.codec.binary.Base32',
     'org.apache.commons.codec.binary.Hex',
     'org.apache.commons.codec.digest.DigestUtils',
@@ -316,9 +146,44 @@ tasks.named('thirdPartyAudit').configure {
     'org.apache.commons.math3.fraction.BigFraction',
     'org.apache.commons.math3.util.CombinatoricsUtils',
     'org.apache.commons.text.StringEscapeUtils',
-    'org.apache.commons.text.similarity.LevenshteinDistance',
+    'org.apache.commons.text.similarity.LevenshteinDistance'
+  )
 
-    // --- Janino (optional code generation for Enumerable pipeline) ---
+  ignoreMissingClasses(
+    // HttpClient5 (Avatica remote JDBC transport, not used)
+    'org.apache.hc.client5.http.SystemDefaultDnsResolver',
+    'org.apache.hc.client5.http.auth.AuthScope',
+    'org.apache.hc.client5.http.auth.Credentials',
+    'org.apache.hc.client5.http.auth.CredentialsProvider',
+    'org.apache.hc.client5.http.auth.KerberosConfig',
+    'org.apache.hc.client5.http.auth.KerberosConfig$Builder',
+    'org.apache.hc.client5.http.auth.UsernamePasswordCredentials',
+    'org.apache.hc.client5.http.classic.methods.HttpPost',
+    'org.apache.hc.client5.http.config.RequestConfig',
+    'org.apache.hc.client5.http.config.RequestConfig$Builder',
+    'org.apache.hc.client5.http.impl.auth.BasicAuthCache',
+    'org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider',
+    'org.apache.hc.client5.http.impl.classic.CloseableHttpClient',
+    'org.apache.hc.client5.http.impl.classic.HttpClientBuilder',
+    'org.apache.hc.client5.http.impl.classic.HttpClients',
+    'org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager',
+    'org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder',
+    'org.apache.hc.client5.http.protocol.HttpClientContext',
+    'org.apache.hc.client5.http.routing.RoutingSupport',
+    'org.apache.hc.client5.http.ssl.HttpsSupport',
+    'org.apache.hc.client5.http.ssl.NoopHostnameVerifier',
+    'org.apache.hc.client5.http.ssl.TlsSocketStrategy',
+    'org.apache.hc.core5.http.ClassicHttpResponse',
+    'org.apache.hc.core5.http.ContentType',
+    'org.apache.hc.core5.http.HttpHost',
+    'org.apache.hc.core5.http.config.Lookup',
+    'org.apache.hc.core5.http.config.RegistryBuilder',
+    'org.apache.hc.core5.http.io.entity.EntityUtils',
+    'org.apache.hc.core5.ssl.SSLContextBuilder',
+    'org.apache.hc.core5.ssl.SSLContexts',
+    'org.apache.hc.core5.util.Timeout',
+
+    // Janino (optional code generation for Enumerable pipeline)
     'org.codehaus.commons.compiler.CompilerFactoryFactory',
     'org.codehaus.commons.compiler.IClassBodyEvaluator',
     'org.codehaus.commons.compiler.ICompilerFactory',
@@ -328,14 +193,14 @@ tasks.named('thirdPartyAudit').configure {
     'org.codehaus.janino.JavaSourceClassLoader',
     'org.codehaus.janino.util.ClassFile',
 
-    // --- jOOU (optional unsigned integer types) ---
+    // jOOU (optional unsigned integer types)
     'org.joou.UByte',
     'org.joou.UInteger',
     'org.joou.ULong',
     'org.joou.UShort',
     'org.joou.Unsigned',
 
-    // --- JTS / Proj4j (optional spatial/geometry support) ---
+    // JTS / Proj4j (optional spatial/geometry support)
     'org.locationtech.jts.algorithm.InteriorPoint',
     'org.locationtech.jts.algorithm.LineIntersector',
     'org.locationtech.jts.algorithm.MinimumBoundingCircle',
@@ -397,7 +262,7 @@ tasks.named('thirdPartyAudit').configure {
     'org.locationtech.proj4j.ProjCoordinate',
     'org.locationtech.proj4j.proj.Projection',
 
-    // --- Pentaho Mondrian (optional aggregate designer) ---
+    // Pentaho (optional aggregate designer)
     'org.pentaho.aggdes.algorithm.Algorithm',
     'org.pentaho.aggdes.algorithm.Algorithm$ParameterEnum',
     'org.pentaho.aggdes.algorithm.Result',
@@ -406,14 +271,23 @@ tasks.named('thirdPartyAudit').configure {
     'org.pentaho.aggdes.model.Dialect',
     'org.pentaho.aggdes.model.Schema',
     'org.pentaho.aggdes.model.StatisticsProvider',
-    'org.pentaho.aggdes.model.Table',
+    'org.pentaho.aggdes.model.Table'
+  )
 
-    // --- SLF4J (Calcite uses SLF4J, OpenSearch uses Log4j) ---
-    'org.slf4j.Logger',
-    'org.slf4j.LoggerFactory',
-    'org.slf4j.Marker',
-    'org.slf4j.MarkerFactory',
-    'org.slf4j.helpers.FormattingTuple',
-    'org.slf4j.helpers.MessageFormatter'
+  // Guava internal Unsafe usage — standard for any module depending on Guava
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }

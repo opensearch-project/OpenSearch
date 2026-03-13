@@ -13,7 +13,7 @@ Shared library containing the SPI interfaces and core types for the analytics en
 
 - **`QueryPlanExecutor`** — Executes a Calcite `RelNode` plan fragment and returns result rows.
 - **`EngineBridge<T>`** — JNI/native boundary for engine-specific plan conversion and execution (e.g., Substrait → Arrow batches).
-- **`EngineCapabilities`** — Declares supported operators and functions. Used by the push-down planner to decide what gets absorbed into engine-executed boundary nodes vs. what stays in Calcite's in-process execution.
+- **`AnalyticsEngineContext`** — Provides schema and aggregated operator table to front-ends for parsing and validation.
 
 ## Dependencies
 
