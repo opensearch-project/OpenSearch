@@ -303,16 +303,7 @@ public final class ThreadContext implements Writeable {
             ThreadContextStruct restoredContext = originalContext;
             final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
             if (!propagated.isEmpty()) {
-                Map<String, Object> merged = new HashMap<>(originalContext.transientHeaders);
-                propagated.forEach(merged::putIfAbsent);
-                restoredContext = new ThreadContextStruct(
-                    restoredContext.requestHeaders,
-                    restoredContext.responseHeaders,
-                    merged,
-                    restoredContext.persistentHeaders,
-                    restoredContext.isSystemContext,
-                    restoredContext.warningHeadersSize
-                );
+                restoredContext = originalContext.putTransientIfAbsent(propagated);
             }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
                 threadLocal.set(restoredContext.putResponseHeaders(threadLocal.get().responseHeaders));
@@ -881,6 +872,14 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             for (Map.Entry<String, Object> entry : values.entrySet()) {
                 putSingleHeader(entry.getKey(), entry.getValue(), newTransient);
+            }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
+        }
+
+        private ThreadContextStruct putTransientIfAbsent(Map<String, Object> values) {
+            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                newTransient.putIfAbsent(entry.getKey(), entry.getValue());
             }
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
         }
