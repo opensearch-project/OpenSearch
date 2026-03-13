@@ -10,14 +10,13 @@ package org.opensearch.transport.grpc.proto.response.search.aggregation;
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
-import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,9 +38,10 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
         Aggregate result = AggregateProtoUtils.toProto(internalMin);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have min set", result.hasMin());
-        assertTrue("Min value should be set", result.getMin().getValue().hasDouble());
-        assertEquals("Min value should match", 10.5, result.getMin().getValue().getDouble(), 0.001);
+        assertTrue("Should have value set", result.hasValue());
+        assertTrue("Value should be double", result.getValue().hasDouble());
+        assertEquals("Value should match", 10.5, result.getValue().getDouble(), 0.001);
+        assertFalse("Should not have metadata", result.hasMeta());
     }
 
     public void testToProtoWithInternalMax() throws IOException {
@@ -50,9 +50,10 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
         Aggregate result = AggregateProtoUtils.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have max set", result.hasMax());
-        assertTrue("Max value should be set", result.getMax().getValue().hasDouble());
-        assertEquals("Max value should match", 99.9, result.getMax().getValue().getDouble(), 0.001);
+        assertTrue("Should have value set", result.hasValue());
+        assertTrue("Value should be double", result.getValue().hasDouble());
+        assertEquals("Value should match", 99.9, result.getValue().getDouble(), 0.001);
+        assertFalse("Should not have metadata", result.hasMeta());
     }
 
     public void testToProtoWithNullThrowsException() {
@@ -107,70 +108,28 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
         assertTrue("Exception message should mention unsupported", ex.getMessage().contains("Unsupported"));
     }
 
-    // ========================================
-    // toProtoInternal() Tests
-    // ========================================
-    // Note: Metadata handling is tested in the specific aggregation tests
-    // (MinAggregateProtoUtilsTests, MaxAggregateProtoUtilsTests) since
-    // setMetadataIfPresent is called by those converters.
+    public void testToProtoWithMetadata() throws IOException {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", 42);
 
-    public void testToProtoInternalWithMultipleAggregations() throws IOException {
-        // Create sub-aggregations
-        InternalMax maxAgg = new InternalMax("max_sub", 100.0, DocValueFormat.RAW, Collections.emptyMap());
-        InternalMin minAgg = new InternalMin("min_sub", 10.0, DocValueFormat.RAW, Collections.emptyMap());
+        InternalMin internalMin = new InternalMin("min_with_meta", 15.5, DocValueFormat.RAW, metadata);
 
-        List<InternalAggregation> aggList = new ArrayList<>();
-        aggList.add(maxAgg);
-        aggList.add(minAgg);
+        Aggregate result = AggregateProtoUtils.toProto(internalMin);
 
-        InternalAggregations aggregations = InternalAggregations.from(aggList);
-
-        // Capture converted aggregates
-        Map<String, Aggregate> capturedAggregates = new HashMap<>();
-        AggregateProtoUtils.toProtoInternal(aggregations, (name, agg) -> {
-            capturedAggregates.put(name, agg);
-        });
-
-        assertEquals("Should have 2 aggregations", 2, capturedAggregates.size());
-        assertTrue("Should have max_sub", capturedAggregates.containsKey("max_sub"));
-        assertTrue("Should have min_sub", capturedAggregates.containsKey("min_sub"));
-        assertTrue("max_sub should have max set", capturedAggregates.get("max_sub").hasMax());
-        assertTrue("min_sub should have min set", capturedAggregates.get("min_sub").hasMin());
+        assertNotNull("Result should not be null", result);
+        assertTrue("Should have metadata", result.hasMeta());
+        ObjectMap metaMap = result.getMeta();
+        assertTrue("Metadata should contain key1", metaMap.getFieldsMap().containsKey("key1"));
+        assertTrue("Metadata should contain key2", metaMap.getFieldsMap().containsKey("key2"));
     }
 
-    public void testToProtoInternalWithEmptyAggregations() throws IOException {
-        InternalAggregations aggregations = InternalAggregations.EMPTY;
+    public void testToProtoWithEmptyMetadataDoesNotSetMeta() throws IOException {
+        InternalMin internalMin = new InternalMin("min_no_meta", 20.0, DocValueFormat.RAW, Collections.emptyMap());
 
-        boolean[] called = new boolean[1];
-        AggregateProtoUtils.toProtoInternal(aggregations, (name, agg) -> {
-            called[0] = true;
-        });
+        Aggregate result = AggregateProtoUtils.toProto(internalMin);
 
-        assertFalse("Adder should not be called for empty aggregations", called[0]);
-    }
-
-    public void testToProtoInternalWithNullAggregations() throws IOException {
-        boolean[] called = new boolean[1];
-        AggregateProtoUtils.toProtoInternal(null, (name, agg) -> {
-            called[0] = true;
-        });
-
-        assertFalse("Adder should not be called for null aggregations", called[0]);
-    }
-
-    public void testToProtoInternalWithSingleAggregation() throws IOException {
-        InternalMax maxAgg = new InternalMax("single_max", 50.0, DocValueFormat.RAW, Collections.emptyMap());
-        List<InternalAggregation> aggList = new ArrayList<>();
-        aggList.add(maxAgg);
-        InternalAggregations aggregations = InternalAggregations.from(aggList);
-
-        Map<String, Aggregate> capturedAggregates = new HashMap<>();
-        AggregateProtoUtils.toProtoInternal(aggregations, (name, agg) -> {
-            capturedAggregates.put(name, agg);
-        });
-
-        assertEquals("Should have 1 aggregation", 1, capturedAggregates.size());
-        assertTrue("Should have single_max", capturedAggregates.containsKey("single_max"));
-        assertTrue("single_max should have max set", capturedAggregates.get("single_max").hasMax());
+        assertNotNull("Result should not be null", result);
+        assertFalse("Should not have metadata for empty map", result.hasMeta());
     }
 }

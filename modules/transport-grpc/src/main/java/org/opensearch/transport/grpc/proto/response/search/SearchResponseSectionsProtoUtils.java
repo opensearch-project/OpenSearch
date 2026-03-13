@@ -9,9 +9,8 @@ package org.opensearch.transport.grpc.proto.response.search;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchResponseSections;
-import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
-import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoUtils;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregationsProtoUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +41,9 @@ public class SearchResponseSectionsProtoUtils {
         SearchHitsProtoUtils.toProto(response.getHits(), hitsBuilder);
         builder.setHits(hitsBuilder.build());
 
+        // Convert aggregations if present
+        AggregationsProtoUtils.toProto(response.getAggregations(), builder);
+
         // Convert processor results
         List<org.opensearch.search.pipeline.ProcessorExecutionDetail> processorResults = response.getInternalResponse()
             .getProcessorResult();
@@ -70,11 +72,6 @@ public class SearchResponseSectionsProtoUtils {
                 }
                 builder.addProcessorResults(detailBuilder.build());
             }
-        }
-
-        // Convert aggregations if present
-        if (response.getAggregations() != null) {
-            AggregateProtoUtils.toProtoInternal((InternalAggregations) response.getAggregations(), (name, aggProto) -> builder.putAggregations(name, aggProto));
         }
 
         // Check for other unsupported features

@@ -21,9 +21,9 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.transport.grpc.proto.request.common.FetchSourceContextProtoUtils;
 import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
-import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationContainerProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.sort.SortBuilderProtoUtils;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 import org.opensearch.transport.grpc.spi.QueryBuilderProtoConverterRegistry;
 
 import java.io.IOException;
@@ -34,23 +34,7 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCU
 import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
- * Utility class for converting SearchSourceBuilder Protocol Buffers to objects.
- * This class handles the parsing of search request body from protobuf to OpenSearch's
- * internal SearchSourceBuilder representation.
- *
- * <p>Key conversions handled:
- * <ul>
- *   <li>Queries: InnerQueryBuilder proto → {@link org.opensearch.index.query.QueryBuilder}</li>
- *   <li>Aggregations: Map&lt;String, AggregationContainer&gt; proto → {@link org.opensearch.search.aggregations.AggregationBuilder}</li>
- *   <li>Sorts: SortCombinations proto → {@link org.opensearch.search.sort.SortBuilder}</li>
- *   <li>Source filtering: SourceConfig proto → {@link org.opensearch.search.fetch.subphase.FetchSourceContext}</li>
- * </ul>
- * <p>
- * Note: The REST API supports both "aggregations" and "aggs" field names as aliases.
- * In protobuf, only the "aggregations" field is used (field 36 in SearchRequestBody).
- *
- * @see org.opensearch.search.builder.SearchSourceBuilder
- * @see org.opensearch.search.aggregations.AggregatorFactories
+ * Utility class for converting SearchSourceBuilder Protocol Buffers to objects
  */
 public class SearchSourceBuilderProtoUtils {
 
@@ -59,21 +43,23 @@ public class SearchSourceBuilderProtoUtils {
     }
 
     /**
-     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder using an instance-based query utils.
+     * Parses a protobuf SearchRequestBody into a SearchSourceBuilder using instance-based utilities.
      * This method is equivalent to {@link SearchSourceBuilder#parseXContent(XContentParser, boolean)}
      *
      * @param searchSourceBuilder The SearchSourceBuilder to populate
      * @param protoRequest The Protocol Buffer SearchRequest to parse
      * @param queryUtils The query utils instance to use for parsing queries
+     * @param aggregationRegistry The aggregation registry to use for parsing aggregations
      * @throws IOException if there's an error during parsing
      */
     public static void parseProto(
         SearchSourceBuilder searchSourceBuilder,
         SearchRequestBody protoRequest,
-        AbstractQueryBuilderProtoUtils queryUtils
+        AbstractQueryBuilderProtoUtils queryUtils,
+        AggregationBuilderProtoConverterRegistry aggregationRegistry
     ) throws IOException {
         // Parse all non-query fields
-        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry());
+        parseNonQueryFields(searchSourceBuilder, protoRequest, queryUtils.getRegistry(), aggregationRegistry);
 
         // Handle queries using the instance-based approach
         if (protoRequest.hasQuery()) {
@@ -90,7 +76,8 @@ public class SearchSourceBuilderProtoUtils {
     private static void parseNonQueryFields(
         SearchSourceBuilder searchSourceBuilder,
         SearchRequestBody protoRequest,
-        QueryBuilderProtoConverterRegistry registry
+        QueryBuilderProtoConverterRegistry queryRegistry,
+        AggregationBuilderProtoConverterRegistry aggregationRegistry
     ) throws IOException {
         // TODO what to do about parser.getDeprecationHandler() for protos?
 
@@ -140,7 +127,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.storedFields(StoredFieldsContextProtoUtils.fromProto(protoRequest.getStoredFieldsList()));
         }
         if (protoRequest.getSortCount() > 0) {
-            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), registry)) {
+            for (SortBuilder<?> sortBuilder : SortBuilderProtoUtils.fromProto(protoRequest.getSortList(), queryRegistry)) {
                 searchSourceBuilder.sort(sortBuilder);
             }
         }
@@ -171,22 +158,14 @@ public class SearchSourceBuilderProtoUtils {
         }
 
         // Parse aggregations from protobuf
-        // Similar to REST API parsing in {@link org.opensearch.search.builder.SearchSourceBuilder#parseXContent(XContentParser, boolean)}
-        // REST side: aggregations = {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators(XContentParser)}
-        // Proto side: We parse from the protobuf AggregationContainer map
-        //
-        // Note: In REST API, "aggregations" and "aggs" are aliases for the same JSON field.
-        // In protobuf, we only have the "aggregations" field.
-        if (protoRequest.getAggregationsCount() > 0) {
-            for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
-                String aggName = entry.getKey();
-                AggregationBuilder aggBuilder = AggregationContainerProtoUtils.fromProto(aggName, entry.getValue());
-                searchSourceBuilder.aggregation(aggBuilder);
-            }
+        for (Map.Entry<String, AggregationContainer> entry : protoRequest.getAggregationsMap().entrySet()) {
+            String aggName = entry.getKey();
+            AggregationBuilder aggBuilder = aggregationRegistry.fromProto(aggName, entry.getValue());
+            searchSourceBuilder.aggregation(aggBuilder);
         }
 
         if (protoRequest.hasHighlight()) {
-            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), registry));
+            searchSourceBuilder.highlighter(HighlightBuilderProtoUtils.fromProto(protoRequest.getHighlight(), queryRegistry));
         }
 
         // TODO support suggest once added back to the protos
@@ -210,7 +189,7 @@ public class SearchSourceBuilderProtoUtils {
             searchSourceBuilder.slice(SliceBuilderProtoUtils.fromProto(protoRequest.getSlice()));
         }
         if (protoRequest.hasCollapse()) {
-            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), registry));
+            searchSourceBuilder.collapse(CollapseBuilderProtoUtils.fromProto(protoRequest.getCollapse(), queryRegistry));
         }
         if (protoRequest.hasPit()) {
             searchSourceBuilder.pointInTimeBuilder(PointInTimeBuilderProtoUtils.fromProto(protoRequest.getPit()));

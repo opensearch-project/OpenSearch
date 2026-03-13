@@ -9,19 +9,15 @@ package org.opensearch.transport.grpc.proto.request.search.aggregation.metrics;
 
 import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.support.ValuesSourceAggregationProtoUtils;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.support.ValuesSourceProtoFields;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
- * Utility class for converting MaxAggregation Protocol Buffers to MaxAggregationBuilder objects.
- *
- * <p>Field processing follows the exact sequence defined in {@link MaxAggregationBuilder#PARSER}
- * to ensure identical behavior with REST API parsing. This includes:
- * <ol>
- *   <li>ValuesSourceAggregationBuilder fields (field, missing, value_type, format, script)</li>
- * </ol>
+ * Utility class for converting MaxAggregation Protocol Buffers to MaxAggregationBuilder.
  *
  * @see MaxAggregationBuilder#PARSER
- * @see org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder#declareFields
  */
 public class MaxAggregationProtoUtils {
 
@@ -35,45 +31,34 @@ public class MaxAggregationProtoUtils {
      * <p>This method parallels the REST parsing logic in {@link MaxAggregationBuilder#PARSER},
      * processing fields in the exact same sequence to ensure consistent validation and behavior.
      *
-     * @param name The name of the aggregation (from parent container map key)
+     * <p>Name validation is handled by the registry before this method is called.
+     *
+     * @param name The name of the aggregation (validated by registry)
      * @param maxAggProto The Protocol Buffer MaxAggregation to convert
      * @return A configured MaxAggregationBuilder
      * @throws IllegalArgumentException if required fields are missing or validation fails
-     * @see MaxAggregationBuilder#PARSER
      */
     public static MaxAggregationBuilder fromProto(String name, MaxAggregation maxAggProto) {
         if (maxAggProto == null) {
             throw new IllegalArgumentException("MaxAggregation proto must not be null");
         }
-        if (name == null || name.isEmpty()) {
-            throw new IllegalArgumentException("Aggregation name must not be null or empty");
-        }
 
         MaxAggregationBuilder builder = new MaxAggregationBuilder(name);
 
-        // ========================================
-        // ValuesSourceAggregationBuilder common fields
-        // ========================================
-        // @see ValuesSourceAggregationBuilder#declareFields called from MaxAggregationBuilder.PARSER
-        // For max aggregation: scriptable=true, formattable=true, timezoneAware=false, fieldRequired=true
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field(maxAggProto.hasField() ? maxAggProto.getField() : null)
+            .missing(maxAggProto.hasMissing() ? FieldValueProtoUtils.fromProto(maxAggProto.getMissing()) : null)
+            .valueType(maxAggProto.hasValueType() ? maxAggProto.getValueType() : null)
+            .format(maxAggProto.hasFormat() ? maxAggProto.getFormat() : null)
+            .script(maxAggProto.hasScript() ? ScriptProtoUtils.parseFromProtoRequest(maxAggProto.getScript()) : null)
+            .build();
 
-        // Always-declared fields
-        ValuesSourceAggregationProtoUtils.parseField(builder, maxAggProto.hasField(), maxAggProto.getField());
-        ValuesSourceAggregationProtoUtils.parseMissing(builder, maxAggProto.hasMissing(), maxAggProto.getMissing());
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, maxAggProto.hasValueType(), maxAggProto.getValueType());
-
-        // Conditional fields based on configuration
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
+        ValuesSourceAggregationProtoUtils.declareFields(
             builder,
-            maxAggProto.hasFormat(),
-            maxAggProto.getFormat(),
-            maxAggProto.hasScript(),
-            maxAggProto.getScript(),
-            maxAggProto.hasField() && !maxAggProto.getField().isEmpty(),
+            fields,
             /* scriptable= */ true,
             /* formattable= */ true,
-            /* timezoneAware= */ false,
-            /* fieldRequired= */ true
+            /* timezoneAware= */ false
         );
 
         return builder;

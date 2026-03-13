@@ -19,8 +19,10 @@ import org.opensearch.protobufs.SearchRequestBody;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.client.node.NodeClient;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoTestUtils;
+import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -44,6 +46,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
 
     private SearchServiceImpl service;
     private AbstractQueryBuilderProtoUtils queryUtils;
+    private AggregationBuilderProtoConverterRegistry aggregationRegistry;
 
     @Mock
     private NodeClient client;
@@ -62,14 +65,15 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         MockitoAnnotations.openMocks(this);
         when(circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)).thenReturn(circuitBreaker);
         queryUtils = QueryBuilderProtoTestUtils.createQueryUtils();
-        service = new SearchServiceImpl(client, queryUtils, circuitBreakerService);
+        aggregationRegistry = new AggregationBuilderProtoConverterRegistryImpl();
+        service = new SearchServiceImpl(client, queryUtils, aggregationRegistry, circuitBreakerService);
     }
 
     public void testConstructorWithNullClient() {
         // Test that constructor throws IllegalArgumentException when client is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, queryUtils, circuitBreakerService)
+            () -> new SearchServiceImpl(null, queryUtils, aggregationRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());
@@ -79,7 +83,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         // Test that constructor throws IllegalArgumentException when queryUtils is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, null, circuitBreakerService)
+            () -> new SearchServiceImpl(client, null, aggregationRegistry, circuitBreakerService)
         );
 
         assertEquals("Query utils cannot be null", exception.getMessage());
@@ -89,7 +93,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         // Test that constructor throws IllegalArgumentException when circuitBreakerService is null
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(client, queryUtils, null)
+            () -> new SearchServiceImpl(client, queryUtils, aggregationRegistry, null)
         );
 
         assertEquals("Circuit breaker service cannot be null", exception.getMessage());
@@ -100,7 +104,7 @@ public class SearchServiceImplTests extends OpenSearchTestCase {
         // Should fail on the first null check (client)
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchServiceImpl(null, null, circuitBreakerService)
+            () -> new SearchServiceImpl(null, null, aggregationRegistry, circuitBreakerService)
         );
 
         assertEquals("Client cannot be null", exception.getMessage());

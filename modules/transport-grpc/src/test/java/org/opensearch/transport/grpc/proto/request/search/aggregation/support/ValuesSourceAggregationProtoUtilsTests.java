@@ -14,6 +14,8 @@ import org.opensearch.protobufs.Script;
 import org.opensearch.protobufs.ValueType;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.request.common.ScriptProtoUtils;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Unit tests for ValuesSourceAggregationProtoUtils.
@@ -22,209 +24,151 @@ import org.opensearch.test.OpenSearchTestCase;
 public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
 
     // ========================================
-    // parseField() tests
+    // declareFields() tests
     // ========================================
 
-    public void testParseFieldWhenPresent() {
+    public void testDeclareFieldsWithField() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceAggregationProtoUtils.parseField(builder, true, "price");
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, true, false, true
+        );
 
         assertEquals("price", builder.field());
     }
 
-    public void testParseFieldWhenNotPresent() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseField(builder, false, "");
-
-        assertNull(builder.field());
-    }
-
-    public void testParseFieldWhenEmpty() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseField(builder, true, "");
-
-        assertNull(builder.field());
-    }
-
-    // ========================================
-    // parseMissing() tests
-    // ========================================
-
-    public void testParseMissingWithDoubleValue() {
+    public void testDeclareFieldsWithMissing() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
         FieldValue missingValue = FieldValue.newBuilder()
             .setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(10.5).build())
             .build();
 
-        ValuesSourceAggregationProtoUtils.parseMissing(builder, true, missingValue);
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .missing(FieldValueProtoUtils.fromProto(missingValue))
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, true, false, true
+        );
 
         assertEquals(10.5, builder.missing());
     }
 
-    public void testParseMissingWithLongValue() {
+    public void testDeclareFieldsWithValueType() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        FieldValue missingValue = FieldValue.newBuilder()
-            .setGeneralNumber(GeneralNumber.newBuilder().setInt64Value(100L).build())
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .valueType(ValueType.VALUE_TYPE_STRING)
             .build();
 
-        ValuesSourceAggregationProtoUtils.parseMissing(builder, true, missingValue);
-
-        assertEquals(100L, builder.missing());
-    }
-
-    public void testParseMissingWithStringValue() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        FieldValue missingValue = FieldValue.newBuilder()
-            .setString("N/A")
-            .build();
-
-        ValuesSourceAggregationProtoUtils.parseMissing(builder, true, missingValue);
-
-        assertNotNull(builder.missing());
-    }
-
-    public void testParseMissingWhenNotPresent() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseMissing(builder, false, FieldValue.getDefaultInstance());
-
-        assertNull(builder.missing());
-    }
-
-    // ========================================
-    // parseValueType() tests
-    // ========================================
-
-    public void testParseValueTypeString() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, true, ValueType.VALUE_TYPE_STRING);
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, true, false, true
+        );
 
         assertNotNull(builder.userValueTypeHint());
         assertEquals(org.opensearch.search.aggregations.support.ValueType.STRING, builder.userValueTypeHint());
     }
 
-    public void testParseValueTypeLong() {
+    public void testDeclareFieldsWithFormat() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, true, ValueType.VALUE_TYPE_LONG);
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .format("0.00")
+            .build();
 
-        assertEquals(org.opensearch.search.aggregations.support.ValueType.LONG, builder.userValueTypeHint());
-    }
-
-    public void testParseValueTypeDouble() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, true, ValueType.VALUE_TYPE_DOUBLE);
-
-        assertEquals(org.opensearch.search.aggregations.support.ValueType.DOUBLE, builder.userValueTypeHint());
-    }
-
-    public void testParseValueTypeUnsignedLong() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, true, ValueType.VALUE_TYPE_UNSIGNED_LONG);
-
-        assertEquals(org.opensearch.search.aggregations.support.ValueType.UNSIGNED_LONG, builder.userValueTypeHint());
-    }
-
-    public void testParseValueTypeWhenNotPresent() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseValueType(builder, false, ValueType.VALUE_TYPE_UNSPECIFIED);
-
-        assertNull(builder.userValueTypeHint());
-    }
-
-    // ========================================
-    // parseFormat() tests
-    // ========================================
-
-    public void testParseFormatWhenPresent() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        ValuesSourceAggregationProtoUtils.parseFormat(builder, true, "0.00");
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, true, false, true  // formattable=true
+        );
 
         assertEquals("0.00", builder.format());
     }
 
-    public void testParseFormatWhenNotPresent() {
+    public void testDeclareFieldsIgnoresFormatWhenNotFormattable() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceAggregationProtoUtils.parseFormat(builder, false, "");
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .format("0.00")
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, false, false, true  // formattable=false
+        );
 
         assertNull(builder.format());
     }
 
-    // ========================================
-    // parseConditionalFields() tests - Validation logic
-    // ========================================
-
-    public void testParseConditionalFieldsWithFieldOnly() {
+    public void testDeclareFieldsWithScript() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        // fieldRequired=true, scriptable=true, hasField=true, hasScript=false
-        // Should succeed
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
-            builder,
-            false, "",  // no format
-            false, Script.getDefaultInstance(),  // no script
-            true,  // hasField
-            true,  // scriptable
-            true,  // formattable
-            false, // timezoneAware
-            true   // fieldRequired
-        );
-
-        // No exception thrown = success
-    }
-
-    public void testParseConditionalFieldsWithScriptOnly() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        Script script = Script.newBuilder()
+        Script scriptProto = Script.newBuilder()
             .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
             .build();
 
-        // fieldRequired=true, scriptable=true, hasField=false, hasScript=true
-        // Should succeed (script satisfies the requirement)
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .script(ScriptProtoUtils.parseFromProtoRequest(scriptProto))
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
             builder,
-            false, "",  // no format
-            true, script,  // has script
-            false, // hasField = false
-            true,  // scriptable
-            true,  // formattable
-            false, // timezoneAware
-            true   // fieldRequired
+            fields,
+            true, true, false, true  // scriptable=true
         );
 
-        // No exception thrown = success
         assertNotNull(builder.script());
     }
 
-    public void testParseConditionalFieldsThrowsWhenNeitherFieldNorScript() {
+    public void testDeclareFieldsWithScriptOnly() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        // fieldRequired=true, scriptable=true, but neither field nor script provided
-        // Should throw exception
+        Script scriptProto = Script.newBuilder()
+            .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
+            .build();
+
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .script(ScriptProtoUtils.parseFromProtoRequest(scriptProto))
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
+            builder,
+            fields,
+            true, true, false, true  // scriptable=true, fieldRequired=true
+        );
+
+        assertNotNull(builder.script());
+    }
+
+    public void testDeclareFieldsThrowsWhenNeitherFieldNorScript() {
+        MinAggregationBuilder builder = new MinAggregationBuilder("test");
+
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .build();
+
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ValuesSourceAggregationProtoUtils.parseConditionalFields(
+            () -> ValuesSourceAggregationProtoUtils.declareFields(
                 builder,
-                false, "",  // no format
-                false, Script.getDefaultInstance(),  // no script
-                false, // hasField = false
-                true,  // scriptable
-                true,  // formattable
-                false, // timezoneAware
-                true   // fieldRequired
+                fields,
+                true, true, false, true  // scriptable=true, fieldRequired=true
             )
         );
 
@@ -232,22 +176,18 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Required"));
     }
 
-    public void testParseConditionalFieldsThrowsWhenNotScriptableButNoField() {
+    public void testDeclareFieldsThrowsWhenNotScriptableButNoField() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        // scriptable=false, fieldRequired=true, hasField=false
-        // Should throw exception (field is required)
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .build();
+
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> ValuesSourceAggregationProtoUtils.parseConditionalFields(
+            () -> ValuesSourceAggregationProtoUtils.declareFields(
                 builder,
-                false, "",  // no format
-                false, Script.getDefaultInstance(),  // no script (ignored because scriptable=false)
-                false, // hasField = false
-                false, // scriptable = false
-                true,  // formattable
-                false, // timezoneAware
-                true   // fieldRequired
+                fields,
+                false, true, false, true  // scriptable=false, fieldRequired=true
             )
         );
 
@@ -255,104 +195,58 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
         assertTrue(ex.getMessage().contains("Required"));
     }
 
-    public void testParseConditionalFieldsSucceedsWhenFieldNotRequired() {
+    public void testDeclareFieldsSucceedsWhenFieldNotRequired() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        // fieldRequired=false, scriptable=false, hasField=false
-        // Should succeed (field not required)
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
             builder,
-            false, "",  // no format
-            false, Script.getDefaultInstance(),  // no script
-            false, // hasField = false
-            false, // scriptable = false
-            true,  // formattable
-            false, // timezoneAware
-            false  // fieldRequired = false
+            fields,
+            false, true, false, false  // scriptable=false, fieldRequired=false
         );
 
-        // No exception thrown = success
+        // No exception = success
     }
 
-    public void testParseConditionalFieldsParsesFormat() {
+    public void testDeclareFieldsWithBothFieldAndScript() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        // formattable=true, hasFormat=true
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
-            builder,
-            true, "yyyy-MM-dd",  // has format
-            false, Script.getDefaultInstance(),
-            true,  // hasField
-            true,  // scriptable
-            true,  // formattable
-            false, // timezoneAware
-            true   // fieldRequired
-        );
-
-        assertEquals("yyyy-MM-dd", builder.format());
-    }
-
-    public void testParseConditionalFieldsIgnoresFormatWhenNotFormattable() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        // formattable=false, but hasFormat=true
-        // Format should be ignored
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
-            builder,
-            true, "yyyy-MM-dd",  // has format (but will be ignored)
-            false, Script.getDefaultInstance(),
-            true,  // hasField
-            true,  // scriptable
-            false, // formattable = false
-            false, // timezoneAware
-            true   // fieldRequired
-        );
-
-        assertNull("Format should be ignored when formattable=false", builder.format());
-    }
-
-    public void testParseConditionalFieldsParsesScript() {
-        MinAggregationBuilder builder = new MinAggregationBuilder("test");
-
-        Script script = Script.newBuilder()
+        Script scriptProto = Script.newBuilder()
             .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
             .build();
 
-        // scriptable=true, hasScript=true
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
+            .script(ScriptProtoUtils.parseFromProtoRequest(scriptProto))
+            .build();
+
+        ValuesSourceAggregationProtoUtils.declareFields(
             builder,
-            false, "",
-            true, script,  // has script
-            true,  // hasField (so validation passes)
-            true,  // scriptable
-            true,  // formattable
-            false, // timezoneAware
-            true   // fieldRequired
+            fields,
+            true, true, false, true
         );
 
         assertNotNull(builder.script());
     }
 
-    public void testParseConditionalFieldsWithBothFieldAndScript() {
+    public void testDeclareFieldsThrowsForTimezoneAware() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        Script script = Script.newBuilder()
-            .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
+            .field("price")
             .build();
 
-        // Both field and script provided (valid when scriptable=true)
-        ValuesSourceAggregationProtoUtils.parseConditionalFields(
-            builder,
-            false, "",
-            true, script,
-            true,  // hasField
-            true,  // scriptable
-            true,  // formattable
-            false, // timezoneAware
-            true   // fieldRequired
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> ValuesSourceAggregationProtoUtils.declareFields(
+                builder,
+                fields,
+                true, true, true, true  // timezoneAware=true
+            )
         );
 
-        // Both should be set
-        assertNotNull(builder.script());
+        assertTrue(ex.getMessage().contains("Timezone"));
     }
 }

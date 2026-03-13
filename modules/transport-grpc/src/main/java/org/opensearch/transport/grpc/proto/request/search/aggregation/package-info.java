@@ -9,8 +9,8 @@
 /**
  * Protocol Buffer utilities for converting aggregation requests from proto to OpenSearch objects.
  *
- * <p>This package contains the central dispatcher {@link org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationContainerProtoUtils}
- * that routes aggregation containers to their type-specific converters.
+ * <p>This package uses the converter/registry pattern via {@link org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverterRegistry}
+ * to route aggregation containers to their type-specific converters with plugin extensibility support.
  *
  * <p>Sub-packages:
  * <ul>
