@@ -31,6 +31,8 @@
 
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
@@ -57,7 +59,9 @@ import java.util.Map;
  *
  * @opensearch.api
  */
+
 public abstract class GeoGridAggregator<T extends BaseGeoGrid> extends BucketsAggregator {
+    private static final Logger logger = LogManager.getLogger(GeoGridAggregator.class);
 
     protected final int requiredSize;
     protected final int shardSize;
@@ -94,13 +98,21 @@ public abstract class GeoGridAggregator<T extends BaseGeoGrid> extends BucketsAg
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
+            final int MAX_TILES_PER_DOCUMENT = 10000;
+
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
 
+                    if (valuesCount > MAX_TILES_PER_DOCUMENT) {
+                        // Log a warning so the user knows why data is missing
+                        logger.warn("Skipping doc [{}] in aggregation [{}] due to excessive tiles: [{}]", doc, name, valuesCount);
+                        return;
+                    }
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
+
                         final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
