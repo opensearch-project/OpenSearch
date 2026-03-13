@@ -81,6 +81,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("index.replication.type", "SEGMENT")
                 .put("ingestion_source.pointer_based_lag_update_interval", "0")
+                .put("ingestion_source.warmup.enabled", false)
                 .build(),
             mappings
         );
@@ -140,6 +141,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
     }
 
     // This test validates shard initialization does not fail due to kafka connection errors.
+    // Warmup is disabled since we're testing error handling, not warmup behavior.
     public void testShardInitializationUsingUnknownTopic() throws Exception {
         createIndexWithMappingSource(
             indexName,
@@ -150,6 +152,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", "unknownTopic")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.enabled", false)
                 .put("index.replication.type", "SEGMENT")
                 .build(),
             mappings
@@ -173,6 +176,7 @@ public class KafkaSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.auto.offset.reset", "none")
                 .put("ingestion_source.num_processor_threads", 5)
                 .put("index.replication.type", "SEGMENT")
+                .put("ingestion_source.warmup.enabled", false)
                 .build(),
             mappings
         );
