@@ -30,6 +30,8 @@ import java.util.function.BiFunction;
  */
 public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchAsyncAction {
 
+    private final Logger logger;
+
     private final AtomicInteger streamResultsReceived = new AtomicInteger(0);
     private final AtomicInteger streamResultsConsumeCallback = new AtomicInteger(0);
     private final AtomicBoolean shardResultsConsumed = new AtomicBoolean(false);
@@ -74,11 +76,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             searchRequestContext,
             tracer
         );
+        this.logger = logger;
     }
 
-    /**
-     * Override the extension point to create streaming listeners instead of regular listeners
-     */
     @Override
     SearchActionListener<SearchPhaseResult> createShardActionListener(
         final SearchShardTarget shard,
@@ -94,6 +94,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
                     streamResultsReceived.incrementAndGet();
+                    if (getLogger().isTraceEnabled()) {
+                        getLogger().trace("coordinator received partial from shard {}", shard);
+                    }
                     onStreamResult(result, shardIt, () -> successfulStreamExecution());
                 } finally {
                     executeNext(pendingExecutions, thread);
@@ -103,6 +106,9 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnCompleteResponse(SearchPhaseResult result) {
                 try {
+                    if (getLogger().isTraceEnabled()) {
+                        getLogger().trace("coordinator received final for shard {}", shard);
+                    }
                     onShardResult(result, shardIt);
                 } finally {
                     executeNext(pendingExecutions, thread);
@@ -112,7 +118,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             public void onFailure(Exception t) {
                 try {
-                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails
+                    // hard with an exception.
                     if (totalOps.get() == expectedTotalOps) {
                         onPhaseFailure(phase, "The phase has failed", t);
                     } else {
@@ -135,12 +142,27 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             getLogger().trace("got streaming result from {}", result != null ? result.getSearchShardTarget() : null);
         }
         this.setPhaseResourceUsages();
-        ((StreamQueryPhaseResultConsumer) results).consumeStreamResult(result, next);
+        if (result.queryResult() != null) {
+            result.queryResult().setPartial(true);
+        }
+        results.consumeResult(result, next);
     }
 
-    /**
-     * Override successful shard execution to handle stream result synchronization
-     */
+    @Override
+    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+        // Trace final shard responses to diagnose coordinator sequencing.
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "COORDINATOR: received final shard result from shard={}, target={}, totalOps={}, expectedOps={}",
+                result.getShardIndex(),
+                result.getSearchShardTarget(),
+                totalOps.get(),
+                expectedTotalOps
+            );
+        }
+        super.onShardResult(result, shardIt);
+    }
+
     @Override
     void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
@@ -176,9 +198,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         }
     }
 
-    /**
-     * Handle successful stream execution callback
-     */
     private void successfulStreamExecution() {
         try {
             if (streamResultsReceived.get() == streamResultsConsumeCallback.incrementAndGet()) {
@@ -192,4 +211,5 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             onPhaseFailure(this, "The phase has failed", ex);
         }
     }
+
 }

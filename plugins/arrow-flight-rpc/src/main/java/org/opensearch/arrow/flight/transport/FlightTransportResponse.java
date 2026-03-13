@@ -32,6 +32,14 @@ import java.util.concurrent.CompletableFuture;
 import static org.opensearch.arrow.flight.transport.ClientHeaderMiddleware.CORRELATION_ID_KEY;
 
 /**
+ * Arrow Flight implementation of streaming transport responses.
+ *
+ * <p>
+ * Handles streaming responses from Arrow Flight servers with lazy batch
+ * processing.
+ * Headers are extracted when first accessed, and responses are deserialized on
+ * demand.
+
  * Streaming transport response implementation using Arrow Flight.
  * Manages Flight stream lifecycle with lazy initialization and prefetching support.
  */
@@ -164,9 +172,13 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         if (flightStream != null) {
             try {
                 flightStream.close();
-            } catch (IllegalStateException ignore) {} catch (Exception e) {
+            } catch (IllegalStateException ignore) {
+                // this is fine if the allocator is already closed
+            } catch (Exception e) {
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error closing flight stream", e);
             }
         }
+        closed = true;
     }
+
 }

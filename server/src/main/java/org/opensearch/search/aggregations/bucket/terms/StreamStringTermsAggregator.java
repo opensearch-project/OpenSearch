@@ -31,6 +31,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +47,7 @@ import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 /**
  * Stream search terms aggregation
  */
-public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
+public class StreamStringTermsAggregator extends AbstractStringTermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamStringTermsAggregator.class);
     private SortedSetDocValues sortedDocValuesPerBatch;
     private long valueCount;
@@ -53,12 +55,12 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
     protected int segmentsWithSingleValuedOrds = 0;
     protected int segmentsWithMultiValuedOrds = 0;
     protected final ResultStrategy<?, ?> resultStrategy;
-    private boolean leafCollectorCreated = false;
     private final int segmentTopN;
 
     private Aggregator.BucketComparator ordinalComparator;
     private StringTerms.Bucket tempBucket1;
     private StringTerms.Bucket tempBucket2;
+    private boolean leafCollectorCreated;
 
     public StreamStringTermsAggregator(
         String name,
@@ -83,9 +85,17 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public void doReset() {
-        super.doReset();
+        // super.doReset(); // Prevent clearing doc counts
         valueCount = 0;
         sortedDocValuesPerBatch = null;
+    }
+
+    @Override
+    public void reset() {
+        // No-op to preserve state across streaming batches.
+        // We purposefully do NOT call super.reset() because that would:
+        // 1. Call doReset() (clearing bucket/doc counts)
+        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
         this.leafCollectorCreated = false;
         this.ordinalComparator = null;
         this.tempBucket1 = null;
@@ -138,15 +148,18 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (this.leafCollectorCreated) {
-            throw new IllegalStateException(
-                "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the second segment: " + ctx
-            );
-        } else {
-            this.leafCollectorCreated = true;
-        }
-        this.sortedDocValuesPerBatch = valuesSource.ordinalsValues(ctx);
+        // Allow multiple segments for streaming now that we support coordination
+        // if (this.leafCollectorCreated) {
+        // throw new IllegalStateException(
+        // "Calling " + StreamStringTermsAggregator.class.getSimpleName() + " for the
+        // second segment: " + ctx
+        // );
+        // } else {
+        // this.leafCollectorCreated = true;
+        // }
+        this.sortedDocValuesPerBatch = valuesSource.globalOrdinalsValues(ctx);
         this.valueCount = sortedDocValuesPerBatch.getValueCount();
+
         if (docCounts == null) {
             this.docCounts = context.bigArrays().newLongArray(valueCount, true);
         } else {
@@ -391,7 +404,8 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         abstract R buildNoValuesResult(long owningBucketOrdinal);
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
+         * Build a final bucket directly with the provided data, skipping temporary
+         * bucket creation.
          */
         abstract B buildFinalBucket(long ordinal, long docCount) throws IOException;
     }
@@ -479,6 +493,45 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator {
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
         add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
+        add.accept("total_buckets", valueCount);
+
+        StreamingCostMetrics metrics = estimateStreamingCost(context);
+        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
+        add.accept("streaming_enabled", metrics.streamable() && enabled);
+        add.accept("streaming_top_n_size", metrics.topNSize());
+        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
+        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
+        add.accept("streaming_segment_count", metrics.segmentCount());
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext context) {
+        try {
+            int topNSize = segmentTopN;
+
+            // String terms supports streaming if we have ordinals
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
+                return StreamingCostMetrics.nonStreamable();
+            }
+
+            // Estimate streaming cost using segment ordinals.
+            ValuesSource.Bytes.WithOrdinals ordinalValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+            long maxCardinality = 0;
+            long totalDocsWithField = 0;
+
+            for (LeafReaderContext leaf : leaves) {
+                SortedSetDocValues docValues = ordinalValuesSource.ordinalsValues(leaf);
+                if (docValues != null) {
+                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
+                    totalDocsWithField += docValues.cost(); // Approximation
+                }
+            }
+
+            return new StreamingCostMetrics(true, topNSize, maxCardinality, leaves.size(), totalDocsWithField);
+        } catch (IOException e) {
+            return StreamingCostMetrics.nonStreamable();
+        }
     }
 
     @Override

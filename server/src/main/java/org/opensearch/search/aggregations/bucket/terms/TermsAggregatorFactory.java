@@ -96,7 +96,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     }
 
     /**
-     * This supplier is used for all the field types that should be aggregated as bytes/strings,
+     * This supplier is used for all the field types that should be aggregated as
+     * bytes/strings,
      * including those that need global ordinals
      */
     private static TermsAggregatorSupplier bytesSupplier() {
@@ -150,7 +151,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                 }
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                    // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
+                    // TODO this exception message is not really accurate for the string case. It's
+                    // really disallowing regex + formatter
                     throw new AggregationExecutionException(
                         "Aggregation ["
                             + name
@@ -160,7 +162,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     );
                 }
 
-                // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
+                // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving
+                // that logic outside the enum
                 return execution.create(
                     name,
                     factories,
@@ -182,8 +185,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     }
 
     /**
-     * This supplier is used for all fields that expect to be aggregated as a numeric value.
-     * This includes floating points, and formatted types that use numerics internally for storage (date, boolean, etc)
+     * This supplier is used for all fields that expect to be aggregated as a
+     * numeric value.
+     * This includes floating points, and formatted types that use numerics
+     * internally for storage (date, boolean, etc)
      */
     private static TermsAggregatorSupplier numericSupplier() {
         return new TermsAggregatorSupplier() {
@@ -205,17 +210,58 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                 Map<String, Object> metadata
             ) throws IOException {
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
+                    if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                        throw new AggregationExecutionException(
+                            "Aggregation ["
+                                + name
+                                + "] cannot support regular expression style "
+                                + "include/exclude settings as they can only be applied to string fields. Use an array of numeric "
+                                + "values for include/exclude clauses used to filter numeric fields"
+                        );
+                    }
+                    ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
+                    IncludeExclude.LongFilter longFilter = null;
+                    if (numericValuesSource.isFloatingPoint()) {
+                        if (includeExclude != null) {
+                            longFilter = includeExclude.convertToDoubleFilter();
+                        }
+                    } else if (numericValuesSource.isBigInteger()) {
+                        if (includeExclude != null) {
+                            longFilter = includeExclude.convertToDoubleFilter();
+                        }
+                    } else {
+                        if (includeExclude != null) {
+                            longFilter = includeExclude.convertToLongFilter(format);
+                        }
+                    }
+
+                    return createStreamNumericTermsAggregator(
+                        name,
+                        factories,
+                        numericValuesSource,
+                        format,
+                        order,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        longFilter,
+                        includeExclude,
+                        showTermDocCountError,
+                        cardinality,
+                        computeSegmentTopN(context, bucketCountThresholds, order),
+                        metadata
+                    );
+                }
+
+                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
                     throw new AggregationExecutionException(
                         "Aggregation ["
                             + name
                             + "] cannot support regular expression style "
-                            + "include/exclude settings as they can only be applied to string fields. Use an array of numeric values for "
-                            + "include/exclude clauses used to filter numeric fields"
+                            + "include/exclude settings as they can only be applied to string fields. Use an array of numeric "
+                            + "values for include/exclude clauses used to filter numeric fields"
                     );
-                }
-                if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggCollectMode(factories, bucketCountThresholds.getShardSize(), -1, context);
                 }
 
                 ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSource;
@@ -236,24 +282,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                         longFilter = includeExclude.convertToLongFilter(format);
                     }
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
-                }
-                if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
-                    return createStreamNumericTermsAggregator(
-                        name,
-                        factories,
-                        numericValuesSource,
-                        format,
-                        order,
-                        bucketCountThresholds,
-                        context,
-                        parent,
-                        longFilter,
-                        includeExclude,
-                        showTermDocCountError,
-                        cardinality,
-                        computeSegmentTopN(context, bucketCountThresholds, order),
-                        metadata
-                    );
                 }
                 return new NumericTermsAggregator(
                     name,
@@ -372,7 +400,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
      */
     static SubAggCollectionMode pickSubAggCollectMode(AggregatorFactories factories, int expectedSize, long maxOrd, SearchContext context) {
         if (factories.countAggregators() == 0) {
-            // Without sub-aggregations we pretty much ignore this field value so just pick something
+            // Without sub-aggregations we pretty much ignore this field value so just pick
+            // something
             return SubAggCollectionMode.DEPTH_FIRST;
         }
         if (expectedSize == Integer.MAX_VALUE) {
@@ -396,8 +425,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     }
 
     /**
-     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
-     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
+     * Get the maximum global ordinal value for the provided {@link ValuesSource} or
+     * -1
+     * if the values source is not an instance of
+     * {@link ValuesSource.Bytes.WithOrdinals}.
      */
     private static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
         if (source instanceof ValuesSource.Bytes.WithOrdinals) {
@@ -481,22 +512,44 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                 assert valuesSource instanceof ValuesSource.Bytes.WithOrdinals;
                 ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
 
+                // Check for streaming eligibility first - when explicitly requested, prefer
+                // streaming
+                if (context.isStreamingModeRequested()
+                    && (context.getFlushMode() == null || context.getFlushMode() == FlushMode.PER_SEGMENT)) {
+                    // Streaming aggregators support multi-segment readers now
+                    return createStreamStringTermsAggregator(
+                        name,
+                        factories,
+                        valuesSource,
+                        order,
+                        format,
+                        bucketCountThresholds,
+                        context,
+                        parent,
+                        showTermDocCountError,
+                        computeSegmentTopN(context, bucketCountThresholds, order),
+                        metadata
+                    );
+                }
                 if (factories == AggregatorFactories.EMPTY
                     && includeExclude == null
                     && cardinality == CardinalityUpperBound.ONE
                     && ordinalsValuesSource.supportsGlobalOrdinalsMapping()
                     &&
-                // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
+                // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific
+                // optimizations
                     (COLLECT_SEGMENT_ORDS != null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
                     /*
-                    * We can use the low cardinality execution mode iff this aggregator:
-                    * - has no sub-aggregator AND
-                    * - collects from a single bucket AND
-                    * - has a values source that can map from segment to global ordinals
-                    * - At least we reduce the number of global ordinals look-ups by half (ration <= 0.5) AND
-                    * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
-                    * which directly linked to maxOrd, so we need to limit).
-                    */
+                     * We can use the low cardinality execution mode iff this aggregator:
+                     * - has no sub-aggregator AND
+                     * - collects from a single bucket AND
+                     * - has a values source that can map from segment to global ordinals
+                     * - At least we reduce the number of global ordinals look-ups by half (ration
+                     * <= 0.5) AND
+                     * - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has
+                     * additional memory usage,
+                     * which directly linked to maxOrd, so we need to limit).
+                     */
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -535,10 +588,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                             || (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
                         /*
                          * We don't need to remap global ords iff this aggregator:
-                         *    - has no include/exclude rules AND
-                         *    - only collects from a single bucket AND
-                         *    - has no sub-aggregator or only sub-aggregator that can be deferred
-                         *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
+                         * - has no include/exclude rules AND
+                         * - only collects from a single bucket AND
+                         * - has no sub-aggregator or only sub-aggregator that can be deferred
+                         * ({@link SubAggCollectionMode#BREADTH_FIRST}).
                          */
                         remapGlobalOrds = false;
                     }
@@ -797,4 +850,5 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
 }

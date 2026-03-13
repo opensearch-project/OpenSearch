@@ -98,6 +98,7 @@ class MockStreamingTransportChannel extends TcpTransportChannel implements Strea
                 bufferedResponses.size()
             );
 
+            boolean releaseNeeded = true;
             try {
                 // Get the response handler and call handleStreamResponse with all buffered responses
                 TransportResponseHandler<?> handler = responseHandlers.onResponseReceived(requestId, messageListener);
@@ -118,27 +119,42 @@ class MockStreamingTransportChannel extends TcpTransportChannel implements Strea
                     responsesCopy.size()
                 );
                 typedHandler.handleStreamResponse(streamResponse);
+
+                // Success - release normally
+                release(false);
+                releaseNeeded = false;
             } catch (Exception e) {
                 // Release resources on failure
                 release(true);
+                releaseNeeded = false;
                 throw new StreamException(StreamErrorCode.INTERNAL, "Error completing stream", e);
             } finally {
-                // Release circuit breaker resources when stream is completed
-                release(false);
+                // Only release if not already released
+                if (releaseNeeded) {
+                    release(false);
+                }
             }
         } else {
             logger.warn("CompleteStream called on already closed stream with action[{}] and requestId[{}]", action, requestId);
-            throw new StreamException(StreamErrorCode.UNAVAILABLE, "MockStreamingTransportChannel stream already closed.");
+            // Don't throw exception here as stream is already closed
+            // This can happen when onFailure calls sendResponse which releases, then completeStream is called
         }
     }
 
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
-        // For streaming channels, regular sendResponse is not supported
-        // Clients should use sendResponseBatch instead
-        throw new UnsupportedOperationException(
-            "sendResponse() is not supported for streaming requests in MockStreamingTransportChannel. Use sendResponseBatch() instead."
-        );
+        // For streaming channels, regular sendResponse is not supported for normal responses
+        // But we need to support it for exception responses
+        // Call parent's sendResponse which will handle release
+        super.sendResponse(response);
+    }
+
+    @Override
+    public void sendResponse(Exception exception) throws IOException {
+        // Mark stream as closed to prevent further operations
+        streamOpen.set(false);
+        // Call parent's sendResponse which will handle the exception and release
+        super.sendResponse(exception);
     }
 
     @Override

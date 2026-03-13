@@ -286,6 +286,7 @@ public class AggregatorFactories {
     /**
      * Create all aggregators so that they can be consumed with multiple
      * buckets.
+     *
      * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
      *                    that {@link Aggregator}s created by this method will
      *                    be asked to collect.
@@ -325,7 +326,13 @@ public class AggregatorFactories {
             } else {
                 StreamingCostMetrics metrics = StreamingCostMetrics.estimateFromFactories(factories, searchContext);
                 long maxBucket = searchContext.getStreamingMaxEstimatedBucketCount();
-                decision = FlushModeResolver.decideFlushMode(metrics, FlushMode.PER_SHARD, maxBucket);
+                decision = FlushModeResolver.decideFlushMode(
+                    metrics,
+                    FlushMode.PER_SHARD,
+                    maxBucket,
+                    searchContext.getStreamingMinCardinalityRatio(),
+                    searchContext.getStreamingMinEstimatedBucketCount()
+                );
                 logger.debug(
                     "Streaming aggregation decision: {} | streamable={}, topN={} | maxBucket={}",
                     decision,
@@ -337,7 +344,8 @@ public class AggregatorFactories {
             searchContext.setFlushModeIfAbsent(decision);
         }
 
-        // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
+        // These aggregators are going to be used with a single bucket ordinal, no need
+        // to wrap the PER_BUCKET ones
         List<Aggregator> aggregators = new ArrayList<>();
         for (int i = 0; i < factories.length; i++) {
             /*
@@ -382,7 +390,8 @@ public class AggregatorFactories {
     public static class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
-        // Using LinkedHashSets to preserve the order of insertion, that makes the results
+        // Using LinkedHashSets to preserve the order of insertion, that makes the
+        // results
         // ordered nicely, although technically order does not matter
         private final Collection<AggregationBuilder> aggregationBuilders = new LinkedHashSet<>();
         private final Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders = new LinkedHashSet<>();

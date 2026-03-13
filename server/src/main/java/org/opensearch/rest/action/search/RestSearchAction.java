@@ -47,6 +47,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -150,11 +151,18 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
+        // Honor streaming when cluster setting is enabled OR feature flag is enabled
+        final boolean streamingEnabledEffective = (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED))
+            || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        if (streamingEnabledEffective) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 if (canUseStreamSearch(searchRequest)) {
+                    String scoringMode = request.param("stream_scoring_mode");
+                    if (scoringMode != null) {
+                        searchRequest.setStreamingSearchMode(scoringMode);
+                    }
                     return channel -> {
-                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+                        RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
                         cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
                     };
                 } else {
@@ -165,9 +173,21 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
         return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
         };
+    }
+
+    /**
+     * Factory method for creating RestCancellableNodeClient instances.
+     * This method is protected to allow tests to override it and inject spyable clients.
+     *
+     * @param client the NodeClient to wrap
+     * @param httpChannel the HTTP channel for cancellation tracking
+     * @return a RestCancellableNodeClient instance
+     */
+    protected RestCancellableNodeClient createRestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
+        return new RestCancellableNodeClient(client, httpChannel);
     }
 
     /**
@@ -241,6 +261,11 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
+
+        // Add streaming mode support
+        if (request.hasParam("streaming_mode")) {
+            searchRequest.setStreamingSearchMode(request.param("streaming_mode"));
+        }
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

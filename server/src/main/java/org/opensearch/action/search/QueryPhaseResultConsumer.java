@@ -151,6 +151,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return (hasAggs || hasTopDocs) ? Math.min(requestBatchedReduceSize, minBatchReduceSize) : minBatchReduceSize;
     }
 
+    /**
+     * Protected accessor for progressListener to allow subclasses to access it.
+     * @return the search progress listener
+     */
+    protected SearchProgressListener progressListener() {
+        return this.progressListener;
+    }
+
     @Override
     public void close() {
         Releasables.close(pendingReduces);
@@ -160,7 +168,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     public void consumeResult(SearchPhaseResult result, Runnable next) {
         super.consumeResult(result, () -> {});
         QuerySearchResult querySearchResult = result.queryResult();
-        progressListener.notifyQueryResult(querySearchResult.getShardIndex());
+        progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult.getSearchShardTarget());
         pendingReduces.consume(querySearchResult, next);
     }
 
@@ -228,7 +236,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
 
         for (QuerySearchResult result : toConsume) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            // Use non-consuming topDocs() for stats aggregation only
+            if (result.hasTopDocs()) {
+                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+            }
         }
 
         final TopDocs newTopDocs;
@@ -238,7 +249,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(lastReduceResult.reducedTopDocs);
             }
             for (QuerySearchResult result : toConsume) {
+                // Consume TopDocs exactly once for merge/reduce phase
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                // For streaming, avoid reassigning shardIndex if already set
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
@@ -462,35 +475,39 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 runningTask.compareAndSet(null, task);
             }
 
-            executor.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() {
-                    final ReduceResult thisReduceResult = reduceResult;
-                    long estimatedTotalSize = (thisReduceResult != null ? thisReduceResult.estimatedSize : 0) + task.aggsBufferSize;
-                    final ReduceResult newReduceResult;
-                    try {
-                        final QuerySearchResult[] toConsume = task.consumeBuffer();
-                        if (toConsume == null) {
-                            onAfterReduce(task, null, 0);
+            try {
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        final ReduceResult thisReduceResult = reduceResult;
+                        long estimatedTotalSize = (thisReduceResult != null ? thisReduceResult.estimatedSize : 0) + task.aggsBufferSize;
+                        final ReduceResult newReduceResult;
+                        try {
+                            final QuerySearchResult[] toConsume = task.consumeBuffer();
+                            if (toConsume == null) {
+                                onAfterReduce(task, null, 0);
+                                return;
+                            }
+                            long estimateRamBytesUsedForReduce = estimateRamBytesUsedForReduce(estimatedTotalSize);
+                            addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce);
+                            estimatedTotalSize += estimateRamBytesUsedForReduce;
+                            ++numReducePhases;
+                            newReduceResult = partialReduce(toConsume, task.emptyResults, topDocsStats, thisReduceResult, numReducePhases);
+                        } catch (Exception t) {
+                            PendingReduces.this.onFailure(t);
                             return;
                         }
-                        long estimateRamBytesUsedForReduce = estimateRamBytesUsedForReduce(estimatedTotalSize);
-                        addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce);
-                        estimatedTotalSize += estimateRamBytesUsedForReduce;
-                        ++numReducePhases;
-                        newReduceResult = partialReduce(toConsume, task.emptyResults, topDocsStats, thisReduceResult, numReducePhases);
-                    } catch (Exception t) {
-                        PendingReduces.this.onFailure(t);
-                        return;
+                        onAfterReduce(task, newReduceResult, estimatedTotalSize);
                     }
-                    onAfterReduce(task, newReduceResult, estimatedTotalSize);
-                }
 
-                @Override
-                public void onFailure(Exception exc) {
-                    PendingReduces.this.onFailure(exc);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception exc) {
+                        PendingReduces.this.onFailure(exc);
+                    }
+                });
+            } catch (Exception e) {
+                onFailure(e);
+            }
         }
 
         private void onAfterReduce(ReduceTask task, ReduceResult newResult, long estimatedSize) {
@@ -516,7 +533,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 }
             }
             task.consumeListener();
-            executor.execute(this::tryExecuteNext);
+            try {
+                executor.execute(this::tryExecuteNext);
+            } catch (Exception e) {
+                onFailure(e);
+            }
         }
 
         // Idempotent and thread-safe failure handling
@@ -549,7 +570,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         private synchronized SearchPhaseController.TopDocsStats consumeTopDocsStats() {
             for (QuerySearchResult result : buffer) {
-                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                // Use non-consuming topDocs() for stats aggregation only
+                if (result.hasTopDocs()) {
+                    topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                }
             }
             return topDocsStats;
         }
@@ -563,6 +587,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 topDocsList.add(reduceResult.reducedTopDocs);
             }
             for (QuerySearchResult result : buffer) {
+                // Consume TopDocs exactly once for merge/reduce phase
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
                 SearchPhaseController.setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
