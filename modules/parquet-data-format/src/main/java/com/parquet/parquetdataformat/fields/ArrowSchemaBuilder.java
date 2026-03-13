@@ -10,6 +10,7 @@ package com.parquet.parquetdataformat.fields;
 
 import com.parquet.parquetdataformat.fields.core.data.number.LongParquetField;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
@@ -24,6 +25,7 @@ import org.opensearch.index.mapper.SourceFieldMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Utility class for creating Apache Arrow schemas from OpenSearch mapper services.
@@ -31,6 +33,9 @@ import java.util.Objects;
  * that can be used for Parquet data format operations.
  */
 public final class ArrowSchemaBuilder {
+
+    private static final FieldType LONG_FIELD_TYPE = new LongParquetField().getFieldType();
+    private static final ConcurrentHashMap<Long, Schema> SCHEMA_CACHE = new ConcurrentHashMap<>();
 
     // Private constructor to prevent instantiation of utility class
     private ArrowSchemaBuilder() {
@@ -49,13 +54,14 @@ public final class ArrowSchemaBuilder {
     public static Schema getSchema(final MapperService mapperService, boolean isPrimary) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
 
-        final List<Field> fields = extractFieldsFromMappers(mapperService, isPrimary);
-
-        if (fields.isEmpty()) {
-            throw new IllegalStateException("No valid fields found in mapper service");
-        }
-
-        return new Schema(fields);
+        long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
+        return SCHEMA_CACHE.computeIfAbsent(mappingVersion, v -> {
+            final List<Field> fields = extractFieldsFromMappers(mapperService, isPrimary);
+            if (fields.isEmpty()) {
+                throw new IllegalStateException("No valid fields found in mapper service");
+            }
+            return new Schema(fields);
+        });
     }
 
     /**
@@ -79,9 +85,8 @@ public final class ArrowSchemaBuilder {
             }
         }
 
-        LongParquetField longField = new LongParquetField();
-        fields.add(new Field(CompositeDataFormatWriter.ROW_ID, longField.getFieldType(), null));
-        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, longField.getFieldType(), null));
+        fields.add(new Field(CompositeDataFormatWriter.ROW_ID, LONG_FIELD_TYPE, null));
+        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, LONG_FIELD_TYPE, null));
 
         return fields;
     }
