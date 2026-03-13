@@ -47,6 +47,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -331,6 +332,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * current failing token
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
+
+    /**
+     * Returns true if this mapper accepts values from {@link ExtraFieldValues}.
+     */
+    public boolean supportsExtraFieldValues() {
+        return false;
+    }
 
     private void extractGroupingCriteriaParams(ParseContext context) throws IOException {
         if (context.docMapper() != null && context.docMapper().mappers() != null) {

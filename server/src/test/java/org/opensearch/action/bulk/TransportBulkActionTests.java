@@ -60,11 +60,15 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.extrasource.BytesValue;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
@@ -394,8 +398,50 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(Version.V_3_4_0);
         bulkRequest.writeTo(out);
-        BulkRequest deserializedRequest = new BulkRequest(out.bytes().streamInput());
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(out.getVersion());
+        BulkRequest deserializedRequest = new BulkRequest(in);
         assertEquals(Set.of("index"), deserializedRequest.getIndices());
+    }
+
+    public void testSerializationDeserializationWithExtraFieldValues() throws Exception {
+        ExtraFieldValues efv = new ExtraFieldValues(Map.of("foo", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 }))));
+
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest("index").id("id").source(Collections.emptyMap()).extraFieldValues(efv)
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_6_0);
+        bulkRequest.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(out.getVersion());
+        BulkRequest deserializedRequest = new BulkRequest(in);
+
+        IndexRequest ir = (IndexRequest) deserializedRequest.requests().get(0);
+        assertFalse(ir.extraFieldValues().isEmpty());
+        assertTrue(ir.extraFieldValues().values().containsKey("foo"));
+    }
+
+    public void testSerializationBeforeExtraFieldValuesDropsField() throws Exception {
+        ExtraFieldValues efv = new ExtraFieldValues(Map.of("foo", new BytesValue(new BytesArray(new byte[] { 1, 2, 3 }))));
+
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest("index").id("id").source(Collections.emptyMap()).extraFieldValues(efv)
+        );
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_3_5_0); // before ExtraFieldValues introduction
+        bulkRequest.writeTo(out);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(out.getVersion());
+        BulkRequest deserializedRequest = new BulkRequest(in);
+
+        IndexRequest ir = (IndexRequest) deserializedRequest.requests().get(0);
+        assertTrue(ir.extraFieldValues().isEmpty());
     }
 
     public void testBulkAdaptiveSelectShard() {
