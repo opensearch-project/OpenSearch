@@ -11,7 +11,7 @@ package org.opensearch.ppl.planner.rules;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalFilter;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 
 /**
@@ -19,31 +19,24 @@ import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
  *
  * <p>Pattern: {@code LogicalFilter} on top of {@code OpenSearchBoundaryTableScan}.
  *
- * <p>When the rule matches, it checks whether the engine supports the filter operator
- * and all functions in the filter condition via {@link EngineCapabilities}. If supported,
- * the filter is absorbed into the boundary node's logical fragment by wrapping the
- * existing fragment with a new {@code LogicalFilter}.
+ * <p>When the rule matches, it checks whether all functions in the filter condition
+ * are supported by the back-end's {@link SqlOperatorTable}. If supported, the filter
+ * is absorbed into the boundary node's logical fragment.
  *
  * <p>This is NOT a ConverterRule — it transforms an already-converted boundary node
  * by growing its internal logical fragment.
  */
 public class AbsorbFilterRule extends RelOptRule {
 
-    private final EngineCapabilities capabilities;
+    private final SqlOperatorTable operatorTable;
 
-    /**
-     * Create a rule instance with the given engine capabilities.
-     *
-     * @param capabilities the engine capabilities used to gate absorption
-     * @return a new AbsorbFilterRule
-     */
-    public static AbsorbFilterRule create(EngineCapabilities capabilities) {
-        return new AbsorbFilterRule(capabilities);
+    public static AbsorbFilterRule create(SqlOperatorTable operatorTable) {
+        return new AbsorbFilterRule(operatorTable);
     }
 
-    private AbsorbFilterRule(EngineCapabilities capabilities) {
+    private AbsorbFilterRule(SqlOperatorTable operatorTable) {
         super(operand(LogicalFilter.class, operand(OpenSearchBoundaryTableScan.class, none())), "AbsorbFilterRule");
-        this.capabilities = capabilities;
+        this.operatorTable = operatorTable;
     }
 
     @Override
@@ -51,8 +44,7 @@ public class AbsorbFilterRule extends RelOptRule {
         LogicalFilter filter = call.rel(0);
         OpenSearchBoundaryTableScan boundary = call.rel(1);
 
-        // Check that the engine supports the filter operator and all functions in the condition
-        if (!capabilities.supportsOperator(filter) || !capabilities.supportsAllFunctions(filter.getCondition())) {
+        if (!AbsorbRuleUtils.allFunctionsSupported(filter.getCondition(), operatorTable)) {
             return;
         }
 

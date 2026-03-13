@@ -9,13 +9,7 @@
 package org.opensearch.ppl.action;
 
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.ppl.action.PPLRequest;
-import org.opensearch.ppl.action.PPLResponse;
-import org.opensearch.ppl.action.TestPPLTransportAction;
-import org.opensearch.ppl.action.UnifiedQueryService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportService;
 
@@ -26,7 +20,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -35,31 +28,23 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link TestPPLTransportAction}.
  *
- * <p>Uses reflection to replace the private {@code unifiedQueryService} field with a mock,
- * so we can test the transport action's listener contract in isolation without going
- * through the real pipeline (PushDownPlanner → DefaultPlanExecutor → QueryPlanExecutor).
+ * <p>Uses the test-only constructor to inject a mock {@code UnifiedQueryService},
+ * so we can test the transport action's listener contract in isolation.
  */
 @SuppressWarnings("unchecked")
 public class TestPPLTransportActionTests extends OpenSearchTestCase {
 
-    private ClusterService mockClusterService;
-    private ClusterState mockClusterState;
     private UnifiedQueryService mockUnifiedQueryService;
     private TestPPLTransportAction action;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        mockClusterService = mock(ClusterService.class);
-        mockClusterState = mock(ClusterState.class);
         mockUnifiedQueryService = mock(UnifiedQueryService.class);
-
-        when(mockClusterService.state()).thenReturn(mockClusterState);
 
         action = new TestPPLTransportAction(
             mock(TransportService.class),
             new ActionFilters(Collections.emptySet()),
-            mockClusterService,
             mockUnifiedQueryService
         );
     }
@@ -72,13 +57,13 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
         List<Object[]> rows = new ArrayList<>();
         rows.add(new Object[] { "server-1", 200 });
         PPLResponse expectedResponse = new PPLResponse(List.of("host", "status"), rows);
-        when(mockUnifiedQueryService.execute(eq("source=logs"), any(ClusterState.class))).thenReturn(expectedResponse);
+        when(mockUnifiedQueryService.execute("source=logs")).thenReturn(expectedResponse);
 
         ActionListener<PPLResponse> listener = mock(ActionListener.class);
         action.execute(null, new PPLRequest("source=logs"), listener);
 
         verify(listener).onResponse(expectedResponse);
-        verify(mockUnifiedQueryService).execute("source=logs", mockClusterState);
+        verify(mockUnifiedQueryService).execute("source=logs");
     }
 
     /**
@@ -87,13 +72,13 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      */
     public void testFailurePathCallsOnFailure() {
         RuntimeException expectedException = new RuntimeException("PPL execution failed");
-        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class))).thenThrow(expectedException);
+        when(mockUnifiedQueryService.execute(any(String.class))).thenThrow(expectedException);
 
         ActionListener<PPLResponse> listener = mock(ActionListener.class);
         action.execute(null, new PPLRequest("invalid query"), listener);
 
         verify(listener).onFailure(expectedException);
-        verify(mockUnifiedQueryService).execute("invalid query", mockClusterState);
+        verify(mockUnifiedQueryService).execute("invalid query");
     }
 
     /**
@@ -101,7 +86,7 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      */
     public void testExactlyOneCallbackOnSuccess() {
         PPLResponse response = new PPLResponse(Collections.emptyList(), Collections.emptyList());
-        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class))).thenReturn(response);
+        when(mockUnifiedQueryService.execute(any(String.class))).thenReturn(response);
 
         AtomicInteger responseCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -128,7 +113,7 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
      * Exactly-one-callback on failure: only {@code onFailure} is called, never {@code onResponse}.
      */
     public void testExactlyOneCallbackOnFailure() {
-        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class))).thenThrow(new RuntimeException("fail"));
+        when(mockUnifiedQueryService.execute(any(String.class))).thenThrow(new RuntimeException("fail"));
 
         AtomicInteger responseCount = new AtomicInteger(0);
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -155,18 +140,17 @@ public class TestPPLTransportActionTests extends OpenSearchTestCase {
     }
 
     /**
-     * Verify that the correct PPL text and cluster state are forwarded to
+     * Verify that the correct PPL text is forwarded to
      * {@code unifiedQueryService.execute()}.
      */
     public void testCorrectArgumentsPassedToUnifiedQueryService() {
         PPLResponse response = new PPLResponse(Collections.emptyList(), Collections.emptyList());
-        when(mockUnifiedQueryService.execute(any(String.class), any(ClusterState.class))).thenReturn(response);
+        when(mockUnifiedQueryService.execute(any(String.class))).thenReturn(response);
 
         ActionListener<PPLResponse> listener = mock(ActionListener.class);
         action.execute(null, new PPLRequest("source=metrics | where status=500"), listener);
 
-        // Verify exact arguments: the PPL text from the request and the cluster state from ClusterService
-        verify(mockUnifiedQueryService).execute("source=metrics | where status=500", mockClusterState);
+        verify(mockUnifiedQueryService).execute("source=metrics | where status=500");
         verifyNoMoreInteractions(mockUnifiedQueryService);
     }
 }

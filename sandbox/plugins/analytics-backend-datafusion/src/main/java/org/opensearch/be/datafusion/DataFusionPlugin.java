@@ -8,8 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
-import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -34,7 +34,7 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public EngineCapabilities getEngineCapabilities() {
+    public SqlOperatorTable operatorTable() {
         return null;
     }
 }

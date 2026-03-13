@@ -10,8 +10,7 @@ package org.opensearch.ppl.action;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.schema.SchemaPlus;
-import org.opensearch.analytics.schema.SchemaProvider;
-import org.opensearch.cluster.ClusterState;
+import org.opensearch.analytics.EngineContext;
 import org.opensearch.ppl.compiler.OpenSearchQueryCompiler;
 import org.opensearch.ppl.planner.PushDownPlanner;
 import org.opensearch.sql.api.UnifiedQueryContext;
@@ -35,23 +34,21 @@ public class UnifiedQueryService {
     private static final String DEFAULT_CATALOG = "opensearch";
 
     private final PushDownPlanner pushDownPlanner;
-    private final SchemaProvider schemaProvider;
+    private final EngineContext engineContext;
 
-    public UnifiedQueryService(PushDownPlanner pushDownPlanner, SchemaProvider schemaProvider) {
+    public UnifiedQueryService(PushDownPlanner pushDownPlanner, EngineContext engineContext) {
         this.pushDownPlanner = pushDownPlanner;
-        this.schemaProvider = schemaProvider;
+        this.engineContext = engineContext;
     }
 
     /**
      * Executes a PPL query through the full pipeline.
      *
-     * @param pplText      the PPL query text
-     * @param clusterState the current cluster state for schema resolution
+     * @param pplText the PPL query text
      * @return a PPLResponse containing column names and result rows
      */
-    public PPLResponse execute(String pplText, ClusterState clusterState) {
-        // Step 1: Convert PPL to RelNode
-        SchemaPlus schemaPlus = schemaProvider.buildSchema(clusterState);
+    public PPLResponse execute(String pplText) {
+        SchemaPlus schemaPlus = engineContext.getSchema();
 
         UnifiedQueryContext context = UnifiedQueryContext.builder()
             .language(QueryType.PPL)
@@ -64,14 +61,10 @@ public class UnifiedQueryService {
             RelNode logicalPlan = planner.plan(pplText);
             RelNode mixedPlan = pushDownPlanner.plan(logicalPlan);
 
-            // Step 2: Push-down optimization
-
-            // Step 3: Build context and compile
             PreparedStatement statement = compileAndPrepare(context, mixedPlan);
             try (statement) {
                 ResultSet rs = statement.executeQuery();
 
-                // Step 4: Extract column metadata
                 ResultSetMetaData metaData = rs.getMetaData();
                 int columnCount = metaData.getColumnCount();
                 List<String> columns = new ArrayList<>();
@@ -79,7 +72,6 @@ public class UnifiedQueryService {
                     columns.add(metaData.getColumnName(i));
                 }
 
-                // Step 5: Extract rows
                 List<Object[]> rows = new ArrayList<>();
                 while (rs.next()) {
                     Object[] row = new Object[columnCount];

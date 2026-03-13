@@ -20,6 +20,10 @@ import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.tools.RelRunner;
@@ -112,7 +116,8 @@ public class OpenSearchQueryCompiler {
             return LogicalTableScan.create(freshCluster, table, List.of());
         }
 
-        // Non-leaf: rebuild children, then copy node with NONE traits
+        // Non-leaf: rebuild children, then reconstruct node using factory methods
+        // Factory methods derive cluster from inputs, avoiding "belongs to a different planner" errors
         List<RelNode> inputs = node.getInputs();
         if (inputs.isEmpty()) {
             return node.copy(node.getTraitSet().replace(Convention.NONE), inputs);
@@ -121,6 +126,22 @@ public class OpenSearchQueryCompiler {
         List<RelNode> newInputs = new ArrayList<>(inputs.size());
         for (RelNode input : inputs) {
             newInputs.add(rebuild(input, freshCluster));
+        }
+
+        if (node instanceof LogicalFilter) {
+            return LogicalFilter.create(newInputs.get(0), ((LogicalFilter) node).getCondition());
+        }
+        if (node instanceof LogicalProject) {
+            LogicalProject p = (LogicalProject) node;
+            return LogicalProject.create(newInputs.get(0), p.getHints(), p.getProjects(), p.getRowType());
+        }
+        if (node instanceof LogicalAggregate) {
+            LogicalAggregate a = (LogicalAggregate) node;
+            return LogicalAggregate.create(newInputs.get(0), a.getHints(), a.getGroupSet(), a.getGroupSets(), a.getAggCallList());
+        }
+        if (node instanceof LogicalSort) {
+            LogicalSort s = (LogicalSort) node;
+            return LogicalSort.create(newInputs.get(0), s.getCollation(), s.offset, s.fetch);
         }
         return node.copy(node.getTraitSet().replace(Convention.NONE), newInputs);
     }

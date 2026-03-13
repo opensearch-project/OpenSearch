@@ -33,19 +33,18 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.apache.calcite.sql.util.ListSqlOperatorTable;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
-import org.opensearch.ppl.planner.rules.AbsorbFilterRule;
-import org.opensearch.ppl.planner.rules.BoundaryTableScanRule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
-import java.util.Set;
 
 /**
  * Tests for push-down rules: {@link BoundaryTableScanRule}, {@link AbsorbFilterRule}.
@@ -133,14 +132,12 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
     /**
      * Tests that AbsorbFilterRule absorbs a supported filter into the boundary node.
-     * Uses HepPlanner to apply the rule on a manually constructed
-     * LogicalFilter → OpenSearchBoundaryTableScan tree.
      */
     public void testAbsorbFilterRuleAbsorbsSupportedFilter() {
-        EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
+        SqlOperatorTable operatorTable = SqlStdOperatorTable.instance();
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
-        // Create a boundary node wrapping the scan (simulates BoundaryTableScanRule output)
+        // Create a boundary node wrapping the scan
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, planExecutor);
 
@@ -153,7 +150,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         // Run AbsorbFilterRule via HepPlanner
         HepProgramBuilder programBuilder = new HepProgramBuilder();
-        programBuilder.addRuleInstance(AbsorbFilterRule.create(capabilities));
+        programBuilder.addRuleInstance(AbsorbFilterRule.create(operatorTable));
         HepPlanner hepPlanner = new HepPlanner(programBuilder.build());
         hepPlanner.setRoot(filter);
         RelNode result = hepPlanner.findBestExp();
@@ -173,18 +170,17 @@ public class PushDownRulesTests extends OpenSearchTestCase {
      * contains unsupported functions (e.g. PLUS).
      */
     public void testAbsorbFilterRuleDoesNotAbsorbUnsupportedFunctions() {
-        // Use restricted capabilities where PLUS is not supported
-        EngineCapabilities capabilities = new EngineCapabilities(
-            Set.of(LogicalTableScan.class, LogicalFilter.class),
-            Set.of(SqlStdOperatorTable.EQUALS, SqlStdOperatorTable.GREATER_THAN)
-        );
+        // Use restricted operator table where PLUS is not supported
+        List<SqlOperator> ops = List.of(SqlStdOperatorTable.EQUALS, SqlStdOperatorTable.GREATER_THAN);
+        SqlOperatorTable operatorTable = new ListSqlOperatorTable(ops);
+
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
         // Create a boundary node wrapping the scan
         RelTraitSet traitSet = cluster.traitSetOf(EnumerableConvention.INSTANCE);
         OpenSearchBoundaryTableScan boundary = new OpenSearchBoundaryTableScan(cluster, traitSet, table, scan, planExecutor);
 
-        // Build: (value + 1) > 10 — PLUS is not in default supported functions
+        // Build: (value + 1) > 10 — PLUS is not in the restricted operator table
         JavaTypeFactoryImpl typeFactory = new JavaTypeFactoryImpl();
         RexNode valueRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.DOUBLE), 2);
         RexNode literal1 = rexBuilder.makeLiteral(1.0, typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
@@ -195,7 +191,7 @@ public class PushDownRulesTests extends OpenSearchTestCase {
 
         // Run AbsorbFilterRule via HepPlanner
         HepProgramBuilder programBuilder = new HepProgramBuilder();
-        programBuilder.addRuleInstance(AbsorbFilterRule.create(capabilities));
+        programBuilder.addRuleInstance(AbsorbFilterRule.create(operatorTable));
         HepPlanner hepPlanner = new HepPlanner(programBuilder.build());
         hepPlanner.setRoot(filter);
         RelNode result = hepPlanner.findBestExp();

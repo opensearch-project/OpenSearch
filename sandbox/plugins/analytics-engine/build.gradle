@@ -40,7 +40,7 @@ configurations {
 sourceSets.test.compileClasspath += configurations.calciteTestCompile
 
 dependencies {
-  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, EngineCapabilities, etc.)
+  // Shared types and SPI interfaces (QueryPlanExecutor, EngineBridge, AnalyticsBackEndPlugin, etc.)
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
 

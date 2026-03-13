@@ -29,11 +29,12 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.apache.calcite.sql.util.ListSqlOperatorTable;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.ppl.planner.PushDownPlanner;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -59,9 +60,6 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
         typeFactory = new JavaTypeFactoryImpl();
         rexBuilder = new RexBuilder(typeFactory);
 
-        // Use a fresh VolcanoPlanner for building input trees.
-        // PushDownPlanner.plan() reuses the existing VolcanoPlanner when the
-        // input cluster already uses one, registering its rules on top.
         VolcanoPlanner volcanoPlanner = new VolcanoPlanner();
         volcanoPlanner.addRelTraitDef(ConventionTraitDef.INSTANCE);
         volcanoPlanner.addRelTraitDef(RelCollationTraitDef.INSTANCE);
@@ -91,13 +89,10 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
 
     /**
      * Test scan-only query: the boundary node should absorb just the scan.
-     *
-     * Input:  LogicalTableScan(test_table)
-     * Expected: OpenSearchBoundaryTableScan with LogicalTableScan as logical fragment
      */
     public void testScanOnlyQueryProducesBoundaryNodeWithScanFragment() {
-        EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
+        SqlOperatorTable operatorTable = SqlStdOperatorTable.instance();
+        PushDownPlanner planner = new PushDownPlanner(operatorTable, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
@@ -113,13 +108,10 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
 
     /**
      * Test scan+filter query: the boundary node should absorb both scan and filter.
-     *
-     * Input:  LogicalFilter(value > 10) → LogicalTableScan(test_table)
-     * Expected: OpenSearchBoundaryTableScan with LogicalFilter(LogicalTableScan) as logical fragment
      */
     public void testScanFilterQueryProducesBoundaryNodeWithFilterFragment() {
-        EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
+        SqlOperatorTable operatorTable = SqlStdOperatorTable.instance();
+        PushDownPlanner planner = new PushDownPlanner(operatorTable, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
@@ -144,15 +136,20 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
     /**
      * Test mixed query: scan+filter are absorbed, unsupported project stays above.
      *
-     * Input:  LogicalProject(value + 1) → LogicalFilter(value > 10) → LogicalTableScan(test_table)
-     * Expected: LogicalProject stays above, OpenSearchBoundaryTableScan absorbs scan+filter
-     *
-     * The project uses PLUS which is not in default EngineCapabilities, so it cannot
-     * be absorbed and remains as a logical node above the boundary.
+     * Uses a restricted operator table that does NOT include PLUS, so the project
+     * containing value + 1 cannot be absorbed and remains above the boundary.
      */
     public void testMixedQueryKeepsUnsupportedProjectAboveBoundary() {
-        EngineCapabilities capabilities = EngineCapabilities.defaultCapabilities();
-        PushDownPlanner planner = new PushDownPlanner(capabilities, planExecutor);
+        // Restricted operator table: supports comparison but NOT PLUS
+        List<SqlOperator> ops = List.of(
+            SqlStdOperatorTable.EQUALS,
+            SqlStdOperatorTable.GREATER_THAN,
+            SqlStdOperatorTable.LESS_THAN,
+            SqlStdOperatorTable.AND,
+            SqlStdOperatorTable.OR
+        );
+        SqlOperatorTable operatorTable = new ListSqlOperatorTable(ops);
+        PushDownPlanner planner = new PushDownPlanner(operatorTable, planExecutor);
 
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
 
@@ -162,7 +159,7 @@ public class PushDownPlannerTests extends OpenSearchTestCase {
         RexNode condition = rexBuilder.makeCall(SqlStdOperatorTable.GREATER_THAN, valueRef, literal10);
         LogicalFilter filter = LogicalFilter.create(scan, condition);
 
-        // Build project: value + 1 (PLUS is unsupported)
+        // Build project: value + 1 (PLUS is unsupported in restricted table)
         RexNode filterValueRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.DOUBLE), 2);
         RexNode literal1 = rexBuilder.makeLiteral(1.0, typeFactory.createSqlType(SqlTypeName.DOUBLE), true);
         RexNode plusExpr = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, filterValueRef, literal1);

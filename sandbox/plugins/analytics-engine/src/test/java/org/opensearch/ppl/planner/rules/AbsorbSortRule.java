@@ -11,7 +11,6 @@ package org.opensearch.ppl.planner.rules;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalSort;
-import org.opensearch.analytics.backend.EngineCapabilities;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 
 /**
@@ -19,28 +18,21 @@ import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
  * and the boundary) into an {@link OpenSearchBoundaryTableScan}.
  *
  * <p>Sort collations are field references and directions — no expression-level
- * capability checks are needed beyond operator support.
+ * capability checks are needed. Sort always absorbs if a boundary exists.
  */
 public class AbsorbSortRule extends RelOptRule {
 
-    private final EngineCapabilities capabilities;
-
-    public static AbsorbSortRule create(EngineCapabilities capabilities) {
-        return new AbsorbSortRule(capabilities);
+    public static AbsorbSortRule create() {
+        return new AbsorbSortRule();
     }
 
-    private AbsorbSortRule(EngineCapabilities capabilities) {
+    private AbsorbSortRule() {
         super(operand(LogicalSort.class, any()), "AbsorbSortRule");
-        this.capabilities = capabilities;
     }
 
     @Override
     public void onMatch(RelOptRuleCall call) {
         LogicalSort sort = call.rel(0);
-
-        if (!capabilities.supportsOperator(sort)) {
-            return;
-        }
 
         OpenSearchBoundaryTableScan boundary = AbsorbRuleUtils.findBoundary(sort);
         if (boundary == null) {

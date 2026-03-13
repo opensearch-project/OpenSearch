@@ -20,7 +20,7 @@ import java.util.List;
 
 /**
  * Example front-end plugin using analytics-engine.
- * The {@code QueryPlanExecutor} and {@code SchemaProvider}
+ * {@code EngineContext} and {@code QueryPlanExecutor}
  * are received by {@link TestPPLTransportAction} via Guice injection.
  */
 public class TestPPLPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {

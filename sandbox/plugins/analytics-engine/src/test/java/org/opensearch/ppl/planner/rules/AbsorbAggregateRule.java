@@ -11,37 +11,34 @@ package org.opensearch.ppl.planner.rules;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalAggregate;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 
 /**
  * Absorbs a {@link LogicalAggregate} (and any intermediate nodes between it
  * and the boundary) into an {@link OpenSearchBoundaryTableScan}.
  *
- * <p>Checks both operator-level support ({@code supportsOperator}) and
- * expression-level support ({@code supportsAllAggFunctions}) before absorbing.
+ * <p>Checks that all aggregate functions are supported by the back-end's
+ * {@link SqlOperatorTable} before absorbing.
  */
 public class AbsorbAggregateRule extends RelOptRule {
 
-    private final EngineCapabilities capabilities;
+    private final SqlOperatorTable operatorTable;
 
-    public static AbsorbAggregateRule create(EngineCapabilities capabilities) {
-        return new AbsorbAggregateRule(capabilities);
+    public static AbsorbAggregateRule create(SqlOperatorTable operatorTable) {
+        return new AbsorbAggregateRule(operatorTable);
     }
 
-    private AbsorbAggregateRule(EngineCapabilities capabilities) {
+    private AbsorbAggregateRule(SqlOperatorTable operatorTable) {
         super(operand(LogicalAggregate.class, any()), "AbsorbAggregateRule");
-        this.capabilities = capabilities;
+        this.operatorTable = operatorTable;
     }
 
     @Override
     public void onMatch(RelOptRuleCall call) {
         LogicalAggregate aggregate = call.rel(0);
 
-        if (!capabilities.supportsOperator(aggregate)) {
-            return;
-        }
-        if (!capabilities.supportsAllAggFunctions(aggregate.getAggCallList())) {
+        if (!AbsorbRuleUtils.allAggFunctionsSupported(aggregate.getAggCallList(), operatorTable)) {
             return;
         }
 

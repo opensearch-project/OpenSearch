@@ -13,10 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.analytics.schema.SchemaProvider;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.ppl.planner.PushDownPlanner;
@@ -24,55 +22,44 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action that coordinates PPL query execution using the BindableRel pipeline.
- * Obtains the current ClusterState from ClusterService and delegates to UnifiedQueryService.
+ * Transport action that coordinates PPL query execution.
  *
- * <p>Receives {@link QueryPlanExecutor} and {@link SchemaProvider} via Guice injection
- * (the coordinator returns them as components) and assembles the pipeline locally.
+ * <p>Receives {@link EngineContext} and {@link QueryPlanExecutor} via Guice injection.
+ * The engine context provides both the schema (from cluster state) and the aggregated
+ * operator table from all back-end engines.
  *
  * <p>On success, calls {@code listener.onResponse()} with the {@link PPLResponse}.
  * On failure, calls {@code listener.onFailure()} with the exception.
- * Exactly one of onResponse or onFailure is called per request.
  */
 public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, PPLResponse> {
 
     private static final Logger logger = LogManager.getLogger(TestPPLTransportAction.class);
 
-    private final ClusterService clusterService;
     private final UnifiedQueryService unifiedQueryService;
 
     @Inject
     public TestPPLTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        ClusterService clusterService,
-        QueryPlanExecutor<RelNode, Iterable<Object[]>> executor,
-        SchemaProvider schemaProvider,
-        EngineCapabilities engineCapabilities
+        EngineContext engineContext,
+        QueryPlanExecutor<RelNode, Iterable<Object[]>> executor
     ) {
         super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
-        this.clusterService = clusterService;
 
-        PushDownPlanner pushDownPlanner = new PushDownPlanner(engineCapabilities, executor);
-        this.unifiedQueryService = new UnifiedQueryService(pushDownPlanner, schemaProvider);
+        PushDownPlanner pushDownPlanner = new PushDownPlanner(engineContext.operatorTable(), executor);
+        this.unifiedQueryService = new UnifiedQueryService(pushDownPlanner, engineContext);
     }
 
     /** Test-only constructor that accepts a pre-built {@link UnifiedQueryService}. */
-    public TestPPLTransportAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        UnifiedQueryService unifiedQueryService
-    ) {
+    public TestPPLTransportAction(TransportService transportService, ActionFilters actionFilters, UnifiedQueryService unifiedQueryService) {
         super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
-        this.clusterService = clusterService;
         this.unifiedQueryService = unifiedQueryService;
     }
 
     @Override
     protected void doExecute(Task task, PPLRequest request, ActionListener<PPLResponse> listener) {
         try {
-            PPLResponse response = unifiedQueryService.execute(request.getPplText(), clusterService.state());
+            PPLResponse response = unifiedQueryService.execute(request.getPplText());
             listener.onResponse(response);
         } catch (Exception e) {
             logger.error("[UNIFIED_PPL] execution failed", e);

@@ -12,7 +12,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rex.RexNode;
-import org.opensearch.analytics.backend.EngineCapabilities;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 
 /**
@@ -20,31 +20,24 @@ import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
  *
  * <p>Pattern: {@code LogicalProject} on top of {@code OpenSearchBoundaryTableScan}.
  *
- * <p>When the rule matches, it checks whether the engine supports the project operator
- * and all functions in the project expressions via {@link EngineCapabilities}. If supported,
- * the project is absorbed into the boundary node's logical fragment by wrapping the
- * existing fragment with a new {@code LogicalProject}.
+ * <p>When the rule matches, it checks whether all functions in the project expressions
+ * are supported by the back-end's {@link SqlOperatorTable}. If supported, the project
+ * is absorbed into the boundary node's logical fragment.
  *
  * <p>This is NOT a ConverterRule — it transforms an already-converted boundary node
  * by growing its internal logical fragment.
  */
 public class AbsorbProjectRule extends RelOptRule {
 
-    private final EngineCapabilities capabilities;
+    private final SqlOperatorTable operatorTable;
 
-    /**
-     * Create a rule instance with the given engine capabilities.
-     *
-     * @param capabilities the engine capabilities used to gate absorption
-     * @return a new AbsorbProjectRule
-     */
-    public static AbsorbProjectRule create(EngineCapabilities capabilities) {
-        return new AbsorbProjectRule(capabilities);
+    public static AbsorbProjectRule create(SqlOperatorTable operatorTable) {
+        return new AbsorbProjectRule(operatorTable);
     }
 
-    private AbsorbProjectRule(EngineCapabilities capabilities) {
+    private AbsorbProjectRule(SqlOperatorTable operatorTable) {
         super(operand(LogicalProject.class, operand(OpenSearchBoundaryTableScan.class, none())), "AbsorbProjectRule");
-        this.capabilities = capabilities;
+        this.operatorTable = operatorTable;
     }
 
     @Override
@@ -52,14 +45,9 @@ public class AbsorbProjectRule extends RelOptRule {
         LogicalProject project = call.rel(0);
         OpenSearchBoundaryTableScan boundary = call.rel(1);
 
-        // Check that the engine supports the project operator
-        if (!capabilities.supportsOperator(project)) {
-            return;
-        }
-
         // Check that all functions in every project expression are supported
         for (RexNode expr : project.getProjects()) {
-            if (!capabilities.supportsAllFunctions(expr)) {
+            if (!AbsorbRuleUtils.allFunctionsSupported(expr, operatorTable)) {
                 return;
             }
         }

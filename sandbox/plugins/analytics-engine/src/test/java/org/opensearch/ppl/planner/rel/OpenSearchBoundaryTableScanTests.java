@@ -34,7 +34,6 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
-import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

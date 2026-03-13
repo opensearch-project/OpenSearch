@@ -10,10 +10,18 @@ package org.opensearch.ppl.planner.rules;
 
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexVisitorImpl;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.ppl.planner.rel.OpenSearchBoundaryTableScan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Shared utilities for absorb rules that need to walk down a subtree
@@ -81,5 +89,39 @@ final class AbsorbRuleUtils {
             absorbed,
             boundary.getEngineExecutor()
         );
+    }
+
+    /**
+     * Checks whether all functions in a RexNode expression tree are present
+     * in the given operator table.
+     */
+    static boolean allFunctionsSupported(RexNode expression, SqlOperatorTable operatorTable) {
+        if (expression == null) return true;
+        Set<SqlOperator> supported = new HashSet<>(operatorTable.getOperatorList());
+        Boolean result = expression.accept(new RexVisitorImpl<Boolean>(true) {
+            @Override
+            public Boolean visitCall(RexCall call) {
+                if (!supported.contains(call.getOperator())) return false;
+                for (RexNode operand : call.getOperands()) {
+                    Boolean childResult = operand.accept(this);
+                    if (childResult != null && !childResult) return false;
+                }
+                return true;
+            }
+        });
+        return result == null || result;
+    }
+
+    /**
+     * Checks whether all aggregate functions in the given list are present
+     * in the given operator table.
+     */
+    static boolean allAggFunctionsSupported(List<AggregateCall> aggCalls, SqlOperatorTable operatorTable) {
+        if (aggCalls == null || aggCalls.isEmpty()) return true;
+        Set<SqlOperator> supported = new HashSet<>(operatorTable.getOperatorList());
+        for (AggregateCall aggCall : aggCalls) {
+            if (!supported.contains(aggCall.getAggregation())) return false;
+        }
+        return true;
     }
 }
