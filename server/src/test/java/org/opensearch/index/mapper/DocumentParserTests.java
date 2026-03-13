@@ -3505,4 +3505,73 @@ public class DocumentParserTests extends MapperServiceTestCase {
         // Null fields should not be created
         assertNull("Null field should not be created", doc.rootDoc().getField("mixed_nulls.null_field"));
     }
+
+    public void testGeoPointWithCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.field("copy_to", "location_copy");
+            }
+            b.endObject();
+            b.startObject("location_copy").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
+
+        // Verify that the geo_point field itself exists
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        // Verify that the field was copied to the copy_to target
+        IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
+        assertNotNull(copiedFields);
+        assertTrue(copiedFields.length > 0);
+    }
+
+    public void testGeoPointArrayWithCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.field("copy_to", "location_copy");
+            }
+            b.endObject();
+            b.startObject("location_copy").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.array("point", 74.00, 40.71); }));
+
+        // Verify that the geo_point field itself exists
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        // Verify that the field was copied to the copy_to target
+        IndexableField[] copiedFields = doc.rootDoc().getFields("location_copy");
+        assertNotNull(copiedFields);
+        assertTrue(copiedFields.length > 0);
+    }
+
+    public void testGeoPointArrayWithMultipleCopyTo() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("point");
+            {
+                b.field("type", "geo_point");
+                b.array("copy_to", "location_copy1", "location_copy2");
+            }
+            b.endObject();
+            b.startObject("location_copy1").field("type", "geo_point").endObject();
+            b.startObject("location_copy2").field("type", "geo_point").endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> { b.startObject("point").field("lat", 40.71).field("lon", 74.00).endObject(); }));
+
+        assertNotNull(doc.rootDoc().getField("point"));
+
+        IndexableField[] copy1Fields = doc.rootDoc().getFields("location_copy1");
+        assertNotNull(copy1Fields);
+        assertTrue(copy1Fields.length > 0);
+
+        IndexableField[] copy2Fields = doc.rootDoc().getFields("location_copy2");
+        assertNotNull(copy2Fields);
+        assertTrue(copy2Fields.length > 0);
+    }
 }

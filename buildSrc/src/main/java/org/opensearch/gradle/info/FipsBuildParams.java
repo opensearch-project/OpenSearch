@@ -36,6 +36,10 @@ public class FipsBuildParams {
         return DEFAULT_FIPS_MODE.equals(fipsMode);
     }
 
+    public static boolean isInFipsApprovedOnlyMode() {
+        return isInFipsMode() && "true".equals(System.getProperty("org.bouncycastle.fips.approved_only"));
+    }
+
     public static String getFipsMode() {
         return fipsMode;
     }

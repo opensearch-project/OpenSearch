@@ -79,11 +79,14 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.ByteBuffer;
@@ -102,6 +105,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -1197,6 +1201,88 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         assertSearchHits(searchResponse, "1", "3", "4");
     }
 
+    public void testTermsQueryWithBitmap64DocValuesQuery() throws Exception {
+        assertAcked(
+            prepareCreate("employees").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    .field("index", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("employees").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees").setId("3").setSource("employee_id", new long[] { 1000000000001L, 3000000000003L }),
+            client().prepareIndex("employees").setId("4").setSource("employee_id", 4000000000004L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(4000000000004L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        bitmap.serializePortable(dos);
+        dos.close();
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        // directly building the terms query builder, so pass in the bitmap value as BytesArray
+        SearchResponse searchResponse = client().prepareSearch("employees")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmap64IndexAndDocValues() throws Exception {
+        assertAcked(
+            prepareCreate("employees2").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    // Both index and doc values enabled (default)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        indexRandom(
+            true,
+            client().prepareIndex("employees2").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees2").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees2").setId("3").setSource("employee_id", 3000000000003L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(3000000000003L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (DataOutputStream dos = new DataOutputStream(bos)) {
+            bitmap.serializePortable(dos);
+        }
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        SearchResponse searchResponse = client().prepareSearch("employees2")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "3");
+    }
+
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").setMapping("terms", "type=text", "other", "type=text"));
         indexRandomForConcurrentSearch("lookup");
@@ -1335,6 +1421,77 @@ public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTes
         // index "lookup3" type "type" has the source disabled: ignore the lookup terms
         searchResponse = client().prepareSearch("test").setQuery(termsLookupQuery("term", new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
+    }
+
+    public void testTermsLookupSubqueryRespectsMaxClauseCount() throws Exception {
+        assertAcked(prepareCreate("tl_lookup").setMapping("val", "type=keyword"));
+        assertAcked(prepareCreate("tl_test").setMapping("val", "type=keyword"));
+
+        // Index 6 docs in the lookup index and matching docs in the test index
+        indexRandom(
+            true,
+            client().prepareIndex("tl_lookup").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_lookup").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_lookup").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_lookup").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_lookup").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_lookup").setId("6").setSource("val", "6"),
+            client().prepareIndex("tl_test").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_test").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_test").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_test").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_test").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_test").setId("6").setSource("val", "6")
+        );
+
+        indexRandomForConcurrentSearch("tl_lookup");
+        indexRandomForConcurrentSearch("tl_test");
+
+        try {
+            // Set max_clause_count to 3, which should limit fetchSize to 3
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 3))
+                .get();
+
+            // The subquery matches all 6 docs in tl_lookup, but fetchSize is 3 => should fail
+            // The IllegalArgumentException may be wrapped in SearchPhaseExecutionException
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().prepareSearch("tl_test")
+                    .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                    .get()
+            );
+            String errorMsg = ex.getMessage() != null ? ex.getMessage() : ex.getCause().getMessage();
+            assertThat(errorMsg, containsString("exceed fetch limit"));
+
+            // Raise the limit so the same query succeeds
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(),
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getDefault(Settings.EMPTY)
+                        )
+                )
+                .get();
+
+            SearchResponse searchResponse = client().prepareSearch("tl_test")
+                .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                .get();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 6L);
+        } finally {
+            // Reset transient setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+                .get();
+        }
     }
 
     public void testBasicQueryById() throws Exception {

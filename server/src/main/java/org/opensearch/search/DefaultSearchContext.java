@@ -231,6 +231,7 @@ final class DefaultSearchContext extends SearchContext {
     private final int maxAggRewriteFilters;
     private final int filterRewriteSegmentThreshold;
     private final int cardinalityAggregationPruningThreshold;
+    private final long termsAggregationMaxPrecomputeCardinality;
     private final CardinalityAggregationContext cardinalityAggregationContext;
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
@@ -301,6 +302,7 @@ final class DefaultSearchContext extends SearchContext {
         this.maxAggRewriteFilters = evaluateFilterRewriteSetting();
         this.filterRewriteSegmentThreshold = evaluateAggRewriteFilterSegThreshold();
         this.cardinalityAggregationPruningThreshold = evaluateCardinalityAggregationPruningThreshold();
+        this.termsAggregationMaxPrecomputeCardinality = evaluateTermsAggregationMaxPrecomputeCardinality();
         this.cardinalityAggregationContext = evaluateCardinalityAggregationContext();
         this.bucketSelectionStrategyFactor = evaluateBucketSelectionStrategyFactor();
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
@@ -1298,6 +1300,11 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    public long termsAggregationMaxPrecomputeCardinality() {
+        return termsAggregationMaxPrecomputeCardinality;
+    }
+
+    @Override
     public CardinalityAggregationContext cardinalityAggregationContext() {
         return cardinalityAggregationContext;
     }
@@ -1317,6 +1324,13 @@ final class DefaultSearchContext extends SearchContext {
             return clusterService.getClusterSettings().get(CARDINALITY_AGGREGATION_PRUNING_THRESHOLD);
         }
         return 0;
+    }
+
+    private long evaluateTermsAggregationMaxPrecomputeCardinality() {
+        if (clusterService != null) {
+            return clusterService.getClusterSettings().get(SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY);
+        }
+        return 30_000L;
     }
 
     private CardinalityAggregationContext evaluateCardinalityAggregationContext() {

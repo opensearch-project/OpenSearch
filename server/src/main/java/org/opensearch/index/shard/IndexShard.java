@@ -4036,7 +4036,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Only used for initializing segment replication CopyState
     public long getLastRefreshedCheckpoint() {
         Engine engine = getEngine();
-        assert engine instanceof InternalEngine;
+        if (false == engine instanceof InternalEngine) {
+            throw new IllegalStateException(
+                String.format(
+                    Locale.ROOT,
+                    "The type of Engine must be InternalEngine, but the current type is %s.",
+                    engine.getClass().getSimpleName()
+                )
+            );
+        }
         return ((InternalEngine) engine).lastRefreshedCheckpoint();
     }
 

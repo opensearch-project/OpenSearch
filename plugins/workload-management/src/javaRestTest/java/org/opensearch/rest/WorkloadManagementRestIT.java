@@ -27,16 +27,16 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testCreate() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
         performOperation("DELETE", "_wlm/workload_group/analytics", null);
     }
 
     public void testMultipleCreate() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics2", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
 
         Response response2 = performOperation("PUT", "_wlm/workload_group", getCreateJson("users", "soft", 0.2, 0.1));
-        assertEquals(response2.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response2.getStatusLine().getStatusCode());
 
         assertThrows(
             ResponseException.class,
@@ -48,10 +48,10 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testGet() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics3", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
 
         Response response2 = performOperation("GET", "_wlm/workload_group/analytics3", null);
-        assertEquals(response2.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response2.getStatusLine().getStatusCode());
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics3\""));
         assertTrue(responseBody2.contains("\"resiliency_mode\":\"enforced\""));
@@ -64,10 +64,10 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testDelete() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics4", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
 
         Response response2 = performOperation("DELETE", "_wlm/workload_group/analytics4", null);
-        assertEquals(response2.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response2.getStatusLine().getStatusCode());
         assertTrue(EntityUtils.toString(response2.getEntity()).contains("\"acknowledged\":true"));
 
         assertThrows(ResponseException.class, () -> performOperation("DELETE", "_wlm/workload_group/analytics99", null));
@@ -75,22 +75,23 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testUpdate() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics5", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
 
         Response response2 = performOperation("PUT", "_wlm/workload_group/analytics5", getUpdateJson("monitor", 0.41, 0.21));
-        assertEquals(response2.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response2.getStatusLine().getStatusCode());
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics5\""));
         assertTrue(responseBody2.contains("\"resiliency_mode\":\"monitor\""));
         assertTrue(responseBody2.contains("\"cpu\":0.41"));
         assertTrue(responseBody2.contains("\"memory\":0.21"));
 
-        String json = "{\n"
-            + "    \"resource_limits\": {\n"
-            + "        \"cpu\" : 1.1,\n"
-            + "        \"memory\" : -0.1\n"
-            + "    }\n"
-            + "}'";
+        String json = """
+            {
+                "resource_limits": {
+                    "cpu" : 1.1,
+                    "memory" : -0.1
+                }
+            }""";
         assertThrows(ResponseException.class, () -> performOperation("PUT", "_wlm/workload_group/analytics5", json));
         assertThrows(
             ResponseException.class,
@@ -101,13 +102,13 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
     public void testCRUD() throws Exception {
         Response response = performOperation("PUT", "_wlm/workload_group", getCreateJson("analytics6", "enforced", 0.4, 0.2));
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response.getStatusLine().getStatusCode());
 
         Response response1 = performOperation("PUT", "_wlm/workload_group/analytics6", getUpdateJson("monitor", 0.41, 0.21));
-        assertEquals(response1.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response1.getStatusLine().getStatusCode());
 
         Response response2 = performOperation("GET", "_wlm/workload_group/analytics6", null);
-        assertEquals(response2.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response2.getStatusLine().getStatusCode());
         String responseBody2 = EntityUtils.toString(response2.getEntity());
         assertTrue(responseBody2.contains("\"name\":\"analytics6\""));
         assertTrue(responseBody2.contains("\"resiliency_mode\":\"monitor\""));
@@ -120,15 +121,15 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         );
 
         Response response4 = performOperation("PUT", "_wlm/workload_group", getCreateJson("users3", "monitor", 0.59, 0.79));
-        assertEquals(response4.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response4.getStatusLine().getStatusCode());
 
         Response response5 = performOperation("DELETE", "_wlm/workload_group/analytics6", null);
-        assertEquals(response5.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response5.getStatusLine().getStatusCode());
         String responseBody5 = EntityUtils.toString(response5.getEntity());
         assertTrue(responseBody5.contains("\"acknowledged\":true"));
 
         Response response6 = performOperation("GET", "_wlm/workload_group", null);
-        assertEquals(response6.getStatusLine().getStatusCode(), 200);
+        assertEquals(200, response6.getStatusLine().getStatusCode());
         String responseBody6 = EntityUtils.toString(response6.getEntity());
         assertTrue(responseBody6.contains("\"workload_groups\""));
         assertTrue(responseBody6.contains("\"users3\""));
@@ -146,6 +147,44 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         assertOK(performOperation("GET", "_wlm/workload_group/", null));
     }
 
+    public void testSearchSettings() throws Exception {
+        // Create with search_settings
+        String createJson = """
+            {
+                "name": "search_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "search_settings": {
+                    "timeout": "30s"
+                }
+            }""";
+        Response response = performOperation("PUT", "_wlm/workload_group", createJson);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        // Verify search_settings in GET response
+        Response getResponse = performOperation("GET", "_wlm/workload_group/search_test", null);
+        String responseBody = EntityUtils.toString(getResponse.getEntity());
+        assertTrue(responseBody.contains("\"search_settings\""));
+        assertTrue(responseBody.contains("\"timeout\":\"30s\""));
+
+        // Update search_settings
+        String updateJson = """
+            {
+                "search_settings": {
+                    "timeout": "1m"
+                }
+            }""";
+        Response updateResponse = performOperation("PUT", "_wlm/workload_group/search_test", updateJson);
+        assertEquals(200, updateResponse.getStatusLine().getStatusCode());
+
+        // Verify updated search_settings
+        Response getResponse2 = performOperation("GET", "_wlm/workload_group/search_test", null);
+        String responseBody2 = EntityUtils.toString(getResponse2.getEntity());
+        assertTrue(responseBody2.contains("\"timeout\":\"1m\""));
+
+        performOperation("DELETE", "_wlm/workload_group/search_test", null);
+    }
+
     static String getCreateJson(String name, String resiliencyMode, double cpu, double memory) {
         return "{\n"
             + "    \"name\": \""
@@ -161,7 +200,8 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             + "        \"memory\" : "
             + memory
             + "\n"
-            + "    }\n"
+            + "    },\n"
+            + "    \"search_settings\": {}\n"
             + "}";
     }
 

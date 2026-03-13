@@ -21,6 +21,8 @@ import org.opensearch.transport.Transport;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 /**
@@ -29,6 +31,10 @@ import java.util.function.BiFunction;
 public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchAsyncAction {
 
     private final Logger logger;
+
+    private final AtomicInteger streamResultsReceived = new AtomicInteger(0);
+    private final AtomicInteger streamResultsConsumeCallback = new AtomicInteger(0);
+    private final AtomicBoolean shardResultsConsumed = new AtomicBoolean(false);
 
     StreamSearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -87,6 +93,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
+                    streamResultsReceived.incrementAndGet();
                     if (getLogger().isTraceEnabled()) {
                         getLogger().trace("coordinator received partial from shard {}", shard);
                     }
@@ -167,8 +174,19 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             try {
-                // All final shard results have been processed; partials are not reduced.
-                onPhaseDone();
+                shardResultsConsumed.set(true);
+                if (streamResultsReceived.get() == streamResultsConsumeCallback.get()) {
+                    if (streamResultsReceived.get() > 0) {
+                        getSearchRequestContext().setStreamingRequest(true);
+                    }
+                    getLogger().debug("Stream results consumption has called back, let shard consumption callback trigger onPhaseDone");
+                    onPhaseDone();
+                } else {
+                    assert streamResultsReceived.get() > streamResultsConsumeCallback.get();
+                    getLogger().debug(
+                        "Shard results consumption finishes before stream results, let stream consumption callback trigger onPhaseDone"
+                    );
+                }
             } catch (final Exception ex) {
                 onPhaseFailure(this, "The phase has failed", ex);
             }
@@ -181,7 +199,17 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
     }
 
     private void successfulStreamExecution() {
-        // No-op.
+        try {
+            if (streamResultsReceived.get() == streamResultsConsumeCallback.incrementAndGet()) {
+                if (shardResultsConsumed.get()) {
+                    getSearchRequestContext().setStreamingRequest(true);
+                    getLogger().debug("Stream consumption trigger onPhaseDone");
+                    onPhaseDone();
+                }
+            }
+        } catch (final Exception ex) {
+            onPhaseFailure(this, "The phase has failed", ex);
+        }
     }
 
 }

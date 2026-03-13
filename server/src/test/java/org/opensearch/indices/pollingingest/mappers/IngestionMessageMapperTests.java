@@ -26,9 +26,12 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         assertEquals(IngestionMessageMapper.MapperType.DEFAULT, IngestionMessageMapper.MapperType.fromString("DEFAULT"));
         assertEquals(IngestionMessageMapper.MapperType.RAW_PAYLOAD, IngestionMessageMapper.MapperType.fromString("raw_payload"));
         assertEquals(IngestionMessageMapper.MapperType.RAW_PAYLOAD, IngestionMessageMapper.MapperType.fromString("RAW_PAYLOAD"));
+        assertEquals(IngestionMessageMapper.MapperType.FIELD_MAPPING, IngestionMessageMapper.MapperType.fromString("field_mapping"));
+        assertEquals(IngestionMessageMapper.MapperType.FIELD_MAPPING, IngestionMessageMapper.MapperType.fromString("FIELD_MAPPING"));
 
         assertEquals("default", IngestionMessageMapper.MapperType.DEFAULT.getName());
         assertEquals("raw_payload", IngestionMessageMapper.MapperType.RAW_PAYLOAD.getName());
+        assertEquals("field_mapping", IngestionMessageMapper.MapperType.FIELD_MAPPING.getName());
     }
 
     public void testMapperTypeFromStringInvalid() {
@@ -43,6 +46,14 @@ public class IngestionMessageMapperTests extends OpenSearchTestCase {
         IngestionMessageMapper rawPayloadMapper = IngestionMessageMapper.create("raw_payload", 0);
         assertNotNull(rawPayloadMapper);
         assertTrue(rawPayloadMapper instanceof RawPayloadIngestionMessageMapper);
+
+        IngestionMessageMapper fieldMappingMapper = IngestionMessageMapper.create(
+            "field_mapping",
+            0,
+            Map.of(FieldMappingIngestionMessageMapper.ID_FIELD, "user_id")
+        );
+        assertNotNull(fieldMappingMapper);
+        assertTrue(fieldMappingMapper instanceof FieldMappingIngestionMessageMapper);
 
         expectThrows(IllegalArgumentException.class, () -> IngestionMessageMapper.create("unknown", 0));
     }

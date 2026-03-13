@@ -40,7 +40,7 @@ import com.fasterxml.jackson.core.StreamWriteConstraints;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder;
 
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
@@ -61,7 +61,7 @@ import org.yaml.snakeyaml.LoaderOptions;
 /**
  * A YAML based content implementation using Jackson.
  */
-public class YamlXContent implements XContent, XContentContraints {
+public class YamlXContent implements XContent, XContentConstraints {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(yamlXContent);
     }

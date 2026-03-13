@@ -70,6 +70,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.endsWith;
@@ -166,7 +167,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -223,7 +225,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         3,
                         n -> true,
                         seedNodes(seedNode),
-                        Collections.singletonList(seedNodeSupplier)
+                        Collections.singletonList(seedNodeSupplier),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -277,7 +280,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         2,
                         n -> true,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -341,7 +345,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -387,7 +392,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(incompatibleSeedNode)
+                        seedNodes(incompatibleSeedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -436,7 +442,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> n.equals(rejectedNode) == false,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -490,7 +497,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> n.equals(seedNode) == false,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -546,7 +554,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode, otherSeedNode)
+                        seedNodes(seedNode, otherSeedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -621,7 +630,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(seedNode));
@@ -727,7 +737,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes
+                        seedNodes,
+                        null
                     )
                 ) {
                     assertFalse(connectionManager.nodeConnected(unaddressableSeedNode));
@@ -782,7 +793,8 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                         Settings.EMPTY,
                         3,
                         n -> true,
-                        seedNodes(seedNode)
+                        seedNodes(seedNode),
+                        null
                     )
                 ) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -1011,6 +1023,165 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                 + "\" cannot be used with the configured "
                 + "\"cluster.remote.cluster_name.mode\" [required=SNIFF, configured=PROXY]";
             assertEquals(expected, iae.getMessage());
+        }
+    }
+
+    public void testExpectedClusterNameValidationScenarios() {
+        List<DiscoveryNode> wrongClusterKnownNodes = new CopyOnWriteArrayList<>();
+        List<DiscoveryNode> correctKnownNodes = new CopyOnWriteArrayList<>();
+        Settings wrongClusterSettings = Settings.builder().put("cluster.name", "wrong-cluster").build();
+        String expectedClusterName = clusterAlias; // Use the default cluster alias as expected name
+
+        try (
+            MockTransportService wrongClusterTransport = startTransport(
+                "wrong_seed",
+                wrongClusterKnownNodes,
+                Version.CURRENT,
+                wrongClusterSettings
+            );
+            MockTransportService correctClusterTransport = startTransport("correct_seed", correctKnownNodes, Version.CURRENT);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", correctKnownNodes, Version.CURRENT)
+        ) {
+            DiscoveryNode wrongSeedNode = wrongClusterTransport.getLocalNode();
+            DiscoveryNode correctSeedNode = correctClusterTransport.getLocalNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalNode();
+            wrongClusterKnownNodes.add(wrongSeedNode);
+            correctKnownNodes.add(correctSeedNode);
+            correctKnownNodes.add(discoverableNode);
+
+            try (
+                MockTransportService localService = MockTransportService.createNewService(
+                    Settings.EMPTY,
+                    Version.CURRENT,
+                    threadPool,
+                    NoopTracer.INSTANCE
+                )
+            ) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                // Test 1: Connection fails when only wrong cluster seed is available
+                {
+                    ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                    try (
+                        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                        SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                            clusterAlias,
+                            localService,
+                            remoteConnectionManager,
+                            null,
+                            Settings.EMPTY,
+                            3,
+                            n -> true,
+                            seedNodes(wrongSeedNode),
+                            Collections.singletonList(() -> wrongSeedNode),
+                            expectedClusterName
+                        )
+                    ) {
+                        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                        strategy.connect(connectFuture);
+
+                        Exception e = expectThrows(Exception.class, connectFuture::actionGet);
+                        assertThat(e.getMessage(), containsString("does not match expected remote cluster name"));
+                        assertFalse(connectionManager.nodeConnected(wrongSeedNode));
+                    }
+                }
+
+                // Test 2: Connection succeeds by falling back to correct seed after wrong seed fails
+                {
+                    ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                    try (
+                        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                        SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                            clusterAlias,
+                            localService,
+                            remoteConnectionManager,
+                            null,
+                            Settings.EMPTY,
+                            3,
+                            n -> true,
+                            seedNodes(wrongSeedNode, correctSeedNode),
+                            Arrays.asList(() -> wrongSeedNode, () -> correctSeedNode),
+                            expectedClusterName
+                        )
+                    ) {
+                        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                        strategy.connect(connectFuture);
+                        connectFuture.actionGet();
+
+                        assertFalse(connectionManager.nodeConnected(wrongSeedNode));
+                        assertTrue(connectionManager.nodeConnected(correctSeedNode));
+                        assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    }
+                }
+
+                // Test 3: Connection succeeds when expected cluster name matches
+                {
+                    ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                    try (
+                        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                        SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                            clusterAlias,
+                            localService,
+                            remoteConnectionManager,
+                            null,
+                            Settings.EMPTY,
+                            3,
+                            n -> true,
+                            seedNodes(correctSeedNode),
+                            Collections.singletonList(() -> correctSeedNode),
+                            expectedClusterName
+                        )
+                    ) {
+                        PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                        strategy.connect(connectFuture);
+                        connectFuture.actionGet();
+
+                        assertTrue(connectionManager.nodeConnected(correctSeedNode));
+                        assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    }
+                }
+
+                // Test 4: Strategy must be rebuilt when expected cluster name changes
+                {
+                    ClusterConnectionManager connectionManager = new ClusterConnectionManager(profile, localService.transport);
+                    try (
+                        RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                        SniffConnectionStrategy strategy = new SniffConnectionStrategy(
+                            clusterAlias,
+                            localService,
+                            remoteConnectionManager,
+                            null,
+                            Settings.EMPTY,
+                            3,
+                            n -> true,
+                            seedNodes(correctSeedNode),
+                            Collections.singletonList(() -> correctSeedNode),
+                            "initial-expected-cluster"
+                        )
+                    ) {
+                        Setting<?> seedSetting = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(
+                            "cluster-alias"
+                        );
+                        Setting<?> expectedNameSetting = SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME
+                            .getConcreteSettingForNamespace("cluster-alias");
+
+                        // No rebuild needed if expected cluster name stays the same
+                        Settings noChangeSetting = Settings.builder()
+                            .put(seedSetting.getKey(), correctSeedNode.getAddress().toString())
+                            .put(expectedNameSetting.getKey(), "initial-expected-cluster")
+                            .build();
+                        assertFalse(strategy.strategyMustBeRebuilt(noChangeSetting));
+
+                        // Rebuild needed if expected cluster name changes
+                        Settings changedSetting = Settings.builder()
+                            .put(seedSetting.getKey(), correctSeedNode.getAddress().toString())
+                            .put(expectedNameSetting.getKey(), "new-expected-cluster")
+                            .build();
+                        assertTrue(strategy.strategyMustBeRebuilt(changedSetting));
+                    }
+                }
+            }
         }
     }
 
