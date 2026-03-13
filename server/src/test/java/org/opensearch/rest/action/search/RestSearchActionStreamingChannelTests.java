@@ -46,7 +46,6 @@ import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.mock;
 
 public class RestSearchActionStreamingChannelTests extends OpenSearchTestCase {
 

@@ -8,15 +8,9 @@
 
 package org.opensearch.action.search;
 
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.query.QuerySearchResult;
@@ -25,9 +19,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
 

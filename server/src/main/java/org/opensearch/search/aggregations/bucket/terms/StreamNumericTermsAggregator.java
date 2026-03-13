@@ -32,8 +32,8 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
