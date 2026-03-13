@@ -1,0 +1,23 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+opensearchplugin {
+    description = 'OpenSearch plugin providing Lucene-based search execution engine'
+    classname = 'org.opensearch.lucene.LuceneSearchEnginePlugin'
+}
+
+dependencies {
+    implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+}
+
+test {
+    systemProperty 'tests.security.manager', 'false'
+}
