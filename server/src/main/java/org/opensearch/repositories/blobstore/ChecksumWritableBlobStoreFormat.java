@@ -59,7 +59,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
     private final Version opensearchVersion;
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader) {
-        this(codec, reader, Version.CURRENT);
+        this(codec, reader, Version.CURRENT.minimumCompatibilityVersion());
     }
 
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader, Version opensearchVersion) {
@@ -92,7 +92,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
                     }
                 }; StreamOutput stream = new OutputStreamStreamOutput(compressor.threadLocalOutputStream(indexOutputOutputStream));) {
                     // TODO The stream version should be configurable
-                    stream.setVersion(Version.CURRENT);
+                    stream.setVersion(Version.CURRENT.minimumCompatibilityVersion());
                     writer.write(stream, obj);
                 }
                 CodecUtil.writeFooter(indexOutput);
