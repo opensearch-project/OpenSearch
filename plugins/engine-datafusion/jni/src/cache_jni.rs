@@ -434,17 +434,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cacheMana
 
     match &runtime_env.custom_cache_manager {
         Some(manager) => {
-            match cache_type.as_str() {
-                cache::CACHE_TYPE_METADATA => {
-                    manager.contains_file(&file_path)
-                }
-                _ => {
-                    let msg = format!("Unknown cache type: {}", cache_type);
-                    log_debug!("{}", msg);
-                    let _ = env.throw_new("org/opensearch/datafusion/DataFusionException", &msg);
-                    false
-                }
-            }
+            manager.contains_file_by_type(&file_path, &cache_type)
         }
         None => {
             let msg = "No custom cache manager available";
