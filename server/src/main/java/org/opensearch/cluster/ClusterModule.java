@@ -77,6 +77,7 @@ import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActi
 import org.opensearch.cluster.routing.allocation.decider.ResizeAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.ReplicaOnlyAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SearchReplicaAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
@@ -396,6 +397,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SearchReplicaAllocationDecider());
+        addAllocationDecider(deciders, new ReplicaOnlyAllocationDecider());
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new WarmDiskThresholdDecider(settings, clusterSettings));
