@@ -97,9 +97,6 @@ ${error.file}
 # Allow jcmd to attach to the process (required for 'jcmd VM.native_memory' commands)
 -XX:+UnlockDiagnosticVMOptions
 
-# Enabling debug logs for Allocators in Arrow
--Darrow.memory.debug.allocator=true
-
 # For cases with high memory-mapped file counts, a lower value can improve stability and
 # prevent issues like "leaked" maps or performance degradation. A value of 1 effectively
 # disables the shared Arena pooling and uses a confined Arena for each MMapDirectory
