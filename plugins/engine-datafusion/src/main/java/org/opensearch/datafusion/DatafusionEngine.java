@@ -76,6 +76,7 @@ import org.opensearch.vectorized.execution.search.spi.QueryResult;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -85,6 +86,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -101,17 +103,23 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
 
     public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
         this.dataFormat = dataFormat;
-        this.datafusionReaderManager = new DatafusionReaderManager(
-            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName()
-        );
+        String dataPath = shardPath.getDataPath().resolve(dataFormat.getName()).toString();
+        this.datafusionReaderManager = new DatafusionReaderManager(dataPath, formatCatalogSnapshot, dataFormat.getName());
         this.datafusionService = dataFusionService;
         this.cacheManager = datafusionService.getCacheManager();
         this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
         if (this.cacheManager != null) {
             datafusionReaderManager.setOnFilesAdded(files -> {
-                // Handle new files added during refresh
                 cacheManager.addFilesToCacheManager(files);
             });
+            
+            // Add existing files to cache
+            if (formatCatalogSnapshot != null && !formatCatalogSnapshot.isEmpty()) {
+                List<String> existingFiles = formatCatalogSnapshot.stream()
+                    .map(f -> Paths.get(dataPath, f.file()).toString())
+                    .collect(Collectors.toList());
+                cacheManager.addFilesToCacheManager(existingFiles);
+            }
         }
     }
 
