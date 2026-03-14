@@ -35,6 +35,7 @@ package org.opensearch.cluster.routing;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.VirtualShardRoutingHelper;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -519,6 +520,13 @@ public class OperationRouting {
         } else {
             // we would have still got 0 above but this check just saves us an unnecessary hash calculation
             partitionOffset = 0;
+        }
+
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        if (numVirtualShards != -1) {
+            final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
+            int vShardId = Math.floorMod(hash, numVirtualShards);
+            return VirtualShardRoutingHelper.resolvePhysicalShardId(indexMetadata, vShardId);
         }
 
         return calculateScaledShardId(indexMetadata, effectiveRouting, partitionOffset);
