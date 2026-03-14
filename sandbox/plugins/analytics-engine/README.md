@@ -15,5 +15,5 @@ This is the stable plugin name that all extending plugins declare in `extendedPl
 
 ## Key classes
 
-- **`BaseAnalyticsPlugin`** — The `ExtensiblePlugin` hub. Handles discovery, wiring, and Guice binding.
+- **`AnalyticsPlugin`** — The `ExtensiblePlugin` hub. Handles discovery, wiring, and Guice binding.
 - **`OpenSearchSchemaBuilder`** — Converts `ClusterState` index mappings into Calcite tables with typed columns.
