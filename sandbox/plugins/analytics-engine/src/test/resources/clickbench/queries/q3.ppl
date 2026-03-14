@@ -1,0 +1,4 @@
+/*
+SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;
+*/
+source=hits | stats sum(AdvEngineID), count() , avg(ResolutionWidth)

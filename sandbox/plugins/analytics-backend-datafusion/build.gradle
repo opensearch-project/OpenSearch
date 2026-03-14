@@ -1,0 +1,22 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'DataFusion native execution engine plugin for the query engine.'
+  classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
+  extendedPlugins = ['analytics-engine']
+}
+
+dependencies {
+  // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
+  // Also provides calcite-core transitively via api.
+  api project(':sandbox:libs:analytics-framework')
+}
+
+// TODO: Remove once back-end is built out with test suite
+testingConventions.enabled = false
