@@ -1,0 +1,105 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'opensearch.internal-cluster-test'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.pluginzip'
+
+def pluginName = 'engine-datafusion'
+def pluginDescription = 'OpenSearch plugin providing access to DataFusion via JNI'
+def projectPath = 'org.opensearch'
+def pathToPlugin = 'datafusion.DataFusionPlugin'
+def pluginClassName = 'DataFusionPlugin'
+
+opensearchplugin {
+  name = pluginName
+  description = pluginDescription
+  classname = "${projectPath}.${pathToPlugin}"
+  licenseFile = rootProject.file('LICENSE.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
+}
+
+dependencies {
+  api project(':libs:opensearch-engine-dataformat-commons')
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // Bundle Jackson in the plugin JAR using 'api' like other OpenSearch plugins
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+  // Apache Arrow dependencies for memory management
+  implementation "org.apache.arrow:arrow-memory-core:17.0.0"
+  implementation "org.apache.arrow:arrow-memory-unsafe:17.0.0"
+  implementation "org.apache.arrow:arrow-vector:17.0.0"
+  implementation "org.apache.arrow:arrow-c-data:17.0.0"
+  implementation "org.apache.arrow:arrow-format:17.0.0"
+  // SLF4J API for Arrow logging compatibility
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  // CheckerFramework annotations required by Arrow 17.0.0
+  implementation "org.checkerframework:checker-qual:3.42.0"
+  // FlatBuffers dependency required by Arrow 17.0.0
+  implementation "com.google.flatbuffers:flatbuffers-java:23.5.26"
+
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation "org.mockito:mockito-core:${versions.mockito}"
+
+  // Add CSV plugin for testing
+  // testImplementation project(':plugins:dataformat-csv')
+}
+
+yamlRestTest {
+  systemProperty 'tests.security.manager', 'false'
+  // Disable yamlRestTest since this plugin doesn't have REST API endpoints
+  enabled = false
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /slf4j-.*/, to: 'slf4j-api'
+  mapping from: /checker-qual.*/, to: 'checker-qual'
+  mapping from: /flatbuffers-.*/, to: 'flatbuffers-java'
+}
+
+// Configure third party audit to handle Apache Arrow dependencies
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    // Apache Commons Codec (missing dependency)
+    'org.apache.commons.codec.binary.Hex'
+  )
+  ignoreViolations(
+    // Apache Arrow internal classes that use Unsafe operations
+    'org.apache.arrow.memory.ArrowBuf',
+    'org.apache.arrow.memory.unsafe.UnsafeAllocationManager',
+    'org.apache.arrow.memory.util.ByteFunctionHelpers',
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    'org.apache.arrow.memory.util.hash.MurmurHasher',
+    'org.apache.arrow.memory.util.hash.SimpleHasher',
+    'org.apache.arrow.vector.BaseFixedWidthVector',
+    'org.apache.arrow.vector.BitVectorHelper',
+    'org.apache.arrow.vector.Decimal256Vector',
+    'org.apache.arrow.vector.DecimalVector',
+    'org.apache.arrow.vector.util.DecimalUtility',
+    'org.apache.arrow.vector.util.VectorAppender'
+  )
+}
+
+// Configure Javadoc to skip package documentation requirements ie package-info.java
+missingJavadoc {
+  javadocMissingIgnore = [
+    'org.opensearch.datafusion',
+    'org.opensearch.datafusion.action',
+    'org.opensearch.datafusion.core'
+  ]
+}

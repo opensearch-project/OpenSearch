@@ -1,0 +1,163 @@
+import org.opensearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.pluginzip'
+apply plugin: 'opensearch.java-agent'
+
+def pluginName = 'ParquetDataFormat'
+def pluginDescription = 'Parquet data format plugin'
+def packagePath = 'com.format'
+def pathToPlugin = 'parquet'
+def pluginClassName = 'ParquetDataFormatPlugin'
+group = "ParquetDataFormatGroup"
+
+java {
+  targetCompatibility = JavaVersion.VERSION_21
+  sourceCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.register("preparePluginPathDirs") {
+  mustRunAfter clean
+  doLast {
+    def newPath = pathToPlugin.replace(".", "/")
+    mkdir "src/main/java/$packagePath/$newPath"
+    mkdir "src/test/java/$packagePath/$newPath"
+    mkdir "src/yamlRestTest/java/$packagePath/$newPath"
+  }
+}
+
+publishing {
+  publications {
+    pluginZip(MavenPublication) { publication ->
+    }
+  }
+}
+
+opensearchplugin {
+  name = pluginName
+  description = pluginDescription
+  classname = "${packagePath}.${pathToPlugin}.${pluginClassName}"
+  licenseFile = rootProject.file('LICENSE.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
+}
+
+// This requires an additional Jar not published as part of build-tools
+loggerUsageCheck.enabled = false
+
+// No need to validate pom, as we do not upload to maven/sonatype
+validateNebulaPom.enabled = false
+
+buildscript {
+  ext {
+    opensearch_version = System.getProperty("opensearch.version", "3.3.0-SNAPSHOT")
+  }
+
+  repositories {
+    mavenLocal()
+    maven { url = "https://central.sonatype.com/repository/maven-snapshots/" }
+    mavenCentral()
+    maven { url = "https://plugins.gradle.org/m2/" }
+  }
+
+  dependencies {
+    classpath "org.opensearch.gradle:build-tools:${opensearch_version}"
+  }
+}
+
+repositories {
+  mavenLocal()
+  maven { url = "https://central.sonatype.com/repository/maven-snapshots/" }
+  mavenCentral()
+  maven { url = "https://plugins.gradle.org/m2/" }
+}
+
+configurations.all {
+  resolutionStrategy {
+    force 'commons-codec:commons-codec:1.18.0'
+    force 'org.slf4j:slf4j-api:2.0.17'
+  }
+}
+
+dependencies {
+  // Apache Arrow dependencies (using stable version with unsafe allocator)
+  implementation 'org.apache.arrow:arrow-vector:17.0.0'
+  implementation 'org.apache.arrow:arrow-memory-core:17.0.0'
+  implementation 'org.apache.arrow:arrow-memory-unsafe:17.0.0'
+  implementation 'org.apache.arrow:arrow-format:17.0.0'
+  implementation 'org.apache.arrow:arrow-c-data:17.0.0'
+
+  // Checker Framework annotations (required by Arrow)
+  implementation 'org.checkerframework:checker-qual:3.42.0'
+
+  // Jackson dependencies required by Arrow
+  implementation 'com.fasterxml.jackson.core:jackson-core:2.18.2'
+  implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+  implementation 'com.fasterxml.jackson.core:jackson-annotations:2.18.2'
+
+  // FlatBuffers dependency required by Arrow
+  implementation 'com.google.flatbuffers:flatbuffers-java:2.0.0'
+
+  // Netty dependencies required by Arrow memory management
+  implementation 'io.netty:netty-buffer:4.1.118.Final'
+  implementation 'io.netty:netty-common:4.1.118.Final'
+
+  // SLF4J logging implementation (required by Apache Arrow)
+  implementation 'org.slf4j:slf4j-api:2.0.17'
+}
+
+test {
+  include '**/*Tests.class'
+  // JVM args for Java 9+ only - remove if using Java 8
+  if (JavaVersion.current().isJava9Compatible()) {
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  }
+}
+
+task integTest(type: RestIntegTestTask) {
+  description = "Run tests against a cluster"
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+tasks.named("check").configure { dependsOn(integTest) }
+
+integTest {
+  // JVM arguments required for Arrow memory access (Java 9+ only)
+  if (JavaVersion.current().isJava9Compatible()) {
+    jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+    jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  }
+
+  // The --debug-jvm command-line option makes the cluster debuggable; this makes the tests debuggable
+  if (System.getProperty("test.debug") != null) {
+    jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
+  }
+}
+
+testClusters.integTest {
+  testDistribution = "INTEG_TEST"
+
+  // This installs our plugin into the testClusters
+  plugin(project.tasks.bundlePlugin.archiveFile)
+}
+
+run {
+  useCluster testClusters.integTest
+}
+
+task updateVersion {
+  onlyIf { System.getProperty('newVersion') }
+  doLast {
+    ext.newVersion = System.getProperty('newVersion')
+    println "Setting version to ${newVersion}."
+    // String tokenization to support -SNAPSHOT
+    ant.replaceregexp(file:'build.gradle', match: '"opensearch.version", "\\d.*"', replace: '"opensearch.version", "' + newVersion.tokenize('-')[0] + '-SNAPSHOT"', flags:'g', byline:true)
+  }
+}
+
+// Disable specific license tasks
+licenseHeaders.enabled = false
