@@ -259,6 +259,7 @@ public final class ThreadContext implements Writeable {
     public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
         return newStoredContext(preserveResponseHeaders, transientHeadersToClear, false);
     }
+
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
      * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
@@ -266,7 +267,11 @@ public final class ThreadContext implements Writeable {
      *
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear,  boolean preserveTransients) {
+    public StoredContext newStoredContext(
+        boolean preserveResponseHeaders,
+        Collection<String> transientHeadersToClear,
+        boolean preserveTransients
+    ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
 
@@ -309,7 +314,7 @@ public final class ThreadContext implements Writeable {
             ThreadContextStruct current = threadLocal.get();
             ThreadContextStruct restoredContext = originalContext;
             final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
-            if(preserveTransients) {
+            if (preserveTransients) {
                 if (!propagated.isEmpty()) {
                     restoredContext = originalContext.putTransientIfAbsent(propagated);
                 }
