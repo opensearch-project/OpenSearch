@@ -286,10 +286,20 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         }
 
         private void retryOnMasterChange(ClusterState state, Throwable failure) {
-            retry(state, failure, ClusterManagerNodeChangePredicate.build(state));
+            retryOnMasterChange(state.version(), state.nodes().getClusterManagerNode(), failure);
         }
 
-        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+        private void retryOnMasterChange(long stateVersion, DiscoveryNode clusterManagerNode, Throwable failure) {
+            final String ephemeralNodeId = clusterManagerNode != null ? clusterManagerNode.getEphemeralId() : null;
+            retry(stateVersion, clusterManagerNode, failure, ClusterManagerNodeChangePredicate.build(stateVersion, ephemeralNodeId));
+        }
+
+        private void retry(
+            final long stateVersion,
+            final DiscoveryNode clusterManagerNode,
+            final Throwable failure,
+            final Predicate<ClusterState> statePredicate
+        ) {
             if (observer == null) {
                 final long remainingTimeoutMS = request.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
                     - startTime);
@@ -298,8 +308,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     listener.onFailure(new ClusterManagerNotDiscoveredException(failure));
                     return;
                 }
+                final String persistentNodeId = clusterManagerNode != null ? clusterManagerNode.getId() : null;
                 this.observer = new ClusterStateObserver(
-                    state,
+                    persistentNodeId,
+                    stateVersion,
                     clusterService,
                     TimeValue.timeValueMillis(remainingTimeoutMS),
                     logger,
@@ -329,6 +341,10 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         }
 
         private ActionListener<Response> getDelegateForLocalExecute(ClusterState clusterState) {
+            // Extract version and cluster manager node before creating closure to avoid retaining full ClusterState
+            final long stateVersion = clusterState.version();
+            final DiscoveryNode clusterManagerNode = clusterState.nodes().getClusterManagerNode();
+
             return ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
                 if (t instanceof FailedToCommitClusterStateException || t instanceof NotClusterManagerException) {
                     logger.debug(
@@ -340,7 +356,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         t
                     );
 
-                    retryOnMasterChange(clusterState, t);
+                    retryOnMasterChange(stateVersion, clusterManagerNode, t);
                 } else {
                     delegatedListener.onFailure(t);
                 }
@@ -455,7 +471,9 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     listener.onFailure(blockException);
                 } else {
                     logger.debug("can't execute due to a cluster block, retrying", blockException);
-                    retry(localClusterState, blockException, newState -> {
+                    final long blockStateVersion = localClusterState.version();
+                    final DiscoveryNode blockClusterManagerNode = localClusterState.nodes().getClusterManagerNode();
+                    retry(blockStateVersion, blockClusterManagerNode, blockException, newState -> {
                         try {
                             ClusterBlockException newException = checkBlock(request, newState);
                             return (newException == null || !newException.retryable());
