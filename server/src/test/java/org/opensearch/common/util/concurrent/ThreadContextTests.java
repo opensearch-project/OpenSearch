@@ -879,7 +879,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         });
 
         ThreadContext.StoredContext storedContext = null;
-        try (ThreadContext.StoredContext sc = threadContext.newStoredContext(false, Collections.emptyList())) {
+        try (ThreadContext.StoredContext sc = threadContext.newStoredContext(false, true)) {
             // now we add something to original thread
             // Simulate the tracing infrastructure writing CURRENT_SPAN into the stashed context.
             storedContext = sc;
