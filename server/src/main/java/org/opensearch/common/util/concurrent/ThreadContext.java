@@ -313,8 +313,8 @@ public final class ThreadContext implements Writeable {
             // snapshot, losing any propagated transients that were set after newStoredContext() was called.
             ThreadContextStruct current = threadLocal.get();
             ThreadContextStruct restoredContext = originalContext;
-            final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
             if (preserveTransients) {
+                final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
                 if (!propagated.isEmpty()) {
                     restoredContext = originalContext.putTransientIfAbsent(propagated);
                 }
