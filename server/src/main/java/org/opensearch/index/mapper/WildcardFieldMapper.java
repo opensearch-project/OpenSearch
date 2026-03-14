@@ -327,6 +327,25 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
      * Implements the various query types over wildcard fields.
      */
     public static final class WildcardFieldType extends StringFieldType {
+        private static final Set<Character> WILDCARD_SPECIAL = Set.of('?', '*', '\\');
+        private static final Set<Character> REGEXP_SPECIAL = Set.of(
+            '.',
+            '^',
+            '$',
+            '*',
+            '+',
+            '?',
+            '(',
+            ')',
+            '[',
+            ']',
+            '{',
+            '}',
+            '|',
+            '/',
+            '\\'
+        );
+
         private final int ignoreAbove;
         private final String nullValue;
 
@@ -438,7 +457,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                     if (caseInsensitive) {
                         s = s.toLowerCase(Locale.ROOT);
                     }
-                    return s.equals(finalValue);
+                    return s.equals(performEscape(finalValue, false));
                 };
             } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.ALL) {
                 return existsQuery(context);
@@ -454,7 +473,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 };
             }
 
-            Set<String> requiredNGrams = getRequiredNGrams(finalValue);
+            Set<String> requiredNGrams = getRequiredNGrams(finalValue, false);
             Query approximation;
             if (requiredNGrams.isEmpty()) {
                 // This only happens when all characters are wildcard characters (* or ?),
@@ -471,7 +490,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         // Package-private for testing
-        static Set<String> getRequiredNGrams(String value) {
+        static Set<String> getRequiredNGrams(String value, boolean regexpMode) {
             Set<String> terms = new HashSet<>();
 
             if (value.isEmpty()) {
@@ -484,7 +503,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             if (!value.startsWith("?") && !value.startsWith("*")) {
                 // Can add prefix term
                 rawSequence = getNonWildcardSequence(value, 0);
-                currentSequence = performEscape(rawSequence);
+                currentSequence = performEscape(rawSequence, regexpMode);
                 if (currentSequence.length() == 1) {
                     terms.add(new String(new char[] { 0, currentSequence.charAt(0) }));
                 } else {
@@ -496,7 +515,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             }
             while (pos < value.length()) {
                 boolean isEndOfValue = pos + rawSequence.length() == value.length();
-                currentSequence = performEscape(rawSequence);
+                currentSequence = performEscape(rawSequence, regexpMode);
                 if (!currentSequence.isEmpty() && currentSequence.length() < 3 && !isEndOfValue && pos > 0) {
                     // If this is a prefix or suffix of length < 3, then we already have a longer token including the anchor.
                     terms.add(currentSequence);
@@ -542,19 +561,42 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             return value.length();
         }
 
-        private static String performEscape(String str) {
-            StringBuilder sb = new StringBuilder();
+        /**
+         * reversed process of quoteWildcard
+         * @param str target string
+         * @param regexpMode whether is used for regexp escape
+         * @return string before escaped
+         */
+        private static String performEscape(String str, boolean regexpMode) {
+            final StringBuilder sb = new StringBuilder();
+            final Set<Character> targetChars = regexpMode ? REGEXP_SPECIAL : WILDCARD_SPECIAL;
+
             for (int i = 0; i < str.length(); i++) {
                 if (str.charAt(i) == '\\' && (i + 1) < str.length()) {
                     char c = str.charAt(i + 1);
-                    if (c == '*' || c == '?') {
+                    if (targetChars.contains(c)) {
                         i++;
                     }
                 }
                 sb.append(str.charAt(i));
             }
-            assert !sb.toString().contains("\\*");
-            assert !sb.toString().contains("\\?");
+            return sb.toString();
+        }
+
+        /**
+         * manually escape instead of call String.replace for better performance
+         * only for term query
+         * @param str target string
+         * @return escaped string
+         */
+        private static String quoteWildcard(String str) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < str.length(); i++) {
+                if (WILDCARD_SPECIAL.contains(str.charAt(i))) {
+                    sb.append('\\');
+                }
+                sb.append(str.charAt(i));
+            }
             return sb.toString();
         }
 
@@ -568,11 +610,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             QueryShardContext context
         ) {
             NamedAnalyzer normalizer = normalizer();
-            if (normalizer != null) {
-                value = normalizer.normalize(name(), value).utf8ToString();
-            }
+            final String finalValue = normalizer != null ? value = normalizer.normalize(name(), value).utf8ToString() : value;
+            final boolean caseInsensitive = matchFlags == RegExp.ASCII_CASE_INSENSITIVE;
 
-            RegExp regExp = new RegExp(value, syntaxFlags, matchFlags);
+            RegExp regExp = new RegExp(finalValue, syntaxFlags, matchFlags);
             Automaton automaton = regExp.toAutomaton(maxDeterminizedStates);
             CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
@@ -581,6 +622,14 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 return existsQuery(context);
             } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.NONE) {
                 return new MatchNoDocsQuery("Regular expression matches nothing");
+            } else if (compiledAutomaton.type == CompiledAutomaton.AUTOMATON_TYPE.SINGLE) {
+                // when type equals SINGLE, #compiledAutomaton.runAutomaton is null
+                regexpPredicate = s -> {
+                    if (caseInsensitive) {
+                        s = s.toLowerCase(Locale.ROOT);
+                    }
+                    return s.equals(performEscape(finalValue, true));
+                };
             } else {
                 regexpPredicate = s -> {
                     BytesRef valueBytes = BytesRefs.toBytesRef(s);
@@ -588,11 +637,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 };
             }
 
-            Query approximation = regexpToQuery(name(), regExp);
+            Query approximation = regexpToQuery(name(), regExp, caseInsensitive);
             if (approximation instanceof MatchAllDocsQuery) {
                 approximation = existsQuery(context);
             }
-            return new WildcardMatchingQuery(name(), approximation, regexpPredicate, "/" + value + "/", context, this);
+            return new WildcardMatchingQuery(name(), approximation, regexpPredicate, "/" + finalValue + "/", context, this);
         }
 
         /**
@@ -602,16 +651,16 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
          * @param regExp a parsed node in the {@link RegExp} tree
          * @return a query that matches on the known required parts of the given regular expression
          */
-        private static Query regexpToQuery(String fieldName, RegExp regExp) {
+        private static Query regexpToQuery(String fieldName, RegExp regExp, boolean caseInsensitive) {
             BooleanQuery query;
             if (Objects.requireNonNull(regExp.kind) == RegExp.Kind.REGEXP_UNION) {
                 List<Query> clauses = new ArrayList<>();
                 while (regExp.exp1.kind == RegExp.Kind.REGEXP_UNION) {
-                    clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
                     regExp = regExp.exp1;
                 }
-                clauses.add(regexpToQuery(fieldName, regExp.exp2));
-                clauses.add(regexpToQuery(fieldName, regExp.exp1));
+                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive));
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (int i = clauses.size() - 1; i >= 0; i--) {
                     Query clause = clauses.get(i);
@@ -623,18 +672,24 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 query = builder.build();
             } else if (regExp.kind == RegExp.Kind.REGEXP_STRING) {
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (String string : getRequiredNGrams("*" + regExp.s + "*")) {
-                    builder.add(new TermQuery(new Term(fieldName, string)), BooleanClause.Occur.FILTER);
+                for (String string : getRequiredNGrams("*" + regExp.s + "*", true)) {
+                    final Query subQuery;
+                    if (caseInsensitive) {
+                        subQuery = AutomatonQueries.caseInsensitiveTermQuery(new Term(fieldName, string));
+                    } else {
+                        subQuery = new TermQuery(new Term(fieldName, string));
+                    }
+                    builder.add(subQuery, BooleanClause.Occur.FILTER);
                 }
                 query = builder.build();
             } else if (regExp.kind == RegExp.Kind.REGEXP_CONCATENATION) {
                 List<Query> clauses = new ArrayList<>();
                 while (regExp.exp1.kind == RegExp.Kind.REGEXP_CONCATENATION) {
-                    clauses.add(regexpToQuery(fieldName, regExp.exp2));
+                    clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
                     regExp = regExp.exp1;
                 }
-                clauses.add(regexpToQuery(fieldName, regExp.exp2));
-                clauses.add(regexpToQuery(fieldName, regExp.exp1));
+                clauses.add(regexpToQuery(fieldName, regExp.exp2, caseInsensitive));
+                clauses.add(regexpToQuery(fieldName, regExp.exp1, caseInsensitive));
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (int i = clauses.size() - 1; i >= 0; i--) {
                     Query clause = clauses.get(i);
@@ -645,7 +700,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 query = builder.build();
             } else if ((regExp.kind == RegExp.Kind.REGEXP_REPEAT_MIN || regExp.kind == RegExp.Kind.REGEXP_REPEAT_MINMAX)
                 && regExp.min > 0) {
-                    return regexpToQuery(fieldName, regExp.exp1);
+                    return regexpToQuery(fieldName, regExp.exp1, caseInsensitive);
                 } else {
                     return new MatchAllDocsQuery();
                 }
@@ -664,12 +719,12 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
-            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
+            return wildcardQuery(quoteWildcard(BytesRefs.toString(value)), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            return wildcardQuery(BytesRefs.toString(value), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
+            return wildcardQuery(quoteWildcard(BytesRefs.toString(value)), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
 
         @Override
@@ -679,7 +734,10 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
             StringBuilder pattern = new StringBuilder();
             for (Object value : values) {
                 String stringVal = BytesRefs.toString(value);
-                builder.add(matchAllTermsQuery(name(), getRequiredNGrams(stringVal), false), BooleanClause.Occur.SHOULD);
+                builder.add(
+                    matchAllTermsQuery(name(), getRequiredNGrams(quoteWildcard(stringVal), false), false),
+                    BooleanClause.Occur.SHOULD
+                );
                 expectedValues.add(stringVal);
                 if (pattern.length() > 0) {
                     pattern.append('|');
