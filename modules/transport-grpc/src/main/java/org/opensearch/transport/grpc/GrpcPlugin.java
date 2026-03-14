@@ -36,8 +36,11 @@ import org.opensearch.transport.grpc.interceptor.GrpcInterceptorChain;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoUtils;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
 import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider;
 import org.opensearch.transport.grpc.spi.GrpcInterceptorProvider.OrderedGrpcInterceptor;
@@ -85,9 +88,11 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
     private final List<QueryBuilderProtoConverter> queryConverters = new ArrayList<>();
     private final List<AggregationBuilderProtoConverter> aggregationConverters = new ArrayList<>();
+    private final List<AggregateProtoConverter> aggregateConverters = new ArrayList<>();
     private final List<GrpcServiceFactory> servicesFactory = new ArrayList<>();
     private QueryBuilderProtoConverterRegistryImpl queryRegistry;
     private AggregationBuilderProtoConverterRegistryImpl aggregationRegistry;
+    private AggregateProtoConverterRegistryImpl aggregateRegistry;
     private AbstractQueryBuilderProtoUtils queryUtils;
     private GrpcInterceptorChain serverInterceptor; // Initialized in createComponents
     private List<GrpcInterceptorProvider> interceptorProviders = new ArrayList<>();
@@ -138,6 +143,23 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("Successfully loaded {} AggregationBuilderProtoConverter extensions", aggExtensions.size());
         } else {
             logger.info("No AggregationBuilderProtoConverter extensions found from other plugins");
+        }
+
+        // Load aggregate converters (response-side) from other plugins
+        List<AggregateProtoConverter> aggResponseExtensions = loader.loadExtensions(AggregateProtoConverter.class);
+        if (aggResponseExtensions != null && !aggResponseExtensions.isEmpty()) {
+            logger.info("Loading {} AggregateProtoConverter extensions from other plugins", aggResponseExtensions.size());
+            for (AggregateProtoConverter converter : aggResponseExtensions) {
+                logger.info(
+                    "Discovered AggregateProtoConverter extension: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledAggregationType().getName()
+                );
+                aggregateConverters.add(converter);
+            }
+            logger.info("Successfully loaded {} AggregateProtoConverter extensions", aggResponseExtensions.size());
+        } else {
+            logger.info("No AggregateProtoConverter extensions found from other plugins");
         }
 
         List<GrpcInterceptorProvider> providers = loader.loadExtensions(GrpcInterceptorProvider.class);
@@ -417,6 +439,12 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         // Create the aggregation registry
         this.aggregationRegistry = new AggregationBuilderProtoConverterRegistryImpl();
 
+        // Create the aggregate registry (response-side)
+        this.aggregateRegistry = new AggregateProtoConverterRegistryImpl();
+
+        // Set the global aggregate registry for response serialization
+        AggregateProtoUtils.setRegistry(aggregateRegistry);
+
         // Create the query utils instance
         this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
 
@@ -473,6 +501,28 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             logger.info("Updated aggregation registry on all converters to include external converters");
         } else {
             logger.info("No external AggregationBuilderProtoConverter(s) to register");
+        }
+
+        // Register external aggregate converters (response-side)
+        if (!aggregateConverters.isEmpty()) {
+            logger.info(
+                "Registering {} external AggregateProtoConverter(s)",
+                aggregateConverters.size()
+            );
+            for (AggregateProtoConverter converter : aggregateConverters) {
+                logger.info(
+                    "Processing external aggregate converter: {} (handles: {})",
+                    converter.getClass().getName(),
+                    converter.getHandledAggregationType().getName()
+                );
+
+                // Register the converter in the SPI registry
+                aggregateRegistry.getSpiRegistry().registerConverter(converter);
+                logger.info("Registered aggregate converter: {}", converter.getClass().getName());
+            }
+            logger.info("Successfully registered all {} external aggregate converters", aggregateConverters.size());
+        } else {
+            logger.info("No external AggregateProtoConverter(s) to register");
         }
 
         return super.createComponents(

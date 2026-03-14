@@ -85,8 +85,6 @@ public class SearchResponseSectionsProtoUtils {
      * @throws UnsupportedOperationException if unsupported features are present
      */
     private static void checkUnsupportedFeatures(SearchResponse response) {
-        // Aggregations are now supported, removed from unsupported list
-
         // TODO: Implement suggest conversion
         if (response.getSuggest() != null) {
             throw new UnsupportedOperationException("suggest responses are not supported yet");

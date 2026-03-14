@@ -8,34 +8,45 @@
 package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
 import org.opensearch.protobufs.Aggregate;
-import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.aggregations.Aggregation;
-import org.opensearch.search.aggregations.metrics.InternalMax;
-import org.opensearch.search.aggregations.metrics.InternalMin;
-import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
-import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MaxAggregateProtoUtils;
-import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MinAggregateProtoUtils;
+import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 
 /**
  * Converts InternalAggregation to Aggregate protobuf.
+ * Uses a registry pattern for extensible converter dispatch.
  */
 public class AggregateProtoUtils {
+
+    private static AggregateProtoConverterRegistry registry = new AggregateProtoConverterRegistryImpl();
 
     private AggregateProtoUtils() {
         // Utility class - no instances
     }
 
     /**
+     * Sets the registry for testing or custom converter registration.
+     *
+     * @param registry The registry to use (must not be null)
+     */
+    public static void setRegistry(AggregateProtoConverterRegistry registry) {
+        if (registry == null) {
+            throw new IllegalArgumentException("Registry must not be null");
+        }
+        AggregateProtoUtils.registry = registry;
+    }
+
+    /**
      * Converts an Aggregation to Aggregate protobuf.
      *
-     * <p>Dispatches to specific converters and handles metadata centrally.
+     * <p>Delegates to the registry for extensible converter dispatch.
      * Mirrors REST-side {@link org.opensearch.search.aggregations.InternalAggregation#toXContent}.
      *
      * @param aggregation The OpenSearch aggregation (must not be null)
      * @return The corresponding Protocol Buffer Aggregate message
-     * @throws IllegalArgumentException if aggregation is null or type is not supported
+     * @throws IllegalArgumentException if aggregation is null, not an InternalAggregation, or type is not supported
      * @throws IOException if an error occurs during protobuf conversion
      * @see org.opensearch.search.aggregations.InternalAggregation#toXContent
      */
@@ -44,23 +55,10 @@ public class AggregateProtoUtils {
             throw new IllegalArgumentException("Aggregation must not be null");
         }
 
-        Aggregate.Builder builder = Aggregate.newBuilder();
-
-        if (aggregation.getMetadata() != null && !aggregation.getMetadata().isEmpty()) {
-            ObjectMap.Value metaValue = ObjectMapProtoUtils.toProto(aggregation.getMetadata());
-            if (metaValue.hasObjectMap()) {
-                builder.setMeta(metaValue.getObjectMap());
-            }
+        if (!(aggregation instanceof InternalAggregation)) {
+            throw new IllegalArgumentException("Only InternalAggregation types are supported");
         }
 
-        if (aggregation instanceof InternalMin) {
-            builder.mergeFrom(MinAggregateProtoUtils.toProto((InternalMin) aggregation));
-        } else if (aggregation instanceof InternalMax) {
-            builder.mergeFrom(MaxAggregateProtoUtils.toProto((InternalMax) aggregation));
-        } else {
-            throw new IllegalArgumentException("Unsupported aggregation type: " + aggregation.getClass().getName());
-        }
-
-        return builder.build();
+        return registry.toProto((InternalAggregation) aggregation);
     }
 }
