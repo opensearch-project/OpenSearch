@@ -186,6 +186,44 @@ public class WritableWarmIT extends RemoteStoreBaseIntegTestCase {
         fileCache.prune();
     }
 
+    public void testIndexingAndFileCacheStats() throws ExecutionException, InterruptedException {
+        InternalTestCluster internalTestCluster = internalCluster();
+        internalTestCluster.startClusterManagerOnlyNode();
+        internalTestCluster.startDataAndWarmNodes(1);
+
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+            .build();
+
+        //create index
+        assertAcked(client().admin().indices().prepareCreate(INDEX_NAME_2).setSettings(settings).get());
+        //verify node stats
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        assertFalse(nodesStatsResponse.toString().contains("Exception"));
+
+        // index docs
+        indexBulk(INDEX_NAME_2, NUM_DOCS_IN_BULK);
+        flushAndRefresh(INDEX_NAME_2);
+        //verify node stats
+        nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        assertFalse(nodesStatsResponse.toString().contains("Exception"));
+
+        // search
+        SearchResponse searchResponse =client().prepareSearch(INDEX_NAME_2).setQuery(QueryBuilders.matchAllQuery()).setSize(100).get();
+        //verify node stats
+        nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        assertFalse(nodesStatsResponse.toString().contains("Exception"));
+
+        // delete index
+        assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME_2)).get());
+        //verify node stats
+        nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        assertFalse(nodesStatsResponse.toString().contains("Exception"));
+    }
+
+
     public void testFullFileAndFileCacheStats() throws ExecutionException, InterruptedException {
 
         InternalTestCluster internalTestCluster = internalCluster();
