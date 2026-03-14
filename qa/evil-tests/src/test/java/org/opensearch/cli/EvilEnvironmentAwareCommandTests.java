@@ -32,14 +32,13 @@
 
 package org.opensearch.cli;
 
-import joptsimple.OptionSet;
 import org.apache.lucene.tests.util.TestRuleRestoreSystemProperties;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.cli.EnvironmentAwareCommand;
 import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
-import org.junit.Rule;
-import org.junit.rules.TestRule;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -53,27 +52,24 @@ public class EvilEnvironmentAwareCommandTests extends OpenSearchTestCase {
         clearEsPathConf();
 
         class TestEnvironmentAwareCommand extends EnvironmentAwareCommand {
-
             private TestEnvironmentAwareCommand(String description) {
                 super(description);
             }
 
             @Override
-            protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-
+            protected void execute(Terminal terminal, Environment env) throws Exception {
+                // no-op: we only care that Environment creation is enforced and fails without opensearch.path.conf
             }
-
         }
 
         final TestEnvironmentAwareCommand command = new TestEnvironmentAwareCommand("test");
         final UserException e =
-                expectThrows(UserException.class, () -> command.mainWithoutErrorHandling(new String[0], new MockTerminal()));
+            expectThrows(UserException.class, () -> command.mainWithoutErrorHandling(new String[0], new MockTerminal()));
         assertThat(e, hasToString(containsString("the system property [opensearch.path.conf] must be set")));
     }
 
-    @SuppressForbidden(reason =  "clears system property opensearch.path.conf as part of test setup")
+    @SuppressForbidden(reason = "clears system property opensearch.path.conf as part of test setup")
     private void clearEsPathConf() {
         System.clearProperty("opensearch.path.conf");
     }
-
 }
