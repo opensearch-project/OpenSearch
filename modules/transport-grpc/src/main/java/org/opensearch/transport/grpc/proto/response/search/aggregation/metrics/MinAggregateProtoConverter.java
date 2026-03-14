@@ -20,6 +20,11 @@ import java.io.IOException;
  */
 public class MinAggregateProtoConverter implements AggregateProtoConverter {
 
+    /**
+     * Creates a new MinAggregateProtoConverter.
+     */
+    public MinAggregateProtoConverter() {}
+
     @Override
     public Class<? extends InternalAggregation> getHandledAggregationType() {
         return InternalMin.class;

@@ -27,6 +27,9 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
     private static final Logger logger = LogManager.getLogger(AggregationBuilderProtoConverterRegistryImpl.class);
     private final AggregationBuilderProtoConverterSpiRegistry delegate;
 
+    /**
+     * Creates a new AggregationBuilderProtoConverterRegistryImpl and registers built-in converters.
+     */
     @Inject
     public AggregationBuilderProtoConverterRegistryImpl() {
         this.delegate = new AggregationBuilderProtoConverterSpiRegistry();
@@ -34,6 +37,9 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
         registerBuiltInConverters();
     }
 
+    /**
+     * Registers all built-in aggregation converters.
+     */
     protected void registerBuiltInConverters() {
         // Register metric aggregation converters
         delegate.registerConverter(new MinAggregationBuilderProtoConverter());
@@ -51,16 +57,28 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
     /**
      * Converts protobuf to AggregationBuilder.
      * Mirrors {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators}.
+     *
+     * @param name The aggregation name
+     * @param container The protobuf container
+     * @return The OpenSearch AggregationBuilder
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {
         return delegate.fromProto(name, container);
     }
 
+    /**
+     * Registers an external aggregation converter.
+     *
+     * @param converter The converter to register
+     */
     public void registerConverter(AggregationBuilderProtoConverter converter) {
         delegate.registerConverter(converter);
     }
 
+    /**
+     * Updates the registry reference on all registered converters.
+     */
     public void updateRegistryOnAllConverters() {
         delegate.setRegistryOnAllConverters(this);
     }

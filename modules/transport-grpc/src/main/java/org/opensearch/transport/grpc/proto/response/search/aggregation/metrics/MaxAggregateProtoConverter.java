@@ -20,6 +20,11 @@ import java.io.IOException;
  */
 public class MaxAggregateProtoConverter implements AggregateProtoConverter {
 
+    /**
+     * Creates a new MaxAggregateProtoConverter.
+     */
+    public MaxAggregateProtoConverter() {}
+
     @Override
     public Class<? extends InternalAggregation> getHandledAggregationType() {
         return InternalMax.class;

@@ -23,6 +23,9 @@ public class AggregateProtoConverterRegistryImpl implements AggregateProtoConver
 
     private final AggregateProtoConverterSpiRegistry spiRegistry;
 
+    /**
+     * Creates a new AggregateProtoConverterRegistryImpl and registers built-in converters.
+     */
     public AggregateProtoConverterRegistryImpl() {
         this.spiRegistry = new AggregateProtoConverterSpiRegistry();
         registerBuiltInConverters();

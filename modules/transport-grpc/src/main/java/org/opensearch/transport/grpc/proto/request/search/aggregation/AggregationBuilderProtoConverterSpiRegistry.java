@@ -32,6 +32,11 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
     private static final Logger logger = LogManager.getLogger(AggregationBuilderProtoConverterSpiRegistry.class);
     private final Map<AggregationContainer.AggregationContainerCase, AggregationBuilderProtoConverter> converterMap = new HashMap<>();
 
+    /**
+     * Creates a new AggregationBuilderProtoConverterSpiRegistry.
+     * External converters are loaded via OpenSearch's ExtensiblePlugin mechanism
+     * and registered manually via registerConverter() calls.
+     */
     @Inject
     public AggregationBuilderProtoConverterSpiRegistry() {
         // External converters are loaded via OpenSearch's ExtensiblePlugin mechanism
@@ -41,6 +46,10 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
     /**
      * Converts protobuf to AggregationBuilder with metadata and subaggregations.
      * Mirrors {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators}.
+     *
+     * @param name The aggregation name
+     * @param container The protobuf container
+     * @return The OpenSearch AggregationBuilder
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {
@@ -98,10 +107,20 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
         return builder;
     }
 
+    /**
+     * Returns the number of registered converters.
+     *
+     * @return The converter count
+     */
     public int size() {
         return converterMap.size();
     }
 
+    /**
+     * Sets the registry on all registered converters.
+     *
+     * @param registry The registry to set
+     */
     public void setRegistryOnAllConverters(AggregationBuilderProtoConverterRegistry registry) {
         for (AggregationBuilderProtoConverter converter : converterMap.values()) {
             converter.setRegistry(registry);
@@ -109,6 +128,11 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
         logger.info("Set registry on {} aggregation converter(s)", converterMap.size());
     }
 
+    /**
+     * Registers a converter for a specific aggregation type.
+     *
+     * @param converter The converter to register
+     */
     public void registerConverter(AggregationBuilderProtoConverter converter) {
         if (converter == null) {
             throw new IllegalArgumentException("Converter cannot be null");

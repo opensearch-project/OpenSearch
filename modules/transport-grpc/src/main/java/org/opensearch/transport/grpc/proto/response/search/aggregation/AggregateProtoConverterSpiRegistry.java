@@ -30,6 +30,11 @@ public class AggregateProtoConverterSpiRegistry implements AggregateProtoConvert
     private static final Logger logger = LogManager.getLogger(AggregateProtoConverterSpiRegistry.class);
     private final Map<Class<? extends InternalAggregation>, AggregateProtoConverter> converters = new HashMap<>();
 
+    /**
+     * Creates a new AggregateProtoConverterSpiRegistry.
+     * External converters can be loaded via OpenSearch's ExtensiblePlugin mechanism
+     * and registered manually via registerConverter() calls.
+     */
     public AggregateProtoConverterSpiRegistry() {
         // External converters can be loaded via OpenSearch's ExtensiblePlugin mechanism
         // and registered manually via registerConverter() calls
