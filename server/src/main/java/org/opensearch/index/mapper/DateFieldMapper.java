@@ -36,7 +36,9 @@ import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -375,6 +377,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
+                skiplist.getValue(),
                 buildFormatter(),
                 resolution,
                 nullValue.getValue(),
@@ -411,18 +414,21 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         protected final DateMathParser dateMathParser;
         protected final Resolution resolution;
         protected final String nullValue;
+        private final boolean hasSkiplist;
 
         public DateFieldType(
             String name,
             boolean isSearchable,
             boolean isStored,
             boolean hasDocValues,
+            boolean hasSkiplist,
             DateFormatter dateTimeFormatter,
             Resolution resolution,
             String nullValue,
             Map<String, String> meta
         ) {
             super(name, isSearchable, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.hasSkiplist = hasSkiplist;
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
@@ -430,19 +436,19 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
 
         public DateFieldType(String name) {
-            this(name, true, false, true, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, false, getDefaultDateTimeFormatter(), Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, Resolution.MILLISECONDS, null, Collections.emptyMap());
+            this(name, true, false, true, false, dateFormatter, Resolution.MILLISECONDS, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution) {
-            this(name, true, false, true, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap());
+            this(name, true, false, true, false, getDefaultDateTimeFormatter(), resolution, null, Collections.emptyMap());
         }
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
-            this(name, true, false, true, dateFormatter, resolution, null, Collections.emptyMap());
+            this(name, true, false, true, false, dateFormatter, resolution, null, Collections.emptyMap());
         }
 
         @Override
@@ -664,10 +670,44 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             DateMathParser dateParser,
             QueryRewriteContext context
         ) throws IOException {
-            // if we have only doc_values enabled we do not look at the BKD so we return an INTERSECTS by default
-            if (isSearchable() == false && hasDocValues()) {
-                return Relation.INTERSECTS;
+            final long minValue, maxValue;
+            if (isSearchable()) {
+                if (PointValues.size(reader, name()) == 0) {
+                    // no points, so nothing matches
+                    return Relation.DISJOINT;
+                }
+
+                minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+                maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+            } else if (hasDocValues()) {
+                if (hasSkiplist == false) {
+                    return Relation.INTERSECTS;
+                }
+
+                long globalMin = Long.MAX_VALUE;
+                long globalMax = Long.MIN_VALUE;
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    if (ctx.reader().getFieldInfos().fieldInfo(name()) == null) {
+                        continue; // no field values in this segment, so we can ignore it
+                    }
+                    DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
+                    if (skipper == null) {
+                        // cannot be computed correctly since skipper is not enabled for some leaf
+                        return Relation.INTERSECTS;
+                    } else {
+                        globalMin = Math.min(globalMin, skipper.minValue());
+                        globalMax = Math.max(globalMax, skipper.maxValue());
+                    }
+                }
+                if (globalMin > globalMax) {
+                    return Relation.DISJOINT;
+                }
+                minValue = globalMin;
+                maxValue = globalMax;
+            } else {
+                return Relation.DISJOINT;
             }
+
             if (dateParser == null) {
                 dateParser = this.dateMathParser;
             }
@@ -693,14 +733,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                     --toInclusive;
                 }
             }
-
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;
