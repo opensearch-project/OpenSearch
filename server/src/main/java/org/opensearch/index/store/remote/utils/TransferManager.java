@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -206,7 +207,7 @@ public class TransferManager {
         @Override
         public IndexInput getIndexInput() throws IOException {
             if (isClosed.get()) {
-                throw new IllegalStateException("Already closed");
+                throw new AlreadyClosedException("Already closed");
             }
             if (isStarted.getAndSet(true) == false) {
                 // We're the first one here, need to download the block
@@ -233,7 +234,7 @@ public class TransferManager {
         public CompletableFuture<IndexInput> asyncLoadIndexInput(Executor executor) {
             if (isClosed.get()) {
                 fileCache.decRef(request.getFilePath());
-                return CompletableFuture.failedFuture(new IllegalStateException("Already closed"));
+                return CompletableFuture.failedFuture(new AlreadyClosedException("Already closed"));
             }
             if (isStarted.getAndSet(true) == false) {
                 // Create new future and set it as the result
