@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -56,8 +58,6 @@ import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
-
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.Arrays;
 import java.util.Collection;
