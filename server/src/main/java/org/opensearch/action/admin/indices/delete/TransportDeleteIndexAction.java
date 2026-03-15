@@ -40,6 +40,7 @@ import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
+import org.opensearch.action.support.indexmetadatacoordinator.TransportIndexMetadataCoordinatorAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -63,7 +64,7 @@ import java.util.Arrays;
  *
  * @opensearch.internal
  */
-public class TransportDeleteIndexAction extends TransportClusterManagerNodeAction<DeleteIndexRequest, AcknowledgedResponse>
+public class TransportDeleteIndexAction extends TransportIndexMetadataCoordinatorAction<DeleteIndexRequest, AcknowledgedResponse>
     implements
         TransportIndicesResolvingAction<DeleteIndexRequest> {
 
@@ -106,22 +107,7 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
-    protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
-        super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesAllowReleaseResources(indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    @Override
-    protected void clusterManagerOperation(
-        final DeleteIndexRequest request,
-        final ClusterState state,
-        final ActionListener<AcknowledgedResponse> listener
-    ) {
+    protected void indexMetadataCoordinatorOperation(DeleteIndexRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) throws Exception {
         Index[] concreteIndices = resolveIndices(request, state).concreteIndicesAsArray();
         if (concreteIndices.length == 0) {
             listener.onResponse(new AcknowledgedResponse(true));
@@ -148,11 +134,22 @@ public class TransportDeleteIndexAction extends TransportClusterManagerNodeActio
     }
 
     @Override
+    protected void doExecute(Task task, DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+        destructiveOperations.failDestructive(request.indices());
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
+        return state.blocks().indicesAllowReleaseResources(indexNameExpressionResolver.concreteIndexNames(state, request));
+    }
+
+    @Override
     public ResolvedIndices resolveIndices(DeleteIndexRequest request) {
         return ResolvedIndices.of(resolveIndices(request, clusterService.state()));
     }
 
-    private ResolvedIndices.Local.Concrete resolveIndices(DeleteIndexRequest request, ClusterState clusterState) {
+    public ResolvedIndices.Local.Concrete resolveIndices(DeleteIndexRequest request, ClusterState clusterState) {
         return indexNameExpressionResolver.concreteResolvedIndices(clusterState, request);
     }
 }
