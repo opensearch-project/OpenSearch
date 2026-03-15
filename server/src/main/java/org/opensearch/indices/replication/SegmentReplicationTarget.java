@@ -42,17 +42,7 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
         SegmentReplicationSource source,
         ReplicationListener listener
     ) {
-        this(indexShard, checkpoint, source, false, listener);
-    }
-
-    public SegmentReplicationTarget(
-        IndexShard indexShard,
-        ReplicationCheckpoint checkpoint,
-        SegmentReplicationSource source,
-        boolean isRetry,
-        ReplicationListener listener
-    ) {
-        super("replication_target", indexShard, checkpoint, source, isRetry, listener);
+        super("replication_target", indexShard, checkpoint, source, listener);
     }
 
     @Override
@@ -138,6 +128,6 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
 
     @Override
     public SegmentReplicationTarget retryCopy() {
-        return new SegmentReplicationTarget(indexShard, checkpoint, source, isRetry, listener);
+        return new SegmentReplicationTarget(indexShard, checkpoint, source, listener);
     }
 }
