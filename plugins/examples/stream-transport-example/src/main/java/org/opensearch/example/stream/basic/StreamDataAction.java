@@ -6,12 +6,18 @@
  * compatible open source license.
  */
 
-package org.opensearch.example.stream;
+package org.opensearch.example.stream.basic;
 
 import org.opensearch.action.ActionType;
 
-class StreamDataAction extends ActionType<StreamDataResponse> {
+/**
+ * Example class
+ */
+/** Example */
+public class StreamDataAction extends ActionType<StreamDataResponse> {
+    /** Method */
     public static final StreamDataAction INSTANCE = new StreamDataAction();
+    /** Method */
     public static final String NAME = "cluster:admin/stream_data";
 
     private StreamDataAction() {

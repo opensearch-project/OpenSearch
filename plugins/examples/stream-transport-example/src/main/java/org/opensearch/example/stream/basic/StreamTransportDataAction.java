@@ -6,57 +6,48 @@
  * compatible open source license.
  */
 
-package org.opensearch.example.stream;
+package org.opensearch.example.stream.basic;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.HandledStreamTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 
 import java.io.IOException;
 
 /**
- * Demonstrates streaming transport action that sends multiple responses for a single request
+ * Demonstrates streaming transport action that sends multiple responses for a single request.
+ *
+ * This action handles server-side streaming logic and is registered with StreamTransportService.
  */
-public class TransportStreamDataAction extends TransportAction<StreamDataRequest, StreamDataResponse> {
+public class StreamTransportDataAction extends HandledStreamTransportAction<StreamDataRequest, StreamDataResponse> {
 
-    private static final Logger logger = LogManager.getLogger(TransportStreamDataAction.class);
+    private static final Logger logger = LogManager.getLogger(StreamTransportDataAction.class);
 
     /**
-     * Constructor - registers streaming handler
+     * Constructor - registers streaming handler via parent class
      * @param streamTransportService the stream transport service
+     * @param transportService the regular transport service
      * @param actionFilters action filters
      */
     @Inject
-    public TransportStreamDataAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
-        super(StreamDataAction.NAME, actionFilters, streamTransportService.getTaskManager());
-
-        // Register handler for streaming requests
-        streamTransportService.registerRequestHandler(
-            StreamDataAction.NAME,
-            ThreadPool.Names.GENERIC,
-            StreamDataRequest::new,
-            this::handleStreamRequest
-        );
+    public StreamTransportDataAction(
+        StreamTransportService streamTransportService,
+        TransportService transportService,
+        ActionFilters actionFilters
+    ) {
+        super(StreamDataAction.NAME, transportService, streamTransportService, actionFilters, StreamDataRequest::new);
     }
 
     @Override
-    protected void doExecute(Task task, StreamDataRequest request, ActionListener<StreamDataResponse> listener) {
-        listener.onFailure(new UnsupportedOperationException("Use StreamTransportService for streaming requests"));
-    }
-
-    /**
-     * Handles streaming request by sending multiple batched responses
-     */
-    private void handleStreamRequest(StreamDataRequest request, TransportChannel channel, Task task) throws IOException {
+    protected void executeStream(Task task, StreamDataRequest request, TransportChannel channel) throws IOException {
         try {
             // Send multiple responses
             for (int i = 1; i <= request.getCount(); i++) {

@@ -12,6 +12,7 @@ dependencies {
   api project(':plugins:arrow-flight-rpc')
 }
 testingConventions.enabled = false
+missingJavadoc.enabled = false
 internalClusterTest {
   systemProperty 'io.netty.allocator.numDirectArenas', '1'
   systemProperty 'io.netty.noUnsafe', 'false'
