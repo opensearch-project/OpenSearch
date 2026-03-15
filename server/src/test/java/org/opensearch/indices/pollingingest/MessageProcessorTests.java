@@ -60,15 +60,12 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index", mock(IngestService.class));
-        // Pre-set pipeline resolution state to avoid lazy resolution calling engine.config()
-        markPipelinesResolved(processor);
-    }
-
-    private void markPipelinesResolved(MessageProcessorRunnable.MessageProcessor proc) throws Exception {
-        java.lang.reflect.Field field = MessageProcessorRunnable.MessageProcessor.class.getDeclaredField("pipelinesResolved");
-        field.setAccessible(true);
-        field.set(proc, true);
+        // No pipeline configured — executor with null finalPipeline (pre-resolved, skips lazy resolution)
+        processor = new MessageProcessorRunnable.MessageProcessor(
+            ingestionEngine,
+            "index",
+            new IngestPipelineExecutor(mock(IngestService.class), "index", null)
+        );
     }
 
     public void testGetIndexOperation() throws IOException {
@@ -294,10 +291,8 @@ public class MessageProcessorTests extends OpenSearchTestCase {
     /**
      * Creates a MessageProcessor with a mocked IngestService and index settings that have a final_pipeline configured.
      */
-    private MessageProcessorRunnable.MessageProcessor createProcessorWithPipeline(
-        IngestService ingestService,
-        String finalPipeline
-    ) throws Exception {
+    private MessageProcessorRunnable.MessageProcessor createProcessorWithPipeline(IngestService ingestService, String finalPipeline)
+        throws Exception {
         IngestionEngine engine = mock(IngestionEngine.class);
         DocumentMapperForType dmft = mock(DocumentMapperForType.class);
         DocumentMapper dm = mock(DocumentMapper.class);
@@ -308,28 +303,10 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         when(parsedDoc.rootDoc()).thenReturn(new ParseContext.Document());
         when(dm.parse(any())).thenReturn(parsedDoc);
 
-        // EngineConfig is final and cannot be mocked. Use reflection to pre-set pipeline resolution
-        // state, bypassing the lazy resolution that calls engine.config().getIndexSettings().
-        MessageProcessorRunnable.MessageProcessor proc = new MessageProcessorRunnable.MessageProcessor(
-            engine,
-            "test_index",
-            ingestService
-        );
-
-        // Use reflection to set pipeline resolution state
-        java.lang.reflect.Field resolvedFinalField = MessageProcessorRunnable.MessageProcessor.class.getDeclaredField(
-            "resolvedFinalPipeline"
-        );
-        resolvedFinalField.setAccessible(true);
-        if ("_none".equals(finalPipeline) == false) {
-            resolvedFinalField.set(proc, finalPipeline);
-        }
-
-        java.lang.reflect.Field resolvedField = MessageProcessorRunnable.MessageProcessor.class.getDeclaredField("pipelinesResolved");
-        resolvedField.setAccessible(true);
-        resolvedField.set(proc, true);
-
-        return proc;
+        // Use IngestPipelineExecutor with pre-resolved pipeline name
+        String resolvedPipeline = "_none".equals(finalPipeline) ? null : finalPipeline;
+        IngestPipelineExecutor pipelineExecutor = new IngestPipelineExecutor(ingestService, "test_index", resolvedPipeline);
+        return new MessageProcessorRunnable.MessageProcessor(engine, "test_index", pipelineExecutor);
     }
 
     /**

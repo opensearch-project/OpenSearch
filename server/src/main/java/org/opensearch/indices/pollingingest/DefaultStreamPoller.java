@@ -22,8 +22,8 @@ import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
-import org.opensearch.ingest.IngestService;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
+import org.opensearch.ingest.IngestService;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -617,7 +617,6 @@ public class DefaultStreamPoller implements StreamPoller {
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
-        @Nullable
         private IngestService ingestService;
 
         /**

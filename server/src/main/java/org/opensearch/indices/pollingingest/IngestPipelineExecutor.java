@@ -1,0 +1,190 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.indices.pollingingest;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.common.Nullable;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.ingest.IngestService;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Handles ingest pipeline resolution and execution for pull-based ingestion.
+ *
+ * <p>Resolves configured pipelines from index settings (lazy, cached) and executes them
+ * synchronously by bridging IngestService's async callback API with CompletableFuture.
+ *
+ * <p>Phase 2: Only {@code final_pipeline} is supported. {@code default_pipeline} support is planned for Phase 3.
+ */
+public class IngestPipelineExecutor {
+
+    private static final Logger logger = LogManager.getLogger(IngestPipelineExecutor.class);
+
+    // TODO: consider making this configurable via index settings if use cases with slow processors arise
+    static final long PIPELINE_EXECUTION_TIMEOUT_SECONDS = 30;
+
+    private final IngestService ingestService;
+    private final String index;
+
+    // Cached pipeline names — resolved lazily on the first document
+    private volatile String resolvedFinalPipeline;
+    private volatile boolean pipelinesResolved = false;
+
+    /**
+     * Creates an IngestPipelineExecutor for the given index.
+     *
+     * @param ingestService the ingest service for pipeline execution
+     * @param index the index name
+     */
+    public IngestPipelineExecutor(IngestService ingestService, String index) {
+        this.ingestService = Objects.requireNonNull(ingestService);
+        this.index = Objects.requireNonNull(index);
+    }
+
+    /**
+     * Visible for testing. Creates an executor with a pre-resolved pipeline name,
+     * bypassing lazy resolution from index settings.
+     *
+     * @param ingestService the ingest service
+     * @param index the index name
+     * @param finalPipeline the resolved final pipeline name, or null if no pipeline is configured
+     */
+    IngestPipelineExecutor(IngestService ingestService, String index, @Nullable String finalPipeline) {
+        this.ingestService = Objects.requireNonNull(ingestService);
+        this.index = Objects.requireNonNull(index);
+        this.resolvedFinalPipeline = finalPipeline;
+        this.pipelinesResolved = true;
+    }
+
+    /**
+     * Resolves pipeline names from index settings. Called lazily on first document and cached.
+     * Also registers a dynamic settings listener for final_pipeline updates.
+     */
+    void resolvePipelineNames(IndexSettings indexSettings) {
+        if (pipelinesResolved) {
+            return;
+        }
+        updateFinalPipeline(IndexSettings.FINAL_PIPELINE.get(indexSettings.getSettings()));
+
+        // Register dynamic settings listener for final_pipeline updates
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexSettings.FINAL_PIPELINE, this::updateFinalPipeline);
+
+        pipelinesResolved = true;
+    }
+
+    /**
+     * Updates the cached final pipeline name. Called on initial resolution and on dynamic settings change.
+     */
+    void updateFinalPipeline(String finalPipeline) {
+        if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipeline)) {
+            resolvedFinalPipeline = null;
+        } else {
+            resolvedFinalPipeline = finalPipeline;
+        }
+    }
+
+    /**
+     * Returns true if any pipelines are configured for this index.
+     */
+    public boolean hasPipelines() {
+        return resolvedFinalPipeline != null;
+    }
+
+    /**
+     * Executes final_pipeline on the source map synchronously using CompletableFuture to bridge
+     * IngestService's async callback API.
+     *
+     * @param id document ID
+     * @param sourceMap source map to transform
+     * @return the transformed source map, or null if the document was dropped by the pipeline
+     * @throws Exception if pipeline execution fails
+     */
+    public Map<String, Object> executePipelines(String id, Map<String, Object> sourceMap) throws Exception {
+        if (!hasPipelines()) {
+            return sourceMap;
+        }
+
+        // Build IndexRequest to carry the document through the pipeline
+        IndexRequest indexRequest = new IndexRequest(index);
+        indexRequest.id(id);
+        indexRequest.source(sourceMap);
+
+        // Phase 2: only final_pipeline, no default_pipeline
+        indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+        indexRequest.setFinalPipeline(resolvedFinalPipeline != null ? resolvedFinalPipeline : IngestService.NOOP_PIPELINE_NAME);
+        indexRequest.isPipelineResolved(true);
+
+        final String originalId = id;
+        final String originalRouting = indexRequest.routing();
+
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
+        AtomicBoolean dropped = new AtomicBoolean(false);
+
+        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), (slot, e) -> failureRef.set(e), (thread, e) -> {
+            if (e != null) {
+                future.completeExceptionally(e);
+            } else {
+                future.complete(null);
+            }
+        }, slot -> dropped.set(true), ThreadPool.Names.WRITE);
+
+        // Block until pipeline execution completes (with timeout)
+        try {
+            future.get(PIPELINE_EXECUTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            throw new RuntimeException("Ingest pipeline execution timed out after [" + PIPELINE_EXECUTION_TIMEOUT_SECONDS + "] seconds", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Ingest pipeline execution was interrupted", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Ingest pipeline execution failed", e.getCause());
+        }
+
+        if (failureRef.get() != null) {
+            throw failureRef.get();
+        }
+
+        if (dropped.get()) {
+            return null;
+        }
+
+        // Guardrails: verify _id and _routing have not been mutated
+        if (Objects.equals(originalId, indexRequest.id()) == false) {
+            throw new IllegalStateException(
+                "Ingest pipeline attempted to change _id from ["
+                    + originalId
+                    + "] to ["
+                    + indexRequest.id()
+                    + "]. _id mutations are not allowed in pull-based ingestion."
+            );
+        }
+        if (Objects.equals(originalRouting, indexRequest.routing()) == false) {
+            throw new IllegalStateException(
+                "Ingest pipeline attempted to change _routing. _routing mutations are not allowed in pull-based ingestion."
+            );
+        }
+
+        // _index change is already blocked by final_pipeline semantics in IngestService
+
+        return indexRequest.sourceAsMap();
+    }
+}

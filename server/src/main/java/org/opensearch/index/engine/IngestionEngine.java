@@ -64,14 +64,10 @@ public class IngestionEngine extends InternalEngine {
     private final IngestService ingestService;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
-    public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory) {
-        this(engineConfig, ingestionConsumerFactory, null);
-    }
-
     public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
-        this.ingestService = ingestService;
+        this.ingestService = Objects.requireNonNull(ingestService);
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
         registerDynamicIndexSettingsHandlers();
     }

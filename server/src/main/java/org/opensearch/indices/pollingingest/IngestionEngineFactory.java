@@ -30,7 +30,7 @@ public class IngestionEngineFactory implements EngineFactory {
 
     public IngestionEngineFactory(IngestionConsumerFactory ingestionConsumerFactory, Supplier<IngestService> ingestServiceSupplier) {
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
-        this.ingestServiceSupplier = ingestServiceSupplier;
+        this.ingestServiceSupplier = Objects.requireNonNull(ingestServiceSupplier);
     }
 
     /**
