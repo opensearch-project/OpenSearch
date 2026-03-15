@@ -72,7 +72,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     private final int shardId;
 
     /**
-     * Constructor with IngestService for pipeline support.
+     * Constructor.
      *
      * @param blockingQueue the blocking queue to poll messages from
      * @param engine        the ingestion engine
@@ -242,7 +242,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
 
                     Map<String, Object> sourceMap = (Map<String, Object>) payloadMap.get(SOURCE);
 
-                    // Execute ingest pipelines (Phase 2: final_pipeline only)
+                    // Execute ingest pipelines
                     try {
                         Map<String, Object> transformedSource = pipelineExecutor.executePipelines(id, sourceMap);
                         if (transformedSource == null) {

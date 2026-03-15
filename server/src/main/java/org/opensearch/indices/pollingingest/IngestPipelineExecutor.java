@@ -31,8 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Resolves configured pipelines from index settings (lazy, cached) and executes them
  * synchronously by bridging IngestService's async callback API with CompletableFuture.
- *
- * <p>Phase 2: Only {@code final_pipeline} is supported. {@code default_pipeline} support is planned for Phase 3.
+ * Only {@code final_pipeline} is supported.
  */
 public class IngestPipelineExecutor {
 
@@ -127,7 +126,7 @@ public class IngestPipelineExecutor {
         indexRequest.id(id);
         indexRequest.source(sourceMap);
 
-        // Phase 2: only final_pipeline, no default_pipeline
+        // No support for default_pipeline - https://github.com/opensearch-project/OpenSearch/issues/20677
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
         indexRequest.setFinalPipeline(resolvedFinalPipeline != null ? resolvedFinalPipeline : IngestService.NOOP_PIPELINE_NAME);
         indexRequest.isPipelineResolved(true);
@@ -167,7 +166,7 @@ public class IngestPipelineExecutor {
             return null;
         }
 
-        // Guardrails: verify _id and _routing have not been mutated
+        // verify _id and _routing have not been mutated
         if (Objects.equals(originalId, indexRequest.id()) == false) {
             throw new IllegalStateException(
                 "Ingest pipeline attempted to change _id from ["
