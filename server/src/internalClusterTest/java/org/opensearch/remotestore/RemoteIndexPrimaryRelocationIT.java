@@ -75,7 +75,7 @@ public class RemoteIndexPrimaryRelocationIT extends IndexPrimaryRelocationIT {
         internalCluster().startDataOnlyNode();
         final Settings settings = Settings.builder()
             .put(indexSettings())
-            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "5s")
             .build();
         createIndex("test", settings);
         ensureGreen("test");
