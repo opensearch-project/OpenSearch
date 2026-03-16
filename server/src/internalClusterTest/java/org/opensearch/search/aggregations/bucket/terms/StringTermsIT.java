@@ -34,6 +34,7 @@ package org.opensearch.search.aggregations.bucket.terms;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -59,11 +60,13 @@ import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -1084,6 +1087,40 @@ public class StringTermsIT extends BaseStringTermsTestCase {
             f2 = terms.getBucketByKey(b2.getKeyAsString()).getAggregations().get("filter");
             assertEquals(docCount1, f1.getBuckets().get(0).getDocCount());
             assertEquals(docCount2, f2.getBuckets().get(0).getDocCount());
+        }
+    }
+
+    public void testConcurrentStringAggregation() throws Exception {
+        createIndex("test_string_terms", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        try {
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
+            for (int i = 0; i < 5; i++) {
+                builders.add(client().prepareIndex("test_string_terms").setSource("value", "val" + (i + 1)));
+            }
+            indexBulkWithSegments(builders, 2);
+            indexRandomForConcurrentSearch("test_string_terms");
+            SearchResponse response = client().prepareSearch("test_string_terms")
+                .addAggregation(
+                    terms("values").executionHint(randomExecutionHint())
+                        .field("value")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                )
+                .get();
+
+            assertSearchResponse(response);
+            Terms values = response.getAggregations().get("values");
+            assertThat(values, notNullValue());
+            assertThat(values.getName(), equalTo("values"));
+            assertThat(values.getBuckets().size(), equalTo(5));
+
+            for (int i = 0; i < 5; i++) {
+                Terms.Bucket bucket = values.getBucketByKey("val" + (i + 1));
+                assertThat(bucket, notNullValue());
+                assertThat(key(bucket), equalTo("val" + (i + 1)));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+            }
+        } finally {
+            internalCluster().wipeIndices("test_string_terms");
         }
     }
 
