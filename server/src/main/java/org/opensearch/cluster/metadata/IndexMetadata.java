@@ -1069,6 +1069,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingFactor;
     private final int routingPartitionSize;
 
+    private final int numberOfVirtualShards;
     private final int numberOfShards;
     private final int numberOfReplicas;
     private final int numberOfSearchOnlyReplicas;
@@ -1168,6 +1169,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.primaryTerms = primaryTerms;
         assert primaryTerms.length == numberOfShards;
         this.state = state;
+        this.numberOfVirtualShards = INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING.get(settings);
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
         this.numberOfSearchOnlyReplicas = numberOfSearchOnlyReplicas;
@@ -1348,7 +1350,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return the number of virtual shards or -1
      */
     public int getNumberOfVirtualShards() {
-        return settings.getAsInt(SETTING_NUMBER_OF_VIRTUAL_SHARDS, -1);
+        return numberOfVirtualShards;
     }
 
     public int getNumberOfReplicas() {

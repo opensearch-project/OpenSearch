@@ -505,6 +505,12 @@ public class OperationRouting {
     }
 
     public static int generateShardId(IndexMetadata indexMetadata, @Nullable String id, @Nullable String routing) {
+        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
+        if (numVirtualShards != -1) {
+            int vShardId = VirtualShardRoutingHelper.computeVirtualShardId(indexMetadata, id, routing);
+            return VirtualShardRoutingHelper.resolvePhysicalShardId(indexMetadata, vShardId);
+        }
+
         final String effectiveRouting;
         final int partitionOffset;
 
@@ -520,13 +526,6 @@ public class OperationRouting {
         } else {
             // we would have still got 0 above but this check just saves us an unnecessary hash calculation
             partitionOffset = 0;
-        }
-
-        int numVirtualShards = indexMetadata.getNumberOfVirtualShards();
-        if (numVirtualShards != -1) {
-            final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
-            int vShardId = Math.floorMod(hash, numVirtualShards);
-            return VirtualShardRoutingHelper.resolvePhysicalShardId(indexMetadata, vShardId);
         }
 
         return calculateScaledShardId(indexMetadata, effectiveRouting, partitionOffset);
