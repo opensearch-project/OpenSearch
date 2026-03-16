@@ -449,15 +449,18 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
      * synonym_graph with custom synonym_analyzer should work even when
      * the main analyzer contains word_delimiter_graph that would normally
      * cause "cannot be used to parse synonyms" error.
+     *
+     * This test intentionally declares the dependent analyzer before the
+     * synonym analyzer to ensure the system resolves dependencies
+     * automatically without requiring a manual "order" setting.
      */
     public void testSynonymAnalyzerDependencyResolution() throws IOException {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
 
-            // Main analyzer with word_delimiter. order=2
+            // Declare dependent analyzer FIRST intentionally
             .put("index.analysis.analyzer.main_analyzer.type", "custom")
-            .put("index.analysis.analyzer.main_analyzer.order", "2")
             .put("index.analysis.analyzer.main_analyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.main_analyzer.filter", "lowercase", "test_word_delimiter", "test_synonyms")
 
@@ -465,15 +468,14 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .put("index.analysis.filter.test_word_delimiter.type", "word_delimiter_graph")
             .put("index.analysis.filter.test_word_delimiter.generate_word_parts", true)
 
-            // Custom analyzer dependency. order=1 (built before main_analyzer whose order=2)
-            .put("index.analysis.analyzer.simple_synonym_analyzer.type", "custom")
-            .put("index.analysis.analyzer.simple_synonym_analyzer.order", "1")
-            .put("index.analysis.analyzer.simple_synonym_analyzer.tokenizer", "standard")
-
-            // Synonym filter that depends on custom analyzer
+            // Synonym filter referencing another analyzer
             .put("index.analysis.filter.test_synonyms.type", "synonym_graph")
             .putList("index.analysis.filter.test_synonyms.synonyms", "laptop,notebook")
             .put("index.analysis.filter.test_synonyms.synonym_analyzer", "simple_synonym_analyzer")
+
+            // Define the synonym analyzer AFTER the main analyzer
+            .put("index.analysis.analyzer.simple_synonym_analyzer.type", "custom")
+            .put("index.analysis.analyzer.simple_synonym_analyzer.tokenizer", "standard")
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
@@ -486,5 +488,46 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
 
         assertNotNull("main_analyzer should be created", analyzers.get("main_analyzer"));
         assertNotNull("simple_synonym_analyzer should be created", analyzers.get("simple_synonym_analyzer"));
+    }
+
+    /**
+     * Verifies that circular synonym_analyzer dependencies are detected
+     * and rejected during analyzer construction.
+     */
+    public void testCircularSynonymAnalyzerDependency() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+
+            // Analyzer A depends on B
+            .put("index.analysis.analyzer.analyzer_a.type", "custom")
+            .put("index.analysis.analyzer.analyzer_a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.analyzer_a.filter", "syn_filter_a")
+
+            .put("index.analysis.filter.syn_filter_a.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_filter_a.synonyms", "foo,bar")
+            .put("index.analysis.filter.syn_filter_a.synonym_analyzer", "analyzer_b")
+
+            // Analyzer B depends on A
+            .put("index.analysis.analyzer.analyzer_b.type", "custom")
+            .put("index.analysis.analyzer.analyzer_b.tokenizer", "standard")
+            .putList("index.analysis.analyzer.analyzer_b.filter", "syn_filter_b")
+
+            .put("index.analysis.filter.syn_filter_b.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_filter_b.synonyms", "baz,qux")
+            .put("index.analysis.filter.syn_filter_b.synonym_analyzer", "analyzer_a")
+
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisModulePlugin()))
+                .getAnalysisRegistry()
+                .build(idxSettings)
+        );
+
+        assertThat(e.getMessage(), startsWith("Circular analyzer dependency"));
     }
 }
