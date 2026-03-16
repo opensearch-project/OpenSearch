@@ -253,11 +253,11 @@ public final class ThreadContext implements Writeable {
     }
 
     public StoredContext newStoredContext(boolean preserveResponseHeaders, boolean preserveTransients) {
-        return newStoredContext(preserveResponseHeaders, Collections.emptyList(), preserveTransients);
+        return newStoredContext(preserveResponseHeaders, preserveTransients, Collections.emptyList());
     }
 
     public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
-        return newStoredContext(preserveResponseHeaders, transientHeadersToClear, false);
+        return newStoredContext(preserveResponseHeaders, false, transientHeadersToClear);
     }
 
     /**
@@ -269,8 +269,8 @@ public final class ThreadContext implements Writeable {
      */
     public StoredContext newStoredContext(
         boolean preserveResponseHeaders,
-        Collection<String> transientHeadersToClear,
-        boolean preserveTransients
+        boolean preserveTransients,
+        Collection<String> transientHeadersToClear
     ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
