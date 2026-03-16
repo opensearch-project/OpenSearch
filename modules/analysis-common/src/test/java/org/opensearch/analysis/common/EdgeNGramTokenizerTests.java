@@ -98,13 +98,13 @@ public class EdgeNGramTokenizerTests extends OpenSearchTokenStreamTestCase {
                 () -> buildAnalyzers(VersionUtils.randomVersionBetween(random(), Version.V_3_0_0, Version.CURRENT), "edgeNGram")
             );
 
-            boolean found = Arrays.stream(e.getSuppressed())
-                .map(org.opensearch.ExceptionsHelper::unwrapCause)
-                .map(Throwable::getMessage)
-                .findFirst()
-                .get()
-                .contains("The [edgeNGram] tokenizer name was deprecated pre 1.0.");
-            assertTrue("expected deprecation message in suppressed causes", found);
+            assertTrue(
+                "expected deprecation message in suppressed causes",
+                Arrays.stream(e.getSuppressed())
+                    .map(org.opensearch.ExceptionsHelper::unwrapCause)
+                    .map(Throwable::getMessage)
+                    .anyMatch(msg -> msg.contains("The [edgeNGram] tokenizer name was deprecated pre 1.0."))
+            );
         }
     }
 

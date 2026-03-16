@@ -483,14 +483,13 @@ public class AnalysisRegistryTests extends OpenSearchTestCase {
                 .build(exceptionSettings);
         });
 
-        boolean found = Arrays.stream(e.getSuppressed())
-            .map(org.opensearch.ExceptionsHelper::unwrapCause)
-            .map(Throwable::getMessage)
-            .findFirst()
-            .get()
-            .contains("Cannot use token filter [exception]");
-        assertTrue(found);
-
+        assertTrue(
+            "expected token filter exception in suppressed causes",
+            Arrays.stream(e.getSuppressed())
+                .map(org.opensearch.ExceptionsHelper::unwrapCause)
+                .map(Throwable::getMessage)
+                .anyMatch(msg -> msg.contains("Cannot use token filter [exception]"))
+        );
     }
 
     public void testAggregatesAnalyzerBuildFailuresAndContinuesRegistrationLoop() {
