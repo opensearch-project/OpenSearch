@@ -399,6 +399,43 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
     }
 
     /**
+     * Test that create() method produces a valid HunspellStemFilter token stream.
+     */
+    public void testCreateProducesTokenStream() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "test-pkg")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .build();
+
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+
+        // Call create() to cover the HunspellStemFilter creation line
+        org.apache.lucene.analysis.TokenStream ts = tokenFilter.create(new org.apache.lucene.tests.analysis.CannedTokenStream());
+        assertNotNull(ts);
+    }
+
+    /**
+     * Test that traditional locale create() method also works.
+     */
+    public void testCreateWithTraditionalLocale() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .build();
+
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
+
+        org.apache.lucene.analysis.TokenStream ts = tokenFilter.create(new org.apache.lucene.tests.analysis.CannedTokenStream());
+        assertNotNull(ts);
+    }
+
+    /**
      * Test that 'language' alias works for locale parameter (backward compatibility).
      */
     public void testLanguageAliasForLocale() throws IOException {

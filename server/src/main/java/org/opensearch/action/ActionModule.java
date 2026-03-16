@@ -138,6 +138,10 @@ import org.opensearch.action.admin.indices.analyze.AnalyzeAction;
 import org.opensearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.opensearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.opensearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
+import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInfoAction;
+import org.opensearch.action.admin.indices.cache.hunspell.HunspellCacheInvalidateAction;
+import org.opensearch.action.admin.indices.cache.hunspell.TransportHunspellCacheInfoAction;
+import org.opensearch.action.admin.indices.cache.hunspell.TransportHunspellCacheInvalidateAction;
 import org.opensearch.action.admin.indices.close.CloseIndexAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.opensearch.action.admin.indices.create.AutoCreateAction;
@@ -333,6 +337,7 @@ import org.opensearch.extensions.rest.RestSendToExtensionAction;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -419,6 +424,7 @@ import org.opensearch.rest.action.admin.indices.RestGetIndicesAction;
 import org.opensearch.rest.action.admin.indices.RestGetIngestionStateAction;
 import org.opensearch.rest.action.admin.indices.RestGetMappingAction;
 import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
+import org.opensearch.rest.action.admin.indices.RestHunspellCacheInvalidateAction;
 import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
@@ -557,6 +563,7 @@ public class ActionModule extends AbstractModule {
     private final ThreadPool threadPool;
     private final ExtensionsManager extensionsManager;
     private final ResponseLimitSettings responseLimitSettings;
+    private final HunspellService hunspellService;
 
     public ActionModule(
         Settings settings,
@@ -571,7 +578,8 @@ public class ActionModule extends AbstractModule {
         UsageService usageService,
         SystemIndices systemIndices,
         IdentityService identityService,
-        ExtensionsManager extensionsManager
+        ExtensionsManager extensionsManager,
+        HunspellService hunspellService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -581,6 +589,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         this.extensionsManager = extensionsManager;
+        this.hunspellService = hunspellService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
@@ -725,6 +734,8 @@ public class ActionModule extends AbstractModule {
         actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
+        actions.register(HunspellCacheInfoAction.INSTANCE, TransportHunspellCacheInfoAction.class);
+        actions.register(HunspellCacheInvalidateAction.INSTANCE, TransportHunspellCacheInvalidateAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
@@ -1075,6 +1086,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPauseIngestionAction());
         registerHandler.accept(new RestResumeIngestionAction());
         registerHandler.accept(new RestGetIngestionStateAction());
+
+        // Hunspell cache management API
+        registerHandler.accept(new RestHunspellCacheInvalidateAction());
     }
 
     @Override
@@ -1110,6 +1124,15 @@ public class ActionModule extends AbstractModule {
         bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
 
         bind(ResponseLimitSettings.class).toInstance(responseLimitSettings);
+
+        // Bind HunspellService for TransportHunspellCacheInfoAction and TransportHunspellCacheInvalidateAction injection.
+        // HunspellService is always available since it's created by AnalysisModule during node bootstrap.
+        // The null check is a defensive guard for edge cases in testing or unusual configurations.
+        if (hunspellService != null) {
+            bind(HunspellService.class).toInstance(hunspellService);
+        } else {
+            logger.warn("HunspellService is null; hunspell cache management APIs will not be functional");
+        }
     }
 
     public ActionFilters getActionFilters() {

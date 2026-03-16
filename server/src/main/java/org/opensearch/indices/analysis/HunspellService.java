@@ -464,6 +464,54 @@ public class HunspellService {
     }
 
     /**
+     * Invalidates all cached dictionaries matching a package ID.
+     * Useful when a package is updated and all its locales need to be refreshed.
+     *
+     * <p>Matches cache keys with format "{packageId}:{locale}" (e.g., "pkg-1234:en_US")
+     *
+     * @param packageId The package ID (e.g., "pkg-1234")
+     * @return approximate count of invalidated cache entries (may be inaccurate under concurrent modifications)
+     */
+    public int invalidateDictionariesByPackage(String packageId) {
+        if (Strings.isNullOrEmpty(packageId)) {
+            logger.warn("Cannot invalidate dictionaries: packageId is null or empty");
+            return 0;
+        }
+
+        String prefix = packageId + CACHE_KEY_SEPARATOR;
+        int sizeBefore = dictionaries.size();
+        dictionaries.keySet().removeIf(key -> key.startsWith(prefix));
+        int count = sizeBefore - dictionaries.size();
+
+        if (count > 0) {
+            logger.info("Invalidated {} hunspell dictionary cache entries for package: {}", count, packageId);
+        } else {
+            logger.debug("No cached dictionaries found for package: {}", packageId);
+        }
+        return count;
+    }
+
+    /**
+     * Invalidates all cached dictionaries.
+     * Next access will reload from disk (lazy reload).
+     *
+     * <p>Note: The returned count is approximate in concurrent scenarios, as entries
+     * may be added or removed between size check and clear. This is acceptable for
+     * diagnostic purposes.
+     *
+     * @return approximate count of invalidated cache entries
+     */
+    public int invalidateAllDictionaries() {
+        int count = dictionaries.size();
+        dictionaries.clear();
+        logger.info(
+            "Invalidated all cached hunspell dictionaries; previous observed cache size was {} (may be approximate due to concurrent updates)",
+            count
+        );
+        return count;
+    }
+
+    /**
      * Force reloads a dictionary from disk by invalidating cache then loading fresh.
      *
      * @param packageId The package ID (e.g., "pkg-1234")

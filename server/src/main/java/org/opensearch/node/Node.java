@@ -182,6 +182,7 @@ import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.analysis.AnalysisModule;
+import org.opensearch.indices.analysis.HunspellService;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -199,13 +200,10 @@ import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.monitor.NodeRuntimeMetrics;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.monitor.os.OsProbe;
-import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -1038,14 +1036,6 @@ public class Node implements Closeable {
             );
             final MonitorService monitorService = new MonitorService(settings, threadPool, fsServiceProvider);
 
-            final NodeRuntimeMetrics nodeRuntimeMetrics = new NodeRuntimeMetrics(
-                metricsRegistry,
-                monitorService.jvmService(),
-                ProcessProbe.getInstance(),
-                OsProbe.getInstance()
-            );
-            resourcesToClose.add(nodeRuntimeMetrics);
-
             final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
@@ -1173,6 +1163,7 @@ public class Node implements Closeable {
                     ).toArray(SearchRequestOperationsListener[]::new)
                 );
 
+            HunspellService hunspellService = analysisModule.getHunspellService();
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -1186,7 +1177,8 @@ public class Node implements Closeable {
                 usageService,
                 systemIndices,
                 identityService,
-                extensionsManager
+                extensionsManager,
+                hunspellService
             );
             modules.add(actionModule);
 

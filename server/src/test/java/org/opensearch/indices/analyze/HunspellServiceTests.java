@@ -268,6 +268,256 @@ public class HunspellServiceTests extends OpenSearchTestCase {
         assertTrue(hunspellService.getCachedDictionaryKeys().contains("pkg-1234:en_US")); // Package-based
     }
 
+    public void testGetDictionaryFromPackageWithNullPackageId() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> hunspellService.getDictionaryFromPackage(null, "en_US")
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("packageId"));
+    }
+
+    public void testGetDictionaryFromPackageWithEmptyPackageId() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> hunspellService.getDictionaryFromPackage("", "en_US")
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("packageId"));
+    }
+
+    public void testGetDictionaryFromPackageWithNullLocale() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> hunspellService.getDictionaryFromPackage("test-pkg", null)
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("locale"));
+    }
+
+    public void testGetDictionaryFromPackageWithEmptyLocale() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> hunspellService.getDictionaryFromPackage("test-pkg", "")
+        );
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("locale"));
+    }
+
+    public void testInvalidateSingleDictionary() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        hunspellService.getDictionary("en_US");
+        assertEquals(1, hunspellService.getCachedDictionaryCount());
+
+        boolean result = hunspellService.invalidateDictionary("en_US");
+        assertTrue(result);
+        assertEquals(0, hunspellService.getCachedDictionaryCount());
+    }
+
+    public void testInvalidateNonExistentDictionary() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        boolean result = hunspellService.invalidateDictionary("nonexistent");
+        assertFalse(result);
+    }
+
+    public void testGetCachedDictionaryCount() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        assertEquals(0, hunspellService.getCachedDictionaryCount());
+
+        hunspellService.getDictionary("en_US");
+        assertEquals(1, hunspellService.getCachedDictionaryCount());
+
+        hunspellService.getDictionaryFromPackage("test-pkg", "en_US");
+        assertEquals(2, hunspellService.getCachedDictionaryCount());
+    }
+
+    public void testGetCachedDictionaryKeys() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        assertTrue(hunspellService.getCachedDictionaryKeys().isEmpty());
+
+        hunspellService.getDictionary("en_US");
+        assertTrue(hunspellService.getCachedDictionaryKeys().contains("en_US"));
+        assertFalse(HunspellService.isPackageCacheKey("en_US"));
+
+        hunspellService.getDictionaryFromPackage("test-pkg", "en_US");
+        assertTrue(hunspellService.getCachedDictionaryKeys().contains("test-pkg:en_US"));
+        assertTrue(HunspellService.isPackageCacheKey("test-pkg:en_US"));
+    }
+
+    public void testReloadDictionaryFromPackage() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        // Load initially
+        Dictionary dict1 = hunspellService.getDictionaryFromPackage("test-pkg", "en_US");
+        assertThat(dict1, notNullValue());
+
+        // Reload — should invalidate and reload
+        Dictionary dict2 = hunspellService.reloadDictionaryFromPackage("test-pkg", "en_US");
+        assertThat(dict2, notNullValue());
+
+        // Cache should still have exactly one entry for this key
+        assertEquals(1, hunspellService.getCachedDictionaryCount());
+        assertTrue(hunspellService.getCachedDictionaryKeys().contains("test-pkg:en_US"));
+    }
+
+    public void testIsPackageCacheKeyWithNull() {
+        assertFalse(HunspellService.isPackageCacheKey(null));
+    }
+
+    public void testIsPackageCacheKeyWithTraditional() {
+        assertFalse(HunspellService.isPackageCacheKey("en_US"));
+        assertFalse(HunspellService.isPackageCacheKey("fr_FR"));
+    }
+
+    public void testIsPackageCacheKeyWithPackage() {
+        assertTrue(HunspellService.isPackageCacheKey("pkg-1234:en_US"));
+        assertTrue(HunspellService.isPackageCacheKey("my-package:fr_FR"));
+    }
+
+    public void testPackageWithMissingHunspellSubdir() throws Exception {
+        Path tempDir = createTempDir();
+        // Create package dir WITHOUT hunspell subdirectory
+        Path packageDir = tempDir.resolve("config").resolve("packages").resolve("bad-pkg");
+        java.nio.file.Files.createDirectories(packageDir);
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment environment = new Environment(settings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("bad-pkg", "en_US"));
+        assertTrue(e.getMessage().contains("bad-pkg"));
+    }
+
+    public void testPackageMissingLocaleDir() throws Exception {
+        Path tempDir = createTempDir();
+        // Create package + hunspell dir but no locale subdir
+        Path hunspellDir = tempDir.resolve("config").resolve("packages").resolve("pkg-empty").resolve("hunspell");
+        java.nio.file.Files.createDirectories(hunspellDir);
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment environment = new Environment(settings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("pkg-empty", "en_US"));
+        assertTrue(e.getMessage().contains("en_US") || e.getMessage().contains("pkg-empty"));
+    }
+
+    public void testPackageMissingAffFile() throws Exception {
+        Path tempDir = createTempDir();
+        Path localeDir = tempDir.resolve("config").resolve("packages").resolve("pkg-noaff").resolve("hunspell").resolve("en_US");
+        java.nio.file.Files.createDirectories(localeDir);
+        // Only create .dic, no .aff
+        java.nio.file.Files.write(localeDir.resolve("en_US.dic"), java.util.Arrays.asList("1", "test"));
+
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment environment = new Environment(settings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("pkg-noaff", "en_US"));
+        assertTrue(e.getMessage().contains("affix") || e.getMessage().contains("pkg-noaff"));
+    }
+
+    public void testPathTraversalInPackageId() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("..", "en_US"));
+        assertNotNull(e);
+    }
+
+    public void testPathTraversalInLocale() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("test-pkg", "../en_US"));
+        assertNotNull(e);
+    }
+
+    public void testSlashInPackageId() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("foo/bar", "en_US"));
+        assertNotNull(e);
+    }
+
+    public void testBackslashInLocale() throws Exception {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(HUNSPELL_LAZY_LOAD.getKey(), true)
+            .build();
+        Environment environment = new Environment(settings, getDataPath("/indices/analyze/conf_dir"));
+        HunspellService hunspellService = new HunspellService(settings, environment, emptyMap());
+
+        Exception e = expectThrows(Exception.class, () -> hunspellService.getDictionaryFromPackage("test-pkg", "en\\US"));
+        assertNotNull(e);
+    }
+
     // Helper method to create minimal hunspell files for testing
     private void createHunspellFiles(Path directory, String locale) throws java.io.IOException {
         // Create .aff file
