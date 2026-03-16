@@ -50,6 +50,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import javax.inject.Inject;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -270,6 +271,17 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                                     + " or fallback "
                                     + distributionProject.getFallbackDistFile()
                             );
+                        }
+                        Version actualVersion = distributionProject.getExpectedDistFile().exists()
+                            ? bwcVersion.get()
+                            : distributionProject.getFallbackVersion();
+                        try {
+                            Files.writeString(
+                                new File(project.getBuildDir(), "actual-bwc-version-" + bwcVersion.get()).toPath(),
+                                actualVersion.toString()
+                            );
+                        } catch (java.io.IOException e) {
+                            throw new java.io.UncheckedIOException(e);
                         }
                     }
                 });
