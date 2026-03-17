@@ -177,7 +177,14 @@ public class Setting<T> implements ToXContentObject {
          * Mark this setting as immutable on snapshot restore
          * i.e. the setting will not be allowed to be removed or modified during restore
          */
-        UnmodifiableOnRestore
+        UnmodifiableOnRestore,
+
+        /**
+         * Mark this dynamic setting as sensitive. Sensitive settings require security admin
+         * privileges to be updated dynamically. This property can only be applied to settings
+         * that also have {@link Property#Dynamic}.
+         */
+        Sensitive
     }
 
     private final Key key;
@@ -216,6 +223,9 @@ public class Setting<T> implements ToXContentObject {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
                 throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Sensitive) && propertiesAsSet.contains(Property.Dynamic) == false) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -359,6 +369,14 @@ public class Setting<T> implements ToXContentObject {
 
     public final boolean isUnmodifiableOnRestore() {
         return properties.contains(Property.UnmodifiableOnRestore);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is sensitive, meaning it requires security admin
+     * privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public final boolean isSensitive() {
+        return properties.contains(Property.Sensitive);
     }
 
     public final boolean isInternalIndex() {
