@@ -106,7 +106,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 bwcVersion,
                 distributionProject.name,
                 distributionProject.getProjectPath(),
-                distributionProject.getDistFile(),
+                distributionProject,
                 buildBwcTaskProvider
             );
 
@@ -131,14 +131,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
-        String artifactFileName = distributionProject.getDistFile().getName();
+        String artifactFileName = distributionProject.getExpectedDistFile().getName();
         String artifactName = "opensearch";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
         int archIndex = artifactFileName.indexOf("x64");
 
+        Provider<File> artifactFileProvider = providerFactory.provider(() -> {
+            if (distributionProject.getExpectedDistFile().exists()) {
+                return distributionProject.getExpectedDistFile();
+            } else if (distributionProject.getFallbackDistFile().exists()) {
+                return distributionProject.getFallbackDistFile();
+            }
+            // File doesn't exist, validation will fail elsewhere but we must return a File here
+            return distributionProject.getExpectedDistFile();
+        });
+
         bwcProject.getConfigurations().create(distributionProject.name);
-        bwcProject.getArtifacts().add(distributionProject.name, distributionProject.getDistFile(), artifact -> {
+        bwcProject.getArtifacts().add(distributionProject.name, artifactFileProvider, artifact -> {
             artifact.setName(artifactName);
             artifact.builtBy(buildBwcTask);
             artifact.setType(suffix);
@@ -150,6 +160,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             }
             artifact.setClassifier(classifier);
         });
+    }
+
+    static Version nextPatchVersion(Version version) {
+        return new Version(version.getMajor(), version.getMinor(), version.getRevision() + 1);
     }
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
@@ -173,6 +187,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         } else { // prior to 7.0 we published only a single zip and tar archives
             projects.addAll(asList("zip", "tar"));
         }
+
+        Version fallbackVersion = nextPatchVersion(bwcVersion);
 
         return projects.stream().map(name -> {
             String baseDir = "distribution" + (name.endsWith("zip") || name.endsWith("tar") ? "/archives" : "/packages");
@@ -199,7 +215,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 extension = name.substring(4);
             }
-            return new DistributionProject(name, baseDir, bwcVersion, classifier, extension, checkoutDir);
+            return new DistributionProject(name, baseDir, bwcVersion, fallbackVersion, classifier, extension, checkoutDir);
         }).collect(Collectors.toList());
     }
 
@@ -215,7 +231,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<Version> bwcVersion,
         String projectName,
         String projectPath,
-        File projectArtifact,
+        DistributionProject distributionProject,
         TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
@@ -223,7 +239,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             @Override
             public void execute(LoggedExec c) {
                 c.getInputs().file(new File(project.getBuildDir(), "refspec"));
-                c.getOutputs().files(projectArtifact);
+                c.getOutputs().files(distributionProject.getExpectedDistFile(), distributionProject.getFallbackDistFile());
                 c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
                     String gitBranch = System.getenv("GIT_BRANCH");
                     return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
@@ -235,9 +251,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 c.doLast(new Action<Task>() {
                     @Override
                     public void execute(Task task) {
-                        if (projectArtifact.exists() == false) {
+                        if (distributionProject.getExpectedDistFile().exists() == false
+                            && distributionProject.getFallbackDistFile().exists()) {
+                            project.getLogger()
+                                .warn(
+                                    "BWC branch produced {} instead of {}. "
+                                        + "Version.java on main may need updating to include version {}.",
+                                    distributionProject.getFallbackDistFile().getName(),
+                                    distributionProject.getExpectedDistFile().getName(),
+                                    distributionProject.getFallbackVersion()
+                                );
+                        } else if (distributionProject.getExpectedDistFile().exists() == false) {
                             throw new InvalidUserDataException(
-                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
+                                "Building "
+                                    + bwcVersion.get()
+                                    + " didn't generate expected file "
+                                    + distributionProject.getExpectedDistFile()
+                                    + " or fallback "
+                                    + distributionProject.getFallbackDistFile()
                             );
                         }
                     }
@@ -251,20 +282,48 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
      * Represents an archive project (distribution/archives/*)
      * we build from a bwc Version in a cloned repository
      */
-    private static class DistributionProject {
-        private final String name;
-        private String projectPath;
-        private File distFile;
-        private File expandedDistDir;
+    static class DistributionProject {
+        final String name;
+        private final String projectPath;
+        private final File expectedDistFile;
+        private final File fallbackDistFile;
+        private final Version fallbackVersion;
+        private final File expandedDistDir;
 
-        DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
+        DistributionProject(
+            String name,
+            String baseDir,
+            Version expectedVersion,
+            Version fallbackVersion,
+            String classifier,
+            String extension,
+            File checkoutDir
+        ) {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
+            this.expectedDistFile = buildDistFile(name, baseDir, expectedVersion, classifier, extension, checkoutDir);
+            this.fallbackDistFile = buildDistFile(name, baseDir, fallbackVersion, classifier, extension, checkoutDir);
+            this.fallbackVersion = fallbackVersion;
+            if (name.endsWith("zip") || name.endsWith("tar")) {
+                this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
+            } else {
+                this.expandedDistDir = null;
+            }
+        }
+
+        private static File buildDistFile(
+            String name,
+            String baseDir,
+            Version version,
+            String classifier,
+            String extension,
+            File checkoutDir
+        ) {
             if (version.onOrAfter("1.1.0")) {
                 // Deb uses underscores (I don't know why...):
                 // https://github.com/opensearch-project/OpenSearch/blob/f6d9a86f0e2e8241fd58b7e8b6cdeaf931b5108f/distribution/packages/build.gradle#L139
                 final String separator = name.equals("deb") ? "_" : "-";
-                this.distFile = new File(
+                return new File(
                     checkoutDir,
                     baseDir
                         + "/"
@@ -278,14 +337,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                         + extension
                 );
             } else {
-                this.distFile = new File(
+                return new File(
                     checkoutDir,
                     baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
                 );
-            }
-            // we only ported this down to the 7.x branch.
-            if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
-                this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
             }
         }
 
@@ -293,8 +348,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             return projectPath;
         }
 
-        public File getDistFile() {
-            return distFile;
+        public File getExpectedDistFile() {
+            return expectedDistFile;
+        }
+
+        public File getFallbackDistFile() {
+            return fallbackDistFile;
+        }
+
+        public Version getFallbackVersion() {
+            return fallbackVersion;
         }
 
         public File getExpandedDistDirectory() {
