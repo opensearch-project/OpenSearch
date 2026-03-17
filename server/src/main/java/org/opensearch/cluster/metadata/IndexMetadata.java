@@ -264,9 +264,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
+    public static final String SETTING_NUMBER_OF_VIRTUAL_SHARDS = "index.number_of_virtual_shards";
     static final String DEFAULT_NUMBER_OF_SHARDS = "opensearch.index.default_number_of_shards";
     static final String MAX_NUMBER_OF_SHARDS = "opensearch.index.max_number_of_shards";
     public static final Setting<Integer> INDEX_NUMBER_OF_SHARDS_SETTING = buildNumberOfShardsSetting();
+    /**
+     * Settings for configuring the number of virtual shards on an index.
+     * <p>
+     * Note: Virtual Shards uses range-based mapping (e.g., {@code vShardId / (V / P)}) to route to
+     * physical shards instead of default modulo hashing. This ensures contiguous bucket mapping
+     * and safe physical shard merging operations later in the lifecycle. The number of virtual shards
+     * must be a multiple of the number of physical shards {@code (V % P == 0)}.
+     */
+    public static final Setting<Integer> INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING = Setting.intSetting(
+        SETTING_NUMBER_OF_VIRTUAL_SHARDS,
+        -1,
+        -1,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final Setting<Integer> INDEX_NUMBER_OF_REPLICAS_SETTING = Setting.intSetting(
         SETTING_NUMBER_OF_REPLICAS,
@@ -373,6 +390,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
     public static final String SETTING_INDEX_APPEND_ONLY_ENABLED = "index.append_only.enabled";
+    public static final String SETTING_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED = "index.bulk.adaptive_shard_selection.enabled";
 
     public static final String SETTING_REMOTE_SEGMENT_STORE_REPOSITORY = "index.remote_store.segment.repository";
 
@@ -423,6 +441,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Used to specify if the bulk should use adaptive shard selection to select one shard.
+     */
+    public static final Setting<Boolean> INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED = Setting.boolSetting(
+        SETTING_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
     );
 
     /**
@@ -993,6 +1021,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Prefix setting for mapper-specific options. These settings are passed to the configured mapper type.
+     * For example, the {@code field_mapping} mapper type uses {@code id_field}, {@code version_field},
+     * and {@code op_type_field} settings.
+     */
+    public static final Setting.AffixSetting<Object> INGESTION_SOURCE_MAPPER_SETTINGS = Setting.prefixKeySetting(
+        "index.ingestion_source.mapper_settings.",
+        key -> new Setting<>(key, "", (value) -> {
+            return value;
+        }, Property.IndexScope, Property.Final)
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -1076,6 +1116,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int indexTotalRemoteCapableShardsPerNodeLimit;
     private final int indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
     private final boolean isAppendOnlyIndex;
+    private final boolean bulkAdaptiveShardSelectionEnabled;
 
     private final Context context;
     private final IngestionStatus ingestionStatus;
@@ -1154,6 +1195,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.indexTotalRemoteCapableShardsPerNodeLimit = indexTotalRemoteCapableShardsPerNodeLimit;
         this.indexTotalRemoteCapablePrimaryShardsPerNodeLimit = indexTotalRemoteCapablePrimaryShardsPerNodeLimit;
         this.isAppendOnlyIndex = isAppendOnlyIndex;
+        this.bulkAdaptiveShardSelectionEnabled = INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED.get(settings);
+        if (isAppendOnlyIndex == false && bulkAdaptiveShardSelectionEnabled) {
+            throw new IllegalArgumentException(
+                "index ["
+                    + index.getName()
+                    + "] is not append-only index, "
+                    + "bulk adaptive shard selection is enabled, "
+                    + "which is not supported. Please disable bulk adaptive shard selection or set index to append-only index."
+            );
+        }
         this.context = context;
         this.ingestionStatus = ingestionStatus;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
@@ -1239,6 +1290,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean allActiveIngestionEnabled = INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING.get(settings);
             final TimeValue pointerBasedLagUpdateInterval = INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING.get(settings);
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
+            final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
@@ -1250,6 +1302,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setAllActiveIngestion(allActiveIngestionEnabled)
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
+                .setMapperSettings(mapperSettings)
                 .build();
         }
         return null;
@@ -1286,6 +1339,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public int getNumberOfShards() {
         return numberOfShards;
+    }
+
+    /**
+     * Returns the number of virtual shards for this index.
+     * Returns -1 if virtual shards are disabled.
+     *
+     * @return the number of virtual shards or -1
+     */
+    public int getNumberOfVirtualShards() {
+        return settings.getAsInt(SETTING_NUMBER_OF_VIRTUAL_SHARDS, -1);
     }
 
     public int getNumberOfReplicas() {
@@ -1385,6 +1448,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public boolean isAppendOnlyIndex() {
         return this.isAppendOnlyIndex;
+    }
+
+    public boolean bulkAdaptiveShardSelectionEnabled() {
+        return this.bulkAdaptiveShardSelectionEnabled;
     }
 
     @Nullable
@@ -2148,6 +2215,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         + index
                         + "]"
                 );
+            }
+
+            final int numberOfVirtualShards = INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING.get(settings);
+            if (numberOfVirtualShards != -1) {
+                if (numberOfVirtualShards < numberOfShards) {
+                    throw new IllegalArgumentException(
+                        "number of virtual shards ["
+                            + numberOfVirtualShards
+                            + "] must be >= number of shards ["
+                            + numberOfShards
+                            + "] for ["
+                            + index
+                            + "]"
+                    );
+                }
+                if (numberOfVirtualShards % numberOfShards != 0) {
+                    throw new IllegalArgumentException(
+                        "number of virtual shards ["
+                            + numberOfVirtualShards
+                            + "] must be a multiple of number of shards ["
+                            + numberOfShards
+                            + "] for ["
+                            + index
+                            + "]"
+                    );
+                }
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable

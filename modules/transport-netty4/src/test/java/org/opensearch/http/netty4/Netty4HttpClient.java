@@ -506,6 +506,7 @@ public class Netty4HttpClient implements Closeable {
 
             final ChannelHandler quicClientCodec = Http3.newQuicClientCodecBuilder()
                 .sslContext(context)
+                .maxIdleTimeout(60, TimeUnit.SECONDS)
                 .initialMaxData(SETTING_HTTP_MAX_CONTENT_LENGTH.get(Settings.EMPTY).getBytes())
                 .initialMaxStreamDataBidirectionalLocal(SETTING_H3_MAX_STREAM_LOCAL_LENGTH.get(Settings.EMPTY).getBytes())
                 .initialMaxStreamDataBidirectionalRemote(SETTING_H3_MAX_STREAM_REMOTE_LENGTH.get(Settings.EMPTY).getBytes())
@@ -518,6 +519,7 @@ public class Netty4HttpClient implements Closeable {
         @Override
         Channel prepare(Bootstrap clientBootstrap, Channel channel) throws InterruptedException {
             final QuicChannel quicChannel = QuicChannel.newBootstrap(channel)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000) // 30 seconds
                 .handler(new Http3ClientConnectionHandler())
                 .remoteAddress(channel.remoteAddress())
                 .connect()

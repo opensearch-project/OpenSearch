@@ -150,6 +150,7 @@ public abstract class RemoteClusterAware {
             SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
             SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+            SniffConnectionStrategy.REMOTE_CLUSTER_EXPECTED_NAME,
             ProxyConnectionStrategy.PROXY_ADDRESS,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME

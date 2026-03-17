@@ -38,7 +38,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentContraints;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -182,7 +182,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_DEPTH + 1)
+                    .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_DEPTH + 1)
                     .build()
             )
         );
@@ -402,7 +402,7 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             () -> createIndex(
                 "test1",
                 Settings.builder()
-                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentContraints.DEFAULT_MAX_NAME_LEN + 1)
+                    .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), XContentConstraints.DEFAULT_MAX_NAME_LEN + 1)
                     .build()
             )
         );

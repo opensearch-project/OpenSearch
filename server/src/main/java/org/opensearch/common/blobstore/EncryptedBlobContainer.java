@@ -247,4 +247,23 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
         );
         blobContainer.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder, encryptedMetadataListener);
     }
+
+    @Override
+    public List<BlobMetadata> listBlobsByPrefixInSortedOrder(String blobNamePrefix, int limit, BlobNameSortOrder blobNameSortOrder)
+        throws IOException {
+        List<BlobMetadata> blobsList = blobContainer.listBlobsByPrefixInSortedOrder(blobNamePrefix, limit, blobNameSortOrder);
+        if (blobsList == null) {
+            return null;
+        }
+
+        return blobsList.stream()
+            .map(
+                blobMetadata -> new EncryptedBlobMetadata<>(
+                    blobMetadata,
+                    cryptoHandler,
+                    getEncryptedHeaderContentSupplier(blobMetadata.name())
+                )
+            )
+            .collect(Collectors.toList());
+    }
 }

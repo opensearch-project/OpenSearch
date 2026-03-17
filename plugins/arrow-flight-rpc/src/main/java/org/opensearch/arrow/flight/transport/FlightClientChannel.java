@@ -149,6 +149,11 @@ class FlightClientChannel implements TcpChannel {
         isClosed = true;
         closeFuture.complete(null);
         notifyListeners(closeListeners, closeFuture);
+        try {
+            client.close();
+        } catch (Exception e) {
+            logger.warn("Failed to close FlightClient for node [" + node.getId() + "]", e);
+        }
     }
 
     @Override

@@ -106,6 +106,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
+                IndexMetadata.INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING,
                 IndexMetadata.INDEX_READ_ONLY_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_SETTING,
                 IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
@@ -118,6 +119,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
+                IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -293,6 +295,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
