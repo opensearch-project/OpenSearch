@@ -62,6 +62,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
@@ -427,7 +428,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
-    private final CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier;
+    private final CheckedTriFunction<ShardPath, MapperService, IndexSettings, DataFormatRegistry, IOException>
+        dataFormatRegistrySupplier;
 
     @Override
     protected void doStart() {
@@ -613,9 +615,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
-        this.dataFormatRegistrySupplier = (shardPath) -> new DataFormatRegistry(
+        this.dataFormatRegistrySupplier = (shardPath, mapperService, indexSettings) -> new DataFormatRegistry(
             pluginsService.filterPlugins(SearchAnalyticsBackEndPlugin.class),
-            shardPath
+            shardPath,
+            mapperService,
+            indexSettings
         );
     }
 

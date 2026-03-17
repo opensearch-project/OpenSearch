@@ -10,7 +10,6 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.IndexFilterTree;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.search.SearchExecutionContext;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -31,25 +30,17 @@ public class DatafusionContext implements SearchExecutionContext {
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final DatafusionSearcher engineSearcher;
-    private final CatalogSnapshot catalogSnapshot;
     private DatafusionQuery datafusionQuery;
     private IndexFilterTree filterTree;
 
     public DatafusionContext(
-        CatalogSnapshot catalogSnapshot,
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
-        DatafusionReaderManager readerManager
+        DatafusionReader reader
     ) throws IOException {
-        this.catalogSnapshot = catalogSnapshot;
         this.request = request;
         this.shardTarget = shardTarget;
-        this.engineSearcher = new DatafusionSearcher(readerManager.getReader(catalogSnapshot).getReaderPtr());
-    }
-
-    @Override
-    public CatalogSnapshot catalogSnapshot() {
-        return catalogSnapshot;
+        this.engineSearcher = new DatafusionSearcher(reader.getReaderPtr());
     }
 
     @Override

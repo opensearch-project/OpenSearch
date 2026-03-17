@@ -47,6 +47,7 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -210,7 +211,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
     private final IndexStorePlugin.StoreFactory storeFactory;
-    private final CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier;
+    private final CheckedTriFunction<ShardPath, MapperService, IndexSettings, DataFormatRegistry, IOException>
+        dataFormatRegistrySupplier;
 
     @InternalApi
     public IndexService(
@@ -258,7 +260,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
-        CheckedFunction<ShardPath, DataFormatRegistry, IOException> dataFormatRegistrySupplier
+        CheckedTriFunction<ShardPath, MapperService, IndexSettings, DataFormatRegistry, IOException> dataFormatRegistrySupplier
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -780,7 +782,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directoryFactory
             );
             eventListener.onStoreCreated(shardId);
-            DataFormatRegistry dataFormatRegistry = dataFormatRegistrySupplier.apply(path);
+            DataFormatRegistry dataFormatRegistry = dataFormatRegistrySupplier != null
+                ? dataFormatRegistrySupplier.apply(path, mapperService, this.indexSettings)
+                : null;
             indexShard = new IndexShard(
                 routing,
                 this.indexSettings,

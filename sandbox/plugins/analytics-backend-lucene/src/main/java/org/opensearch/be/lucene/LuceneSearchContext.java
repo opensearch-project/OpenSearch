@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.search.SearchExecutionContext;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchRequest;
@@ -31,7 +30,6 @@ import java.io.IOException;
 @ExperimentalApi
 public class LuceneSearchContext implements SearchExecutionContext {
 
-    CatalogSnapshot catalogSnapshot;
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
 
@@ -44,14 +42,12 @@ public class LuceneSearchContext implements SearchExecutionContext {
     private int[] segmentMaxDocs;
 
     public LuceneSearchContext(
-        CatalogSnapshot catalogSnapshot,
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
-        LuceneReaderManager readerManager
+        DirectoryReader reader
     ) throws IOException {
-        this.catalogSnapshot = catalogSnapshot;
-        reader = readerManager.getReader(catalogSnapshot);
-        IndexSearcher indexSearcher = new IndexSearcher(reader);// TODO : check if this is right
+        this.reader = reader;
+        IndexSearcher indexSearcher = new IndexSearcher(reader);
         searcher = new LuceneEngineSearcher(indexSearcher, reader);
         this.request = request;
         this.shardTarget = shardTarget;
@@ -59,6 +55,10 @@ public class LuceneSearchContext implements SearchExecutionContext {
 
     public Query getQuery() {
         return query;
+    }
+
+    public DirectoryReader getReader() {
+        return reader;
     }
 
     public void setQuery(Query query) {
@@ -87,11 +87,6 @@ public class LuceneSearchContext implements SearchExecutionContext {
 
     public void setSegmentMaxDocs(int[] segmentMaxDocs) {
         this.segmentMaxDocs = segmentMaxDocs;
-    }
-
-    @Override
-    public CatalogSnapshot catalogSnapshot() {
-        return null;
     }
 
     @Override

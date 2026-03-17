@@ -6,22 +6,19 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.Closeable;
 
 /**
- * Engine-agnostic search execution context.
+ * Context for a source provider execution.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SearchExecutionContext extends Closeable {
+public interface SourceContext extends Closeable {
 
-    ShardSearchRequest request();
-
-    SearchShardTarget shardTarget();
+    Object query();
 }

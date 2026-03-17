@@ -13,7 +13,9 @@ import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.SearchExecEngine;
+import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexFilterProvider;
+import org.opensearch.index.engine.exec.SourceProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
 
@@ -21,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Plugin providing the Lucene-based search execution engine.
+ * Plugin providing Lucene as an index filter or source provider.
  *
  * @opensearch.experimental
  */
@@ -44,9 +46,18 @@ public class LuceneSearchEnginePlugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public SearchExecEngine<?, ?> create(ShardPath shardPath, DataFormat dataFormat) throws IOException {
-        // TODO: obtain ReferenceManager from the shard's InternalEngine
-        throw new UnsupportedOperationException("Lucene engine creation not yet wired to shard lifecycle");
+    public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneReaderManager(format);
+    }
+
+    @Override
+    public IndexFilterProvider<?, ?> createIndexFilterProvider(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneIndexFilterProvider();
+    }
+
+    @Override
+    public SourceProvider<?, ?> createSourceProvider(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneSourceProvider();
     }
 
     @Override

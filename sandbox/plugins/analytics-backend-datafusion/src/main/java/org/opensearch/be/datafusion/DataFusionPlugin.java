@@ -22,6 +22,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
@@ -112,11 +113,16 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public SearchExecEngine<?, ?> create(ShardPath shardPath, DataFormat dataFormat) throws IOException {
+    public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
+        return new DatafusionReaderManager(format, shardPath);
+    }
+
+    @Override
+    public SearchExecEngine<?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionPlugin.createComponents() has not been called yet");
         }
-        return new DatafusionSearchExecEngine(dataFusionService.getRuntimePointer(), dataFormat, shardPath);
+        return new DatafusionSearchExecEngine(dataFusionService.getRuntimePointer(), format);
     }
 
     /**

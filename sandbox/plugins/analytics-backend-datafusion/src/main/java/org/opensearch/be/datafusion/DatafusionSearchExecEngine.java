@@ -12,10 +12,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
-import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.SearchExecEngine;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchRequest;
 
@@ -25,24 +22,19 @@ import java.util.Collections;
 import java.util.Iterator;
 
 /**
- * DataFusion-backed {@link SearchExecEngine}.
- * Plan type is {@code byte[]} (substrait bytes).
+ * DataFusion-backed search execution engine.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionContext, byte[]> {
 
-    private final DatafusionReaderManager readerManager;
     private final long runtimePtr;
-    private long nextContextId;
 
-    public DatafusionSearchExecEngine(long runtimePtr, DataFormat dataFormat, ShardPath shardPath) {
-        readerManager = new DatafusionReaderManager(dataFormat, shardPath);
+    public DatafusionSearchExecEngine(long runtimePtr, DataFormat dataFormat) {
         this.runtimePtr = runtimePtr;
     }
 
-    // TODO : figure out stream return type similar to engine bridge
     @Override
     public void execute(DatafusionContext context) throws IOException {
         DatafusionSearcher searcher = context.getEngineSearcher();
@@ -56,17 +48,17 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionCo
 
     @Override
     public DatafusionContext createContext(
-        CatalogSnapshot snapshot,
+        Object reader,
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
         SearchShardTask task
     ) throws IOException {
-        return new DatafusionContext(snapshot, request, shardTarget, readerManager);
+        DatafusionReader dfReader = (DatafusionReader) reader;
+        return new DatafusionContext(request, shardTarget, dfReader);
     }
 
     @Override
     public byte[] convertFragment(Object fragment) {
-        // TODO: SubstraitConverter.toBytes((RelNode) fragment)
         throw new UnsupportedOperationException("Substrait conversion not yet wired");
     }
 
@@ -75,16 +67,9 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionCo
         try {
             context.setDatafusionQuery(new DatafusionQuery("", plan));
             execute(context);
-            // TODO results
             return Collections.emptyIterator();
-            // return results == null ? Collections.emptyIterator() : Collections.singleton(results).iterator();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    @Override
-    public EngineReaderManager<?> getReaderManager() {
-        return readerManager;
     }
 }

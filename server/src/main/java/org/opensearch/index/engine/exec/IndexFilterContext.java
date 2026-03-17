@@ -6,22 +6,20 @@
  * compatible open source license.
  */
 
-package org.opensearch.search;
+package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.Closeable;
+import java.io.IOException;
 
 /**
- * Engine-agnostic search execution context.
- *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SearchExecutionContext extends Closeable {
+public interface IndexFilterContext extends Closeable {
 
-    ShardSearchRequest request();
+    int segmentCount();
 
-    SearchShardTarget shardTarget();
+    int segmentMaxDoc(int segmentOrd);
 }

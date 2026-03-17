@@ -40,8 +40,16 @@ public interface SearchExecEngine<C extends SearchExecutionContext, T> extends C
         }
     }
 
-    C createContext(CatalogSnapshot snapshot, ShardSearchRequest request, SearchShardTarget shardTarget, SearchShardTask task)
-        throws IOException;
+    /**
+     * Create a search context. The reader is provided by {@link org.opensearch.index.engine.CompositeEngine}
+     * which owns all reader managers.
+     */
+    C createContext(
+        Object reader,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        SearchShardTask task
+    ) throws IOException;
 
     default T convertFragment(Object fragment) {
         throw new UnsupportedOperationException("convertFragment not supported by " + getClass().getSimpleName());
@@ -53,6 +61,4 @@ public interface SearchExecEngine<C extends SearchExecutionContext, T> extends C
 
     @Override
     default void close() throws IOException {}
-
-    EngineReaderManager<?> getReaderManager();
 }
