@@ -42,7 +42,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private static final Logger logger = LogManager.getLogger(ParquetWriter.class);
 
     private final String file;
-    private final Schema schema;
     private final VSRManager vsrManager;
     private final long writerGeneration;
 
@@ -56,7 +55,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         boolean reverseSort
     ) {
         this.file = file;
-        this.schema = schema;
         this.vsrManager = new VSRManager(file, indexSettings.getIndex().getName(), schema, arrowBufferPool, sortColumn, reverseSort);
         this.writerGeneration = writerGeneration;
     }

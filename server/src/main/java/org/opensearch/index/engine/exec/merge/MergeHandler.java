@@ -15,7 +15,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.exec.DataFormat;
-import org.opensearch.index.engine.exec.MergeInput;
 import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
@@ -27,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
@@ -63,16 +61,11 @@ public abstract class MergeHandler {
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
         this.compositeEngine = compositeEngine;
         dataFormatMergerMap = new HashMap<>();
-        sortKey =
-            compositeEngine.getEngineConfig().getIndexSort() != null &&
-            compositeEngine.getEngineConfig().getIndexSort().getSort().length > 0 &&
-            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().isPresent()
-                ? Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().get().getField()
-                  : null;
-        reverseSort = compositeEngine.getEngineConfig().getIndexSort() != null &&
-            compositeEngine.getEngineConfig().getIndexSort().getSort().length > 0 &&
-            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().isPresent() &&
-            Arrays.stream(compositeEngine.getEngineConfig().getIndexSort().getSort()).findFirst().get().getReverse();
+        org.apache.lucene.search.SortField[] sortFields = compositeEngine.getEngineConfig().getIndexSort() != null
+            ? compositeEngine.getEngineConfig().getIndexSort().getSort()
+            : null;
+        sortKey = (sortFields != null && sortFields.length > 0) ? sortFields[0].getField() : null;
+        reverseSort = (sortFields != null && sortFields.length > 0) && sortFields[0].getReverse();
 
         compositeIndexingExecutionEngine.getDelegates().forEach(engine -> {
             try {

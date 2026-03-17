@@ -8,10 +8,9 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.index.engine.exec.merge.MergeInput;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowIdMapping;
-
-import java.util.List;
 
 public interface Merger {
     /**

@@ -59,16 +59,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
         List<DataFormat> dataFormats = new ArrayList<>();
 
-        String sortKey = engineConfig.getIndexSort() != null
-            && engineConfig.getIndexSort().getSort().length > 0
-            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().isPresent()
-                ? Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().get().getField()
+        org.apache.lucene.search.SortField[] sortFields = engineConfig.getIndexSort() != null
+                ? engineConfig.getIndexSort().getSort()
                 : null;
-
-        boolean reverseSort = engineConfig.getIndexSort() != null
-            && engineConfig.getIndexSort().getSort().length > 0
-            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().isPresent()
-            && Arrays.stream(engineConfig.getIndexSort().getSort()).findFirst().get().getReverse();
+        String sortKey = (sortFields != null && sortFields.length > 0) ? sortFields[0].getField() : null;
+        boolean reverseSort = (sortFields != null && sortFields.length > 0) && sortFields[0].getReverse();
 
         try {
             DataSourcePlugin plugin = pluginsService.filterPlugins(DataSourcePlugin.class)

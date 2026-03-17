@@ -9,7 +9,7 @@
 package com.parquet.parquetdataformat.merge;
 
 
-import org.opensearch.index.engine.exec.MergeInput;
+import org.opensearch.index.engine.exec.merge.MergeInput;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 
 /**

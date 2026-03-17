@@ -8,7 +8,7 @@
 
 package com.parquet.parquetdataformat.merge;
 
-import org.opensearch.index.engine.exec.MergeInput;
+import org.opensearch.index.engine.exec.merge.MergeInput;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 /**
  * Executes Parquet merge operations using a chosen compaction strategy.

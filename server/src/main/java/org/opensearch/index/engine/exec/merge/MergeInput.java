@@ -6,20 +6,17 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.engine.exec;
+package org.opensearch.index.engine.exec.merge;
 
+import org.opensearch.index.engine.exec.WriterFileSet;
 import java.util.List;
 
 public class MergeInput {
-    private List<WriterFileSet> fileMetadataList;
-    private long writerGeneration;
-    private String sortingField;
-    private boolean reverseSort;
-    private String indexName;
-
-    public MergeInput(List<WriterFileSet> fileMetadataList, long writerGeneration, String sortingField, boolean reverseSort) {
-        this(fileMetadataList, writerGeneration, sortingField, reverseSort, null);
-    }
+    private final List<WriterFileSet> fileMetadataList;
+    private final long writerGeneration;
+    private final String sortingField;
+    private final boolean reverseSort;
+    private final String indexName;
 
     public MergeInput(List<WriterFileSet> fileMetadataList, long writerGeneration, String sortingField, boolean reverseSort, String indexName) {
         this.fileMetadataList = fileMetadataList;

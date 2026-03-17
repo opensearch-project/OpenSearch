@@ -19,7 +19,6 @@ public class NativeParquetWriter implements Closeable {
 
     private final AtomicBoolean writerClosed = new AtomicBoolean(false);
     private final String filePath;
-    private final String indexName;
 
     /**
      * Creates a new native Parquet writer.
@@ -32,7 +31,6 @@ public class NativeParquetWriter implements Closeable {
      */
     public NativeParquetWriter(String filePath, String indexName, long schemaAddress, String sortColumn, boolean reverseSort) throws IOException {
         this.filePath = filePath;
-        this.indexName = indexName;
         RustBridge.createWriter(filePath, indexName, schemaAddress, sortColumn, reverseSort);
     }
 

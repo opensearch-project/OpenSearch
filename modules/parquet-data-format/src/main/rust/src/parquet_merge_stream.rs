@@ -315,7 +315,7 @@ impl std::fmt::Display for MergeError {
     }
 }
 
-impl std::error::Error for MergeError {}
+impl Error for MergeError {}
 
 impl From<arrow::error::ArrowError> for MergeError {
     fn from(e: arrow::error::ArrowError) -> Self {
