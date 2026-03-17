@@ -666,6 +666,262 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
         });
     }
 
+    // --- Field Mapping + Pipeline Combined Tests (End-to-End) ---
+
+    /**
+     * End-to-end: field_mapping extracts _id from raw message, pipeline renames a field.
+     * Raw Kafka → field_mapping (user_id → _id) → rename pipeline (name → full_name) → Lucene.
+     */
+    public void testFieldMappingWithRenamePipeline() throws Exception {
+        createPipeline("rename_pipeline", "{\"processors\": [{\"rename\": {\"field\": \"name\", \"target_field\": \"full_name\"}}]}");
+
+        produceData("{\"user_id\": \"u1\", \"name\": \"alice\", \"age\": 30}");
+        produceData("{\"user_id\": \"u2\", \"name\": \"bob\", \"age\": 25}");
+
+        createFieldMappingIndexWithPipeline("rename_pipeline", "user_id", null, null, null, null);
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "u1")).get();
+            if (response.getHits().getTotalHits().value() < 1) return false;
+            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+            return "alice".equals(source.get("full_name")) && !source.containsKey("name") && !source.containsKey("user_id");
+        });
+    }
+
+    /**
+     * End-to-end: field_mapping extracts _id + _version, pipeline adds enrichment field.
+     * Tests that external versioning from field_mapping works alongside pipeline transforms.
+     */
+    public void testFieldMappingWithVersionAndPipeline() throws Exception {
+        createPipeline("enrich_pipeline", "{\"processors\": [{\"set\": {\"field\": \"source\", \"value\": \"kafka\"}}]}");
+
+        // Produce out-of-order versions — v200 first, then v100
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v2\", \"age\": 31, \"ts\": 200}");
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice_v1\", \"age\": 30, \"ts\": 100}");
+
+        createFieldMappingIndexWithPipeline("enrich_pipeline", "user_id", "ts", null, null, null);
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "abc")).get();
+            if (response.getHits().getTotalHits().value() != 1) return false;
+            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+            // v2 should win (higher version), pipeline should have added "source" field
+            return "alice_v2".equals(source.get("name"))
+                && "kafka".equals(source.get("source"))
+                && !source.containsKey("user_id")
+                && !source.containsKey("ts");
+        });
+    }
+
+    /**
+     * End-to-end: field_mapping extracts _id + op_type, pipeline transforms source,
+     * delete operation should NOT run through pipeline.
+     */
+    public void testFieldMappingDeleteWithPipeline() throws Exception {
+        createPipeline("add_tag_pipeline", "{\"processors\": [{\"set\": {\"field\": \"tag\", \"value\": \"processed\"}}]}");
+
+        // Index a document, then delete it using field_mapping op_type
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"is_deleted\": \"false\"}");
+
+        createFieldMappingIndexWithPipeline("add_tag_pipeline", "user_id", null, "is_deleted", "true", null);
+
+        // Wait for document to be indexed with pipeline tag
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "abc")).get();
+            if (response.getHits().getTotalHits().value() < 1) return false;
+            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+            return "processed".equals(source.get("tag"));
+        });
+
+        // Now delete the document
+        produceData("{\"user_id\": \"abc\", \"name\": \"alice\", \"age\": 30, \"is_deleted\": \"true\"}");
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "abc")).get();
+            return response.getHits().getTotalHits().value() == 0;
+        });
+    }
+
+    /**
+     * End-to-end: field_mapping with all settings (id + version + op_type + create_value)
+     * combined with a multi-processor pipeline (rename + set + remove).
+     * Simulates a realistic Uber-style transformation pipeline.
+     */
+    public void testFieldMappingFullConfigWithMultiProcessorPipeline() throws Exception {
+        createPipeline(
+            "uber_pipeline",
+            "{\"processors\": ["
+                + "{\"rename\": {\"field\": \"name\", \"target_field\": \"full_name\"}},"
+                + "{\"set\": {\"field\": \"ingestion_source\", \"value\": \"pull_based\"}},"
+                + "{\"remove\": {\"field\": \"internal_flags\", \"ignore_missing\": true}}"
+                + "]}"
+        );
+
+        // INSERT (create) a document
+        produceData(
+            "{\"user_id\": \"u1\", \"name\": \"alice\", \"age\": 30, \"ts\": 100, "
+                + "\"action\": \"INSERT\", \"internal_flags\": \"debug\"}"
+        );
+        // UPDATE (index) a document
+        produceData("{\"user_id\": \"u2\", \"name\": \"bob\", \"age\": 25, \"ts\": 200, \"action\": \"UPDATE\"}");
+
+        createFieldMappingIndexWithPipeline("uber_pipeline", "user_id", "ts", "action", "DELETE", "INSERT");
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).get();
+            if (response.getHits().getTotalHits().value() != 2) return false;
+
+            Map<String, Map<String, Object>> docs = new java.util.HashMap<>();
+            response.getHits().forEach(hit -> docs.put(hit.getId(), hit.getSourceAsMap()));
+
+            if (!docs.containsKey("u1") || !docs.containsKey("u2")) return false;
+
+            Map<String, Object> alice = docs.get("u1");
+            Map<String, Object> bob = docs.get("u2");
+
+            // Both: renamed name→full_name, added ingestion_source, removed internal_flags
+            // field_mapping: user_id/ts/action removed from _source
+            return "alice".equals(alice.get("full_name"))
+                && !alice.containsKey("name")
+                && "pull_based".equals(alice.get("ingestion_source"))
+                && !alice.containsKey("internal_flags")
+                && !alice.containsKey("user_id")
+                && !alice.containsKey("ts")
+                && !alice.containsKey("action")
+                && "bob".equals(bob.get("full_name"))
+                && "pull_based".equals(bob.get("ingestion_source"));
+        });
+    }
+
+    /**
+     * End-to-end: field_mapping + script processor for complex transformation.
+     * Simulates STRING_TO_JSON + nested field extraction from raw Kafka messages.
+     */
+    public void testFieldMappingWithScriptTransformation() throws Exception {
+        createPipeline(
+            "script_pipeline",
+            "{\"processors\": [{\"script\": {\"source\": "
+                + "\"ctx.city = ctx.address.city; ctx.zip = ctx.address.zip; ctx.remove('address')\"}}]}"
+        );
+
+        produceData("{\"user_id\": \"u1\", \"name\": \"alice\", \"address\": {\"city\": \"New York\", \"zip\": \"10001\"}}");
+
+        createFieldMappingIndexWithPipeline("script_pipeline", "user_id", null, null, null, null);
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "u1")).get();
+            if (response.getHits().getTotalHits().value() < 1) return false;
+            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
+            return "alice".equals(source.get("name"))
+                && "New York".equals(source.get("city"))
+                && "10001".equals(source.get("zip"))
+                && !source.containsKey("address")
+                && !source.containsKey("user_id");
+        });
+    }
+
+    /**
+     * End-to-end: field_mapping + drop processor.
+     * Pipeline drops all documents — verifies no documents are indexed even with field_mapping.
+     */
+    public void testFieldMappingWithDropPipeline() throws Exception {
+        createPipeline("drop_all_pipeline", "{\"processors\": [{\"drop\": {}}]}");
+
+        produceData("{\"user_id\": \"u1\", \"name\": \"alice\", \"age\": 30}");
+        produceData("{\"user_id\": \"u2\", \"name\": \"bob\", \"age\": 25}");
+
+        createFieldMappingIndexWithPipeline("drop_all_pipeline", "user_id", null, null, null, null);
+
+        Thread.sleep(5000);
+        refresh(indexName);
+        SearchResponse response = client().prepareSearch(indexName).get();
+        assertThat(response.getHits().getTotalHits().value(), is(0L));
+    }
+
+    /**
+     * End-to-end: field_mapping + dynamic pipeline update.
+     * Start with a pipeline that adds "v1", dynamically switch to one that adds "v2".
+     */
+    public void testFieldMappingWithDynamicPipelineSwitch() throws Exception {
+        createPipeline("v1_pipeline", "{\"processors\": [{\"set\": {\"field\": \"version\", \"value\": \"v1\"}}]}");
+        createPipeline("v2_pipeline", "{\"processors\": [{\"set\": {\"field\": \"version\", \"value\": \"v2\"}}]}");
+
+        produceData("{\"user_id\": \"u1\", \"name\": \"alice\", \"age\": 30}");
+
+        createFieldMappingIndexWithPipeline("v1_pipeline", "user_id", null, null, null, null);
+
+        // Wait for first document with v1
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "u1")).get();
+            if (response.getHits().getTotalHits().value() < 1) return false;
+            return "v1".equals(response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        });
+
+        // Switch pipeline
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "v2_pipeline"))
+                .get()
+        );
+
+        produceData("{\"user_id\": \"u2\", \"name\": \"bob\", \"age\": 25}");
+
+        waitForState(() -> {
+            refresh(indexName);
+            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "u2")).get();
+            if (response.getHits().getTotalHits().value() < 1) return false;
+            return "v2".equals(response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        });
+    }
+
+    // --- Helper methods ---
+
+    private void createFieldMappingIndexWithPipeline(
+        String pipelineId,
+        String idField,
+        String versionField,
+        String opTypeField,
+        String deleteValue,
+        String createValue
+    ) {
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("ingestion_source.type", "kafka")
+            .put("ingestion_source.pointer.init.reset", "earliest")
+            .put("ingestion_source.param.topic", topicName)
+            .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+            .put("index.replication.type", "SEGMENT")
+            .put("ingestion_source.error_strategy", "drop")
+            .put("ingestion_source.mapper_type", "field_mapping")
+            .put("ingestion_source.mapper_settings.id_field", idField)
+            .put(IndexSettings.FINAL_PIPELINE.getKey(), pipelineId);
+
+        if (versionField != null) {
+            settings.put("ingestion_source.mapper_settings.version_field", versionField);
+        }
+        if (opTypeField != null) {
+            settings.put("ingestion_source.mapper_settings.op_type_field", opTypeField);
+        }
+        if (deleteValue != null) {
+            settings.put("ingestion_source.mapper_settings.op_type_field.delete_value", deleteValue);
+        }
+        if (createValue != null) {
+            settings.put("ingestion_source.mapper_settings.op_type_field.create_value", createValue);
+        }
+
+        createIndex(indexName, settings.build(), mapping);
+    }
+
     // --- Helper methods ---
 
     private void createPipeline(String pipelineId, String pipelineJson) {
