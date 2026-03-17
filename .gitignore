@@ -1,7 +1,7 @@
 .claude
 CLAUDE.md
 .cursor*
-.kiro*
+.kiro/
 examples/
 
 # intellij files
