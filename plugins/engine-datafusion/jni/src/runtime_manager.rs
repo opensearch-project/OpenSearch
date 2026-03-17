@@ -2,9 +2,10 @@ use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
 use vectorized_exec_spi::log_info;
 use log::info;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use datafusion::error::DataFusionError;
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::{Builder, Handle, Runtime};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
@@ -71,7 +72,12 @@ impl RuntimeConfig {
 }
 
 pub struct RuntimeManager {
-    pub io_runtime: Arc<Runtime>,
+    /// Cloneable handle to the IO runtime, used by all JNI entry points to submit
+    /// tasks without taking ownership of the runtime.
+    pub io_runtime: Handle,
+    /// Owned runtime kept behind a Mutex so shutdown() can take() it and call
+    /// shutdown_timeout(), which blocks until all IO threads have fully stopped.
+    io_runtime_owned: Mutex<Option<Runtime>>,
     pub(crate) cpu_executor: DedicatedExecutor,
 }
 
@@ -88,22 +94,22 @@ impl RuntimeManager {
     pub fn with_config(config: RuntimeConfig) -> Self {
         log_info!("Creating RuntimeManager with config: {:?}", config);
 
-        // IO Runtime
-        let io_runtime = Arc::new(
-            Builder::new_multi_thread()
-                .worker_threads(config.effective_io_threads())
-                .thread_name("datafusion-io")
-                .enable_all()
-                .build()
-                .expect("Failed to create IO runtime"),
-        );
+        // IO Runtime — build first so we can extract a Handle for sharing
+        let io_runtime_rt = Builder::new_multi_thread()
+            .worker_threads(config.effective_io_threads())
+            .thread_name("datafusion-io")
+            .enable_all()
+            .build()
+            .expect("Failed to create IO runtime");
 
-        // Register IO runtime for current thread
-        register_io_runtime(Some(io_runtime.handle().clone()));
+        let io_handle = io_runtime_rt.handle().clone();
+
+        // Register IO runtime for the calling (JNI) thread.
+        register_io_runtime(Some(io_handle.clone()));
 
         // CPU Executor with its own runtime
         let mut cpu_runtime_builder = Builder::new_multi_thread();
-        let io_handle = io_runtime.handle().clone();
+        let io_handle_for_cpu = io_handle.clone();
 
         cpu_runtime_builder
             .worker_threads(config.effective_cpu_threads())
@@ -111,13 +117,14 @@ impl RuntimeManager {
             .enable_all()
             .on_thread_start(move || {
                 // Register IO runtime for each CPU thread
-                register_io_runtime(Some(io_handle.clone()));
+                register_io_runtime(Some(io_handle_for_cpu.clone()));
             });
 
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
 
         Self {
-            io_runtime,
+            io_runtime: io_handle,
+            io_runtime_owned: Mutex::new(Some(io_runtime_rt)),
             cpu_executor,
         }
     }
@@ -149,9 +156,14 @@ impl RuntimeManager {
 
     pub fn shutdown(&self) {
         info!("Shutting down RuntimeManager");
+        // Shut down CPU executor first — waits for all in-flight CPU tasks to finish.
         self.cpu_executor.join_blocking();
-         // TODO: io_runtime spawned threads seem to have issue and are leaking
-
+        // Take the owned IO runtime out of the Option and call shutdown_timeout, which
+        // blocks until every datafusion-io-* thread has fully terminated.
+        if let Some(rt) = self.io_runtime_owned.lock().unwrap().take() {
+            rt.shutdown_timeout(Duration::from_secs(10));
+        }
+        info!("RuntimeManager shut down complete");
     }
 }
 
