@@ -17,6 +17,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+/**
+ * A container for {@link ExtraFieldValue} instances keyed by field name.
+ *
+ * <p>Represents additional field values provided alongside a document that are
+ * indexed independently of the {@code _source}.</p>
+ */
 @ExperimentalApi()
 public final class ExtraFieldValues implements Writeable {
 

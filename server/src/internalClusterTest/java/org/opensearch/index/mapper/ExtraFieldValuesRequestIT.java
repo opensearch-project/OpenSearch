@@ -21,7 +21,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.index.mapper.extrasource.BytesValue;
 import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 import org.opensearch.index.mapper.extrasource.ExtraFieldValuesMapperPlugin;
-import org.opensearch.index.mapper.extrasource.PrimitiveFloatArray;
+import org.opensearch.index.mapper.extrasource.FloatArrayValue;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -120,7 +120,7 @@ public class ExtraFieldValuesRequestIT extends OpenSearchIntegTestCase {
         client().prepareIndex(index).setId("1").setSource("{\"other\":\"x\"}", XContentType.JSON).get();
         refresh(index);
 
-        ExtraFieldValues efv = new ExtraFieldValues(Map.of("field", new PrimitiveFloatArray(new float[] { 10.5f, 20.25f })));
+        ExtraFieldValues efv = new ExtraFieldValues(Map.of("field", FloatArrayValue.fromFloatArray(new float[] { 10.5f, 20.25f })));
 
         UpdateRequest ur = new UpdateRequest(index, "1").doc("{\"other\":\"y\"}", XContentType.JSON).docExtraFieldValues(efv);
 
@@ -182,7 +182,7 @@ public class ExtraFieldValuesRequestIT extends OpenSearchIntegTestCase {
         bulk.add(
             new IndexRequest(index).id("2")
                 .source("{\"other\":\"y\"}", XContentType.JSON)
-                .extraFieldValues(new ExtraFieldValues(Map.of("field", new PrimitiveFloatArray(new float[] { 3.0f }))))
+                .extraFieldValues(new ExtraFieldValues(Map.of("field", FloatArrayValue.fromFloatArray(new float[] { 3.0f }))))
         );
 
         BulkResponse resp = client().bulk(bulk).actionGet();

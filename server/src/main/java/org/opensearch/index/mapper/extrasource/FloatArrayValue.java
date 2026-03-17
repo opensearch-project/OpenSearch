@@ -14,11 +14,50 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * A float array value used in {@link ExtraFieldValue}.
+ *
+ * <p>Supports both primitive (decoded) and packed (little-endian) representations.</p>
+ */
 public non-sealed interface FloatArrayValue extends ExtraFieldValue {
 
     @Override
     default Type type() {
         return Type.FLOAT_ARRAY;
+    }
+
+    /**
+     * Creates a {@link FloatArrayValue} from packed little-endian bytes.
+     *
+     * @param packed the packed float bytes (dimension * 4 bytes)
+     * @param dimension the number of float elements
+     * @return a float-array value backed by the provided bytes
+     * @throws IllegalArgumentException if the byte length does not match {@code dimension * 4}
+     */
+    static FloatArrayValue fromPackedBytes(BytesReference packed, int dimension) {
+        return PackedFloatArray.fromPackedBytes(packed, dimension);
+    }
+
+    /**
+     * Creates a {@link FloatArrayValue} from a packed little-endian byte array.
+     *
+     * @param packed the packed float bytes (dimension * 4 bytes)
+     * @param dimension the number of float elements
+     * @return a float-array value backed by the provided array
+     * @throws IllegalArgumentException if the byte length does not match {@code dimension * 4}
+     */
+    static FloatArrayValue fromPackedArray(byte[] packed, int dimension) {
+        return PackedFloatArray.fromPackedArray(packed, dimension);
+    }
+
+    /**
+     * Creates a {@link FloatArrayValue} from a float array.
+     *
+     * @param values the float values
+     * @return a float-array value backed by the provided array
+     */
+    static FloatArrayValue fromFloatArray(float[] values) {
+        return new PrimitiveFloatArray(values);
     }
 
     /** Number of float elements. */

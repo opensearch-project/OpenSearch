@@ -14,6 +14,11 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * A binary value backed by a {@link BytesReference}.
+ *
+ * <p>Used to store raw byte content as part of {@link ExtraFieldValue}.</p>
+ */
 public record BytesValue(BytesReference bytes) implements ExtraFieldValue {
     @Override
     public Type type() {

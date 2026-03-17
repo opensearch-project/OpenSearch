@@ -14,9 +14,18 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * A typed value that can be indexed outside of the document {@code _source}.
+ *
+ * <p>Used to pass pre-processed or alternative representations of field values
+ * directly to the indexing layer.</p>
+ */
 @ExperimentalApi()
 public sealed interface ExtraFieldValue permits FloatArrayValue, BytesValue {
 
+    /**
+     * Supported extra field value types.
+     */
     @ExperimentalApi
     enum Type {
         BYTES((byte) 0, BytesValue::readBodyFrom),

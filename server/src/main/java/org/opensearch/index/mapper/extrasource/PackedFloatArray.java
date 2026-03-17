@@ -32,7 +32,7 @@ import java.util.Objects;
  * transiently materialize/allocate more than once, but results are equivalent.</p>
  */
 
-public final class PackedFloatArray implements FloatArrayValue {
+final class PackedFloatArray implements FloatArrayValue {
 
     private final BytesReference packed;
     private final int dimension;

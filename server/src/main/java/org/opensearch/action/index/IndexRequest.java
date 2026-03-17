@@ -155,9 +155,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
-        extraFieldValues = in.getVersion().onOrAfter(Version.V_3_6_0)
-            ? Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY)
-            : ExtraFieldValues.EMPTY;
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            extraFieldValues = Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY);
+        } else {
+            extraFieldValues = ExtraFieldValues.EMPTY;
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());

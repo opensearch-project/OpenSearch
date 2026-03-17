@@ -18,7 +18,7 @@ import java.io.IOException;
  * Primitive floats
  * This can be used by clients that already have float[].
  */
-public final class PrimitiveFloatArray implements FloatArrayValue {
+final class PrimitiveFloatArray implements FloatArrayValue {
     private final float[] v;
 
     public PrimitiveFloatArray(float[] v) {
