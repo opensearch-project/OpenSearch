@@ -69,24 +69,6 @@ public final class StreamingSearchSettings {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Integer> STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER = Setting.intSetting(
-        "search.streaming.scored_unsorted.batch_multiplier",
-        2,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    public static final Setting<Integer> STREAMING_SCORED_SORTED_BATCH_MULTIPLIER = Setting.intSetting(
-        "search.streaming.scored_sorted.batch_multiplier",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static final Setting<TimeValue> STREAMING_EMISSION_INTERVAL = Setting.timeSetting(
         "search.streaming.emission_interval",
         TimeValue.timeValueMillis(50),
@@ -227,9 +209,6 @@ public final class StreamingSearchSettings {
             STREAMING_BLOCK_SIZE,
             STREAMING_BATCH_SIZE,
             STREAMING_NO_SCORING_BATCH_MULTIPLIER,
-            STREAMING_SCORED_UNSORTED_BATCH_MULTIPLIER,
-
-            STREAMING_SCORED_SORTED_BATCH_MULTIPLIER,
             STREAMING_EMISSION_INTERVAL,
 
             STREAMING_MIN_DOCS_FOR_STREAMING,

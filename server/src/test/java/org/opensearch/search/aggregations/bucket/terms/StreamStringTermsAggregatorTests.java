@@ -419,7 +419,7 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
                     );
                     when(searchContext.isStreamSearch()).thenReturn(true);
                     when(searchContext.isStreamingModeRequested()).thenReturn(true);
-                    when(searchContext.getStreamingMode()).thenReturn(org.opensearch.search.query.StreamingSearchMode.SCORED_UNSORTED);
+                    when(searchContext.getStreamingMode()).thenReturn(org.opensearch.search.query.StreamingSearchMode.NO_SCORING);
                     when(searchContext.getFlushMode()).thenReturn(FlushMode.PER_SEGMENT);
                     SearchShardTarget searchShardTarget = new SearchShardTarget(
                         "node_1",
