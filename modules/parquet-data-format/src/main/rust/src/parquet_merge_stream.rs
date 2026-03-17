@@ -148,7 +148,7 @@ static IO_RUNTIME: OnceLock<Runtime> = OnceLock::new();
 fn get_io_runtime() -> &'static Runtime {
     IO_RUNTIME.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
+            .worker_threads(4)
             .thread_name("parquet-io")
             .enable_all()
             .build()
@@ -339,25 +339,33 @@ impl From<std::io::Error> for MergeError {
 // Schema helpers
 // =============================================================================
 
-/// Builds the output Parquet schema from the first input file.
+/// Builds the output Parquet schema as the union of all input files.
 ///
-/// The output schema is identical to the input schema except:
+/// The output schema contains every column seen across all input files, except:
 /// - Any existing `___row_id` column is removed.
 /// - A fresh `___row_id` INT64 REQUIRED column is appended at the end.
 ///
 /// This ensures the merged file always has a clean, sequential row ID column
-/// regardless of what the input files contained.
-fn build_parquet_root_schema(first_input_path: &str) -> MergeResult<Arc<Type>> {
-    let input_file = File::open(first_input_path)?;
-    let reader = SerializedFileReader::new(input_file)?;
-    let input_schema_descr = reader.metadata().file_metadata().schema_descr_ptr();
-    let input_root = input_schema_descr.root_schema();
-
-    // Collect all fields except the old row ID column.
+/// and includes all columns from all inputs.
+fn build_parquet_root_schema(input_paths: &[String]) -> MergeResult<Arc<Type>> {
+    // Collect all fields (except ___row_id) from every input file,
+    // deduplicating by name (first occurrence wins).
+    let mut seen_names: Vec<String> = Vec::new();
     let mut parquet_fields: Vec<Arc<Type>> = Vec::new();
-    for field in input_root.get_fields() {
-        if field.name() != ROW_ID_COLUMN_NAME {
-            parquet_fields.push(Arc::new(field.as_ref().clone()));
+
+    for path in input_paths {
+        let input_file = File::open(path)?;
+        let reader = SerializedFileReader::new(input_file)?;
+        let input_schema_descr = reader.metadata().file_metadata().schema_descr_ptr();
+        let input_root = input_schema_descr.root_schema();
+
+        for field in input_root.get_fields() {
+            if field.name() != ROW_ID_COLUMN_NAME
+                && !seen_names.contains(&field.name().to_string())
+            {
+                seen_names.push(field.name().to_string());
+                parquet_fields.push(Arc::new(field.as_ref().clone()));
+            }
         }
     }
 
@@ -373,6 +381,96 @@ fn build_parquet_root_schema(first_input_path: &str) -> MergeResult<Arc<Type>> {
         .build()?;
 
     Ok(Arc::new(parquet_root))
+}
+
+/// Validates that every input file contains a `___row_id` column, has the
+/// sort column, and has at least one row. Called once upfront before opening
+/// any cursors, so that we fail fast with a clear error rather than
+/// discovering problems mid-merge.
+fn validate_input_files(input_files: &[String], sort_column: &str) -> MergeResult<()> {
+    for (idx, path) in input_files.iter().enumerate() {
+        let file = File::open(path).map_err(|e| {
+            MergeError::Logic(format!(
+                "Cannot open input file '{}' (index {}): {}",
+                path, idx, e
+            ))
+        })?;
+        let reader = SerializedFileReader::new(file)?;
+        let metadata = reader.metadata();
+        let file_metadata = metadata.file_metadata();
+
+        // Check that the file has at least one row.
+        let num_rows = file_metadata.num_rows();
+        if num_rows == 0 {
+            return Err(MergeError::Logic(format!(
+                "Input file '{}' (index {}) is empty (0 rows). \
+                 All input files must be non-empty.",
+                path, idx
+            )));
+        }
+
+        // Check that ___row_id column exists.
+        let schema_descr = file_metadata.schema_descr_ptr();
+        let root = schema_descr.root_schema();
+        let has_row_id = root
+            .get_fields()
+            .iter()
+            .any(|f| f.name() == ROW_ID_COLUMN_NAME);
+        if !has_row_id {
+            return Err(MergeError::Logic(format!(
+                "Input file '{}' (index {}) is missing required '{}' column. \
+                 All input files must contain a row ID column.",
+                path, idx, ROW_ID_COLUMN_NAME
+            )));
+        }
+
+        // Check that the sort column exists.
+        let has_sort_col = root
+            .get_fields()
+            .iter()
+            .any(|f| f.name() == sort_column);
+        if !has_sort_col {
+            let available: Vec<_> = root
+                .get_fields()
+                .iter()
+                .map(|f| f.name().to_string())
+                .collect();
+            return Err(MergeError::Logic(format!(
+                "Sort column '{}' not found in file '{}' (index {}). \
+                 Available columns: {:?}",
+                sort_column, path, idx, available
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Pads a batch to conform to the target schema by adding null-filled columns
+/// for any fields present in `target_schema` but missing from the batch.
+///
+/// Returns the batch unchanged (no copy) when schemas already match.
+fn pad_batch_to_schema(
+    batch: &RecordBatch,
+    target_schema: &Arc<ArrowSchema>,
+) -> MergeResult<RecordBatch> {
+    let batch_schema = batch.schema();
+    if batch_schema.fields() == target_schema.fields() {
+        return Ok(batch.clone());
+    }
+
+    let num_rows = batch.num_rows();
+    let mut columns: Vec<ArrayRef> = Vec::with_capacity(target_schema.fields().len());
+
+    for field in target_schema.fields() {
+        match batch_schema.index_of(field.name()) {
+            Ok(col_idx) => columns.push(batch.column(col_idx).clone()),
+            Err(_) => {
+                columns.push(arrow::array::new_null_array(field.data_type(), num_rows));
+            }
+        }
+    }
+
+    Ok(RecordBatch::try_new(target_schema.clone(), columns)?)
 }
 
 // =============================================================================
@@ -417,15 +515,23 @@ struct FileCursor {
 impl FileCursor {
     /// Opens a Parquet file and creates a cursor positioned at the first row.
     ///
-    /// Returns `Ok(None)` if the file is empty (zero rows). The `___row_id`
-    /// column is excluded from the projection since it will be rewritten
-    /// during merge.
+    /// Returns the cursor and the projected Arrow schema (all columns except
+    /// `___row_id`) for union-schema computation. The schema is not stored
+    /// in the cursor since it is only needed once during initialization.
+    ///
+    /// The `___row_id` column is excluded from the projection since it will be
+    /// rewritten during merge.
+    ///
+    /// # Preconditions
+    ///
+    /// The caller must have already validated (via [`validate_input_files`])
+    /// that the file is non-empty and contains the required columns.
     fn new(
         path: &str,
         file_id: usize,
         sort_column: &str,
         batch_size: usize,
-    ) -> MergeResult<Option<Self>> {
+    ) -> MergeResult<(Self, Arc<ArrowSchema>)> {
         let file = File::open(path)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
         let schema = builder.schema().clone();
@@ -437,10 +543,9 @@ impl FileCursor {
             .find(|f| f.name() == sort_column)
             .map(|f| f.data_type().clone())
             .ok_or_else(|| {
-                let available: Vec<_> = schema.fields().iter().map(|f| f.name().clone()).collect();
                 MergeError::Logic(format!(
-                    "Sort column '{}' not found in file '{}' (cursor {}). Available columns: {:?}",
-                    sort_column, path, file_id, available
+                    "Sort column '{}' not found in file '{}' (cursor {})",
+                    sort_column, path, file_id
                 ))
             })?;
 
@@ -462,16 +567,23 @@ impl FileCursor {
             .with_projection(projection)
             .build()?;
 
-        // Read the first batch to verify the file has data.
+        // Read the first batch — file is guaranteed non-empty by upfront validation.
         let first_batch = match reader.next() {
             Some(Ok(b)) if b.num_rows() > 0 => b,
             Some(Err(e)) => return Err(e.into()),
-            _ => return Ok(None),
+            _ => {
+                return Err(MergeError::Logic(format!(
+                    "File '{}' (cursor {}) yielded no rows despite passing validation",
+                    path, file_id
+                )));
+            }
         };
 
+        // Capture the projected schema for union-schema computation.
+        let projected_schema = first_batch.schema();
+
         // Resolve sort column index within the projected schema.
-        let sort_col_idx = first_batch
-            .schema()
+        let sort_col_idx = projected_schema
             .fields()
             .iter()
             .position(|f| f.name() == sort_column)
@@ -503,7 +615,7 @@ impl FileCursor {
         // Kick off prefetch for the second batch.
         cursor.start_prefetch();
 
-        Ok(Some(cursor))
+        Ok((cursor, projected_schema))
     }
 
     /// Dispatches a prefetch task on the Rayon pool to read the next batch.
@@ -898,54 +1010,56 @@ pub fn merge_streaming_with_config(
         output_path
     );
 
-    // Ensure the output directory exists.
+    // Validate that the output directory already exists.
     if let Some(parent) = Path::new(output_path).parent() {
         if !parent.exists() {
-            std::fs::create_dir_all(parent)?;
+            return Err(MergeError::Logic(format!(
+                "Output directory '{}' does not exist. \
+                 The caller must ensure the directory is created before merge.",
+                parent.display()
+            )));
         }
     }
 
-    // ── Phase 1: Initialize cursors ─────────────────────────────────────
-    let mut cursors: Vec<Option<FileCursor>> = Vec::with_capacity(input_files.len());
+    // ── Upfront validation ──────────────────────────────────────────────
+    // Check all files once: non-empty, have ___row_id, have sort column.
+    validate_input_files(input_files, sort_column)?;
+
+    // ── Phase 1: Initialize cursors and collect projected schemas ────────
+    let mut cursors: Vec<FileCursor> = Vec::with_capacity(input_files.len());
+    let mut all_schemas: Vec<ArrowSchema> = Vec::with_capacity(input_files.len());
 
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
-        match FileCursor::new(path, file_id, sort_column, batch_size)? {
-            Some(cursor) => cursors.push(Some(cursor)),
-            None => {
-                cursors.push(None);
-                log_info!("[RUST] Skipping empty file: {}", path);
-            }
-        }
+        let (cursor, projected_schema) =
+            FileCursor::new(path, file_id, sort_column, batch_size)?;
+        cursors.push(cursor);
+        all_schemas.push(projected_schema.as_ref().clone());
     }
 
-    let active_count = cursors.iter().filter(|c| c.is_some()).count();
-    if active_count == 0 {
-        log_info!("[RUST] All input files were empty, nothing to merge");
-        return Ok(());
-    }
+    let num_cursors = cursors.len();
 
-    // ── Phase 2: Build Arrow and Parquet schemas ────────────────────────
-    let first_active_idx = cursors.iter().position(|c| c.is_some()).unwrap();
-    let first_batch = cursors[first_active_idx]
-        .as_ref()
-        .unwrap()
-        .current_batch
-        .as_ref()
-        .unwrap();
-    let input_schema = first_batch.schema();
+    // ── Phase 2: Build union Arrow schema ───────────────────────────────
+    //
+    // Each file may have a slightly different set of columns (e.g. sparse
+    // fields added by later indexing). We merge all projected schemas into
+    // a single union schema so the output contains every column seen across
+    // all inputs. Batches from files missing a column are padded with nulls.
+    let union_data_schema = ArrowSchema::try_merge(all_schemas).map_err(|e| {
+        MergeError::Logic(format!(
+            "Failed to compute union schema across input files: {}. \
+             All input files must have compatible column types.",
+            e
+        ))
+    })?;
+    let data_schema = Arc::new(union_data_schema);
 
-    // Data schema: all columns except ___row_id (used for concat_batches).
-    let data_fields: Vec<ArrowField> = input_schema
+    // Output schema: union data fields + fresh ___row_id at the end.
+    let mut output_fields: Vec<ArrowField> = data_schema
         .fields()
         .iter()
-        .filter(|f| f.name() != ROW_ID_COLUMN_NAME)
         .map(|f| f.as_ref().clone())
         .collect();
-    let data_schema = Arc::new(ArrowSchema::new(data_fields.clone()));
-
-    // Output schema: data fields + fresh ___row_id at the end.
-    let mut output_fields = data_fields;
     output_fields.push(ArrowField::new(
         ROW_ID_COLUMN_NAME,
         ArrowDataType::Int64,
@@ -953,13 +1067,13 @@ pub fn merge_streaming_with_config(
     ));
     let output_schema = Arc::new(ArrowSchema::new(output_fields));
 
-    // Parquet schema with the same structure for the file writer.
-    let parquet_root = build_parquet_root_schema(&input_files[first_active_idx])?;
+    // Parquet schema as union of all input files.
+    let parquet_root = build_parquet_root_schema(input_files)?;
 
     log_info!(
-        "[RUST] Merge initialized ({}): {} active cursors, {} columns in output schema",
+        "[RUST] Merge initialized ({}): {} cursors, {} columns in output schema",
         direction_label,
-        active_count,
+        num_cursors,
         output_schema.fields().len()
     );
 
@@ -986,16 +1100,14 @@ pub fn merge_streaming_with_config(
     let mut row_group_index: usize = 0;
 
     // ── Phase 4: Seed the min/max-heap ──────────────────────────────────
-    let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(active_count);
-    for cursor_opt in &cursors {
-        if let Some(cursor) = cursor_opt {
-            let sv = cursor.current_sort_value()?;
-            heap.push(HeapItem {
-                sort_value: sv,
-                file_id: cursor.file_id,
-                reverse,
-            });
-        }
+    let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(num_cursors);
+    for cursor in &cursors {
+        let sv = cursor.current_sort_value()?;
+        heap.push(HeapItem {
+            sort_value: sv,
+            file_id: cursor.file_id,
+            reverse,
+        });
     }
 
     // ── Output accumulator ──────────────────────────────────────────────
@@ -1095,13 +1207,14 @@ pub fn merge_streaming_with_config(
         // ── TIER 1: Single cursor remaining ─────────────────────────────
         // No heap comparisons needed — dump all remaining data directly.
         if heap.is_empty() {
-            let cursor = cursors[file_id].as_mut().unwrap();
+            let cursor = &mut cursors[file_id];
             loop {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 if remaining > 0 {
                     let slice = cursor.take_slice(cursor.row_idx, remaining);
+                    let padded = pad_batch_to_schema(&slice, &data_schema)?;
                     output_row_count += remaining;
-                    output_chunks.push(slice);
+                    output_chunks.push(padded);
 
                     if output_row_count >= output_flush_rows {
                         flush!();
@@ -1115,7 +1228,7 @@ pub fn merge_streaming_with_config(
         }
 
         // ── TIER 2 & 3: Multiple cursors active ────────────────────────
-        let cursor = cursors[file_id].as_mut().unwrap();
+        let cursor = &mut cursors[file_id];
 
         loop {
             let heap_top = heap.peek().unwrap().sort_value;
@@ -1132,7 +1245,8 @@ pub fn merge_streaming_with_config(
             if comes_before_or_equal(last_val, heap_top, reverse) {
                 let remaining = cursor.batch_height() - cursor.row_idx;
                 let slice = cursor.take_slice(cursor.row_idx, remaining);
-                output_chunks.push(slice);
+                let padded = pad_batch_to_schema(&slice, &data_schema)?;
+                output_chunks.push(padded);
                 output_row_count += remaining;
 
                 if output_row_count >= output_flush_rows {
@@ -1180,7 +1294,8 @@ pub fn merge_streaming_with_config(
             let run_len = run_end - run_start + 1;
             if run_len > 0 {
                 let slice = cursor.take_slice(run_start, run_len);
-                output_chunks.push(slice);
+                let padded = pad_batch_to_schema(&slice, &data_schema)?;
+                output_chunks.push(padded);
                 output_row_count += run_len;
 
                 if output_row_count >= output_flush_rows {

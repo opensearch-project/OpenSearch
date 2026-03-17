@@ -29,6 +29,7 @@ pub use field_config::FieldConfig;
 pub use writer_properties_builder::WriterPropertiesBuilder;
 // Re-export macros from the shared crate for logging
 pub use vectorized_exec_spi::{log_info, log_error, log_debug};
+pub mod profiler;
 
 /// Per-writer sort configuration stored at create time, consumed at close time.
 struct SortConfig {
