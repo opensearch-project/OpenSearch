@@ -133,22 +133,6 @@ public class IngestionSource {
         return warmupConfig;
     }
 
-    public boolean isWarmupEnabled() {
-        return warmupConfig.isEnabled();
-    }
-
-    public TimeValue getWarmupTimeout() {
-        return warmupConfig.getTimeout();
-    }
-
-    public long getWarmupLagThreshold() {
-        return warmupConfig.getLagThreshold();
-    }
-
-    public boolean isWarmupFailOnTimeout() {
-        return warmupConfig.isFailOnTimeout();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -265,69 +249,12 @@ public class IngestionSource {
     }
 
     /**
-     * Class encapsulating the warmup configuration for pull-based ingestion.
+     * Record encapsulating the warmup configuration for pull-based ingestion.
      * When warmup is enabled, shards will wait for lag to catch up before serving queries
      * after node restart or shard relocation.
      */
     @PublicApi(since = "3.6.0")
-    public static class WarmupConfig {
-        private final boolean enabled;
-        private final TimeValue timeout;
-        private final long lagThreshold;
-        private final boolean failOnTimeout;
-
-        public WarmupConfig(boolean enabled, TimeValue timeout, long lagThreshold, boolean failOnTimeout) {
-            this.enabled = enabled;
-            this.timeout = timeout;
-            this.lagThreshold = lagThreshold;
-            this.failOnTimeout = failOnTimeout;
-        }
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public TimeValue getTimeout() {
-            return timeout;
-        }
-
-        public long getLagThreshold() {
-            return lagThreshold;
-        }
-
-        public boolean isFailOnTimeout() {
-            return failOnTimeout;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            WarmupConfig that = (WarmupConfig) o;
-            return enabled == that.enabled
-                && lagThreshold == that.lagThreshold
-                && failOnTimeout == that.failOnTimeout
-                && Objects.equals(timeout, that.timeout);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(enabled, timeout, lagThreshold, failOnTimeout);
-        }
-
-        @Override
-        public String toString() {
-            return "WarmupConfig{"
-                + "enabled="
-                + enabled
-                + ", timeout="
-                + timeout
-                + ", lagThreshold="
-                + lagThreshold
-                + ", failOnTimeout="
-                + failOnTimeout
-                + '}';
-        }
+    public record WarmupConfig(boolean enabled, TimeValue timeout, long lagThreshold, boolean failOnTimeout) {
     }
 
     /**
@@ -373,10 +300,10 @@ public class IngestionSource {
             this.mapperSettings = new HashMap<>(ingestionSource.mapperSettings);
             // Copy warmup config
             WarmupConfig wc = ingestionSource.warmupConfig;
-            this.warmupEnabled = wc.isEnabled();
-            this.warmupTimeout = wc.getTimeout();
-            this.warmupLagThreshold = wc.getLagThreshold();
-            this.warmupFailOnTimeout = wc.isFailOnTimeout();
+            this.warmupEnabled = wc.enabled();
+            this.warmupTimeout = wc.timeout();
+            this.warmupLagThreshold = wc.lagThreshold();
+            this.warmupFailOnTimeout = wc.failOnTimeout();
         }
 
         public Builder setPointerInitReset(PointerInitReset pointerInitReset) {
@@ -460,10 +387,10 @@ public class IngestionSource {
         }
 
         public Builder setWarmupConfig(WarmupConfig warmupConfig) {
-            this.warmupEnabled = warmupConfig.isEnabled();
-            this.warmupTimeout = warmupConfig.getTimeout();
-            this.warmupLagThreshold = warmupConfig.getLagThreshold();
-            this.warmupFailOnTimeout = warmupConfig.isFailOnTimeout();
+            this.warmupEnabled = warmupConfig.enabled();
+            this.warmupTimeout = warmupConfig.timeout();
+            this.warmupLagThreshold = warmupConfig.lagThreshold();
+            this.warmupFailOnTimeout = warmupConfig.failOnTimeout();
             return this;
         }
 

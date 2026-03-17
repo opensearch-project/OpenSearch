@@ -180,7 +180,7 @@ public class DefaultStreamPoller implements StreamPoller {
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
         // If warmup is disabled, mark as complete immediately
-        if (!warmupConfig.isEnabled()) {
+        if (!warmupConfig.enabled()) {
             this.warmupComplete = true;
         }
     }
@@ -213,7 +213,7 @@ public class DefaultStreamPoller implements StreamPoller {
         logger.info("Starting poller for shard {}", shardId);
 
         // Initialize warmup if enabled
-        if (warmupConfig.isEnabled() && !warmupComplete) {
+        if (warmupConfig.enabled() && !warmupComplete) {
             warmupStartTime = System.currentTimeMillis();
             state = State.WARMING_UP;
             logger.info("Starting warmup phase for index {} shard {}, waiting for lag to catch up", indexName, shardId);
@@ -237,7 +237,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 updatePointerBasedLagIfNeeded();
 
                 // Check warmup status if not yet complete
-                if (!warmupComplete && warmupConfig.isEnabled()) {
+                if (!warmupComplete && warmupConfig.enabled()) {
                     updateWarmupStatus();
                 }
 
@@ -386,7 +386,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
     @Override
     public boolean isWarmupComplete() {
-        return warmupComplete || !warmupConfig.isEnabled();
+        return warmupComplete || !warmupConfig.enabled();
     }
 
     /**
@@ -416,12 +416,12 @@ public class DefaultStreamPoller implements StreamPoller {
      * Returns true if shard initialization should fail when warmup times out.
      */
     public boolean isWarmupFailOnTimeout() {
-        return warmupConfig.isFailOnTimeout();
+        return warmupConfig.failOnTimeout();
     }
 
     @Override
     public boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException {
-        if (!warmupConfig.isEnabled() || isWarmupComplete()) {
+        if (!warmupConfig.enabled() || isWarmupComplete()) {
             return true;
         }
 
@@ -443,7 +443,7 @@ public class DefaultStreamPoller implements StreamPoller {
      * Warmup uses offset-based lag (cachedPointerBasedLag) which tracks the difference between
      * the current consumer position and the end of the stream. This is the preferred mode for
      * Kafka and other sources that support offset-based lag calculation.
-     * Note: cachedPointerBasedLag is 0 by default and is only updated after updatePointerBasedLagIfNeeded()
+     * Note: cachedPointerBasedLag is -1 by default (indicating no messages consumed yet) and is only updated after updatePointerBasedLagIfNeeded()
      * is called.
      */
     private void updateWarmupStatus() {
@@ -456,11 +456,11 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         long currentLag = cachedPointerBasedLag;
-        long threshold = warmupConfig.getLagThreshold();
+        long threshold = warmupConfig.lagThreshold();
 
         long elapsedTime = System.currentTimeMillis() - warmupStartTime;
         boolean lagBelowThreshold = currentLag >= 0 && currentLag <= threshold;
-        boolean timeoutReached = elapsedTime >= warmupConfig.getTimeout().millis();
+        boolean timeoutReached = elapsedTime >= warmupConfig.timeout().millis();
 
         if (lagBelowThreshold) {
             warmupComplete = true;

@@ -673,15 +673,15 @@ public class IngestionEngine extends InternalEngine {
      */
     public void awaitWarmupComplete() throws InterruptedException {
         IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
-        if (ingestionSource == null || !ingestionSource.isWarmupEnabled() || streamPoller.isPaused()) {
+        if (ingestionSource == null || !ingestionSource.getWarmupConfig().enabled() || streamPoller.isPaused()) {
             return;
         }
 
-        long timeoutMs = ingestionSource.getWarmupTimeout().millis();
+        long timeoutMs = ingestionSource.getWarmupConfig().timeout().millis();
         boolean completed = streamPoller.awaitWarmupComplete(timeoutMs);
 
         if (!completed) {
-            if (isWarmupFailOnTimeout()) {
+            if (ingestionSource.getWarmupConfig().failOnTimeout()) {
                 throw new OpenSearchException(
                     "Ingestion warmup timed out for shard after "
                         + timeoutMs
@@ -698,11 +698,4 @@ public class IngestionEngine extends InternalEngine {
         }
     }
 
-    /**
-     * Returns true if shard initialization should fail when warmup times out.
-     */
-    public boolean isWarmupFailOnTimeout() {
-        IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
-        return ingestionSource != null && ingestionSource.isWarmupFailOnTimeout();
-    }
 }

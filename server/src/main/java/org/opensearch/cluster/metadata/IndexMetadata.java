@@ -1038,7 +1038,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_INGESTION_SOURCE_WARMUP_ENABLED = "index.ingestion_source.warmup.enabled";
     public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_ENABLED_SETTING = Setting.boolSetting(
         SETTING_INGESTION_SOURCE_WARMUP_ENABLED,
-        true,
+        false,
         Property.IndexScope,
         Property.Final
     );
