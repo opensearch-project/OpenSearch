@@ -1078,6 +1078,9 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        if (indexSettingsBuilder.get(IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING.getKey()) == null || indexSettingsBuilder.get(IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING.getKey()).equals("false")) {
+            indexSettingsBuilder.put(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false);
+        }
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;

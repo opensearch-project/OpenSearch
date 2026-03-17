@@ -38,6 +38,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
     private ArrowBufferPool bufferPool;
     private Schema testSchema;
     private String testFileName;
+    private String testIndexName;
 
     @Override
     public void setUp() throws Exception {
@@ -51,6 +52,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         testSchema = new Schema(Arrays.asList(idField, nameField));
 
         testFileName = "test-file-" + System.currentTimeMillis() + ".parquet";
+        testIndexName = "test-index";
     }
 
     @Override
@@ -68,7 +70,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testVSRManagerInitializationAndActiveVSR() throws Exception {
         // Test VSRManager initialization through constructor
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // VSRManager should have an active VSR
         assertNotNull("VSRManager should have active VSR", vsrManager.getActiveManagedVSR());
@@ -93,7 +95,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testDocumentAdditionThroughVSRManager() throws Exception {
         // Test document addition through VSRManager.addToManagedVSR()
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // Create a document to add
         ParquetDocumentInput document = new ParquetDocumentInput(vsrManager.getActiveManagedVSR(), EngineRole.PRIMARY);
@@ -128,7 +130,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testFlushThroughVSRManager() throws Exception {
         // Test flush workflow through VSRManager.flush()
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // Add some data first
         vsrManager.getActiveManagedVSR().setRowCount(10); // Simulate data addition
@@ -148,7 +150,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testVSRManagerStateTransitionWorkflow() throws Exception {
         // Test the complete workflow: create -> add data -> flush -> close
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // 1. Initial state - VSR should be ACTIVE
         assertEquals("Initial VSR should be ACTIVE", VSRState.ACTIVE, vsrManager.getActiveManagedVSR().getState());
@@ -244,7 +246,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testVSRManagerCloseWithoutFlushFails() throws Exception {
         // Test that VSRManager.close() fails when VSRs are still in ACTIVE state (not flushed)
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // Get active VSR and add some data
         assertEquals("VSR should be ACTIVE", VSRState.ACTIVE, vsrManager.getActiveManagedVSR().getState());
@@ -271,7 +273,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
     public void testVSRManagerCloseEmptyButUnflushedFails() throws Exception {
         // Test that even an empty VSRManager must be flushed before closing
-        VSRManager vsrManager = new VSRManager(testFileName, testSchema, bufferPool);
+        VSRManager vsrManager = new VSRManager(testFileName, testIndexName, testSchema, bufferPool);
 
         // Get active VSR (no data added, but still ACTIVE)
         assertEquals("VSR should be ACTIVE", VSRState.ACTIVE, vsrManager.getActiveManagedVSR().getState());
