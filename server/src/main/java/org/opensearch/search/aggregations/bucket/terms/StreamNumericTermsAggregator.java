@@ -46,6 +46,9 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
+/**
+ * Stream-search terms aggregator for numeric fields.
+ */
 public class StreamNumericTermsAggregator extends TermsAggregator implements StreamingCostEstimable {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
