@@ -49,15 +49,38 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
     );
 
     /**
+     * Controls whether Liquid Cache is enabled for byte-level Parquet caching.
+     */
+    public static final Setting<Boolean> DATAFUSION_LIQUID_CACHE_ENABLED = Setting.boolSetting(
+        "datafusion.liquid_cache.enabled",
+        false,
+        Setting.Property.Final,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Controls the Liquid Cache size for byte-level Parquet caching.
+     * Only used when liquid cache is enabled.
+     */
+    public static final Setting<ByteSizeValue> DATAFUSION_LIQUID_CACHE_SIZE = Setting.byteSizeSetting(
+        "datafusion.liquid_cache.size",
+        new ByteSizeValue(1, ByteSizeUnit.GB),
+        Setting.Property.Final,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * Creates a new DataFusion runtime environment.
      */
     public DataFusionRuntimeEnv(ClusterService clusterService, String spill_dir) {
         long memoryLimit = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_POOL_CONFIGURATION).getBytes();
         long spillLimit = clusterService.getClusterSettings().get(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION).getBytes();
+        boolean liquidCacheEnabled = clusterService.getClusterSettings().get(DATAFUSION_LIQUID_CACHE_ENABLED);
+        long liquidCacheSize = clusterService.getClusterSettings().get(DATAFUSION_LIQUID_CACHE_SIZE).getBytes();
         long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
         NativeBridge.initTokioRuntimeManager(Runtime.getRuntime().availableProcessors());
         NativeBridge.startTokioRuntimeMonitoring(); // TODO : do we need this control in java ?
-        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit);
+        this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit, liquidCacheEnabled, liquidCacheSize);
         System.out.println("Runtime : " + this.runtimeHandle);
         this.cacheManager = new CacheManager(this.runtimeHandle);
     }

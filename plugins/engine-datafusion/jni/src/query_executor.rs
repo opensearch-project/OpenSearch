@@ -150,13 +150,26 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.parquet.pushdown_filters = false;
     config.options_mut().execution.target_partitions = target_partitions;
     config.options_mut().execution.batch_size = 8192;
+    // Liquid Cache requires these Parquet settings
+    config.options_mut().execution.parquet.schema_force_view_types = false;
+    config.options_mut().execution.parquet.skip_arrow_metadata = false;
+    config.options_mut().execution.parquet.skip_metadata = false;
 
-    let state = datafusion::execution::SessionStateBuilder::new()
+    let mut state_builder = datafusion::execution::SessionStateBuilder::new()
         .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-        .build();
+        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer));
+
+    // Add Liquid Cache optimizer rules if enabled
+    if let Some(ref optimizer) = runtime.liquid_cache_optimizer {
+        state_builder = state_builder.with_physical_optimizer_rule(optimizer.clone());
+    }
+    if let Some(ref lineage_opt) = runtime.liquid_cache_lineage_optimizer {
+        state_builder = state_builder.with_optimizer_rule(lineage_opt.clone());
+    }
+
+    let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
 
@@ -354,8 +367,6 @@ pub async fn execute_fetch_phase(
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
     // Create optimized Parquet access plans for targeted row retrieval
-    // This converts absolute row IDs back to file-relative positions and creates
-    // efficient access patterns for each file's row groups
     let access_plans = create_access_plans(row_ids, files_metadata.clone()).await?;
 
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
@@ -372,7 +383,7 @@ pub async fn execute_fetch_phase(
     };
     list_file_cache.put(&table_scoped_path, object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
                 .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())

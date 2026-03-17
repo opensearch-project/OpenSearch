@@ -27,7 +27,7 @@ public final class NativeBridge {
     private NativeBridge() {}
 
     // Runtime management
-    public static native long createGlobalRuntime(long limit, long cacheManagerPtr, String spillDir, long spillLimit);
+    public static native long createGlobalRuntime(long limit, long cacheManagerPtr, String spillDir, long spillLimit, boolean liquidCacheEnabled, long liquidCacheSize);
     public static native void closeGlobalRuntime(long ptr);
 
     // Tokio runtime

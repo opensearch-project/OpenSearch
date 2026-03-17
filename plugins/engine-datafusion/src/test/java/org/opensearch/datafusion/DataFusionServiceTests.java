@@ -124,6 +124,8 @@ public class DataFusionServiceTests extends OpenSearchSingleNodeTestCase {
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
         clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION);
         clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_ENABLED);
+        clusterSettingsToAdd.add(DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_SIZE);
 
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);

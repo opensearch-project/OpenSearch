@@ -63,6 +63,8 @@ import java.util.function.Supplier;
 
 import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION;
 import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_ENABLED;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_SIZE;
 
 
 /**
@@ -177,6 +179,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
 
         settingList.add(DATAFUSION_MEMORY_POOL_CONFIGURATION);
         settingList.add(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
+        settingList.add(DATAFUSION_LIQUID_CACHE_ENABLED);
+        settingList.add(DATAFUSION_LIQUID_CACHE_SIZE);
         settingList.addAll(Stream.of(
                 CacheSettings.CACHE_SETTINGS,
                 CacheSettings.CACHE_ENABLED)

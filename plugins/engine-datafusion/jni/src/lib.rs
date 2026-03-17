@@ -80,11 +80,16 @@ use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
 mod eviction_policy;
+mod liquid_cache;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
     custom_cache_manager: Option<CustomCacheManager>,
     monitor: Arc<Monitor>,
+    /// Liquid Cache physical optimizer rule (if enabled)
+    liquid_cache_optimizer: Option<Arc<dyn datafusion::physical_optimizer::PhysicalOptimizerRule + Send + Sync>>,
+    /// Liquid Cache lineage optimizer rule (if enabled)
+    liquid_cache_lineage_optimizer: Option<Arc<dyn datafusion::optimizer::OptimizerRule + Send + Sync>>,
 }
 
 // TASK monitorint metrics
@@ -248,7 +253,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     memory_pool_limit: jlong,
     cache_manager_ptr: jlong,
     spill_dir: JString,
-    spill_limit: jlong
+    spill_limit: jlong,
+    liquid_cache_enabled: jboolean,
+    liquid_cache_size: jlong,
 ) -> jlong {
     let spill_dir: String = match env.get_string(&spill_dir) {
         Ok(path) => path.into(),
@@ -285,16 +292,44 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         }
     };
 
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_cache_manager(cache_manager_config)
-        .with_memory_pool(memory_pool.clone())
-        .with_disk_manager_builder(builder)
-        .build().unwrap();
+    // Initialize Liquid Cache if enabled, otherwise use standard RuntimeEnv
+    let liquid_cache_enabled = liquid_cache_enabled != 0;
+    let (runtime_env, liquid_optimizer, liquid_lineage_optimizer) = if liquid_cache_enabled {
+        match liquid_cache::LiquidOnlyRuntime::init(liquid_cache_size as u64) {
+            Ok(liquid_runtime) => {
+                log_info!("[LiquidCache] Initialized with size: {} bytes", liquid_cache_size);
+                let liquid_env = liquid_runtime.runtime_env();
+                (
+                    (*liquid_env).clone(),
+                    Some(liquid_runtime.optimizer()),
+                    Some(liquid_runtime.lineage_optimizer()),
+                )
+            }
+            Err(e) => {
+                log_error!("[LiquidCache] Initialization failed: {}", e);
+                let _ = env.throw_new(
+                    "java/lang/RuntimeException",
+                    format!("Failed to initialize liquid cache: {}", e),
+                );
+                return 0;
+            }
+        }
+    } else {
+        log_info!("[LiquidCache] Disabled");
+        let env = RuntimeEnvBuilder::new()
+            .with_cache_manager(cache_manager_config)
+            .with_memory_pool(memory_pool.clone())
+            .with_disk_manager_builder(builder)
+            .build().unwrap();
+        (env, None, None)
+    };
 
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         monitor,
+        liquid_cache_optimizer: liquid_optimizer,
+        liquid_cache_lineage_optimizer: liquid_lineage_optimizer,
     };
 
     Box::into_raw(Box::new(runtime)) as jlong
@@ -900,4 +935,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     stream: jlong,
 ) {
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+    // Log Liquid Cache stats after stream is fully consumed
+    liquid_cache::LiquidOnlyRuntime::log_stats_if_initialized();
 }
