@@ -56,6 +56,7 @@ use crate::{CustomFileMeta, FileStats};
 use crate::DataFusionRuntime;
 use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
 use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
+use datafusion::execution::memory_pool::MemoryPool;
 
 /// Executes a query using DataFusion with cross-runtime streaming capabilities.
 /// This function sets up the complete query execution pipeline including table registration,
@@ -112,6 +113,7 @@ pub async fn execute_query_with_cross_rt_stream(
     target_partitions: usize,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    query_memory_pool: Option<Arc<dyn MemoryPool>>,
 ) -> Result<jlong, DataFusionError> {
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
@@ -139,6 +141,22 @@ pub async fn execute_query_with_cross_rt_stream(
             error!("Failed to build runtime env: {}", e);
             return Err(e);
         }
+    };
+
+    // If a per-query memory pool is provided, override the memory pool in the runtime env
+    // The per-query pool wraps the global pool, so global limits are still enforced
+    let runtime_env = if let Some(pool) = query_memory_pool {
+        match RuntimeEnvBuilder::from_runtime_env(&runtime_env)
+            .with_memory_pool(pool)
+            .build() {
+            Ok(env) => env,
+            Err(e) => {
+                error!("Failed to build runtime env with per-query pool: {}", e);
+                return Err(e);
+            }
+        }
+    } else {
+        runtime_env
     };
 
     let mut config = SessionConfig::new();
@@ -347,6 +365,7 @@ pub async fn execute_fetch_phase(
     exclude_fields: Vec<String>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    query_memory_pool: Option<Arc<dyn MemoryPool>>,
 ) -> Result<jlong, DataFusionError> {
     // Create optimized Parquet access plans for targeted row retrieval
     // This converts absolute row IDs back to file-relative positions and creates
@@ -372,6 +391,15 @@ pub async fn execute_fetch_phase(
 
         )
         .build()?;
+
+    // If a per-query memory pool is provided, override the memory pool in the runtime env
+    let runtime_env = if let Some(pool) = query_memory_pool {
+        RuntimeEnvBuilder::from_runtime_env(&runtime_env)
+            .with_memory_pool(pool)
+            .build()?
+    } else {
+        runtime_env
+    };
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = true;

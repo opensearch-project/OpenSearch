@@ -22,6 +22,7 @@ public class DatafusionQuery {
     private List<String> excludeFields;
     private Boolean isQueryPlanExplainEnabled;
     private int targetPartitionsCount;
+    private long contextId;
 
     public DatafusionQuery(String indexName, byte[] substraitBytes, List<SearchExecutor> searchExecutors) {
         this.indexName = indexName;
@@ -82,5 +83,13 @@ public class DatafusionQuery {
 
     public String getIndexName() {
         return indexName;
+    }
+
+    public long getContextId() {
+        return contextId;
+    }
+
+    public void setContextId(long contextId) {
+        this.contextId = contextId;
     }
 }

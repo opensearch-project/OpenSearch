@@ -37,7 +37,18 @@ public class RecordBatchStream implements Closeable {
      * @param parentAllocator parent allocator to create child from
      */
     public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator parentAllocator) {
-        this.streamHandle = new StreamHandle(streamId, runtimePtr);
+        this(streamId, runtimePtr, parentAllocator, 0L);
+    }
+
+    /**
+     * Creates a new RecordBatchStream with per-query memory tracking context
+     * @param streamId the stream pointer
+     * @param runtimePtr the runtime pointer
+     * @param parentAllocator parent allocator to create child from
+     * @param contextId the OpenSearch task ID for per-query memory tracking
+     */
+    public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator parentAllocator, long contextId) {
+        this.streamHandle = new StreamHandle(streamId, runtimePtr, contextId);
         this.allocator = parentAllocator.newChildAllocator("stream-" + streamId, 0, Long.MAX_VALUE);
         this.dictionaryProvider = new CDataDictionaryProvider();
         this.schemaFuture = streamHandle.getSchema(allocator, dictionaryProvider)

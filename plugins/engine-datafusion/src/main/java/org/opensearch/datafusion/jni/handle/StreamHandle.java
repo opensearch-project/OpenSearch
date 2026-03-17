@@ -32,15 +32,17 @@ import static org.apache.arrow.c.Data.importField;
 public final class StreamHandle extends NativeHandle {
 
     private final long runtimePtr;
+    private final long contextId;
 
-    public StreamHandle(long ptr, long runtimePtr) {
+    public StreamHandle(long ptr, long runtimePtr, long contextId) {
         super(ptr);
         this.runtimePtr = runtimePtr;
+        this.contextId = contextId;
     }
 
     @Override
     protected void doClose() {
-        NativeBridge.streamClose(ptr);
+        NativeBridge.streamClose(ptr, contextId);
     }
 
     /**

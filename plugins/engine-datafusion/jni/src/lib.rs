@@ -80,6 +80,7 @@ use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
 mod eviction_policy;
+mod query_metrics;
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
@@ -101,6 +102,9 @@ static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
 
 // Global JavaVM reference
 static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
+
+// Global memory monitor reference (set during createGlobalRuntime)
+static GLOBAL_MEMORY_MONITOR: OnceLock<Arc<Monitor>> = OnceLock::new();
 
 thread_local! {
     static THREAD_JNIENV: RefCell<Option<JNIEnv<'static>>> = RefCell::new(None);
@@ -198,6 +202,26 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
     // });
     //
     // println!("Runtime monitoring started");
+
+    // Periodically log global + per-query memory metrics
+    let io_runtime = manager.io_runtime.clone();
+    io_runtime.spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            // Log overall plugin memory usage via mimalloc allocator stats
+            log_mimalloc_stats();
+            // Log DataFusion cooperative pool usage
+            if let Some(monitor) = GLOBAL_MEMORY_MONITOR.get() {
+                log_info!(
+                    "DataFusion memory pool: current={}B, peak={}B",
+                    monitor.value.load(std::sync::atomic::Ordering::Relaxed),
+                    monitor.max.load(std::sync::atomic::Ordering::Relaxed),
+                );
+            }
+            query_metrics::log_active_queries();
+        }
+    });
+    log_info!("Query memory monitoring started");
 }
 
 /// Log runtime metrics with performance analysis
@@ -239,6 +263,41 @@ fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
     log_info!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
     log_info!("  Total slow polls: {}", metrics.total_slow_poll_count);
     log_info!("  Total long delays: {}", metrics.total_long_delay_count);
+}
+
+/// Log overall plugin memory usage from mimalloc's heap stats.
+/// This captures ALL Rust-side allocations (not just DataFusion's cooperative pool).
+fn log_mimalloc_stats() {
+    let mut elapsed_ms: usize = 0;
+    let mut user_ms: usize = 0;
+    let mut system_ms: usize = 0;
+    let mut current_rss: usize = 0;
+    let mut peak_rss: usize = 0;
+    let mut current_commit: usize = 0;
+    let mut peak_commit: usize = 0;
+    let mut page_faults: usize = 0;
+
+    unsafe {
+        libmimalloc_sys::mi_process_info(
+            &mut elapsed_ms,
+            &mut user_ms,
+            &mut system_ms,
+            &mut current_rss,
+            &mut peak_rss,
+            &mut current_commit,
+            &mut peak_commit,
+            &mut page_faults,
+        );
+    }
+
+    log_info!(
+        "mimalloc process memory: rss_current={}MB, rss_peak={}MB, commit_current={}MB, commit_peak={}MB, page_faults={}",
+        current_rss / (1024 * 1024),
+        peak_rss / (1024 * 1024),
+        current_commit / (1024 * 1024),
+        peak_commit / (1024 * 1024),
+        page_faults,
+    );
 }
 
 #[no_mangle]
@@ -290,6 +349,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         .with_memory_pool(memory_pool.clone())
         .with_disk_manager_builder(builder)
         .build().unwrap();
+
+    // Store monitor globally so the monitoring loop can log overall memory usage
+    GLOBAL_MEMORY_MONITOR.get_or_init(|| monitor.clone());
 
     let runtime = DataFusionRuntime {
         runtime_env,
@@ -561,6 +623,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     is_query_plan_explain_enabled: jboolean,
     target_partitions: jint,
     runtime_ptr: jlong,
+    context_id: jlong,
     listener: JObject,
 ) {
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
@@ -619,6 +682,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     io_runtime.block_on(async move {
 
+        // Start per-query memory tracking — creates a per-query pool wrapping the global pool
+        let global_pool = runtime.runtime_env.memory_pool.clone();
+        let query_pool = query_metrics::start_query_tracking(context_id, global_pool);
+
         let result = query_executor::execute_query_with_cross_rt_stream(
             table_path,
             files_meta,
@@ -628,6 +695,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             target_partitions,
             runtime,
             cpu_executor,
+            query_pool.map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>),
         ).await;
 
         match result {
@@ -637,6 +705,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
                 });
             }
             Err(e) => {
+                // Stop tracking on error — stream won't be closed by Java
+                query_metrics::stop_query_tracking(context_id);
                 with_jni_env(|env| {
                     log_error!("Query execution failed: {}", e);
                     set_action_listener_error_global(env, &listener_ref, &e);
@@ -810,7 +880,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     include_fields: JObjectArray,
     exclude_fields: JObjectArray,
     runtime_ptr: jlong,
-    callback: JObject,
+    context_id: jlong,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
     let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
@@ -862,8 +932,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         Some(m) => m,
         None => {
             log_error!("Runtime manager not initialized");
-            set_action_listener_error(&mut env, callback,
-                                    &DataFusionError::Execution("Runtime manager not initialized".to_string()));
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                "Runtime manager not initialized",
+            );
             return 0;
         }
     };
@@ -872,6 +944,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let cpu_executor = manager.cpu_executor();
 
     io_runtime.block_on(async {
+        // Start per-query memory tracking for fetch phase
+        let global_pool = runtime.runtime_env.memory_pool.clone();
+        let query_pool = query_metrics::start_query_tracking(context_id, global_pool);
+
         match query_executor::execute_fetch_phase(
             table_path,
             files_metadata,
@@ -880,9 +956,12 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
             exclude_fields,
             runtime,
             cpu_executor,
+            query_pool.map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>),
         ).await {
             Ok(stream_ptr) => stream_ptr,
             Err(e) => {
+                // Stop tracking on error — stream won't be closed by Java
+                query_metrics::stop_query_tracking(context_id);
                 let _ = env.throw_new(
                     "java/lang/RuntimeException",
                     format!("Failed to execute fetch phase: {}", e),
@@ -898,6 +977,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     _env: JNIEnv,
     _class: JClass,
     stream: jlong,
+    context_id: jlong,
 ) {
+    // Stop per-query memory tracking and log final metrics
+    query_metrics::stop_query_tracking(context_id);
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
 }

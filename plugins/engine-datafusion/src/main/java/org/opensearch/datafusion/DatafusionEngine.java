@@ -119,7 +119,11 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
     public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext, ClusterService clusterService) throws IOException {
         DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext, clusterService);
         // Parse source
-        datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>()));
+        DatafusionQuery query = new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>());
+        if (task != null) {
+            query.setContextId(task.getId());
+        }
+        datafusionContext.datafusionQuery(query);
         return datafusionContext;
     }
 
@@ -222,7 +226,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         try {
             DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
             long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator, context.getDatafusionQuery().getContextId());
 
             // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
             // Is the possible? need to check
@@ -302,7 +306,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                     throw new RuntimeException(error);
                 }
                 RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
-                RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+                RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator, context.getDatafusionQuery().getContextId());
                 SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
                     @Override
                     public void collect(RecordBatchStream value) {
@@ -435,7 +439,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         context.getDatafusionQuery().setSource(includeFields, excludeFields);
         DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
         long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
-        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator, context.getDatafusionQuery().getContextId());
 
         Map<Long, Integer> rowIdToIndex = new HashMap<>();
         for (int idx = 0; idx < rowIds.size(); idx++) {
