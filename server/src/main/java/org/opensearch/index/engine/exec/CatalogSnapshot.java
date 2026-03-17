@@ -16,7 +16,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Abstract base class representing a snapshot of the catalog state at a specific point in time.
@@ -107,13 +106,6 @@ public abstract class CatalogSnapshot extends AbstractRefCounted {
      * @throws IOException if an I/O error occurs
      */
     public abstract String serializeToString() throws IOException;
-
-    /**
-     * Sets the supplier for IndexFileDeleter.
-     *
-     * @param supplier the IndexFileDeleter supplier
-     */
-    public abstract void setIndexFileDeleterSupplier(Supplier<IndexFileReferenceManager> supplier);
 
     /**
      * Sets the catalog snapshot map for tracking multiple snapshots.

@@ -12,7 +12,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -22,43 +21,14 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class MergeInput {
+public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration) {
 
-    private final List<WriterFileSet> fileMetadataList;
-    private final RowIdMapping rowIdMapping;
-    private final long newWriterGeneration;
+    public MergeInput {
+        writerFiles = List.copyOf(writerFiles);
+    }
 
     private MergeInput(Builder builder) {
-        this.fileMetadataList = Collections.unmodifiableList(new ArrayList<>(builder.fileMetadataList));
-        this.rowIdMapping = builder.rowIdMapping;
-        this.newWriterGeneration = builder.newWriterGeneration;
-    }
-
-    /**
-     * Gets the list of writer file sets to merge.
-     *
-     * @return an unmodifiable list of writer file sets
-     */
-    public List<WriterFileSet> getFileMetadataList() {
-        return fileMetadataList;
-    }
-
-    /**
-     * Gets the optional row ID mapping for secondary data format merges.
-     *
-     * @return the row ID mapping, or null if not provided
-     */
-    public RowIdMapping getRowIdMapping() {
-        return rowIdMapping;
-    }
-
-    /**
-     * Gets the writer generation for the merged output.
-     *
-     * @return the new writer generation
-     */
-    public long getNewWriterGeneration() {
-        return newWriterGeneration;
+        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration);
     }
 
     /**

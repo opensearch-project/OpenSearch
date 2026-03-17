@@ -18,7 +18,12 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public final class FieldTypeCapabilities {
+public record FieldTypeCapabilities(String fieldType, Set<Capability> capabilities) {
+
+    public FieldTypeCapabilities {
+        capabilities = Set.copyOf(capabilities);
+    }
+
     /**
      * Capabilities that a data format can support.
      */
@@ -41,37 +46,5 @@ public final class FieldTypeCapabilities {
 
         /** Probabilistic lookup for pruning*/
         BLOOM_FILTER
-    }
-
-    private final String fieldType;
-    private final Set<Capability> capabilities;
-
-    /**
-     * Constructs a FieldTypeCapabilities with the given field name and capabilities.
-     *
-     * @param fieldType the field name
-     * @param capabilities the set of capabilities supported for this field
-     */
-    public FieldTypeCapabilities(String fieldType, Set<Capability> capabilities) {
-        this.fieldType = fieldType;
-        this.capabilities = Set.copyOf(capabilities);
-    }
-
-    /**
-     * Returns the field name.
-     *
-     * @return the field name
-     */
-    public String getFieldType() {
-        return fieldType;
-    }
-
-    /**
-     * Returns the set of capabilities supported for this field.
-     *
-     * @return the capabilities
-     */
-    public Set<Capability> getCapabilities() {
-        return capabilities;
     }
 }

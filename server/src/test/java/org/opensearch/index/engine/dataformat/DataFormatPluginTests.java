@@ -88,9 +88,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         FileInfos fileInfos = writer.flush();
         Optional<WriterFileSet> writerFileSet = fileInfos.getWriterFileSet(format);
         assertTrue(writerFileSet.isPresent());
-        assertFalse(writerFileSet.get().getFiles().isEmpty());
-        assertEquals(2, writerFileSet.get().getNumRows());
-        assertEquals(1L, writerFileSet.get().getWriterGeneration());
+        assertFalse(writerFileSet.get().files().isEmpty());
+        assertEquals(2, writerFileSet.get().numRows());
+        assertEquals(1L, writerFileSet.get().writerGeneration());
 
         writer.sync();
         writer.close();
@@ -113,7 +113,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MergeResult mergeResult = merger.merge(mergeInput);
         WriterFileSet merged = mergeResult.getMergedWriterFileSetForDataformat(format);
         assertNotNull(merged);
-        assertEquals(3L, merged.getWriterGeneration());
+        assertEquals(3L, merged.writerGeneration());
         assertTrue(mergeResult.rowIdMapping().isPresent());
 
         // Verify row ID mapping
@@ -136,10 +136,10 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         RefreshResult refreshResult = engine.refresh(refreshInput);
         assertFalse(refreshResult.refreshedSegments().isEmpty());
         Segment segment = refreshResult.refreshedSegments().get(0);
-        assertNotNull(segment.getDFGroupedSearchableFiles().get(format.name()));
+        assertNotNull(segment.dfGroupedSearchableFiles().get(format.name()));
 
         // 8. Delete files
-        engine.deleteFiles(Map.of(merged.getDirectory(), merged.getFiles()));
+        engine.deleteFiles(Map.of(merged.directory(), merged.files()));
         assertEquals(0L, engine.getNativeBytesUsed());
     }
 
@@ -152,9 +152,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1, fields.size());
 
         FieldTypeCapabilities cap = fields.iterator().next();
-        assertEquals("integer", cap.getFieldType());
-        assertTrue(cap.getCapabilities().contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
-        assertTrue(cap.getCapabilities().contains(FieldTypeCapabilities.Capability.STORED_FIELDS));
+        assertEquals("integer", cap.fieldType());
+        assertTrue(cap.capabilities().contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        assertTrue(cap.capabilities().contains(FieldTypeCapabilities.Capability.STORED_FIELDS));
     }
 
     /**
@@ -167,10 +167,10 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         FileInfos infos = FileInfos.builder().putWriterFileSet(format, fileSet).build();
         assertTrue(infos.getWriterFileSet(format).isPresent());
-        assertEquals(10, infos.getWriterFileSet(format).get().getNumRows());
+        assertEquals(10, infos.getWriterFileSet(format).get().numRows());
 
         FileInfos empty = FileInfos.empty();
-        assertTrue(empty.getWriterFilesMap().isEmpty());
+        assertTrue(empty.writerFilesMap().isEmpty());
     }
 
     /**
@@ -209,17 +209,17 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      */
     public void testRefreshInput() {
         RefreshInput empty = RefreshInput.builder().build();
-        assertTrue(empty.getWriterFiles().isEmpty());
-        assertTrue(empty.getExistingSegments().isEmpty());
+        assertTrue(empty.writerFiles().isEmpty());
+        assertTrue(empty.existingSegments().isEmpty());
 
         Path dir = createTempDir();
-        WriterFileSet fs1 = new WriterFileSet(dir, 1L, 10);
-        WriterFileSet fs2 = new WriterFileSet(dir, 2L, 20);
-        Segment seg = new Segment(0L);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        Segment seg = new Segment(0L, Map.of());
 
         RefreshInput input = RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).existingSegments(List.of(seg)).build();
-        assertEquals(2, input.getWriterFiles().size());
-        assertEquals(1, input.getExistingSegments().size());
+        assertEquals(2, input.writerFiles().size());
+        assertEquals(1, input.existingSegments().size());
     }
 
     static class MockDataFormat implements DataFormat {
@@ -316,16 +316,16 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         @Override
         public MergeResult merge(MergeInput mergeInput) {
-            List<WriterFileSet> fileMetadataList = mergeInput.getFileMetadataList();
-            long newWriterGeneration = mergeInput.getNewWriterGeneration();
-            RowIdMapping existingMapping = mergeInput.getRowIdMapping();
+            List<WriterFileSet> fileMetadataList = mergeInput.writerFiles();
+            long newWriterGeneration = mergeInput.newWriterGeneration();
+            RowIdMapping existingMapping = mergeInput.rowIdMapping();
 
             String prefix = existingMapping != null ? "secondary_merged_gen" : "merged_gen";
             WriterFileSet merged = WriterFileSet.builder()
                 .directory(directory)
                 .writerGeneration(newWriterGeneration)
                 .addFile(prefix + newWriterGeneration + ".parquet")
-                .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::getNumRows).sum())
+                .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::numRows).sum())
                 .build();
 
             if (existingMapping != null) {
@@ -336,8 +336,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map<Long, Long> genOffsets = new HashMap<>();
             long offset = 0;
             for (WriterFileSet fs : fileMetadataList) {
-                genOffsets.put(fs.getWriterGeneration(), offset);
-                offset += fs.getNumRows();
+                genOffsets.put(fs.writerGeneration(), offset);
+                offset += fs.numRows();
             }
             RowIdMapping mapping = (oldId, oldGeneration) -> genOffsets.getOrDefault(oldGeneration, 0L) + oldId;
 
@@ -369,10 +369,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         public RefreshResult refresh(RefreshInput refreshInput) {
             List<Segment> segments = new ArrayList<>();
             long gen = 0;
-            for (WriterFileSet wfs : refreshInput.getWriterFiles()) {
-                Segment segment = new Segment(gen++);
-                segment.addSearchableFiles(dataFormat.name(), wfs);
-                segments.add(segment);
+            for (WriterFileSet wfs : refreshInput.writerFiles()) {
+                segments.add(Segment.builder(gen++).addSearchableFiles(dataFormat, wfs).build());
             }
             return new RefreshResult(segments);
         }

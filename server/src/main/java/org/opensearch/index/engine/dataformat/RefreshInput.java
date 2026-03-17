@@ -13,7 +13,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -23,32 +22,11 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class RefreshInput {
+public record RefreshInput(List<Segment> existingSegments, List<WriterFileSet> writerFiles) {
 
-    private final List<Segment> existingSegments;
-    private final List<WriterFileSet> writerFiles;
-
-    private RefreshInput(Builder builder) {
-        this.existingSegments = Collections.unmodifiableList(new ArrayList<>(builder.existingSegments));
-        this.writerFiles = Collections.unmodifiableList(new ArrayList<>(builder.writerFiles));
-    }
-
-    /**
-     * Gets the list of writer files.
-     *
-     * @return an unmodifiable list of writer files
-     */
-    public List<WriterFileSet> getWriterFiles() {
-        return writerFiles;
-    }
-
-    /**
-     * Gets the list of existing segments.
-     *
-     * @return an unmodifiable list of existing segments
-     */
-    public List<Segment> getExistingSegments() {
-        return existingSegments;
+    public RefreshInput {
+        existingSegments = List.copyOf(existingSegments);
+        writerFiles = List.copyOf(writerFiles);
     }
 
     /**
@@ -98,7 +76,7 @@ public class RefreshInput {
          * @return the constructed RefreshInput
          */
         public RefreshInput build() {
-            return new RefreshInput(this);
+            return new RefreshInput(existingSegments, writerFiles);
         }
     }
 }

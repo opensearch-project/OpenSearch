@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.dataformat.DataFormat;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,31 +20,35 @@ import java.util.Map;
  * This class is serializable and can be transmitted across nodes for replication and recovery operations.
  */
 @ExperimentalApi
-public class Segment {
+public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearchableFiles) {
 
-    private final long generation;
-    private final Map<String, WriterFileSet> dfGroupedSearchableFiles;
+    public Segment {
+        dfGroupedSearchableFiles = Map.copyOf(dfGroupedSearchableFiles);
+    }
 
-    public Segment(long generation) {
-        this.dfGroupedSearchableFiles = new HashMap<>();
-        this.generation = generation;
+    public static Builder builder(long generation) {
+        return new Builder(generation);
     }
 
     /**
-     * Adds searchable files for a specific data format to this segment.
-     *
-     * @param dataFormat the data format identifier
-     * @param writerFileSetGroup the set of files for this data format
+     * Builder for {@link Segment}.
      */
-    public void addSearchableFiles(String dataFormat, WriterFileSet writerFileSetGroup) {
-        dfGroupedSearchableFiles.put(dataFormat, writerFileSetGroup);
-    }
+    @ExperimentalApi
+    public static class Builder {
+        private final long generation;
+        private final Map<String, WriterFileSet> dfGroupedSearchableFiles = new HashMap<>();
 
-    public Map<String, WriterFileSet> getDFGroupedSearchableFiles() {
-        return dfGroupedSearchableFiles;
-    }
+        private Builder(long generation) {
+            this.generation = generation;
+        }
 
-    public long getGeneration() {
-        return generation;
+        public Builder addSearchableFiles(DataFormat dataFormat, WriterFileSet writerFileSetGroup) {
+            dfGroupedSearchableFiles.put(dataFormat.name(), writerFileSetGroup);
+            return this;
+        }
+
+        public Segment build() {
+            return new Segment(generation, dfGroupedSearchableFiles);
+        }
     }
 }

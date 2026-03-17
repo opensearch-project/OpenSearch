@@ -11,7 +11,6 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -22,25 +21,10 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public final class FileInfos {
+public record FileInfos(Map<DataFormat, WriterFileSet> writerFilesMap) {
 
-    private final Map<DataFormat, WriterFileSet> writerFilesMap;
-
-    private FileInfos() {
-        this.writerFilesMap = new HashMap<>();
-    }
-
-    /**
-     * Gets an unmodifiable map of writer file sets by data format.
-     *
-     * @return the writer files map
-     */
-    public Map<DataFormat, WriterFileSet> getWriterFilesMap() {
-        return Collections.unmodifiableMap(writerFilesMap);
-    }
-
-    private void putWriterFileSet(DataFormat format, WriterFileSet writerFileSet) {
-        writerFilesMap.put(format, writerFileSet);
+    public FileInfos {
+        writerFilesMap = Map.copyOf(new HashMap<>(writerFilesMap));
     }
 
     /**
@@ -59,7 +43,7 @@ public final class FileInfos {
      * @return an empty FileInfos
      */
     public static FileInfos empty() {
-        return new FileInfos();
+        return new FileInfos(Map.of());
     }
 
     /**
@@ -109,9 +93,7 @@ public final class FileInfos {
          * @return a new FileInfos instance
          */
         public FileInfos build() {
-            FileInfos fileInfos = new FileInfos();
-            writerFilesMap.forEach(fileInfos::putWriterFileSet);
-            return fileInfos;
+            return new FileInfos(writerFilesMap);
         }
     }
 }
