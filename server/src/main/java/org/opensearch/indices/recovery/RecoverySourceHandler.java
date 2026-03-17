@@ -398,7 +398,7 @@ public abstract class RecoverySourceHandler {
      * Builds a format-aware {@link Store.MetadataSnapshot} for the given {@link IndexCommit}.
      * <p>
      * For optimized indices (e.g., parquet), this method deserializes the {@link CatalogSnapshot}
-     * from the commit's user data and uses {@link Store.MetadataSnapshot.LoadedMetadata#loadMetadata}
+     * from the commit's user data and uses {@link Store.MetadataSnapshot#loadMetadata}
      * with the {@link CompositeStoreDirectory} to include parquet file metadata (with correct checksums,
      * sizes, and dataFormat). For regular indices, it falls back to the standard
      * {@link Store#getMetadata(IndexCommit)} behavior.

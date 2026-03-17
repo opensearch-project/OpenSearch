@@ -565,7 +565,9 @@ public class Node implements Closeable {
                 false
             );
 
-            classpathPlugins = List.of(lucenePluginInfo);
+            List<PluginInfo> allClasspathPlugins = new ArrayList<>(classpathPlugins);
+            allClasspathPlugins.add(lucenePluginInfo);
+            classpathPlugins = allClasspathPlugins;
 
             this.pluginsService = new PluginsService(
                 tmpSettings,
