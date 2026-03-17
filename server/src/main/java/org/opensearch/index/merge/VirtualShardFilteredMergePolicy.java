@@ -49,8 +49,8 @@ public final class VirtualShardFilteredMergePolicy {
     private VirtualShardFilteredMergePolicy() {}
 
     /**
-     * Extracts documents for a target virtual shard. 
-     * Note: The index at {@code outputPath} will be recreated/overwritten.
+     * Extracts documents for the target virtual shard.
+     * Recreates the index at {@code outputPath}.
      */
     public static void isolateVirtualShard(IndexShard shard, IndexMetadata indexMetadata, int vShardId, Path outputPath)
         throws IOException {
