@@ -13,49 +13,30 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
- * Input data for a refresh operation, containing existing segments and writer files.
+ * Immutable input data for a refresh operation, containing existing segments and writer files.
+ * Use {@link Builder} to construct instances.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class RefreshInput {
 
-    private List<Segment> existingSegments;
+    private final List<Segment> existingSegments;
     private final List<WriterFileSet> writerFiles;
 
-    /**
-     * Constructs a new refresh input with empty lists.
-     */
-    public RefreshInput() {
-        this.writerFiles = new ArrayList<>();
-        this.existingSegments = new ArrayList<>();
-    }
-
-    /**
-     * Sets the existing segments.
-     *
-     * @param existingSegments the list of existing segments
-     */
-    public void setExistingSegments(List<Segment> existingSegments) {
-        this.existingSegments = existingSegments;
-    }
-
-    /**
-     * Adds a writer file set to the refresh input.
-     *
-     * @param writerFileSetGroup the writer file set to add
-     */
-    public void add(WriterFileSet writerFileSetGroup) {
-        this.writerFiles.add(writerFileSetGroup);
+    private RefreshInput(Builder builder) {
+        this.existingSegments = Collections.unmodifiableList(new ArrayList<>(builder.existingSegments));
+        this.writerFiles = Collections.unmodifiableList(new ArrayList<>(builder.writerFiles));
     }
 
     /**
      * Gets the list of writer files.
      *
-     * @return the writer files list
+     * @return an unmodifiable list of writer files
      */
     public List<WriterFileSet> getWriterFiles() {
         return writerFiles;
@@ -64,9 +45,60 @@ public class RefreshInput {
     /**
      * Gets the list of existing segments.
      *
-     * @return the existing segments list
+     * @return an unmodifiable list of existing segments
      */
     public List<Segment> getExistingSegments() {
         return existingSegments;
+    }
+
+    /**
+     * Returns a new builder for constructing {@link RefreshInput} instances.
+     *
+     * @return a new builder
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Builder for {@link RefreshInput}.
+     */
+    @ExperimentalApi
+    public static class Builder {
+        private List<Segment> existingSegments = new ArrayList<>();
+        private List<WriterFileSet> writerFiles = new ArrayList<>();
+
+        private Builder() {}
+
+        /**
+         * Sets the existing segments.
+         *
+         * @param existingSegments the list of existing segments
+         * @return this builder
+         */
+        public Builder existingSegments(List<Segment> existingSegments) {
+            this.existingSegments = new ArrayList<>(existingSegments);
+            return this;
+        }
+
+        /**
+         * Adds a writer file set.
+         *
+         * @param writerFileSet the writer file set to add
+         * @return this builder
+         */
+        public Builder addWriterFileSet(WriterFileSet writerFileSet) {
+            this.writerFiles.add(writerFileSet);
+            return this;
+        }
+
+        /**
+         * Builds an immutable {@link RefreshInput}.
+         *
+         * @return the constructed RefreshInput
+         */
+        public RefreshInput build() {
+            return new RefreshInput(this);
+        }
     }
 }

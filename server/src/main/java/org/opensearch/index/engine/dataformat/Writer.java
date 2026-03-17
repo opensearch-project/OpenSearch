@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -20,7 +21,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Writer<P extends DocumentInput<?>> {
+public interface Writer<P extends DocumentInput<?>> extends Closeable {
 
     /**
      * Adds a document to the writer.
@@ -45,9 +46,4 @@ public interface Writer<P extends DocumentInput<?>> {
      * @throws IOException if an I/O error occurs
      */
     void sync() throws IOException;
-
-    /**
-     * Closes the writer and releases resources.
-     */
-    void close();
 }

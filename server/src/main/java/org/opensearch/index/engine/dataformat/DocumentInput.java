@@ -42,32 +42,4 @@ public interface DocumentInput<T> extends AutoCloseable {
      * @param rowId the row ID value
      */
     void setRowId(String rowIdFieldName, long rowId);
-
-    /**
-     * Sets the version for this document.
-     *
-     * @param version the version number
-     */
-    default void setVersion(String fieldName, long version) {
-        // Default no-op implementations, override as needed
-    }
-
-    /**
-     * Sets the sequence number for this document.
-     *
-     * @param seqNo the sequence number
-     */
-    default void setSeqNo(String fieldName, long seqNo) {
-        // Default no-op implementations, override as needed
-    }
-
-    /**
-     * Sets the primary term for this document.
-     *
-     * @param fieldName the field name
-     * @param seqNo the sequence number
-     */
-    default void setPrimaryTerm(String fieldName, long seqNo) {
-        // Default no-op implementations, override as needed
-    }
 }

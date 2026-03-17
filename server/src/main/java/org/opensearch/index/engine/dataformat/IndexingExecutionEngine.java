@@ -54,7 +54,7 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      *
      * @return the data format
      */
-    DataFormat getDataFormat();
+    T getDataFormat();
 
     /**
      * Returns the amount of native (off-heap) memory used by this engine.

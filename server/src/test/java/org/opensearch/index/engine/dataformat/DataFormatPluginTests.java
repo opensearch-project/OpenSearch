@@ -76,14 +76,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         doc1.setRowId("_row_id", 0);
         doc1.addField(mock(MappedFieldType.class), "Alice");
         WriteResult result1 = writer.addDoc(doc1);
-        assertTrue(result1.success());
-        assertNull(result1.e());
+        assertEquals(WriteResult.Success.class, result1.getClass());
 
         MockDocumentInput doc2 = engine.newDocumentInput();
         doc2.setRowId("_row_id", 1);
         doc2.addField(mock(MappedFieldType.class), 30);
         WriteResult result2 = writer.addDoc(doc2);
-        assertTrue(result2.success());
+        assertEquals(WriteResult.Success.class, result2.getClass());
 
         // 3. Flush the writer to produce file metadata
         FileInfos fileInfos = writer.flush();
@@ -110,7 +109,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         // 5. Merge the two writer file sets
         Merger merger = engine.getMerger();
-        MergeResult mergeResult = merger.merge(List.of(fileSet1, fileSet2), 3L);
+        MergeInput mergeInput = MergeInput.builder().fileMetadataList(List.of(fileSet1, fileSet2)).newWriterGeneration(3L).build();
+        MergeResult mergeResult = merger.merge(mergeInput);
         WriterFileSet merged = mergeResult.getMergedWriterFileSetForDataformat(format);
         assertNotNull(merged);
         assertEquals(3L, merged.getWriterGeneration());
@@ -123,12 +123,16 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(2L, mapping.getNewRowId(0, 2L));
 
         // 6. Merge with an existing RowIdMapping (secondary data format merge)
-        MergeResult secondaryMerge = merger.merge(List.of(fileSet1, fileSet2), mapping, 4L);
+        MergeInput secondaryMergeInput = MergeInput.builder()
+            .fileMetadataList(List.of(fileSet1, fileSet2))
+            .rowIdMapping(mapping)
+            .newWriterGeneration(4L)
+            .build();
+        MergeResult secondaryMerge = merger.merge(secondaryMergeInput);
         assertNotNull(secondaryMerge.getMergedWriterFileSetForDataformat(format));
 
         // 7. Refresh to produce searchable segments
-        RefreshInput refreshInput = new RefreshInput();
-        refreshInput.add(merged);
+        RefreshInput refreshInput = RefreshInput.builder().addWriterFileSet(merged).build();
         RefreshResult refreshResult = engine.refresh(refreshInput);
         assertFalse(refreshResult.refreshedSegments().isEmpty());
         Segment segment = refreshResult.refreshedSegments().get(0);
@@ -173,17 +177,14 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      * Tests WriteResult record fields.
      */
     public void testWriteResult() {
-        WriteResult success = new WriteResult(true, null, 1L, 1L, 42L);
-        assertTrue(success.success());
-        assertNull(success.e());
+        WriteResult.Success success = new WriteResult.Success(1L, 1L, 42L);
         assertEquals(1L, success.version());
         assertEquals(1L, success.term());
         assertEquals(42L, success.seqNo());
 
         Exception ex = new IOException("disk full");
-        WriteResult failure = new WriteResult(false, ex, -1L, -1L, -1L);
-        assertFalse(failure.success());
-        assertSame(ex, failure.e());
+        WriteResult.Failure failure = new WriteResult.Failure(ex, -1L, -1L, -1L);
+        assertSame(ex, failure.cause());
     }
 
     /**
@@ -192,8 +193,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
     public void testMergeResultWithAndWithoutRowIdMapping() {
         DataFormat format = new MockDataFormat();
         Path dir = createTempDir();
-        WriterFileSet fileSet = new WriterFileSet(dir, 1L, 5);
-        fileSet.add("merged.parquet");
+        WriterFileSet fileSet = WriterFileSet.builder().directory(dir).writerGeneration(1L).addNumRows(5).addFile("merged.parquet").build();
 
         MergeResult withoutMapping = new MergeResult(Map.of(format, fileSet));
         assertFalse(withoutMapping.rowIdMapping().isPresent());
@@ -208,19 +208,17 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      * Tests RefreshInput accumulation of writer files.
      */
     public void testRefreshInput() {
-        RefreshInput input = new RefreshInput();
-        assertTrue(input.getWriterFiles().isEmpty());
-        assertTrue(input.getExistingSegments().isEmpty());
+        RefreshInput empty = RefreshInput.builder().build();
+        assertTrue(empty.getWriterFiles().isEmpty());
+        assertTrue(empty.getExistingSegments().isEmpty());
 
         Path dir = createTempDir();
         WriterFileSet fs1 = new WriterFileSet(dir, 1L, 10);
         WriterFileSet fs2 = new WriterFileSet(dir, 2L, 20);
-        input.add(fs1);
-        input.add(fs2);
-        assertEquals(2, input.getWriterFiles().size());
-
         Segment seg = new Segment(0L);
-        input.setExistingSegments(List.of(seg));
+
+        RefreshInput input = RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).existingSegments(List.of(seg)).build();
+        assertEquals(2, input.getWriterFiles().size());
         assertEquals(1, input.getExistingSegments().size());
     }
 
@@ -286,7 +284,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         public WriteResult addDoc(MockDocumentInput d) {
             docs.add(d);
             long seq = seqNo.getAndIncrement();
-            return new WriteResult(true, null, 1L, 1L, seq);
+            return new WriteResult.Success(1L, 1L, seq);
         }
 
         @Override
@@ -317,13 +315,22 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         }
 
         @Override
-        public MergeResult merge(List<WriterFileSet> fileMetadataList, long newWriterGeneration) {
+        public MergeResult merge(MergeInput mergeInput) {
+            List<WriterFileSet> fileMetadataList = mergeInput.getFileMetadataList();
+            long newWriterGeneration = mergeInput.getNewWriterGeneration();
+            RowIdMapping existingMapping = mergeInput.getRowIdMapping();
+
+            String prefix = existingMapping != null ? "secondary_merged_gen" : "merged_gen";
             WriterFileSet merged = WriterFileSet.builder()
                 .directory(directory)
                 .writerGeneration(newWriterGeneration)
-                .addFile("merged_gen" + newWriterGeneration + ".parquet")
+                .addFile(prefix + newWriterGeneration + ".parquet")
                 .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::getNumRows).sum())
                 .build();
+
+            if (existingMapping != null) {
+                return new MergeResult(Map.of(dataFormat, merged), existingMapping);
+            }
 
             // Build a simple sequential row ID mapping
             Map<Long, Long> genOffsets = new HashMap<>();
@@ -335,17 +342,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             RowIdMapping mapping = (oldId, oldGeneration) -> genOffsets.getOrDefault(oldGeneration, 0L) + oldId;
 
             return new MergeResult(Map.of(dataFormat, merged), mapping);
-        }
-
-        @Override
-        public MergeResult merge(List<WriterFileSet> fileMetadataList, RowIdMapping rowIdMapping, long newWriterGeneration) {
-            WriterFileSet merged = WriterFileSet.builder()
-                .directory(directory)
-                .writerGeneration(newWriterGeneration)
-                .addFile("secondary_merged_gen" + newWriterGeneration + ".parquet")
-                .addNumRows(fileMetadataList.stream().mapToLong(WriterFileSet::getNumRows).sum())
-                .build();
-            return new MergeResult(Map.of(dataFormat, merged), rowIdMapping);
         }
     }
 

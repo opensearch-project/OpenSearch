@@ -36,10 +36,6 @@ public class WriterFileSet implements Serializable {
         this.directory = directory.toString();
     }
 
-    public void add(String file) {
-        this.files.add(file);
-    }
-
     public Set<String> getFiles() {
         return files;
     }

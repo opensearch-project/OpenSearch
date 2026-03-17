@@ -11,16 +11,33 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 /**
- * Result of a write operation.
- *
- * @param success whether the write was successful
- * @param e the exception if the write failed, null otherwise
- * @param version the document version
- * @param term the primary term
- * @param seqNo the sequence number
+ * Sealed result of a document write operation, representing either a {@link Success}
+ * or a {@link Failure}. Each variant carries the version, primary term, and sequence
+ * number assigned (or attempted) by the engine.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record WriteResult(boolean success, Exception e, long version, long term, long seqNo) {
+public sealed interface WriteResult {
+
+    /**
+     * A successful write result.
+     *
+     * @param version  the document version assigned by the engine
+     * @param term     the primary term under which the write was executed
+     * @param seqNo    the sequence number assigned to the operation
+     */
+    record Success(long version, long term, long seqNo) implements WriteResult {
+    }
+
+    /**
+     * A failed write result.
+     *
+     * @param cause    the exception that caused the write to fail
+     * @param version  the document version at the time of failure, or {@code -1} if unavailable
+     * @param term     the primary term at the time of failure, or {@code -1} if unavailable
+     * @param seqNo    the sequence number at the time of failure, or {@code -1} if unassigned
+     */
+    record Failure(Exception cause, long version, long term, long seqNo) implements WriteResult {
+    }
 }
