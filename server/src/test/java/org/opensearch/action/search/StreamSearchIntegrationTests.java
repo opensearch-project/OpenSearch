@@ -28,12 +28,11 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
-import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.sort.SortOrder;
+import org.opensearch.search.aggregations.metrics.Min;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -52,7 +51,7 @@ import java.util.function.Supplier;
  * Integration tests for streaming search functionality.
  *
  * This test suite validates streaming search semantics using classic transport:
- * - Streaming search modes (NO_SCORING, SCORED_SORTED, SCORED_UNSORTED)
+ * - Streaming search modes (NO_SCORING)
  * - StreamSearchQueryThenFetchAsyncAction with classic transport
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 2)
@@ -207,51 +206,6 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
         }
-    }
-
-    public void testStreamingSearchWithScoringModes() {
-        // Test NO_SCORING mode - fastest TTFB
-        SearchRequest noScoringRequest = new SearchRequest(TEST_INDEX);
-        noScoringRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
-        noScoringRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        // Test basic search functionality without streaming
-        // Test basic search functionality without streaming
-        // noScoringRequest.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
-        // noScoringRequest.setStreamingScoring(true);
-
-        SearchResponse noScoringResponse = client().execute(SearchAction.INSTANCE, noScoringRequest).actionGet();
-        assertNotNull("Response should not be null for NO_SCORING mode", noScoringResponse);
-        assertNotNull("Response hits should not be null", noScoringResponse.getHits());
-        assertTrue("Should have search hits", noScoringResponse.getHits().getTotalHits().value() > 0);
-
-        // Test SCORED_SORTED mode - full scoring with sorting
-        SearchRequest scoredSortedRequest = new SearchRequest(TEST_INDEX);
-        scoredSortedRequest.source().query(QueryBuilders.matchQuery("field1", "value1")).size(10).sort("_score", SortOrder.DESC);
-        scoredSortedRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        // Test basic search functionality without streaming
-        // Test basic search functionality without streaming
-        // scoredSortedRequest.setStreamingSearchMode(StreamingSearchMode.SCORED_SORTED.toString());
-        // scoredSortedRequest.setStreamingScoring(true);
-
-        SearchResponse scoredSortedResponse = client().execute(SearchAction.INSTANCE, scoredSortedRequest).actionGet();
-        assertNotNull("Response should not be null for SCORED_SORTED mode", scoredSortedResponse);
-        assertNotNull("Response hits should not be null", scoredSortedResponse.getHits());
-
-        // Verify hits are sorted by score
-        SearchHit[] hits = scoredSortedResponse.getHits().getHits();
-        for (int i = 1; i < hits.length; i++) {
-            assertTrue("Hits should be sorted by score", hits[i - 1].getScore() >= hits[i].getScore());
-        }
-
-        // Test SCORED_UNSORTED mode - scoring without sorting
-        SearchRequest scoredUnsortedRequest = new SearchRequest(TEST_INDEX);
-        scoredUnsortedRequest.source().query(QueryBuilders.matchQuery("field1", "value1")).size(5);
-        scoredUnsortedRequest.searchType(SearchType.QUERY_THEN_FETCH);
-
-        SearchResponse scoredUnsortedResponse = client().execute(SearchAction.INSTANCE, scoredUnsortedRequest).actionGet();
-        assertNotNull("Response should not be null for SCORED_UNSORTED mode", scoredUnsortedResponse);
-        assertNotNull("Response hits should not be null", scoredUnsortedResponse.getHits());
-        assertTrue("Should have search hits", scoredUnsortedResponse.getHits().getTotalHits().value() > 0);
     }
 
     private void createTestIndex() {

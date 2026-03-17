@@ -24,17 +24,7 @@ public enum StreamingSearchMode {
     /**
      * No scoring and no sorting.
      */
-    NO_SCORING("no_scoring"),
-
-    /**
-     * Retained for backward compatibility.
-     */
-    SCORED_SORTED("scored_sorted"),
-
-    /**
-     * Retained for backward compatibility.
-     */
-    SCORED_UNSORTED("scored_unsorted");
+    NO_SCORING("no_scoring");
 
     private final String value;
 
@@ -56,10 +46,6 @@ public enum StreamingSearchMode {
     public static StreamingSearchMode fromString(String mode) {
         if (mode == null) {
             return NO_SCORING; // Default
-        }
-
-        if ("SCORED_UNSORTED".equalsIgnoreCase(mode) || "SCORED_SORTED".equalsIgnoreCase(mode) || "NO_SCORING".equalsIgnoreCase(mode)) {
-            return NO_SCORING;
         }
 
         for (StreamingSearchMode m : StreamingSearchMode.values()) {
