@@ -134,6 +134,7 @@ ReadWritePaths=/var/log/wazuh-indexer
 ReadWritePaths=/var/lib/wazuh-indexer
 ReadWritePaths=/dev/shm/
 ReadWritePaths=/usr/share/wazuh-indexer/engine
+ReadWritePaths= /usr/share/wazuh-indexer/plugins/wazuh-indexer-content-manager/snapshots
 ReadWritePaths=-/etc/wazuh-indexer
 ReadWritePaths=-/mnt/snapshots
 
