@@ -44,6 +44,8 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -320,6 +322,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
       }
     }
+    create('agent') {
+      canBeConsumed = false
+      canBeResolved = true
+      attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, 'agent-dist'))
+      }
+    }
   }
 
   dependencies {
@@ -333,6 +342,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
 
     bcFips libs.bundles.bouncycastle
+
+    agent project(path: ':libs:agent-sm:agent', configuration: 'agentDist')
   }
 
   project.ext {
@@ -362,7 +373,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     agentFiles = {
       copySpec {
-        from(project(':libs:agent-sm:agent').prepareAgent) {
+        from(configurations.agent) {
           include '**/*.jar'
           exclude '**/*-javadoc.jar'
           exclude '**/*-sources.jar'

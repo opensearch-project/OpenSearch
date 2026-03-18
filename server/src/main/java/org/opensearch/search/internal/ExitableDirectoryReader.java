@@ -170,6 +170,16 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         public TermsEnum iterator() throws IOException {
             return new ExitableTermsEnum(in.iterator(), queryCancellation);
         }
+
+        @Override
+        public BytesRef getMin() throws IOException {
+            return in.getMin();
+        }
+
+        @Override
+        public BytesRef getMax() throws IOException {
+            return in.getMax();
+        }
     }
 
     /**

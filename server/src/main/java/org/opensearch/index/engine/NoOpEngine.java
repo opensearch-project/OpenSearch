@@ -57,6 +57,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
@@ -102,12 +103,27 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
                 return null;
             }
 

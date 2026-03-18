@@ -93,12 +93,16 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.EngineTestCase;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
@@ -119,9 +123,11 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.InternalTranslogManager;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -1060,7 +1066,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             if (assertConsistencyBetweenTranslogAndLucene) {
                 assertConsistentHistoryBetweenTranslogAndLucene(shard);
             }
-            final Engine engine = shard.getEngineOrNull();
+            final Engine engine = shard.getIndexerOrNull() instanceof EngineBackedIndexer engineBackedIndexer
+                ? engineBackedIndexer.getEngine()
+                : null;
             if (engine != null) {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
@@ -1350,7 +1358,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     public static List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
-        return EngineTestCase.getDocIds(shard.getEngine(), true);
+        return EngineTestCase.getDocIds(((EngineBackedIndexer) shard.getIndexer()).getEngine(), true);
     }
 
     protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
@@ -1367,7 +1375,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         if (shard.state() != IndexShardState.POST_RECOVERY && shard.state() != IndexShardState.STARTED) {
             return;
         }
-        final Engine engine = shard.getEngineOrNull();
+        final Engine engine = shard.getIndexerOrNull() instanceof EngineBackedIndexer engineBackedIndexer
+            ? engineBackedIndexer.getEngine()
+            : null;
         if (engine != null) {
             EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
         }
@@ -1548,11 +1558,24 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * Helper method to access (package-protected) engine from tests
      */
     public static Engine getEngine(IndexShard indexShard) {
-        return indexShard.getEngine();
+        return ((EngineBackedIndexer) indexShard.getIndexer()).getEngine();
+    }
+
+    public static Indexer getIndexer(IndexShard indexShard) {
+        return indexShard.getIndexer();
     }
 
     public static Translog getTranslog(IndexShard shard) {
-        return EngineTestCase.getTranslog(getEngine(shard));
+        Indexer indexer = getIndexer(shard);
+        Engine engine = getEngine(shard);
+        assert engine instanceof InternalEngine || engine instanceof NRTReplicationEngine
+            : "only InternalEngines or NRTReplicationEngines have translogs, got: " + engine.getClass();
+        indexer.ensureOpen();
+        TranslogManager translogManager = indexer.translogManager();
+        assert translogManager instanceof InternalTranslogManager : "only InternalTranslogManager have translogs, got: "
+            + engine.getClass();
+        InternalTranslogManager internalTranslogManager = (InternalTranslogManager) translogManager;
+        return internalTranslogManager.getTranslog();
     }
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {

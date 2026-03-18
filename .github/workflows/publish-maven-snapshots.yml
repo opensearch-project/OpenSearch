@@ -43,4 +43,4 @@ jobs:
 
       - name: Publish snapshots to maven
         run: |
-          ./gradlew publishNebulaPublicationToSnapshotsRepository
+          ./gradlew publishNebulaPublicationToSnapshotsRepository -Pcrypto.standard=FIPS-140-3
