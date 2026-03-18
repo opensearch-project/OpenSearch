@@ -501,6 +501,7 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -618,6 +619,21 @@ public class ActionModule extends AbstractModule {
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
+    }
+
+    /**
+     * Returns the set of action name prefixes (the segment before the first {@code :}) contributed
+     * by plugins that are not already covered by {@link org.opensearch.transport.TransportService#VALID_ACTION_PREFIXES}.
+     * Used to extend the valid action prefix set for plugin-defined {@link org.opensearch.action.DocRequest} types.
+     */
+    public Set<String> getPluginActionPrefixes() {
+        return actionPlugins.stream()
+            .flatMap(p -> p.getActions().stream())
+            .map(h -> h.getAction().name())
+            .filter(name -> name.contains(":"))
+            .map(name -> name.substring(0, name.indexOf(':')))
+            .filter(prefix -> TransportService.VALID_ACTION_PREFIXES.stream().noneMatch(v -> v.startsWith(prefix)))
+            .collect(Collectors.toSet());
     }
 
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
