@@ -1423,17 +1423,17 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public long getStreamingMaxEstimatedBucketCount() {
-        return indexService.getIndexSettings().getValue(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+        return clusterService.getClusterSettings().get(STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
     }
 
     @Override
     public double getStreamingMinCardinalityRatio() {
-        return indexService.getIndexSettings().getValue(STREAMING_MIN_CARDINALITY_RATIO);
+        return clusterService.getClusterSettings().get(STREAMING_MIN_CARDINALITY_RATIO);
     }
 
     @Override
     public long getStreamingMinEstimatedBucketCount() {
-        return indexService.getIndexSettings().getValue(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+        return clusterService.getClusterSettings().get(STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
     }
 
     /**

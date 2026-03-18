@@ -74,10 +74,8 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Collections;
@@ -134,47 +132,10 @@ public class TestSearchContext extends SearchContext {
 
     /**
      * Sets the maxSliceCount for concurrent search
-     *
      * @param sliceCount maxSliceCount
      */
     public void setMaxSliceCount(int sliceCount) {
         this.maxSliceCount = sliceCount;
-    }
-
-    private FlushMode flushMode;
-
-    @Override
-    public FlushMode getFlushMode() {
-        return flushMode;
-    }
-
-    @Override
-    public boolean setFlushModeIfAbsent(FlushMode flushMode) {
-        if (this.flushMode == null) {
-            this.flushMode = flushMode;
-            return true;
-        }
-        return false;
-    }
-
-    @Override
-    public void setFlushMode(FlushMode flushMode) {
-        this.flushMode = flushMode;
-    }
-
-    @Override
-    public boolean hasCachedFlushMode() {
-        return flushMode != null;
-    }
-
-    @Override
-    public StreamingSearchMode getStreamingMode() {
-        return null; // TestSearchContext doesn't support streaming
-    }
-
-    @Override
-    public void setStreamingMode(StreamingSearchMode mode) {
-        // TestSearchContext doesn't support streaming - no-op
     }
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();

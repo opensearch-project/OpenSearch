@@ -177,7 +177,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         assert searchRequest.allowPartialSearchResults() != null;
 
         // Set streaming search flag from search request
-        this.streamingSearch = searchRequest.isStreamingScoring();
+        this.streamingSearch = searchRequest.getStreamingSearchMode() != null;
         this.streamingSearchMode = searchRequest.getStreamingSearchMode();
     }
 
@@ -443,7 +443,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      */
     public void setStreamingFieldsFromSearchRequest(SearchRequest searchRequest) {
         if (searchRequest != null) {
-            this.streamingSearch = searchRequest.isStreamingScoring();
+            this.streamingSearch = searchRequest.getStreamingSearchMode() != null;
             this.streamingSearchMode = searchRequest.getStreamingSearchMode();
         }
     }
