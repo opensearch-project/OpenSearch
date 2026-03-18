@@ -31,6 +31,19 @@ dependencies {
   // SLF4J — Calcite's logging facade
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
+  // Calcite's BuiltInMethod and DefaultRelMetadataProvider eagerly resolve methods via
+  // reflection during RelOptCluster.create(). These optional calcite-core transitive deps
+  // must be in the same classloader as Calcite (i.e., here, not in child plugins).
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
+  runtimeOnly "commons-io:commons-io:${versions.commonsio}"
+  runtimeOnly 'org.codehaus.janino:janino:3.1.9'
+  runtimeOnly 'org.codehaus.janino:commons-compiler:3.1.9'
+  runtimeOnly 'org.jooq:joou-java-6:0.9.4'
+  runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+
   // Calcite optional deps required at runtime — BuiltInMethod.<clinit> reflectively loads ALL
   // methods which triggers class loading for every type referenced in Calcite's SqlFunctions.
   // Every single one of these is needed or the class initializer fails with NoClassDefFoundError.
