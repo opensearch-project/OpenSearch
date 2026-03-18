@@ -9,7 +9,7 @@
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
-  extendedPlugins = ['analytics-engine']
+  extendedPlugins = ['analytics-engine', 'arrow-flight-rpc']
 }
 
 // --- Rust JNI build integration ---
@@ -36,10 +36,17 @@ task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
 processResources.dependsOn copyNativeLibrary
 
 dependencies {
-  // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
-  // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
+  implementation project(':plugins:arrow-flight-rpc')
+  implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+}
+
+// JVM args for Arrow memory access
+tasks.withType(Test).configureEach {
+  jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
 }
 
 // TODO: Remove once back-end is built out with test suite
 testingConventions.enabled = false
+
+thirdPartyAudit.enabled = false
