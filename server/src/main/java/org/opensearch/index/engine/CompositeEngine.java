@@ -8,16 +8,12 @@
 
 package org.opensearch.index.engine;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
-import org.opensearch.index.engine.exec.CatalogSnapshotAwareRefreshListener;
-import org.opensearch.index.engine.exec.CatalogSnapshotDeleteListener;
-import org.opensearch.index.engine.exec.DataFormatRegistry;
+import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.engine.exec.SourceProvider;
@@ -28,140 +24,177 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Owns all reader managers, lazily creates search engines per each shard and index filter providers.
- * This stands as a bridge for reads/writes. Initializes engines and providers only relevant to the
- * index settings and mappings.
+ * Owns all reader managers, lazily creates search engines, index filter providers
+ * and source providers per data format.
+ * <p>
+ * Instances are created by {@link org.opensearch.index.engine.exec.CompositeEngineFactory}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class CompositeEngine implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(CompositeEngine.class);
-
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
-    private final DataFormatRegistry dataFormatRegistry;
-    private final Map<DataFormat, SearchExecEngine<?, ?>> searchEngines = new ConcurrentHashMap<>();
-    private final Map<DataFormat, IndexFilterProvider<?, ?>> indexFilterProviders = new ConcurrentHashMap<>();
-    private final Map<DataFormat, SourceProvider<?, ?>> sourceProviders = new ConcurrentHashMap<>();
+    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers;
+    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?>, IOException>> indexFilterProviderSuppliers;
+    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?>, IOException>> sourceProviderSuppliers;
 
-    public CompositeEngine(DataFormatRegistry dataFormatRegistry) {
-        this.dataFormatRegistry = dataFormatRegistry;
-        this.readerManagers = dataFormatRegistry.getReaderManagers();
+    /**
+     * Constructs a new CompositeEngine with pre-built maps.
+     * Prefer using {@link org.opensearch.index.engine.exec.CompositeEngineFactory#create()}.
+     */
+    public CompositeEngine(
+        Map<DataFormat, EngineReaderManager<?>> readerManagers,
+        Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers,
+        Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?>, IOException>> indexFilterProviderSuppliers,
+        Map<DataFormat, CheckedSupplier<SourceProvider<?, ?>, IOException>> sourceProviderSuppliers
+    ) {
+        this.readerManagers = readerManagers;
+        this.engineSuppliers = engineSuppliers;
+        this.indexFilterProviderSuppliers = indexFilterProviderSuppliers;
+        this.sourceProviderSuppliers = sourceProviderSuppliers;
     }
+
+    // ---- Public getters ----
 
     public EngineReaderManager<?> getReaderManager(DataFormat format) {
         return readerManagers.get(format);
     }
 
     public SearchExecEngine<?, ?> getSearchExecEngine(DataFormat format) throws IOException {
-        SearchExecEngine<?, ?> engine = searchEngines.get(format);
-        if (engine != null) {
-            return engine;
-        }
-        synchronized (searchEngines) {
-            engine = searchEngines.get(format);
-            if (engine == null) {
-                engine = dataFormatRegistry.createSearchExecEngine(format);
-                searchEngines.put(format, engine);
-            }
-            return engine;
-        }
+        return getFromSupplier(engineSuppliers, format, "search exec engine");
     }
 
     public IndexFilterProvider<?, ?> getIndexFilterProvider(DataFormat format) throws IOException {
-        IndexFilterProvider<?, ?> provider = indexFilterProviders.get(format);
-        if (provider != null) {
-            return provider;
-        }
-        synchronized (indexFilterProviders) {
-            provider = indexFilterProviders.get(format);
-            if (provider == null) {
-                provider = dataFormatRegistry.createIndexFilterProvider(format);
-                indexFilterProviders.put(format, provider);
-            }
-            return provider;
-        }
+        return getFromSupplier(indexFilterProviderSuppliers, format, "index filter provider");
     }
 
     public SourceProvider<?, ?> getSourceProvider(DataFormat format) throws IOException {
-        SourceProvider<?, ?> sp = sourceProviders.get(format);
-        if (sp != null) {
-            return sp;
-        }
-        synchronized (sourceProviders) {
-            sp = sourceProviders.get(format);
-            if (sp == null) {
-                sp = dataFormatRegistry.createSourceProvider(format);
-                sourceProviders.put(format, sp);
-            }
-            return sp;
-        }
+        return getFromSupplier(sourceProviderSuppliers, format, "source provider");
     }
 
-    public List<CatalogSnapshotAwareRefreshListener> getCatalogSnapshotAwareRefreshListeners() {
+    private <T> T getFromSupplier(
+        Map<DataFormat, CheckedSupplier<T, IOException>> suppliers,
+        DataFormat format,
+        String label
+    ) throws IOException {
+        CheckedSupplier<T, IOException> supplier = suppliers.get(format);
+        if (supplier == null) {
+            throw new IllegalArgumentException("No " + label + " registered for format: " + format.name());
+        }
+        return supplier.get();
+    }
+
+    // ---- Lifecycle listener helpers ----
+
+    public List<CatalogSnapshotLifecycleListener> getCatalogSnapshotLifecycleListeners() {
         return new ArrayList<>(readerManagers.values());
     }
 
-    public List<CatalogSnapshotDeleteListener> getCatalogSnapshotDeleteListeners() {
-        return new ArrayList<>(readerManagers.values());
-    }
-
-    public void notifyFilesAdded(Map<DataFormat, Collection<String>> dfNewFiles) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : dfNewFiles.entrySet()) {
-            FilesListener listener = readerManagers.get(entry.getKey());
-            if (listener != null) {
-                listener.onFilesAdded(entry.getValue());
+    public void notifyFilesAdded(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
+        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
+            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
+            if (rm != null) {
+                rm.onFilesAdded(entry.getValue());
             }
         }
     }
 
-    public void notifyDelete(Map<DataFormat, Collection<String>> dfFilesToDelete) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : dfFilesToDelete.entrySet()) {
-            FilesListener listener = readerManagers.get(entry.getKey());
-            if (listener != null) {
-                listener.onFilesDeleted(entry.getValue());
+    public void notifyDelete(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
+        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
+            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
+            if (rm != null) {
+                rm.onFilesDeleted(entry.getValue());
             }
         }
     }
 
     public void notifyCatalogSnapshotDelete(CatalogSnapshot catalogSnapshot) throws IOException {
-        for (EngineReaderManager<?> rm : readerManagers.values()) {
-            rm.onDeleted(catalogSnapshot);
+        for (CatalogSnapshotLifecycleListener listener : getCatalogSnapshotLifecycleListeners()) {
+            listener.onDeleted(catalogSnapshot);
         }
     }
 
-    public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
-        return null; // TODO : return this.catalogSnapshotManager.acquireSnapshot();
+    // ---- Snapshot acquisition ----
+
+    /**
+     * Acquires a snapshot across all reader managers, returning a releasable reference.
+     */
+    public ReleasableRef acquireSnapshot(CatalogSnapshot catalogSnapshot) throws IOException {
+        List<Object> readers = new ArrayList<>();
+        for (EngineReaderManager<?> rm : readerManagers.values()) {
+            readers.add(rm.getReader(catalogSnapshot));
+        }
+        return new ReleasableRef(readers);
     }
+
+    /**
+     * A releasable reference to a set of readers acquired from reader managers.
+     */
+    @ExperimentalApi
+    public static class ReleasableRef implements Closeable {
+        private final List<Object> readers;
+
+        ReleasableRef(List<Object> readers) {
+            this.readers = readers;
+        }
+
+        public List<Object> getReaders() {
+            return readers;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Reader managers handle their own reference counting;
+            // this is a placeholder for future release logic.
+        }
+    }
+
+    // ---- Closeable ----
 
     @Override
     public void close() throws IOException {
-        for (SearchExecEngine<?, ?> engine : searchEngines.values()) {
-            engine.close();
+        List<Exception> exceptions = new ArrayList<>();
+        closeSupplierInstances(engineSuppliers.values(), exceptions);
+        closeSupplierInstances(indexFilterProviderSuppliers.values(), exceptions);
+        closeSupplierInstances(sourceProviderSuppliers.values(), exceptions);
+        for (EngineReaderManager<?> rm : readerManagers.values()) {
+            if (rm instanceof Closeable) {
+                try {
+                    ((Closeable) rm).close();
+                } catch (Exception e) {
+                    exceptions.add(e);
+                }
+            }
         }
-        for (IndexFilterProvider<?, ?> provider : indexFilterProviders.values()) {
-            provider.close();
-        }
-        for (SourceProvider<?, ?> sp : sourceProviders.values()) {
-            sp.close();
+        if (exceptions.isEmpty() == false) {
+            IOException ioException = new IOException("Failed to close CompositeEngine resources");
+            for (Exception e : exceptions) {
+                ioException.addSuppressed(e);
+            }
+            throw ioException;
         }
     }
 
-    @ExperimentalApi
-    public static abstract class ReleasableRef<T> implements AutoCloseable {
-
-        private final T t;
-
-        public ReleasableRef(T t) {
-            this.t = t;
-        }
-
-        public T getRef() {
-            return t;
+    /**
+     * Attempts to retrieve each memoized instance and close it if it implements {@link Closeable}.
+     * Suppliers that were never invoked will return quickly from the memoize wrapper.
+     */
+    private static <T> void closeSupplierInstances(
+        Collection<CheckedSupplier<T, IOException>> suppliers,
+        List<Exception> exceptions
+    ) {
+        for (CheckedSupplier<T, IOException> supplier : suppliers) {
+            try {
+                T instance = supplier.get();
+                if (instance instanceof Closeable) {
+                    ((Closeable) instance).close();
+                }
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
         }
     }
 }

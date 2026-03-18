@@ -22,6 +22,6 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface EngineReaderManager<T> extends CatalogSnapshotAwareRefreshListener, FilesListener, CatalogSnapshotDeleteListener {
+public interface EngineReaderManager<T> extends CatalogSnapshotLifecycleListener, FilesListener {
     T getReader(CatalogSnapshot catalogSnapshot) throws IOException;
 }
