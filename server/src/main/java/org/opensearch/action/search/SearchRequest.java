@@ -128,8 +128,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
-    private boolean streamingScoring = false;
-    private String streamingSearchMode = null; // Will use StreamingSearchMode.NO_SCORING if null
+
+    // Null means no explicit streaming mode on the request.
+    private String streamingSearchMode = null;
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -149,7 +150,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.finalReduce
         );
         // Preserve streaming fields when cloning
-        this.streamingScoring = searchRequest.streamingScoring;
+
         this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
@@ -240,7 +241,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
         // Preserve streaming fields for forked/sub-requests
-        this.streamingScoring = searchRequest.streamingScoring;
+
         this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
@@ -291,10 +292,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // Read streaming fields - gated on version for BWC
         if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
-            streamingScoring = in.readBoolean();
             streamingSearchMode = in.readOptionalString();
         } else {
-            streamingScoring = false;
             streamingSearchMode = null;
         }
     }
@@ -333,7 +332,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // Write streaming fields - gated on version for BWC
         if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
-            out.writeBoolean(streamingScoring);
             out.writeOptionalString(streamingSearchMode);
         }
     }
@@ -718,20 +716,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * Enable streaming scoring for this search request.
-     */
-    public void setStreamingScoring(boolean streamingScoring) {
-        this.streamingScoring = streamingScoring;
-    }
-
-    /**
-     * Check if streaming scoring is enabled for this search request.
-     */
-    public boolean isStreamingScoring() {
-        return streamingScoring;
-    }
-
-    /**
      * Sets the streaming search mode for this request.
      * @param mode The streaming search mode to use
      */
@@ -858,7 +842,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook);
+            && Objects.equals(phaseTook, that.phaseTook)
+            && Objects.equals(streamingSearchMode, that.streamingSearchMode);
     }
 
     @Override
@@ -880,7 +865,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook
+            phaseTook,
+            streamingSearchMode
         );
     }
 

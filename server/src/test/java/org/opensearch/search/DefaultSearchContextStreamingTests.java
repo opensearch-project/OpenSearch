@@ -56,7 +56,6 @@ public class DefaultSearchContextStreamingTests extends OpenSearchTestCase {
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             SearchRequest searchRequest = new SearchRequest();
-            searchRequest.setStreamingScoring(true);
             searchRequest.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
 
             ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);

@@ -355,7 +355,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         if (getNumReducePhases() != 1) {
             builder.field(NUM_REDUCE_PHASES.getPreferredName(), getNumReducePhases());
         }
-
         RestActions.buildBroadcastShardsHeader(
             builder,
             params,

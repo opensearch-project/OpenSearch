@@ -161,6 +161,10 @@ public class RestSearchAction extends BaseRestHandler {
                     if (scoringMode != null) {
                         searchRequest.setStreamingSearchMode(scoringMode);
                     }
+                    // StreamSearchAction should always execute with an explicit mode.
+                    if (searchRequest.getStreamingSearchMode() == null) {
+                        searchRequest.setStreamingSearchMode("no_scoring");
+                    }
                     return channel -> {
                         RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
                         cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
