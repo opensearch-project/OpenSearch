@@ -1221,8 +1221,7 @@ public class TransportService extends AbstractLifecycleComponent
     private final Set<String> additionalActionPrefixes;
 
     /**
-     * Registers additional valid action name prefixes contributed by plugins (e.g. via
-     * {@link org.opensearch.action.DocRequest#type()}).
+     * Registers additional valid action name prefixes contributed by plugins.
      */
     public void registerAdditionalActionPrefixes(Collection<String> prefixes) {
         additionalActionPrefixes.addAll(prefixes);
@@ -1231,7 +1230,7 @@ public class TransportService extends AbstractLifecycleComponent
     protected void validateActionName(String actionName) {
         // TODO we should makes this a hard validation and throw an exception but we need a good way to add backwards layer
         // for it. Maybe start with a deprecation layer
-        if (isValidActionNameWithPluginPrefixes(actionName) == false) {
+        if (isValidActionName(actionName, additionalActionPrefixes) == false) {
             logger.warn(
                 "invalid action name [" + actionName + "] must start with one of: " + VALID_ACTION_PREFIXES + additionalActionPrefixes
             );
@@ -1244,23 +1243,20 @@ public class TransportService extends AbstractLifecycleComponent
      * @see #VALID_ACTION_PREFIXES
      */
     public static boolean isValidActionName(String actionName) {
+        return isValidActionName(actionName, Set.of());
+    }
+
+    /**
+     * Returns <code>true</code> iff the action name starts with a valid prefix from {@link #VALID_ACTION_PREFIXES}
+     * or the supplied set of additional prefixes.
+     */
+    public static boolean isValidActionName(String actionName, Set<String> additionalPrefixes) {
         for (String prefix : VALID_ACTION_PREFIXES) {
             if (actionName.startsWith(prefix)) {
                 return true;
             }
         }
-        return false;
-    }
-
-    /**
-     * Returns <code>true</code> iff the action name starts with a valid prefix, including any
-     * additional prefixes registered by plugins via {@link #registerAdditionalActionPrefixes}.
-     */
-    protected boolean isValidActionNameWithPluginPrefixes(String actionName) {
-        if (isValidActionName(actionName)) {
-            return true;
-        }
-        for (String prefix : additionalActionPrefixes) {
+        for (String prefix : additionalPrefixes) {
             if (actionName.startsWith(prefix)) {
                 return true;
             }
