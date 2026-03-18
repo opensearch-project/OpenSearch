@@ -291,7 +291,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
         }
     }
 
-    private ByteBuffer getHeaderBuffer(long requestId, Version nodeVersion, Set<String> features) throws IOException {
+    ByteBuffer getHeaderBuffer(long requestId, Version nodeVersion, Set<String> features) throws IOException {
         // Just a way( probably inefficient) to serialize header to reuse existing logic present in
         // NativeOutboundMessage.Response#writeVariableHeader()
         NativeOutboundMessage.Response headerMessage = new NativeOutboundMessage.Response(
