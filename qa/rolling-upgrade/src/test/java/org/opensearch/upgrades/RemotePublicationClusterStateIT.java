@@ -8,14 +8,17 @@
 
 package org.opensearch.upgrades;
 
+import org.opensearch.Version;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Integration tests for remote publication enabled clusters during rolling upgrades.
@@ -65,18 +68,122 @@ public class RemotePublicationClusterStateIT extends AbstractRollingTestCase {
             verifyComponentTemplateInClusterState(response);
             verifyComposableTemplateInClusterState(response);
             verifySettingsInClusterState();
+        } else if (CLUSTER_TYPE == ClusterType.MIXED && firstMixedRound) {
+            verifyRemotePublicationEnabled();
+            verifyClusterState();
+
+            // Test both cluster-manager version scenarios to ensure remote state serialization
+            // is backwards compatible in both directions:
+            // 1. Old CM writes state that new nodes must read from remote store
+            // 2. New CM writes state that old nodes must read from remote store
+            ensureClusterManagerVersion(false);
+            makeClusterStateChange("old_cm");
+            ensureAllNodesHealthy();
+            verifyClusterState();
+
+            ensureClusterManagerVersion(true);
+            makeClusterStateChange("new_cm");
+            ensureAllNodesHealthy();
+            verifyClusterState();
         } else {
             verifyRemotePublicationEnabled();
-
-            Request request = new Request("GET", "_cluster/state");
-            Response response = client().performRequest(request);
-            assertOK(response);
-
-            verifyIndexInClusterState(response);
-            verifyTemplateMetadataInClusterState(response);
-            verifyComponentTemplateInClusterState(response);
-            verifyComposableTemplateInClusterState(response);
+            verifyClusterState();
         }
+    }
+
+    private void verifyClusterState() throws Exception {
+        Request request = new Request("GET", "_cluster/state");
+        Response response = client().performRequest(request);
+        assertOK(response);
+        verifyIndexInClusterState(response);
+        verifyTemplateMetadataInClusterState(response);
+        verifyComponentTemplateInClusterState(response);
+        verifyComposableTemplateInClusterState(response);
+    }
+
+    /**
+     * Returns true if the current cluster-manager node is running the new (upgraded) version.
+     */
+    private boolean isClusterManagerOnNewVersion() throws IOException {
+        Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "_cluster/state")));
+        String clusterManagerNodeId = (String) clusterState.get("master_node");
+
+        Map<String, Object> nodesInfo = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<String, Object> nodes = (Map<String, Object>) nodesInfo.get("nodes");
+        Map<String, Object> cmNode = (Map<String, Object>) nodes.get(clusterManagerNodeId);
+        Version cmVersion = Version.fromString((String) cmNode.get("version"));
+        return cmVersion.after(UPGRADE_FROM_VERSION);
+    }
+
+    /**
+     * Ensures the cluster-manager is on the desired version by repeatedly excluding the current CM
+     * to trigger re-elections until a node of the desired version wins.
+     */
+    private void ensureClusterManagerVersion(boolean newVersion) throws Exception {
+        String versionLabel = newVersion ? "new" : "old";
+        long deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(1);
+        int attempt = 0;
+        while (isClusterManagerOnNewVersion() != newVersion) {
+            if (System.nanoTime() > deadline) {
+                fail("Failed to get cluster-manager on " + versionLabel + " version after 1 minute");
+            }
+            String cmName = getClusterManagerNodeName();
+            logger.info("Attempt {} to get {} version CM, excluding current CM [{}]", ++attempt, versionLabel, cmName);
+
+            Request exclude = new Request("POST", "/_cluster/voting_config_exclusions");
+            exclude.addParameter("node_names", cmName);
+            exclude.addParameter("timeout", "30s");
+            assertOK(client().performRequest(exclude));
+
+            // Wait for a different node to become CM
+            assertBusy(() -> assertNotEquals(cmName, getClusterManagerNodeName()));
+
+            // Clear exclusion immediately so the node stays in the cluster
+            clearVotingConfigExclusions();
+        }
+        logger.info("Cluster manager is on {} version: [{}]", versionLabel, getClusterManagerNodeName());
+    }
+
+    private String getClusterManagerNodeName() throws IOException {
+        Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "_cluster/state")));
+        String cmNodeId = (String) clusterState.get("master_node");
+        Map<String, Object> nodesInfo = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<String, Object> nodes = (Map<String, Object>) nodesInfo.get("nodes");
+        Map<String, Object> cmNode = (Map<String, Object>) nodes.get(cmNodeId);
+        return (String) cmNode.get("name");
+    }
+
+    /**
+     * Makes a small cluster state change to force the cluster-manager to publish new state,
+     * which exercises the remote state serialization/deserialization path.
+     */
+    private void makeClusterStateChange(String suffix) throws IOException {
+        Request putSettings = new Request("PUT", "_cluster/settings");
+        putSettings.setJsonEntity(String.format(Locale.ROOT, """
+            {
+                "transient": {
+                    "cluster.routing.allocation.exclude._name": "nonexistent_node_%s"
+                }
+            }""", suffix));
+        assertOK(client().performRequest(putSettings));
+    }
+
+    private void clearVotingConfigExclusions() throws IOException {
+        Request clearRequest = new Request("DELETE", "/_cluster/voting_config_exclusions");
+        clearRequest.addParameter("wait_for_removal", "false");
+        assertOK(client().performRequest(clearRequest));
+    }
+
+    /**
+     * Verifies all 3 nodes are present and the cluster is healthy. If any node failed to apply
+     * cluster state (e.g. due to remote state deserialization errors), it will not be part of
+     * the cluster and this check will fail.
+     */
+    private void ensureAllNodesHealthy() throws Exception {
+        ensureHealth(request -> {
+            request.addParameter("wait_for_nodes", "3");
+            request.addParameter("timeout", "60s");
+        });
     }
 
     private static void createIndexTemplate() throws Exception {
