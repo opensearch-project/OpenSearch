@@ -6,25 +6,87 @@
  * compatible open source license.
  */
 
+def calciteVersion = '1.41.0'
+
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-    description = 'OpenSearch plugin providing Lucene-based search execution engine'
-    classname = 'org.opensearch.lucene.LuceneSearchEnginePlugin'
+  description = 'OpenSearch plugin providing Lucene-based search execution engine'
+  classname = 'org.opensearch.be.lucene.LuceneSearchEnginePlugin'
+  extendedPlugins = ['analytics-engine']
 }
 
 dependencies {
-    // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
-    // Also provides calcite-core transitively via api.
-    api project(':sandbox:libs:analytics-framework')
+  // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
+  // Also provides calcite-core transitively via api.
+  api project(':sandbox:libs:analytics-framework')
+  // Analytics engine plugin (for DefaultShardExecutionContext at compile time; available at runtime via extendedPlugins)
+  compileOnly project(':sandbox:plugins:analytics-engine')
+  // Arrow Flight streaming transport (for BufferAllocator, VectorSchemaRoot)
+  api project(':plugins:arrow-flight-rpc')
 
-    implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-    implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  // Calcite (needed for RexNode, RelNode, SqlStdOperatorTable at compile time)
+  compileOnly "org.apache.calcite:calcite-core:${calciteVersion}"
+
+  // Logging
+  implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
+  // Annotation dependencies (needed to suppress -Werror on Arrow/Calcite annotation warnings)
+  compileOnly 'org.checkerframework:checker-qual:3.43.0'
+  compileOnly 'org.apiguardian:apiguardian-api:1.1.2'
+
+  // jqwik for property-based tests
+  testImplementation 'net.jqwik:jqwik-api:1.9.1'
+  testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.1'
+
+  // JUnit Platform launcher (required by Gradle for useJUnitPlatform())
+  testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.1'
+
+  // AssertJ for fluent assertions in property tests
+  testImplementation 'org.assertj:assertj-core:3.26.3'
+
+  // Arrow memory implementation needed at test runtime for RootAllocator
+  testRuntimeOnly "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+
+  // Calcite at test time for building RexNode/RelNode fixtures
+  testImplementation "org.apache.calcite:calcite-core:${calciteVersion}"
+  // Calcite transitive deps needed at test runtime
+  testImplementation "org.apache.calcite:calcite-linq4j:${calciteVersion}"
+  testImplementation "org.apache.calcite.avatica:avatica-core:1.27.0"
+  testRuntimeOnly "org.jooq:joou-java-6:0.9.4"
+  testRuntimeOnly "com.google.guava:guava:${versions.guava}"
+  testRuntimeOnly "com.google.guava:failureaccess:1.0.2"
+  testRuntimeOnly "com.jayway.jsonpath:json-path:2.9.0"
+  testRuntimeOnly "org.apache.commons:commons-math3:3.6.1"
+  testRuntimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+
+  // Annotation dependencies for test compilation
+  testCompileOnly 'org.checkerframework:checker-qual:3.43.0'
+  testCompileOnly 'org.apiguardian:apiguardian-api:1.1.2'
+
+  // Mockito for mocking IndexShard, QueryShardContext, etc.
+  testImplementation "org.mockito:mockito-core:${versions.mockito}"
+  testRuntimeOnly "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  testRuntimeOnly "org.objenesis:objenesis:${versions.objenesis}"
+}
+
+configurations.all {
+  resolutionStrategy {
+    force 'com.google.guava:guava:33.4.0-jre'
+    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+  }
 }
 
 test {
-    systemProperty 'tests.security.manager', 'false'
+  useJUnitPlatform()
+  systemProperty 'tests.security.manager', 'false'
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
 }
-
-// TODO: Remove once back-end is built out with test suite
-testingConventions.enabled = false
