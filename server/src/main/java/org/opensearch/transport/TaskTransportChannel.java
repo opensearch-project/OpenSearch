@@ -32,15 +32,12 @@
 
 package org.opensearch.transport;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Transport channel for tasks
@@ -49,12 +46,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class TaskTransportChannel implements TransportChannel {
 
-    private static final Logger logger = LogManager.getLogger(TaskTransportChannel.class);
-
     private final TransportChannel channel;
     private final Releasable onTaskFinished;
-    private final AtomicBoolean finished = new AtomicBoolean(false);
-    private final AtomicBoolean streamingUsed = new AtomicBoolean(false);
 
     TaskTransportChannel(TransportChannel channel, Releasable onTaskFinished) {
         this.channel = channel;
@@ -74,56 +67,32 @@ public class TaskTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response) throws IOException {
         try {
-            channel.sendResponse(response);
+            onTaskFinished.close();
         } finally {
-            if (!streamingUsed.get() && finished.compareAndSet(false, true)) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Closing task from sendResponse (non-streaming mode)");
-                }
-                onTaskFinished.close();
-            }
+            channel.sendResponse(response);
         }
     }
 
     @Override
     public void sendResponseBatch(TransportResponse response) {
-        streamingUsed.set(true);
-        if (logger.isTraceEnabled()) {
-            logger.trace("sendResponseBatch called - marking as streaming mode, not closing task");
-        }
         channel.sendResponseBatch(response);
     }
 
     @Override
     public void completeStream() {
-        streamingUsed.set(true);
         try {
-            channel.completeStream();
+            onTaskFinished.close();
         } finally {
-            if (streamingUsed.get() && finished.compareAndSet(false, true)) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Closing task from completeStream (streaming mode)");
-                }
-                onTaskFinished.close();
-            } else if (logger.isTraceEnabled()) {
-                logger.trace("completeStream called but task already finished={}, streamingUsed={}", finished.get(), streamingUsed.get());
-            }
+            channel.completeStream();
         }
     }
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
         try {
-            channel.sendResponse(exception);
+            onTaskFinished.close();
         } finally {
-            if (finished.compareAndSet(false, true)) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Closing task from sendResponse(Exception), streamingUsed={}", streamingUsed.get());
-                }
-                onTaskFinished.close();
-            } else if (logger.isTraceEnabled()) {
-                logger.trace("sendResponse(Exception) called but task already finished");
-            }
+            channel.sendResponse(exception);
         }
     }
 
