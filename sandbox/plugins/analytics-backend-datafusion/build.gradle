@@ -12,6 +12,29 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+// --- Rust JNI build integration ---
+def jniDir = project.file('jni')
+def rustProfile = project.hasProperty('rustDebug') ? 'debug' : 'release'
+def rustTarget = rustProfile == 'debug' ? 'debug' : 'release'
+def nativeLibName = org.gradle.internal.os.OperatingSystem.current().isLinux() ? 'libanalytics_datafusion_jni.so' : 'libanalytics_datafusion_jni.dylib'
+
+task buildRustLibrary(type: Exec) {
+    workingDir jniDir
+    def cargoArgs = ['cargo', 'build']
+    if (rustProfile == 'release') cargoArgs += ['--release']
+    commandLine cargoArgs
+    inputs.dir(jniDir.toPath().resolve('src'))
+    inputs.file(jniDir.toPath().resolve('Cargo.toml'))
+    outputs.file(jniDir.toPath().resolve("target/${rustTarget}/${nativeLibName}"))
+}
+
+task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
+    from jniDir.toPath().resolve("target/${rustTarget}/${nativeLibName}")
+    into project.file('src/main/resources/native')
+}
+
+processResources.dependsOn copyNativeLibrary
+
 dependencies {
   // Shared types and SPI interfaces (EngineBridge, AnalyticsBackEndPlugin, etc.)
   // Also provides calcite-core transitively via api.

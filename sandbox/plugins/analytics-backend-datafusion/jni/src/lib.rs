@@ -1,7 +1,6 @@
-use std::sync::Arc;
 
 use arrow::array::{Array, StructArray};
-use arrow::ffi::{to_ffi, FFI_ArrowArray, FFI_ArrowSchema};
+use arrow::ffi::to_ffi;
 use datafusion::prelude::*;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::jlong;
