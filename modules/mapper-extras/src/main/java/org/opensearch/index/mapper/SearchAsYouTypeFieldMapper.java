@@ -209,6 +209,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
+            prefixft.setStoreTermVectors(false);
             final String fullName = buildFullName(context);
             // wrap the root field's index analyzer with shingles and edge ngrams
             final Analyzer prefixIndexWrapper = SearchAsYouTypeAnalyzer.withShingleAndPrefix(
