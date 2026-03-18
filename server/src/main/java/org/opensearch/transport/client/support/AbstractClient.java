@@ -624,21 +624,12 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public ActionFuture<SearchResponse> search(final SearchRequest request) {
-        // Route streaming requests to streaming action
-        if (request.isStreamingScoring() || request.getStreamingSearchMode() != null) {
-            return execute(StreamSearchAction.INSTANCE, request);
-        }
         return execute(SearchAction.INSTANCE, request);
     }
 
     @Override
     public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
-        // Route streaming requests to streaming action
-        if (request.isStreamingScoring() || request.getStreamingSearchMode() != null) {
-            execute(StreamSearchAction.INSTANCE, request, listener);
-        } else {
-            execute(SearchAction.INSTANCE, request, listener);
-        }
+        execute(SearchAction.INSTANCE, request, listener);
     }
 
     @Override
@@ -648,7 +639,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public SearchRequestBuilder prepareStreamSearch(String... indices) {
-        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).enableStreamingDefaults().setIndices(indices);
+        return new SearchRequestBuilder(this, StreamSearchAction.INSTANCE).setIndices(indices);
     }
 
     @Override

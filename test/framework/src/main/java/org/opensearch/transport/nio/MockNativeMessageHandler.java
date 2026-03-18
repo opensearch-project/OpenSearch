@@ -123,5 +123,4 @@ class MockNativeMessageHandler extends NativeMessageHandler {
     private boolean requiresStreaming(String action) {
         return STREAMING_ACTIONS.contains(action) || action.contains("stream");
     }
-
 }

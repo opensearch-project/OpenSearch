@@ -396,28 +396,6 @@ public class TransportService extends AbstractLifecycleComponent
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
-
-        // Start stream transport if configured
-        if (streamTransport != null) {
-            // Only set message listener if stream transport is different from regular transport
-            // to avoid "Cannot set message listener twice" on shared handlers
-            if (streamTransport != transport) {
-                try {
-                    streamTransport.setMessageListener(this);
-                } catch (IllegalStateException e) {
-                    if (e.getMessage().contains("Cannot set message listener twice")) {
-                        logger.debug("Stream transport shares message listener with regular transport, skipping setMessageListener");
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-            streamTransport.start();
-            if (streamTransport.boundAddress() != null && logger.isInfoEnabled()) {
-                logger.info("stream transport: {}", streamTransport.boundAddress());
-            }
-        }
-
         // TODO: Making localNodeFactory BiConsumer is a bigger change since it should accept both default transport and
         // stream publish address
         synchronized (this) {
@@ -440,11 +418,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     protected void doStop() {
         try {
-            if (streamTransport != null) {
-                IOUtils.close(connectionManager, remoteClusterService, transport::stop, streamTransport::stop);
-            } else {
-                IOUtils.close(connectionManager, remoteClusterService, transport::stop);
-            }
+            IOUtils.close(connectionManager, remoteClusterService, transport::stop);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
