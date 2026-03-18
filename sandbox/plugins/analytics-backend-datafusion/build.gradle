@@ -6,6 +6,8 @@
  * compatible open source license.
  */
 
+apply plugin: 'opensearch.internal-cluster-test'
+
 opensearchplugin {
   description = 'DataFusion native execution engine plugin for the query engine.'
   classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
@@ -35,15 +37,33 @@ task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
 
 processResources.dependsOn copyNativeLibrary
 
+configurations.all {
+  resolutionStrategy {
+    force "com.google.guava:guava:${versions.guava}"
+    force 'com.google.guava:failureaccess:1.0.2'
+  }
+}
+
 dependencies {
   api project(':sandbox:libs:analytics-framework')
   implementation project(':plugins:arrow-flight-rpc')
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+
+  // Integration test dependencies
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
 }
 
 // JVM args for Arrow memory access
 tasks.withType(Test).configureEach {
   jvmArgs += ["--add-opens", "java.base/java.nio=ALL-UNNAMED"]
+}
+
+// Netty system properties required by FlightStreamPlugin
+internalClusterTest {
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
 }
 
 // TODO: Remove once back-end is built out with test suite

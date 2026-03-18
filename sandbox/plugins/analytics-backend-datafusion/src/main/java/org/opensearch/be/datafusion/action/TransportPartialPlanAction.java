@@ -58,7 +58,8 @@ public class TransportPartialPlanAction extends HandledTransportAction<PartialPl
     }
 
     private void handleStreamRequest(PartialPlanRequest request, TransportChannel channel, Task task) {
-        FlightTransportChannel flightChannel = (FlightTransportChannel) channel;
+        FlightTransportChannel flightChannel = channel.get("flight", FlightTransportChannel.class)
+            .orElseThrow(() -> new IllegalStateException("Expected FlightTransportChannel, got " + channel.getClass()));
         logger.info("Executing partial plan: sql=[{}], path=[{}]", request.getSql(), request.getParquetPath());
         BufferAllocator allocator = flightChannel.getAllocator();
 

@@ -23,6 +23,7 @@ import org.opensearch.transport.stream.StreamException;
 import java.nio.ByteBuffer;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -173,6 +174,18 @@ public class FlightTransportChannel extends TcpTransportChannel {
     @Override
     public String getChannelType() {
         return "stream-transport";
+    }
+
+
+    /**
+     * Makes this channel discoverable through the TransportChannel.get() delegation chain.
+     */
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        if (clazz.isInstance(this)) {
+            return Optional.of(clazz.cast(this));
+        }
+        return super.get(name, clazz);
     }
 
     public void releaseChannel(boolean isExceptionResponse) {

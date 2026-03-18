@@ -36,5 +36,11 @@ public class NativeBridge {
      * @param sql         SQL query (table is registered as "t")
      * @param callback    BatchCallback receiving Arrow FFI pointers
      */
+    /**
+     * Creates a test parquet file with category (string) + amount (int) data.
+     * 8 rows: A/100, B/200, A/300, C/150, B/250, A/400, C/350, D/175
+     */
+    public static native void createTestParquet(String path);
+
     public static native void executeAndStream(long runtimePtr, String parquetPath, String sql, Object callback);
 }

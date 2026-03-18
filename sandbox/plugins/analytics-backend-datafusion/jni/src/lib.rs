@@ -1,7 +1,12 @@
 
-use arrow::array::{Array, StructArray};
+use std::fs::File;
+use std::sync::Arc;
+
+use arrow::array::{Array, Int32Array, RecordBatch, StringArray, StructArray};
+use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ffi::to_ffi;
 use datafusion::prelude::*;
+use parquet::arrow::ArrowWriter;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::jlong;
 use jni::JNIEnv;
@@ -25,6 +30,35 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_destro
     if runtime_ptr != 0 {
         unsafe { drop(Box::from_raw(runtime_ptr as *mut Runtime)) };
     }
+}
+
+/// Creates a test parquet file with category (string) + amount (int) data.
+/// Used for integration testing.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_createTestParquet<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    path: JString<'local>,
+) {
+    let path_str: String = env.get_string(&path).expect("Invalid path").into();
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("category", DataType::Utf8, false),
+        Field::new("amount", DataType::Int32, false),
+    ]));
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(StringArray::from(vec![
+                "A", "B", "A", "C", "B", "A", "C", "D",
+            ])),
+            Arc::new(Int32Array::from(vec![100, 200, 300, 150, 250, 400, 350, 175])),
+        ],
+    )
+    .expect("Failed to create batch");
+    let file = File::create(&path_str).expect("Failed to create file");
+    let mut writer = ArrowWriter::try_new(file, schema, None).expect("Failed to create writer");
+    writer.write(&batch).expect("Failed to write batch");
+    writer.close().expect("Failed to close writer");
 }
 
 /// Executes a SQL query against a parquet file and streams results via JNI callback.
