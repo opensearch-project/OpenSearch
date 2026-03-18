@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.dataformat.DataFormatTestUtils.MockDataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
@@ -152,7 +153,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      * Tests DataFormat equality semantics and field capabilities.
      */
     public void testDataFormatCapabilities() {
-        MockDataFormat format = new MockDataFormat();
+        DataFormat format = new MockDataFormat();
         Set<FieldTypeCapabilities> fields = format.supportedFields();
         assertEquals(1, fields.size());
 
@@ -225,28 +226,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         RefreshInput input = RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).existingSegments(List.of(seg)).build();
         assertEquals(2, input.writerFiles().size());
         assertEquals(1, input.existingSegments().size());
-    }
-
-    static class MockDataFormat extends DataFormat {
-        @Override
-        public String name() {
-            return "mock-columnar";
-        }
-
-        @Override
-        public long priority() {
-            return 100L;
-        }
-
-        @Override
-        public Set<FieldTypeCapabilities> supportedFields() {
-            return Set.of(
-                new FieldTypeCapabilities(
-                    "integer",
-                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
-                )
-            );
-        }
     }
 
     static class MockDocumentInput implements DocumentInput<Map<String, Object>> {
@@ -354,6 +333,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         private final MockDataFormat dataFormat;
         private final Path directory;
         private final AtomicLong seqNo = new AtomicLong(0);
+        private final AtomicLong writerGeneration = new AtomicLong(0);
 
         MockIndexingExecutionEngine(MockDataFormat dataFormat) {
             this.dataFormat = dataFormat;
@@ -388,6 +368,11 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         @Override
         public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
             // no-op for mock
+        }
+
+        @Override
+        public long getNextWriterGeneration() {
+            return writerGeneration.getAndIncrement();
         }
 
         @Override

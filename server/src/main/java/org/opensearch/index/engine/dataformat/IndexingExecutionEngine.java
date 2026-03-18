@@ -50,6 +50,15 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     RefreshResult refresh(RefreshInput refreshInput) throws IOException;
 
     /**
+     * Returns the next writer generation number to be used when creating a new writer.
+     * Each writer is associated with a monotonically increasing generation number
+     * that uniquely identifies it within this engine's lifecycle.
+     *
+     * @return the next writer generation number
+     */
+    long getNextWriterGeneration();
+
+    /**
      * Returns the data format handled by this engine.
      *
      * @return the data format

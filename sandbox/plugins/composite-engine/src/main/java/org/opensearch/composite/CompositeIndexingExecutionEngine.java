@@ -61,6 +61,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final Set<IndexingExecutionEngine<?, ?>> secondaryEngines;
     private final CompositeDataFormat compositeDataFormat;
     private final LockablePool<CompositeWriter> writerPool;
+    private final AtomicLong writerGenerationCounter;
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -113,7 +114,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         this.compositeDataFormat = new CompositeDataFormat(allFormats);
 
         // Create the writer pool internally, matching the reference code pattern
-        AtomicLong writerGenerationCounter = new AtomicLong(0);
+        writerGenerationCounter = new AtomicLong(0);
         this.writerPool = new LockablePool<>(
             () -> new CompositeWriter(this, writerGenerationCounter.getAndIncrement()),
             LinkedList::new,
@@ -230,6 +231,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
 
         return new RefreshResult(refreshedSegments);
+    }
+
+    @Override
+    public long getNextWriterGeneration() {
+        return writerGenerationCounter.getAndIncrement();
     }
 
     @Override
