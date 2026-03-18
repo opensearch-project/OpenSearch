@@ -352,6 +352,8 @@ public class TranslogTransferManager {
         int threads = Math.min(generationPrimaryTermPairs.size(), maxConcurrentStreams);
         if (threadPool != null) {
             threads = Math.min(threads, threadPool.info(ThreadPool.Names.TRANSLOG_TRANSFER).getMax());
+        } else {
+            threads = 1;
         }
 
         // Fall back to sequential for single thread (avoids overhead)
@@ -385,6 +387,7 @@ public class TranslogTransferManager {
         try {
             long timeoutMillis = remoteStoreSettings.getClusterRemoteTranslogTransferTimeout().millis();
             if (!latch.await(timeoutMillis, TimeUnit.MILLISECONDS)) {
+                queue.clear(); // signal workers to stop
                 throw new IOException("Timed out waiting for parallel translog downloads");
             }
         } catch (InterruptedException e) {

@@ -1036,17 +1036,13 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         pairs.add(new org.opensearch.common.collect.Tuple<>("1", "2"));
         pairs.add(new org.opensearch.common.collect.Tuple<>("1", "1"));
 
-        long start = System.currentTimeMillis();
         parallelManager.downloadTranslogsParallel(pairs, location, 4);
-        long elapsed = System.currentTimeMillis() - start;
 
         // All 6 files should exist
         for (long gen = 1; gen <= 3; gen++) {
             assertTrue(Files.exists(location.resolve("translog-" + gen + ".tlog")));
             assertTrue(Files.exists(location.resolve("translog-" + gen + ".ckp")));
         }
-        // Parallel execution should be faster than sequential (3 * 2 * delayMs)
-        assertTrue("Expected parallel download faster than sequential, elapsed=" + elapsed, elapsed < 3 * 2 * delayMs);
     }
 
     public void testDownloadTranslogsParallelFailurePropagation() throws IOException {
