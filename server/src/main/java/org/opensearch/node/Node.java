@@ -1483,7 +1483,6 @@ public class Node implements Closeable {
                 taskHeaders,
                 tracer
             );
-            transportService.registerAdditionalActionPrefixes(actionModule.getPluginActionPrefixes());
             final Optional<StreamTransportService> streamTransportService = streamTransport != null
                 ? Optional.of(
                     new StreamTransportService(
