@@ -2489,8 +2489,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getIndexer().refresh("post_recovery");
 
             // Wait for ingestion warmup if enabled (pull-based ingestion only)
-            Engine engine = getEngine();
-            handlePullBasedIngestionWarmup(engine);
+            handlePullBasedIngestionWarmup(getIndexer());
 
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
@@ -2510,9 +2509,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * When warmup is enabled, this method blocks until the shard has caught up with the streaming source
      * or until the configured timeout is reached.
      *
-     * @param engine the engine to check for warmup
+     * @param indexer the indexer to check for warmup
      */
-    private void handlePullBasedIngestionWarmup(Engine engine) {
+    private void handlePullBasedIngestionWarmup(Indexer indexer) {
+        if (!(indexer instanceof EngineBackedIndexer)) {
+            return;
+        }
+        Engine engine = ((EngineBackedIndexer) indexer).getEngine();
         if (engine instanceof IngestionEngine) {
             IngestionEngine ingestionEngine = (IngestionEngine) engine;
             try {

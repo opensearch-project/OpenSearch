@@ -97,7 +97,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -172,7 +172,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -207,7 +207,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // Set up latch to wait for 2 messages to be processed
@@ -250,7 +250,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -337,7 +337,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -401,7 +401,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -439,7 +439,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -513,7 +513,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -584,7 +584,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         poller.start();
@@ -628,7 +628,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // Start and wait for 2 messages to be processed
@@ -685,7 +685,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // Start poller
@@ -730,7 +730,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
@@ -741,7 +741,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     public void testWarmupDisabledBehavior() {
         // When warmup is disabled, isWarmupComplete should return true immediately
-        // The default poller in setUp has warmupEnabled=false
+        // The default poller in setUp has warmup disabled (timeout=-1)
         assertTrue(poller.isWarmupComplete()); // Warmup disabled means it's considered complete
 
         // Create another poller with warmup explicitly disabled
@@ -760,7 +760,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // Warmup should be considered complete when disabled
@@ -786,7 +786,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0)
         );
 
         // Initially warmup is not complete
@@ -826,7 +826,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(500), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0)
         );
 
         warmupPoller.start();
@@ -855,7 +855,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0)
         );
 
         // Initial state should be NONE
@@ -872,52 +872,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertTrue(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
-    }
-
-    public void testIsWarmupFailOnTimeout() {
-        // Test with fail on timeout = true
-        DefaultStreamPoller failOnTimeoutPoller = new DefaultStreamPoller(
-            new FakeIngestionSource.FakeIngestionShardPointer(0),
-            fakeConsumerFactory,
-            "",
-            0,
-            partitionedBlockingQueueContainer,
-            StreamPoller.ResetState.NONE,
-            "",
-            errorStrategy,
-            StreamPoller.State.NONE,
-            1000,
-            1000,
-            10000,
-            indexSettings,
-            new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(300000), 0, true)
-        );
-
-        assertTrue(failOnTimeoutPoller.isWarmupFailOnTimeout());
-        failOnTimeoutPoller.close();
-
-        // Test with fail on timeout = false
-        DefaultStreamPoller proceedOnTimeoutPoller = new DefaultStreamPoller(
-            new FakeIngestionSource.FakeIngestionShardPointer(0),
-            fakeConsumerFactory,
-            "",
-            0,
-            partitionedBlockingQueueContainer,
-            StreamPoller.ResetState.NONE,
-            "",
-            errorStrategy,
-            StreamPoller.State.NONE,
-            1000,
-            1000,
-            10000,
-            indexSettings,
-            new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(300000), 0, false)
-        );
-
-        assertFalse(proceedOnTimeoutPoller.isWarmupFailOnTimeout());
-        proceedOnTimeoutPoller.close();
     }
 
     public void testWarmupCompletesViaTimeoutWhenPointerLagNegative() throws InterruptedException, TimeoutException {
@@ -943,7 +897,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(500), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0)
         );
 
         warmupPoller.start();
@@ -979,7 +933,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(true, TimeValue.timeValueMillis(30000), 100, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(30000), 100)
         );
 
         warmupPoller.start();
@@ -1009,7 +963,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(false, TimeValue.timeValueMillis(300000), 0, false)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
         );
 
         // Should return immediately without blocking since warmup is disabled

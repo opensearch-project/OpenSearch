@@ -1032,24 +1032,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Defines if warmup phase is enabled for pull-based ingestion. When enabled, shards will wait for
-     * lag to catch up before serving queries after node restart or shard relocation.
-     */
-    public static final String SETTING_INGESTION_SOURCE_WARMUP_ENABLED = "index.ingestion_source.warmup.enabled";
-    public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_ENABLED_SETTING = Setting.boolSetting(
-        SETTING_INGESTION_SOURCE_WARMUP_ENABLED,
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
-
-    /**
      * Defines the maximum time to wait for lag to catch up during warmup phase.
+     * A value of -1 means warmup is disabled (the default). A value >= 0 enables warmup with that timeout.
      */
     public static final String SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT = "index.ingestion_source.warmup.timeout";
-    public static final Setting<TimeValue> INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+    public static final Setting<TimeValue> INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING = Setting.timeSetting(
         SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT,
-        new TimeValue(5, TimeUnit.MINUTES),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
         Property.IndexScope,
         Property.Final
     );
@@ -1063,18 +1053,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD,
         100L,
         0L,
-        Property.IndexScope,
-        Property.Final
-    );
-
-    /**
-     * Defines if shard initialization should fail when warmup times out.
-     * If false, shard proceeds with a warning. If true, shard initialization fails.
-     */
-    public static final String SETTING_INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT = "index.ingestion_source.warmup.fail_on_timeout";
-    public static final Setting<Boolean> INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING = Setting.boolSetting(
-        SETTING_INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT,
-        false,
         Property.IndexScope,
         Property.Final
     );
@@ -1351,10 +1329,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             // Warmup settings
             final IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
-                INGESTION_SOURCE_WARMUP_ENABLED_SETTING.get(settings),
                 INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(settings),
-                INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings),
-                INGESTION_SOURCE_WARMUP_FAIL_ON_TIMEOUT_SETTING.get(settings)
+                INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings)
             );
 
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)

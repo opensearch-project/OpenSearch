@@ -180,7 +180,7 @@ public class DefaultStreamPoller implements StreamPoller {
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
         // If warmup is disabled, mark as complete immediately
-        if (!warmupConfig.enabled()) {
+        if (!warmupConfig.isEnabled()) {
             this.warmupComplete = true;
         }
     }
@@ -213,7 +213,7 @@ public class DefaultStreamPoller implements StreamPoller {
         logger.info("Starting poller for shard {}", shardId);
 
         // Initialize warmup if enabled
-        if (warmupConfig.enabled() && !warmupComplete) {
+        if (warmupConfig.isEnabled() && !warmupComplete) {
             warmupStartTime = System.currentTimeMillis();
             state = State.WARMING_UP;
             logger.info("Starting warmup phase for index {} shard {}, waiting for lag to catch up", indexName, shardId);
@@ -237,7 +237,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 updatePointerBasedLagIfNeeded();
 
                 // Check warmup status if not yet complete
-                if (!warmupComplete && warmupConfig.enabled()) {
+                if (!warmupComplete && warmupConfig.isEnabled()) {
                     updateWarmupStatus();
                 }
 
@@ -386,7 +386,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
     @Override
     public boolean isWarmupComplete() {
-        return warmupComplete || !warmupConfig.enabled();
+        return warmupComplete || !warmupConfig.isEnabled();
     }
 
     /**
@@ -412,16 +412,9 @@ public class DefaultStreamPoller implements StreamPoller {
         this.state = newState;
     }
 
-    /**
-     * Returns true if shard initialization should fail when warmup times out.
-     */
-    public boolean isWarmupFailOnTimeout() {
-        return warmupConfig.failOnTimeout();
-    }
-
     @Override
     public boolean awaitWarmupComplete(long timeoutMs) throws InterruptedException {
-        if (!warmupConfig.enabled() || isWarmupComplete()) {
+        if (!warmupConfig.isEnabled() || isWarmupComplete()) {
             return true;
         }
 
@@ -740,12 +733,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
         // Warmup configuration - default matches IndexMetadata settings
-        private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
-            false,
-            TimeValue.timeValueMinutes(5),
-            100L,
-            false
-        );
+        private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
 
         /**
          * Initialize the builder with mandatory parameters

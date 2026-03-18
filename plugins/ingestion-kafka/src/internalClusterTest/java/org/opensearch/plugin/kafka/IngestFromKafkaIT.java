@@ -107,7 +107,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -136,7 +135,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", "test")
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -272,7 +270,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -372,7 +369,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -425,7 +421,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -507,7 +502,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -548,7 +542,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.pointer_based_lag_update_interval", "3s")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -620,7 +613,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -715,7 +707,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .put("index.periodic_flush_interval", "5s")
                 .build(),
@@ -751,7 +742,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.mapper_type", "raw_payload")
                 .put("ingestion_source.error_strategy", "drop")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
@@ -869,7 +859,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "latest")
                 .put("ingestion_source.param.max.poll.records", "100")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             mapping
@@ -980,7 +969,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "none")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             mapping
@@ -1061,7 +1049,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
                 .put("ingestion_source.param.auto.offset.reset", "earliest")
-                .put("ingestion_source.warmup.enabled", false)
                 .put("ingestion_source.all_active", true)
                 .build(),
             mapping
@@ -1372,7 +1359,6 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 .put("ingestion_source.pointer.init.reset", "earliest")
                 .put("ingestion_source.param.topic", topicName)
                 .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
-                .put("ingestion_source.warmup.enabled", true)
                 .put("ingestion_source.warmup.lag_threshold", 0)
                 .put("ingestion_source.warmup.timeout", "10m")
                 .put("ingestion_source.all_active", true)
