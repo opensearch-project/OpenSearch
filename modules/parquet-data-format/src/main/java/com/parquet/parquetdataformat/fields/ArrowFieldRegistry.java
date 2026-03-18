@@ -62,7 +62,7 @@ public final class ArrowFieldRegistry {
         // Register core data fields
         registerPlugin(new CoreDataFieldPlugin(), "CoreDataFields");
 
-        // REgister metadata fields
+        // Register metadata fields
         registerPlugin(new MetadataFieldPlugin(), "MetadataFields");
     }
     /**
@@ -139,6 +139,13 @@ public final class ArrowFieldRegistry {
      */
     public static ParquetField getParquetField(String fieldType) {
         return FIELD_REGISTRY.get(fieldType);
+    }
+
+    /**
+     * Returns an unmodifiable view of all registered field mappings.
+     */
+    public static Map<String, ParquetField> getRegisteredFields() {
+        return Collections.unmodifiableMap(FIELD_REGISTRY);
     }
 
     public static class RegistryStats {

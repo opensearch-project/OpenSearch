@@ -8,9 +8,13 @@
 
 package org.opensearch.index.engine.exec.composite;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
+import org.opensearch.index.engine.exec.FieldAssignments;
+import org.opensearch.index.engine.exec.AssignedFieldType;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.RowIdGenerator;
@@ -31,10 +35,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWriter.CompositeDocumentInput>, Lock {
 
+    private static final Logger logger = LogManager.getLogger(CompositeDataFormatWriter.class);
     private final List<Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>>> writers;
     private final Runnable postWrite;
     private final ReentrantLock lock;
@@ -43,6 +47,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     private final long writerGeneration;
     private boolean aborted;
     private final RowIdGenerator rowIdGenerator;
+    private final Map<DataFormat, FieldAssignments> fieldAssignmentsMap;
     public static final String ROW_ID = "___row_id";
 
     public CompositeDataFormatWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
@@ -50,6 +55,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
         this.lock = new ReentrantLock();
         this.aborted = false;
         this.writerGeneration = writerGeneration;
+        this.fieldAssignmentsMap = engine.getFieldAssignmentsMap();
         engine.getDelegates().forEach(delegate -> {
             try {
                 writers.add(new AbstractMap.SimpleImmutableEntry<>(delegate.getDataFormat(), delegate.createWriter(writerGeneration)));
@@ -85,7 +91,7 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerPair : writers) {
             writerPair.getValue().close();
         }
@@ -93,10 +99,15 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
 
     @Override
     public CompositeDocumentInput newDocumentInput() {
+        List<DocumentInput<?>> inputs = new ArrayList<>();
+        for (Map.Entry<DataFormat, Writer<? extends DocumentInput<?>>> writerEntry : writers) {
+            inputs.add(writerEntry.getValue().newDocumentInput());
+        }
 
         CompositeDocumentInput compositeDocumentInput =
             new CompositeDocumentInput(
-                writers.stream().map(Map.Entry::getValue).map(Writer::newDocumentInput).collect(Collectors.toList()),
+                inputs,
+                fieldAssignmentsMap,
                 this,
                 postWrite
             );
@@ -159,14 +170,21 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
     public static class CompositeDocumentInput implements DocumentInput<List<? extends DocumentInput<?>>> {
 
         List<? extends DocumentInput<?>> inputs;
+        private final Map<DataFormat, FieldAssignments> fieldAssignmentsMap;
         CompositeDataFormatWriter writer;
         Runnable onClose;
         private long version = -1;
         private long seqNo = -2L;
         private long primaryTerm = 0;
 
-        public CompositeDocumentInput(List<? extends DocumentInput<?>> inputs, CompositeDataFormatWriter writer, Runnable onClose) {
+        public CompositeDocumentInput(
+            List<? extends DocumentInput<?>> inputs,
+            Map<DataFormat, FieldAssignments> fieldAssignmentsMap,
+            CompositeDataFormatWriter writer,
+            Runnable onClose
+        ) {
             this.inputs = inputs;
+            this.fieldAssignmentsMap = fieldAssignmentsMap;
             this.writer = writer;
             this.onClose = onClose;
         }
@@ -178,23 +196,56 @@ public class CompositeDataFormatWriter implements Writer<CompositeDataFormatWrit
             }
         }
 
-        @Override
+        /**
+         * Entry point from the mapper layer. Resolves per-format {@link MappedFieldType}
+         * using each delegate's {@link FieldAssignments}, then delegates to the format-specific
+         * {@link DocumentInput#addField(MappedFieldType, Object)}.
+         * Skips delegation if no field type exists for the field name in that format.
+         */
         public void addField(MappedFieldType fieldType, Object value) {
+            logger.debug("[COMPOSITE_DEBUG] addField: field=[{}] type=[{}] value=[{}] — resolving per-format field types for {} inputs",
+                fieldType.name(), fieldType.typeName(), value, inputs.size());
             for (DocumentInput<?> input : inputs) {
-                input.addField(fieldType, value);
+                FieldAssignments assignments = fieldAssignmentsMap.get(input.getDataFormat());
+                if (assignments == null) {
+                    continue;
+                }
+                MappedFieldType perFormatType = assignments.getFieldType(fieldType.name());
+                if (perFormatType == null) {
+                    continue;
+                }
+                input.addField(perFormatType, value);
             }
         }
 
         @Override
         public void setVersion(long version) {
             this.version = version;
-            addField(VersionFieldMapper.VersionFieldType.INSTANCE, version);
+            MappedFieldType versionType = new AssignedFieldType(
+                VersionFieldMapper.NAME,
+                VersionFieldMapper.CONTENT_TYPE,
+                false,
+                false,
+                true
+            );
+            for (DocumentInput<?> input : inputs) {
+                input.addField(versionType, version);
+            }
         }
 
         @Override
         public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
-            addField(SeqNoFieldMapper.SeqNoFieldType.INSTANCE, seqNo);
+            MappedFieldType seqNoType = new AssignedFieldType(
+                SeqNoFieldMapper.NAME,
+                SeqNoFieldMapper.CONTENT_TYPE,
+                true,
+                false,
+                true
+            );
+            for (DocumentInput<?> input : inputs) {
+                input.addField(seqNoType, seqNo);
+            }
         }
 
         @Override

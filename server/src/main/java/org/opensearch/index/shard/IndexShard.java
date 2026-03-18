@@ -4646,6 +4646,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate();
     }
 
+    // TODO:: Understand this one.. Do we need same type of Engine Config in lucene as secondary engine?
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) throws IOException {
         final Sort indexSort = indexSortSupplier.get();
         final Engine.Warmer warmer = reader -> {

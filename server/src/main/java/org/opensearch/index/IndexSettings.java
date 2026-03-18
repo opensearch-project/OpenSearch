@@ -33,6 +33,7 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -861,6 +862,29 @@ public final class IndexSettings {
         false,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Declares which data format is primary for a composite index.
+     * Required when multiple DataSourcePlugins are registered.
+     * Defaults to "parquet".
+     */
+    public static final Setting<String> INDEX_COMPOSITE_PRIMARY_DATA_FORMAT_SETTING = Setting.simpleString(
+        "index.composite.primary_data_format",
+        "parquet",
+        Property.IndexScope
+    );
+
+    /**
+     * Declares which data formats are secondary for a composite index.
+     * Only plugins whose data format name appears in this list (or matches the primary)
+     * will be registered. Defaults to an empty list (all non-primary plugins are allowed).
+     */
+    public static final Setting<List<String>> INDEX_COMPOSITE_SECONDARY_DATA_FORMATS_SETTING = Setting.listSetting(
+        "index.composite.secondary_data_formats",
+        Collections.emptyList(),
+        s -> s,
+        Property.IndexScope
     );
 
     private final Index index;

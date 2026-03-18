@@ -50,12 +50,14 @@ public class ParquetDataFormat implements DataFormat {
 
     @Override
     public boolean equals(Object obj) {
-        return true;
+        if (this == obj) return true;
+        if (!(obj instanceof DataFormat)) return false;
+        return name().equals(((DataFormat) obj).name());
     }
 
     @Override
     public int hashCode() {
-        return 0;
+        return name().hashCode();
     }
 
     @Override

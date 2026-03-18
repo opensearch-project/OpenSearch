@@ -319,12 +319,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             logger.debug("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
             this.engine = new CompositeIndexingExecutionEngine(
+                engineConfig,
                 mapperService,
                 pluginsService,
                 shardPath,
                 lastCommittedWriterGeneration.incrementAndGet(),
-                indexSettings,
-                getEngineConfig()
+                indexSettings
             );
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
@@ -612,6 +612,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                         index.documentInput.setSeqNo(index.seqNo());
                         index.documentInput.setPrimaryTerm(SeqNoFieldMapper.PRIMARY_TERM_NAME, index.primaryTerm());
                         index.documentInput.setVersion(1); // we are not supporting update in parquet
+                         logger.debug("[COMPOSITE_DEBUG] Indexing doc id=[{}] seqNo=[{}] primaryTerm=[{}] — writing to engine",
+                             index.id(), index.seqNo(), index.primaryTerm());
                         WriteResult writeResult = index.documentInput.addToWriter();
                         indexResult =
                             new Engine.IndexResult(writeResult.version(), index.primaryTerm(), index.seqNo(), writeResult.success());
@@ -1040,7 +1042,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
-
+                    refresh("flush in composite engine");
                     translogManager.ensureCanFlush();
 
                     try {

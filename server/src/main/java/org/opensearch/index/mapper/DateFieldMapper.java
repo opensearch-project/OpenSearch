@@ -312,13 +312,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private final Resolution resolution;
         private final Version indexCreatedVersion;
+        private final boolean isOptimisedIndexEnabled;
 
         public Builder(
             String name,
             Resolution resolution,
             DateFormatter dateFormatter,
             boolean ignoreMalformedByDefault,
-            Version indexCreatedVersion
+            Version indexCreatedVersion,
+            boolean isOptimisedIndexEnabled
         ) {
             super(name);
             this.resolution = resolution;
@@ -334,6 +336,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
                 this.printFormat.setValue(dateFormatter.printPattern());
                 this.locale.setValue(dateFormatter.locale());
             }
+            this.isOptimisedIndexEnabled = isOptimisedIndexEnabled;
         }
 
         private DateFormatter buildFormatter() {
@@ -397,12 +400,14 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
+        boolean isOptimisedIndexEnabled = isOptimisedIndexEnabled(c.getSettings());
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated(), isOptimisedIndexEnabled);
     });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
-        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated());
+        boolean isOptimisedIndexEnabled = isOptimisedIndexEnabled(c.getSettings());
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault, c.indexVersionCreated(), isOptimisedIndexEnabled);
     });
 
     /**
@@ -766,6 +771,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     private final Long nullValue;
     private final String nullValueAsString;
     private final Resolution resolution;
+    private final boolean isOptimizedIndexEnabled;
 
     private final boolean ignoreMalformedByDefault;
     private final Version indexCreatedVersion;
@@ -781,7 +787,8 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.store = builder.store.getValue();
-        this.indexed = builder.index.getValue();
+        this.isOptimizedIndexEnabled = builder.isOptimisedIndexEnabled;
+        this.indexed = builder.index.getValue() && !this.isOptimizedIndexEnabled;
         this.hasDocValues = builder.docValues.getValue();
         this.skiplist = builder.skiplist.getValue();
         this.isSkiplistConfigured = builder.skiplist.isConfigured();
@@ -798,7 +805,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), resolution, null, ignoreMalformedByDefault, indexCreatedVersion, isOptimizedIndexEnabled).init(this);
     }
 
     @Override

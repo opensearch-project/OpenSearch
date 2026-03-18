@@ -50,11 +50,11 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     ) {
         this.luceneMergePolicy = mergePolicy;
         this.logger = Loggers.getLogger(getClass(), shardId);
-        logger.info("Initialized merge policy: {}", mergePolicy);
+        logger.debug("[COMPOSITE_DEBUG] Initialized merge policy: {}", mergePolicy);
         this.infoStream = new InfoStream() {
             @Override
             public void message(String component, String message) {
-                logger.trace(() -> new ParameterizedMessage("Merge [{}]: {}", component, message));
+                logger.debug(() -> new ParameterizedMessage("[COMPOSITE_DEBUG] Merge [{}]: {}", component, message));
             }
 
             @Override

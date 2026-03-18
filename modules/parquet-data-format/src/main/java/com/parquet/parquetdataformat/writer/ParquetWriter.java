@@ -7,6 +7,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.EngineRole;
 import org.opensearch.index.engine.exec.FileInfos;
 import org.opensearch.index.engine.exec.FlushIn;
 import org.opensearch.index.engine.exec.WriteResult;
@@ -44,6 +45,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final String file;
     private final VSRManager vsrManager;
     private final long writerGeneration;
+    private final EngineRole engineRole;
 
     public ParquetWriter(
         String file,
@@ -52,11 +54,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ArrowBufferPool arrowBufferPool,
         IndexSettings indexSettings,
         String sortColumn,
-        boolean reverseSort
+        boolean reverseSort,
+        EngineRole engineRole
     ) {
         this.file = file;
         this.vsrManager = new VSRManager(file, indexSettings.getIndex().getName(), schema, arrowBufferPool, sortColumn, reverseSort);
         this.writerGeneration = writerGeneration;
+        this.engineRole = engineRole;
     }
 
     @Override
@@ -87,7 +91,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         vsrManager.close();
     }
 
@@ -100,6 +104,6 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         }
 
         // Get a new ManagedVSR from VSRManager for this document input
-        return new ParquetDocumentInput(vsrManager.getActiveManagedVSR());
+        return new ParquetDocumentInput(vsrManager.getActiveManagedVSR(), engineRole);
     }
 }

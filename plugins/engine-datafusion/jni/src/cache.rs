@@ -110,7 +110,7 @@ impl CacheAccessor<ObjectMeta, Arc<dyn datafusion::execution::cache::cache_manag
         }
     }
 
-    fn remove(&mut self, k: &ObjectMeta) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
+    fn remove(&self, k: &ObjectMeta) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
         match self.inner.lock() {
             Ok(mut cache) => cache.remove(k),
             Err(e) => {
