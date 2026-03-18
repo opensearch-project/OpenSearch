@@ -118,7 +118,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate()).getDelegate();
         ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
 
-        for (ReferenceManager.RefreshListener refreshListener : indexShard.getEngine().config().getInternalRefreshListener()) {
+        for (ReferenceManager.RefreshListener refreshListener : indexShard.getIndexer().config().getInternalRefreshListener()) {
             if (refreshListener instanceof ReleasableRetryableRefreshListener) {
                 ((ReleasableRetryableRefreshListener) refreshListener).drainRefreshes();
             }
@@ -796,8 +796,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 successLatch.countDown();
                 logger.info("Value fo latch {}", successLatch.getCount());
             }
-            return indexShard.getEngine();
-        }).when(shard).getEngine();
+            return indexShard.getIndexer();
+        }).when(shard).getIndexer();
 
         SegmentReplicationCheckpointPublisher emptyCheckpointPublisher = spy(SegmentReplicationCheckpointPublisher.EMPTY);
         AtomicLong checkpointPublisherCounter = new AtomicLong();
