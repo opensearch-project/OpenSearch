@@ -62,7 +62,6 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTests;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
@@ -164,7 +163,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);
-            Engine engine = IndexShardTests.getEngineFromShard(shards.getPrimary());
+            Engine engine = getEngine(shards.getPrimary());
             assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
             assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
         }
@@ -733,7 +732,7 @@ public class IndexLevelReplicationTests extends OpenSearchIndexLevelReplicationT
             final long deleteTimestamp = threadPool.relativeTimeInMillis();
             replica.refresh("test");
             assertBusy(() -> assertThat(threadPool.relativeTimeInMillis() - deleteTimestamp, greaterThan(gcInterval.millis())));
-            getEngine(replica).maybePruneDeletes();
+            getIndexer(replica).maybePruneDeletes();
             indexOnReplica(indexRequest, shards, replica);  // index arrives on replica lately.
             shards.assertAllEqual(0);
         }

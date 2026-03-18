@@ -74,7 +74,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
-        CodecService codecService = new CodecService(null, getEngine(primary).config().getIndexSettings(), null, List.of());
+        CodecService codecService = new CodecService(null, getIndexer(primary).config().getIndexSettings(), null, List.of());
         String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
