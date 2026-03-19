@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -92,7 +90,6 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public final class SearchPhaseController {
-    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -806,11 +803,7 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
-        // Check if this is a streaming search request
         String streamingMode = request.getStreamingSearchMode();
-        if (logger.isDebugEnabled()) {
-            logger.debug("Streaming mode on request: {}", streamingMode);
-        }
         if (streamingMode != null) {
             return new StreamQueryPhaseResultConsumer(
                 request,
