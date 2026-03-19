@@ -42,6 +42,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop
@@ -53,6 +54,7 @@ public class NoopRemoteRoutingTableService extends AbstractLifecycleComponent im
         long term,
         long version,
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         // noop

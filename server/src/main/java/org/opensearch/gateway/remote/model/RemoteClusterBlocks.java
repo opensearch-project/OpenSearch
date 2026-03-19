@@ -38,11 +38,18 @@ public class RemoteClusterBlocks extends AbstractClusterMetadataWriteableBlobEnt
     private ClusterBlocks clusterBlocks;
     private long stateVersion;
 
-    public RemoteClusterBlocks(final ClusterBlocks clusterBlocks, long stateVersion, String clusterUUID, final Compressor compressor) {
+    public RemoteClusterBlocks(
+        final ClusterBlocks clusterBlocks,
+        long stateVersion,
+        String clusterUUID,
+        final Compressor compressor,
+        final Version minNodeVersion
+    ) {
         super(clusterUUID, compressor, null);
+        setMinNodeVersion(minNodeVersion);
         this.clusterBlocks = clusterBlocks;
         this.stateVersion = stateVersion;
-        this.clusterBlocksFormat = new ChecksumWritableBlobStoreFormat<>("blocks", ClusterBlocks::readFrom);
+        this.clusterBlocksFormat = new ChecksumWritableBlobStoreFormat<>("blocks", ClusterBlocks::readFrom, minNodeVersion);
     }
 
     public RemoteClusterBlocks(final String blobName, final String clusterUUID, final Compressor compressor, final Version version) {

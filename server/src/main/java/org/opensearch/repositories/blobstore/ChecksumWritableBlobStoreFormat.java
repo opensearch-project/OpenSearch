@@ -58,10 +58,6 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
      */
     private final Version opensearchVersion;
 
-    public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader) {
-        this(codec, reader, Version.CURRENT.minimumCompatibilityVersion());
-    }
-
     public ChecksumWritableBlobStoreFormat(String codec, CheckedFunction<StreamInput, T, IOException> reader, Version opensearchVersion) {
         this.codec = codec;
         this.reader = reader;
@@ -91,8 +87,7 @@ public class ChecksumWritableBlobStoreFormat<T extends Writeable> {
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
                 }; StreamOutput stream = new OutputStreamStreamOutput(compressor.threadLocalOutputStream(indexOutputOutputStream));) {
-                    // TODO The stream version should be configurable
-                    stream.setVersion(Version.CURRENT.minimumCompatibilityVersion());
+                    stream.setVersion(opensearchVersion);
                     writer.write(stream, obj);
                 }
                 CodecUtil.writeFooter(indexOutput);

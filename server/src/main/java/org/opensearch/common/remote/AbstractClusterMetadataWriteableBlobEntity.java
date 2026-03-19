@@ -8,6 +8,7 @@
 
 package org.opensearch.common.remote;
 
+import org.opensearch.Version;
 import org.opensearch.core.compress.Compressor;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.remote.ClusterMetadataManifest.UploadedMetadata;
@@ -27,6 +28,16 @@ public abstract class AbstractClusterMetadataWriteableBlobEntity<T> extends Remo
         final NamedXContentRegistry namedXContentRegistry
     ) {
         super(clusterUUID, compressor);
+        this.namedXContentRegistry = namedXContentRegistry;
+    }
+
+    public AbstractClusterMetadataWriteableBlobEntity(
+        final String clusterUUID,
+        final Compressor compressor,
+        final NamedXContentRegistry namedXContentRegistry,
+        final Version minNodeVersion
+    ) {
+        super(clusterUUID, compressor, minNodeVersion);
         this.namedXContentRegistry = namedXContentRegistry;
     }
 

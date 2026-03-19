@@ -8,6 +8,7 @@
 
 package org.opensearch.common.remote;
 
+import org.opensearch.Version;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.core.compress.Compressor;
 
@@ -25,10 +26,18 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
     private final String clusterUUID;
     private final Compressor compressor;
     private String[] pathTokens;
+    private Version minNodeVersion;
 
     public RemoteWriteableBlobEntity(final String clusterUUID, final Compressor compressor) {
         this.clusterUUID = clusterUUID;
         this.compressor = compressor;
+        this.minNodeVersion = Version.CURRENT;
+    }
+
+    public RemoteWriteableBlobEntity(final String clusterUUID, final Compressor compressor, final Version minNodeVersion) {
+        this.clusterUUID = clusterUUID;
+        this.compressor = compressor;
+        this.minNodeVersion = minNodeVersion;
     }
 
     public abstract BlobPathParameters getBlobPathParameters();
@@ -84,6 +93,14 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
 
     protected Compressor getCompressor() {
         return compressor;
+    }
+
+    public Version getMinNodeVersion() {
+        return minNodeVersion;
+    }
+
+    public void setMinNodeVersion(Version minNodeVersion) {
+        this.minNodeVersion = minNodeVersion;
     }
 
 }

@@ -30,7 +30,8 @@ public class ChecksumWritableBlobStoreFormatTests extends OpenSearchTestCase {
 
     private final ChecksumWritableBlobStoreFormat<IndexMetadata> clusterBlocksFormat = new ChecksumWritableBlobStoreFormat<>(
         "index-metadata",
-        IndexMetadata::readFrom
+        IndexMetadata::readFrom,
+        Version.CURRENT
     );
 
     public void testSerDe() throws IOException {

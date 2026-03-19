@@ -55,6 +55,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 
@@ -63,6 +64,7 @@ public interface RemoteRoutingTableService extends LifecycleComponent {
         long term,
         long version,
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     );
 

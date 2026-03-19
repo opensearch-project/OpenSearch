@@ -40,14 +40,17 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
         final DiffableStringMap hashesOfConsistentSettings,
         final long metadataVersion,
         final String clusterUUID,
-        final Compressor compressor
+        final Compressor compressor,
+        final Version minNodeVersion
     ) {
         super(clusterUUID, compressor, null);
+        setMinNodeVersion(minNodeVersion);
         this.metadataVersion = metadataVersion;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
             "hashes-of-consistent-settings",
-            DiffableStringMap::readFrom
+            DiffableStringMap::readFrom,
+            minNodeVersion
         );
     }
 

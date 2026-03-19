@@ -636,6 +636,7 @@ public class RemoteClusterStateService implements Closeable {
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff
     ) throws IOException {
         assert Objects.nonNull(indexMetadataUploadListeners) : "indexMetadataUploadListeners can not be null";
+        final Version minNodeVersion = clusterState.nodes().getMinNodeVersion();
         int totalUploadTasks = indexToUpload.size() + indexMetadataUploadListeners.size() + customToUpload.size()
             + (uploadCoordinationMetadata ? 1 : 0) + (uploadSettingsMetadata ? 1 : 0) + (uploadTemplateMetadata ? 1 : 0)
             + (uploadDiscoveryNodes ? 1 : 0) + (uploadClusterBlock ? 1 : 0) + (uploadTransientSettingMetadata ? 1 : 0)
@@ -728,7 +729,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.nodes(),
                     clusterState.version(),
                     clusterState.metadata().clusterUUID(),
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -741,7 +743,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.blocks(),
                     clusterState.version(),
                     clusterState.metadata().clusterUUID(),
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -754,7 +757,8 @@ public class RemoteClusterStateService implements Closeable {
                     (DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings(),
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
-                    blobStoreRepository.getCompressor()
+                    blobStoreRepository.getCompressor(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -770,7 +774,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    minNodeVersion
                 ),
                 listener
             );
@@ -802,7 +807,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    namedWriteableRegistry
+                    namedWriteableRegistry,
+                    minNodeVersion
                 ),
                 listener
             );
@@ -814,6 +820,7 @@ public class RemoteClusterStateService implements Closeable {
                 clusterState.term(),
                 clusterState.version(),
                 indexRoutingTable,
+                minNodeVersion,
                 listener
             );
         });
@@ -828,6 +835,7 @@ public class RemoteClusterStateService implements Closeable {
                 clusterState.term(),
                 clusterState.version(),
                 routingTableDiff,
+                minNodeVersion,
                 listener
             );
         }

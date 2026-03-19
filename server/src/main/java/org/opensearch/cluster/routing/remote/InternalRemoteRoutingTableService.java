@@ -125,10 +125,18 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         long term,
         long version,
         IndexRoutingTable indexRouting,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
 
-        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(indexRouting, clusterUUID, compressor, term, version);
+        RemoteIndexRoutingTable remoteIndexRoutingTable = new RemoteIndexRoutingTable(
+            indexRouting,
+            clusterUUID,
+            compressor,
+            term,
+            version,
+            minNodeVersion
+        );
 
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteIndexRoutingTable.getUploadedMetadata()),
@@ -146,6 +154,7 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
         long term,
         long version,
         StringKeyDiffProvider<IndexRoutingTable> routingTableDiff,
+        Version minNodeVersion,
         LatchedActionListener<ClusterMetadataManifest.UploadedMetadata> latchedActionListener
     ) {
         RemoteRoutingTableDiff remoteRoutingTableDiff = new RemoteRoutingTableDiff(
@@ -153,7 +162,8 @@ public class InternalRemoteRoutingTableService extends AbstractLifecycleComponen
             clusterUUID,
             compressor,
             term,
-            version
+            version,
+            minNodeVersion
         );
         ActionListener<Void> completionListener = ActionListener.wrap(
             resp -> latchedActionListener.onResponse(remoteRoutingTableDiff.getUploadedMetadata()),

@@ -48,16 +48,19 @@ public class RemoteClusterStateCustoms extends AbstractClusterMetadataWriteableB
         final long stateVersion,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedWriteableRegistry namedWriteableRegistry
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final Version minNodeVersion
     ) {
         super(clusterUUID, compressor, null);
+        setMinNodeVersion(minNodeVersion);
         this.stateVersion = stateVersion;
         this.customType = customType;
         this.custom = custom;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterStateCustomsFormat = new ChecksumWritableBlobStoreFormat<>(
             "cluster-state-custom",
-            is -> readFrom(is, namedWriteableRegistry, customType)
+            is -> readFrom(is, namedWriteableRegistry, customType),
+            minNodeVersion
         );
     }
 
