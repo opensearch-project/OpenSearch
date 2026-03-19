@@ -37,6 +37,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.ingest.PutPipelineRequest;
@@ -258,5 +259,41 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         BulkResponse bulkResponse = client().prepareBulk().add(indexRequest.id(tooLongId)).get();
         assertTrue(bulkResponse.hasFailures());
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("is too long, must be no longer than 2048 bytes"));
+    }
+
+    public void testDocIdMaxLengthDynamicUpdate() {
+        String index = "testing_dynamic_id_length";
+        createIndex(index);
+        String longId = String.join("", Collections.nCopies(1024, "a"));
+
+        // 1024-byte ID should be rejected with the default limit of 512
+        IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("foo", "baz"));
+        BulkResponse bulkResponse = client().prepareBulk().add(indexRequest.id(longId)).get();
+        assertTrue(bulkResponse.hasFailures());
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("is too long, must be no longer than 512 bytes"));
+
+        // Dynamically raise the limit
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put("index.max_doc_id_length", 2048)).get();
+
+        // Same 1024-byte ID should now succeed
+        assertFalse(client().prepareBulk().add(indexRequest.id(longId)).get().hasFailures());
+    }
+
+    public void testDeleteWithLongDocIdAllowed() {
+        String index = "testing_delete_long_id";
+        createIndex(index, Settings.builder().put("index.max_doc_id_length", 2048).build());
+        String longId = String.join("", Collections.nCopies(1024, "a"));
+
+        // Index a document with a long ID
+        IndexRequest indexRequest = new IndexRequest(index).id(longId).source(Collections.singletonMap("foo", "baz"));
+        assertFalse(client().prepareBulk().add(indexRequest).get().hasFailures());
+
+        // Lower the limit below the existing doc's ID length
+        client().admin().indices().prepareUpdateSettings(index).setSettings(Settings.builder().put("index.max_doc_id_length", 512)).get();
+
+        // DELETE should still succeed even though the ID exceeds the current limit
+        DeleteRequest deleteRequest = new DeleteRequest(index, longId);
+        BulkResponse bulkResponse = client().prepareBulk().add(deleteRequest).get();
+        assertFalse(bulkResponse.hasFailures());
     }
 }

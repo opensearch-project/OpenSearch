@@ -601,21 +601,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<Void> itemDoneListener
     ) throws Exception {
         final DocWriteRequest<?> currentRequest = context.getCurrent();
-        final int maxDocIdLength = context.getPrimary().indexSettings().getMaxDocIdLength();
-        final String docId = currentRequest.id();
-        if (docId != null) {
-            final int docIdLength = org.apache.lucene.util.UnicodeUtil.calcUTF16toUTF8Length(docId, 0, docId.length());
-            if (docIdLength > maxDocIdLength) {
-                final Engine.Result result = new Engine.IndexResult(
-                    new IllegalArgumentException(
-                        "id [" + docId + "] is too long, must be no longer than " + maxDocIdLength + " bytes but was: " + docIdLength
-                    ),
-                    0
-                );
-                context.setRequestToExecute(currentRequest);
-                context.markOperationAsExecuted(result);
-                context.markAsCompleted(context.getExecutionResult());
-                return true;
+        if (currentRequest.opType() != DocWriteRequest.OpType.DELETE) {
+            final int maxDocIdLength = context.getPrimary().indexSettings().getMaxDocIdLength();
+            final String docId = currentRequest.id();
+            if (docId != null) {
+                final int docIdLength = org.apache.lucene.util.UnicodeUtil.calcUTF16toUTF8Length(docId, 0, docId.length());
+                if (docIdLength > maxDocIdLength) {
+                    final Engine.Result result = new Engine.IndexResult(
+                        new IllegalArgumentException(
+                            "id [" + docId + "] is too long, must be no longer than " + maxDocIdLength + " bytes but was: " + docIdLength
+                        ),
+                        currentRequest.version()
+                    );
+                    context.setRequestToExecute(currentRequest);
+                    context.markOperationAsExecuted(result);
+                    context.markAsCompleted(context.getExecutionResult());
+                    return true;
+                }
             }
         }
 

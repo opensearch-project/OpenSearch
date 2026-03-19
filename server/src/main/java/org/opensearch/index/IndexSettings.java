@@ -361,15 +361,16 @@ public final class IndexSettings {
 
     /**
      * Index setting describing the maximum length of the {@code _id} field in bytes.
-     * The default of 512 preserves backward compatibility. Lucene's maximum term length
-     * of 32766 bytes is the upper bound. Raising this allows workloads with naturally
-     * long identifiers (metric paths, URLs, composite keys) to use them as {@code _id}
-     * directly, avoiding the need to hash and store the original in a separate field.
+     * The default and minimum of 512 preserves backward compatibility. Lucene's maximum
+     * term length of 32766 bytes is the upper bound. Raising this allows workloads with
+     * naturally long identifiers (metric paths, URLs, composite keys) to use them as
+     * {@code _id} directly, avoiding the need to hash and store the original in a
+     * separate field.
      */
     public static final Setting<Integer> MAX_DOC_ID_LENGTH_SETTING = Setting.intSetting(
         "index.max_doc_id_length",
         512,
-        1,
+        512,
         32766,
         Property.Dynamic,
         Property.IndexScope
