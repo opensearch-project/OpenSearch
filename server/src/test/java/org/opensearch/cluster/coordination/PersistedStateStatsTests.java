@@ -8,9 +8,12 @@
 
 package org.opensearch.cluster.coordination;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class PersistedStateStatsTests extends OpenSearchTestCase {
@@ -59,4 +62,27 @@ public class PersistedStateStatsTests extends OpenSearchTestCase {
         assertEquals(42, persistedStateStats.getExtendedFields().get(fieldName1).get());
         assertEquals(84, persistedStateStats.getExtendedFields().get(fieldName2).get());
     }
+
+    // serialization with extendedFields
+    public void testSerializationRoundTripWithExtendedFields() throws IOException {
+        PersistedStateStats original = new PersistedStateStats("test_download");
+        original.stateSucceeded();
+        original.stateTook(100);
+        original.addToExtendedFields("current_application_duration_ms", new AtomicLong(5000));
+
+        // Serialize
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+
+        // Deserialize
+        StreamInput in = out.bytes().streamInput();
+        PersistedStateStats deserialized = new PersistedStateStats(in);
+
+        assertEquals("test_download", deserialized.getStatsName());
+        assertEquals(1, deserialized.getSuccessCount());
+        assertEquals(100, deserialized.getTotalTimeInMillis());
+        assertTrue(deserialized.getExtendedFields().containsKey("current_application_duration_ms"));
+        assertEquals(5000, deserialized.getExtendedFields().get("current_application_duration_ms").get());
+    }
+
 }
