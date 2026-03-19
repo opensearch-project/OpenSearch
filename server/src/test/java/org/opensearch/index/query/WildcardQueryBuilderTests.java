@@ -173,4 +173,38 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    /**
+     * Test case-insensitive wildcard queries with non-ASCII characters (Turkish and Ukrainian).
+     * This tests the bug where case-insensitive wildcard queries fail for languages with special
+     * case-folding rules like Turkish (İ/ı vs I/i) and Ukrainian.
+     */
+    public void testCaseInsensitiveWithNonAsciiCharacters() throws IOException {
+        // Test Turkish dotted capital I (İ, U+0130)
+        WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder(KEYWORD_FIELD_NAME, "istanbul")
+            .caseInsensitive(true);
+        QueryShardContext context = createShardContext();
+        Query query = queryBuilder.rewrite(context).toQuery(context);
+        assertNotNull(query);
+
+        // Test Turkish uppercase
+        queryBuilder = new WildcardQueryBuilder(KEYWORD_FIELD_NAME, "İSTANBUL").caseInsensitive(true);
+        query = queryBuilder.rewrite(context).toQuery(context);
+        assertNotNull(query);
+
+        // Test with wildcard pattern
+        queryBuilder = new WildcardQueryBuilder(KEYWORD_FIELD_NAME, "ist*").caseInsensitive(true);
+        query = queryBuilder.rewrite(context).toQuery(context);
+        assertNotNull(query);
+
+        // Test Ukrainian characters (Cyrillic)
+        queryBuilder = new WildcardQueryBuilder(KEYWORD_FIELD_NAME, "київ*").caseInsensitive(true);
+        query = queryBuilder.rewrite(context).toQuery(context);
+        assertNotNull(query);
+
+        // Test mixed case with non-ASCII
+        queryBuilder = new WildcardQueryBuilder(KEYWORD_FIELD_NAME, "İğdır").caseInsensitive(true);
+        query = queryBuilder.rewrite(context).toQuery(context);
+        assertNotNull(query);
+    }
 }

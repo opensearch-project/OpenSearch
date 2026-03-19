@@ -179,17 +179,26 @@ public class AutomatonQueries {
 
     public static Automaton toCaseInsensitiveChar(int codepoint) {
         Automaton case1 = Automata.makeChar(codepoint);
-        // For now we only work with ASCII characters
-        if (codepoint > 128) {
+        // Use locale-independent case conversion to handle all Unicode characters correctly,
+        // including Turkish (İ/ı) and other languages with special case-folding rules
+        int lowerCase = Character.toLowerCase(codepoint);
+        int upperCase = Character.toUpperCase(codepoint);
+
+        if (lowerCase == codepoint && upperCase == codepoint) {
+            // Character has no case variants
             return case1;
         }
-        int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
-        Automaton result;
-        if (altCase != codepoint) {
-            result = Operations.union(Arrays.asList(case1, Automata.makeChar(altCase)));
-        } else {
-            result = case1;
+
+        List<Automaton> cases = new ArrayList<>();
+        cases.add(case1); // Original character
+
+        if (lowerCase != codepoint) {
+            cases.add(Automata.makeChar(lowerCase));
         }
-        return result;
+        if (upperCase != codepoint && upperCase != lowerCase) {
+            cases.add(Automata.makeChar(upperCase));
+        }
+
+        return Operations.union(cases);
     }
 }
