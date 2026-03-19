@@ -9,6 +9,11 @@ package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.DoubleTermsAggregateConverter;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.LongTermsAggregateConverter;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.StringTermsAggregateConverter;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.UnmappedTermsAggregateConverter;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.UnsignedLongTermsAggregateConverter;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MaxAggregateProtoConverter;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MinAggregateProtoConverter;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
@@ -38,6 +43,11 @@ public class AggregateProtoConverterRegistryImpl implements AggregateProtoConver
     private void registerBuiltInConverters() {
         spiRegistry.registerConverter(new MinAggregateProtoConverter());
         spiRegistry.registerConverter(new MaxAggregateProtoConverter());
+        spiRegistry.registerConverter(new DoubleTermsAggregateConverter());
+        spiRegistry.registerConverter(new LongTermsAggregateConverter());
+        spiRegistry.registerConverter(new UnsignedLongTermsAggregateConverter());
+        spiRegistry.registerConverter(new StringTermsAggregateConverter());
+        spiRegistry.registerConverter(new UnmappedTermsAggregateConverter());
     }
 
     @Override

@@ -8,6 +8,8 @@
 package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
 import org.opensearch.protobufs.Aggregate;
+import org.opensearch.protobufs.NullValue;
+import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
@@ -60,5 +62,28 @@ public class AggregateProtoUtils {
         }
 
         return registry.toProto((InternalAggregation) aggregation);
+    }
+
+    public static ObjectMap.Value newValue(ObjectMap value) {
+        return ObjectMap.Value.newBuilder().setObjectMap(value).build();
+    }
+
+    public static ObjectMap.Value newValue(ObjectMap.ListValue value) {
+        return ObjectMap.Value.newBuilder().setListValue(value).build();
+    }
+
+    public static ObjectMap.Value newValue(long value) {
+        return ObjectMap.Value.newBuilder().setInt64(value).build();
+    }
+
+    public static ObjectMap.Value newValue(double value) {
+        return ObjectMap.Value.newBuilder().setDouble(value).build();
+    }
+    public static ObjectMap.Value newValue(String value) {
+        return ObjectMap.Value.newBuilder().setString(value).build();
+    }
+
+    public static ObjectMap.Value newValue(NullValue nullValue) {
+        return ObjectMap.Value.newBuilder().setNullValue(nullValue).build();
     }
 }
