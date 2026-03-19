@@ -1,0 +1,120 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.parquet.vsr;
+
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.parquet.bridge.ArrowExport;
+import org.opensearch.parquet.bridge.NativeParquetWriter;
+import org.opensearch.parquet.bridge.ParquetFileMetadata;
+import org.opensearch.parquet.memory.ArrowBufferPool;
+
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Manages VectorSchemaRoot lifecycle with integrated memory management and native Parquet writing.
+ *
+ * <p>Orchestrates {@link ManagedVSR}, {@link VSRPool}, and {@link NativeParquetWriter}
+ * for the complete Arrow batching → Parquet file generation pipeline.
+ */
+public class VSRManager implements AutoCloseable {
+
+    private static final Logger logger = LogManager.getLogger(VSRManager.class);
+
+    private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
+    private final String fileName;
+    private final VSRPool vsrPool;
+    private NativeParquetWriter writer;
+
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool) {
+        this.fileName = fileName;
+        this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool);
+        this.managedVSR.set(vsrPool.getActiveVSR());
+        initializeWriter();
+    }
+
+    private void initializeWriter() {
+        try (ArrowExport export = managedVSR.get().exportSchema()) {
+            writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
+        }
+    }
+
+    public ManagedVSR getActiveManagedVSR() {
+        return managedVSR.get();
+    }
+
+    /**
+     * Handles VSR rotation after document addition if row threshold is reached.
+     * Writes frozen VSR data to Parquet via native bridge before creating new active VSR.
+     */
+    public void maybeRotateActiveVSR() throws IOException {
+        boolean rotated = vsrPool.maybeRotateActiveVSR();
+        if (!rotated) {
+            return;
+        }
+        logger.debug("VSR rotation occurred for {}", fileName);
+        ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
+        if (frozenVSR != null) {
+            logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
+            try (ArrowExport export = frozenVSR.exportToArrow()) {
+                writer.write(export.getArrayAddress(), export.getSchemaAddress());
+            }
+            vsrPool.completeVSR(frozenVSR);
+            vsrPool.unsetFrozenVSR();
+        }
+        ManagedVSR newVSR = vsrPool.getActiveVSR();
+        if (newVSR == null) {
+            throw new IOException("No active VSR available after rotation");
+        }
+        managedVSR.set(newVSR);
+        logger.debug("VSR rotation completed for {}, new active VSR: {}", fileName, newVSR.getId());
+    }
+
+    /**
+     * Flushes the current VSR data to a Parquet file via native bridge.
+     *
+     * @return metadata about the written Parquet file, or null if no data to flush
+     */
+    public ParquetFileMetadata flush() throws IOException {
+        ManagedVSR currentVSR = managedVSR.get();
+        if (currentVSR == null || currentVSR.getRowCount() == 0) {
+            logger.debug("No data to flush for {}", fileName);
+            return null;
+        }
+        logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
+        currentVSR.moveToFrozen();
+        try (ArrowExport export = currentVSR.exportToArrow()) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+        writer.close();
+        ParquetFileMetadata metadata = writer.getMetadata();
+        vsrPool.completeVSR(currentVSR);
+        managedVSR.set(null);
+        logger.debug("Flush completed for {} with metadata: {}", fileName, metadata);
+        return metadata;
+    }
+
+    @Override
+    public void close() {
+        try {
+            if (writer != null) {
+                writer.close();
+            }
+            vsrPool.close();
+            managedVSR.set(null);
+        } catch (Exception e) {
+            logger.error("Error during close for {}: {}", fileName, e.getMessage(), e);
+            throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
+        }
+    }
+}

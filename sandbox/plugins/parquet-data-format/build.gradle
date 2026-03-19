@@ -1,0 +1,110 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'Parquet data format plugin for OpenSearch.'
+  classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
+}
+
+def buildType = project.hasProperty('rustDebug') ? 'debug' : 'release'
+
+dependencies {
+  // Shared native bridge lib
+  implementation project(':sandbox:libs:native-bridge-spi')
+
+  // Apache Arrow dependencies
+  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-memory-unsafe:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
+  implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
+
+  // Required by Arrow
+  implementation 'org.checkerframework:checker-qual:3.42.0'
+  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+}
+
+// --- Rust native library build tasks ---
+
+def rustDir = file("${projectDir}/src/main/rust")
+
+def findCargo() {
+  def possiblePaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo',
+    'cargo'
+  ]
+  for (String path : possiblePaths) {
+    if (new File(path).exists()) {
+      return path
+    }
+  }
+  return 'cargo'
+}
+
+tasks.register('buildRust', Exec) {
+  description = 'Build the Rust JNI library using Cargo'
+  group = 'build'
+  workingDir = rustDir
+
+  def cargoArgs = [findCargo(), 'build']
+  if (buildType == 'release') {
+    cargoArgs.add('--release')
+  }
+  commandLine cargoArgs
+
+  environment 'CARGO_TARGET_DIR', file("${rustDir}/target").absolutePath
+
+  inputs.files fileTree("${rustDir}/src")
+  inputs.file "${rustDir}/Cargo.toml"
+  outputs.dir "${rustDir}/target/${buildType}"
+}
+
+tasks.register('copyNativeLib', Copy) {
+  dependsOn buildRust
+  from "${rustDir}/target/${buildType}"
+  into "src/main/resources/native"
+  include "libparquet_dataformat_jni.dylib"
+  include "libparquet_dataformat_jni.so"
+  include "parquet_dataformat_jni.dll"
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+  eachFile { file ->
+    def os = System.getProperty('os.name').toLowerCase()
+    def arch = System.getProperty('os.arch').toLowerCase()
+    def osDir = os.contains('win') ? 'windows' : os.contains('mac') ? 'macos' : 'linux'
+    def archDir = (arch.contains('aarch64') || arch.contains('arm64')) ? 'aarch64' : 'x86_64'
+    file.path = "${osDir}-${archDir}/${file.name}"
+  }
+}
+
+tasks.register('runNativeUnitTests', Exec) {
+  description = 'Run Rust unit and integration tests'
+  group = 'verification'
+  workingDir = rustDir
+  commandLine findCargo(), 'test'
+}
+
+// Wire Rust build into Java build lifecycle
+compileJava.dependsOn copyNativeLib
+processResources.dependsOn copyNativeLib
+
+clean {
+  doFirst {
+    delete "src/main/resources/native"
+    delete "${rustDir}/target"
+  }
+}
+
+test {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+}
