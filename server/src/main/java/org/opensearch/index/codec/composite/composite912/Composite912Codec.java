@@ -12,16 +12,16 @@ import org.apache.lucene.backward_codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.MapperService;
 
 /**
  *  Extends the Codec to support new file formats for composite indices eg: star tree index
  *  based on the mappings.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Composite912Codec extends FilterCodec {
     public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite912Codec";
     private final MapperService mapperService;

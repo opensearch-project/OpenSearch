@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree;
 
 import org.apache.lucene.index.DocValuesType;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
@@ -25,9 +25,9 @@ import java.util.Objects;
 /**
  * Star tree field which contains dimensions, metrics and specs
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeField implements ToXContent {
     private final String name;
     private final List<Dimension> dimensionsOrder;

@@ -8,7 +8,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,9 +17,9 @@ import java.util.Map;
 /**
  * Base class for composite field types
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class CompositeMappedFieldType extends MappedFieldType {
     private final List<String> fields;
     private final CompositeFieldType type;
@@ -46,9 +46,9 @@ public abstract class CompositeMappedFieldType extends MappedFieldType {
     /**
      * Supported composite field types
      *
-     * @opensearch.experimental
+     * @opensearch.api
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public enum CompositeFieldType {
         STAR_TREE("star_tree"),
         CONTEXT_AWARE_GROUPING("context_aware_grouping");

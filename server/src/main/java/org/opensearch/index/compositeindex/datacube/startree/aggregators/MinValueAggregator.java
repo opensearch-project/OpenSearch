@@ -12,7 +12,7 @@ import org.opensearch.index.mapper.FieldValueConverter;
 /**
  * Min value aggregator for star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 class MinValueAggregator extends StatelessDoubleValueAggregator {
 

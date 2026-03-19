@@ -12,7 +12,7 @@ import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
@@ -32,9 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * On heap single tree builder
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class OnHeapStarTreeBuilder extends BaseStarTreeBuilder {
 
     private final List<StarTreeDocument> starTreeDocuments = new ArrayList<>();

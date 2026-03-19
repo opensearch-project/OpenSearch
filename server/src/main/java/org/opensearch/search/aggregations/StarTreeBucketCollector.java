@@ -9,7 +9,7 @@
 package org.opensearch.search.aggregations;
 
 import org.apache.lucene.util.FixedBitSet;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import java.util.List;
  * collect relevant metrics across nested aggregations in a single traversal
  * @opensearch.internal
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class StarTreeBucketCollector {
 
     protected final StarTreeValues starTreeValues;

@@ -14,7 +14,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -46,9 +46,9 @@ import java.util.Map;
  * <p>The set of 'star-tree.documents' files is maintained, and a tracker array is used to keep track of the start document ID for each file.
  * Once the number of files reaches a set threshold, the files are merged.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeDocsFileManager extends AbstractDocumentsFileManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(StarTreeDocsFileManager.class);
     private static final String STAR_TREE_DOC_FILE_NAME = "star-tree.documents";

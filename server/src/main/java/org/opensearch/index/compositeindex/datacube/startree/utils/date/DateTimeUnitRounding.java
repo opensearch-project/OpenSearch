@@ -8,14 +8,14 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.utils.date;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Interface for rounding time units in starTree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface DateTimeUnitRounding {
     /**
      * Returns the short name of the time unit

@@ -15,7 +15,7 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
  * the composite field name, type, and the specific metadata for the type of composite field
  * (e.g., Star Tree metadata).
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class CompositeIndexMetadata {
 

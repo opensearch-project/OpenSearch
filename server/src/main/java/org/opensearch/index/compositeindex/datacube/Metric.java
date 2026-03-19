@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -20,7 +20,7 @@ import java.util.Objects;
 /**
  * Holds details of metrics field as part of composite field
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Metric implements ToXContent {
     private final String field;
     private final List<MetricStat> metrics;

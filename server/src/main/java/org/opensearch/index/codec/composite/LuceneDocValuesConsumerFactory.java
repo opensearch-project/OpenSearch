@@ -23,7 +23,7 @@ import java.io.IOException;
  * <p>
  * This design ensures forward compatibility for writing operations
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class LuceneDocValuesConsumerFactory {
 

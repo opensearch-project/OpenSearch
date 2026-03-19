@@ -24,7 +24,7 @@ import java.util.function.Function;
  * Index settings for star tree fields. The settings are final as right now
  * there is no support for update of star tree mapping.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeIndexSettings {
 
@@ -87,7 +87,7 @@ public class StarTreeIndexSettings {
      * <p>
      * We can remove this later or change it to an enum based constant setting.
      *
-     * @opensearch.experimental
+     * @opensearch.api
      */
     public static final Setting<Integer> STAR_TREE_DEFAULT_MAX_LEAF_DOCS = Setting.intSetting(
         "index.composite_index.star_tree.default.max_leaf_docs",

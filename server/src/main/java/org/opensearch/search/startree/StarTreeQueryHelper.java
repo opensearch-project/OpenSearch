@@ -43,7 +43,7 @@ import java.util.function.Consumer;
  * Helper class for building star-tree query
  *
  * @opensearch.internal
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeQueryHelper {
 

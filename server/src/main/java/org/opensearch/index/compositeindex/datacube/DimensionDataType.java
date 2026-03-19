@@ -8,16 +8,16 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Represents the data type of the dimension value.
  * TODO: This needs to be eventually merged with DimensionFilterMapper and all indexing related code
  *  which use this should instead use the mapper
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public enum DimensionDataType {
     LONG {
         @Override

@@ -8,7 +8,7 @@
 
 package org.opensearch.search.startree.filter.provider;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -32,7 +32,7 @@ import java.util.Map;
  * Converts a {@link QueryBuilder} into a {@link StarTreeFilter} by generating the appropriate @{@link DimensionFilter}
  * for the fields provided in the user query.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface StarTreeFilterProvider {
 
     /**

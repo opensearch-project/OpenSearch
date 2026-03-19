@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.startree.StarTreeNodeCollector;
 import org.opensearch.search.startree.filter.provider.DimensionFilterMapper;
 
@@ -18,9 +18,9 @@ import java.util.Iterator;
 /**
  * Interface that represents star tree node
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface StarTreeNode {
 
     /**

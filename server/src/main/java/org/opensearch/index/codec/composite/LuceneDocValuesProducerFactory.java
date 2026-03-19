@@ -25,7 +25,7 @@ import java.io.IOException;
  * <p>
  * This design ensures backward compatibility for reads across different codec versions.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class LuceneDocValuesProducerFactory {
 

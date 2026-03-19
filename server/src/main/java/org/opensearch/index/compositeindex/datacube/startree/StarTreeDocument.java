@@ -8,16 +8,16 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Arrays;
 
 /**
  * Star tree document
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeDocument {
     public final Long[] dimensions;
     public final Object[] metrics;

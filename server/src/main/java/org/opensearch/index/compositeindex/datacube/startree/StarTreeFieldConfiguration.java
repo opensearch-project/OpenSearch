@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -21,9 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Star tree index specific configuration
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeFieldConfiguration implements ToXContent {
 
     private final AtomicInteger maxLeafDocs = new AtomicInteger();
@@ -51,9 +51,9 @@ public class StarTreeFieldConfiguration implements ToXContent {
     /**
      * Star tree build mode using which sorting and aggregations are performed during index creation.
      *
-     * @opensearch.experimental
+     * @opensearch.api
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public enum StarTreeBuildMode {
         // TODO : remove onheap support unless this proves useful
         ON_HEAP("onheap", (byte) 0),

@@ -12,7 +12,7 @@ import org.opensearch.index.mapper.FieldValueConverter;
 /**
  * Max value aggregator for star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 class MaxValueAggregator extends StatelessDoubleValueAggregator {
 

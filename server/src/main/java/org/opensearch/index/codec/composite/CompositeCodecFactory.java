@@ -10,9 +10,9 @@ package org.opensearch.index.codec.composite;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.codec.composite.composite104.Composite104Codec;
+import org.opensearch.index.codec.composite.composite103.Composite103Codec;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.HashMap;
@@ -26,9 +26,9 @@ import static org.opensearch.index.codec.CodecService.ZLIB;
 /**
  * Factory class to return the latest composite codec for all the modes
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class CompositeCodecFactory {
 
     // we can use this to track the latest composite codec

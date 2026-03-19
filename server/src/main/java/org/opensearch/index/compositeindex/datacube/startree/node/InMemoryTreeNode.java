@@ -8,7 +8,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.node;
 
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -19,9 +19,9 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
  * Represents a node in a tree data structure, specifically designed for a star-tree implementation.
  * A star-tree node will represent both star and non-star nodes.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class InMemoryTreeNode {
 
     public InMemoryTreeNode() {

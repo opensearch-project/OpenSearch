@@ -9,6 +9,6 @@
 /**
  * This contains classes for StarTreeValues iterators
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree.utils.iterator;

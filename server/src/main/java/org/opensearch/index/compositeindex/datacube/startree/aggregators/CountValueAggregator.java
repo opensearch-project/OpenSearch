@@ -13,7 +13,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 /**
  * Count value aggregator for star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class CountValueAggregator implements ValueAggregator<Long> {
 

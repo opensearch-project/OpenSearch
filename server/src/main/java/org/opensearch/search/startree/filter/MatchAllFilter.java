@@ -8,7 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNodeType;
@@ -21,7 +21,7 @@ import java.util.Iterator;
 /**
  * Matches all StarTreeNodes
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class MatchAllFilter implements DimensionFilter {
 
     public final String dimensionName;

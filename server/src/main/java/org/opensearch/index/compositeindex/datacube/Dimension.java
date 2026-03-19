@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube;
 
 import org.apache.lucene.index.DocValuesType;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.ToXContent;
 
 import java.util.Comparator;
@@ -19,9 +19,9 @@ import java.util.function.Consumer;
 /**
  * Base interface for data-cube dimensions
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface Dimension extends ToXContent {
 
     String getField();

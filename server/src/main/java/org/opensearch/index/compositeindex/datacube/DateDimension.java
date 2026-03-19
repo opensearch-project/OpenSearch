@@ -10,7 +10,7 @@ package org.opensearch.index.compositeindex.datacube;
 
 import org.apache.lucene.index.DocValuesType;
 import org.opensearch.common.Rounding;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
@@ -30,9 +30,9 @@ import java.util.stream.Collectors;
 /**
  * Date dimension class
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class DateDimension implements Dimension {
     private final List<DateTimeUnitRounding> calendarIntervals;
     public static final String CALENDAR_INTERVALS = "calendar_intervals";

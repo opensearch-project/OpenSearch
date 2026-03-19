@@ -8,6 +8,6 @@
 
 /**
  * Core classes for handling composite indices.
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex;

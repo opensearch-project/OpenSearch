@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube;
 
 import org.apache.lucene.index.DocValuesType;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.CompositeDataCubeFieldType;
 
@@ -21,9 +21,9 @@ import java.util.function.Consumer;
 /**
  * Composite index numeric dimension class
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class NumericDimension implements Dimension {
     public static final String NUMERIC = "numeric";
     private final String field;

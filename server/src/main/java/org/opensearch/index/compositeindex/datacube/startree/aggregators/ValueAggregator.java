@@ -12,7 +12,7 @@ import org.opensearch.index.mapper.FieldValueConverter;
 /**
  * A value aggregator that pre-aggregates on the input values for a specific type of aggregation.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public interface ValueAggregator<A> {
 

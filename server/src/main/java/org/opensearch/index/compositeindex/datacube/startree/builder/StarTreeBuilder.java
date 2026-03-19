@@ -10,7 +10,7 @@ package org.opensearch.index.compositeindex.datacube.startree.builder;
 
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 
 import java.io.Closeable;
@@ -22,9 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * A star-tree builder that builds a single star-tree.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface StarTreeBuilder extends Closeable {
     /**
      * Builds the star tree from the original segment documents

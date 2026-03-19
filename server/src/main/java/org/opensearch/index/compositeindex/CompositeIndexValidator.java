@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeValidator;
 import org.opensearch.index.mapper.MapperService;
@@ -18,9 +18,9 @@ import java.util.Locale;
 /**
  * Validation for composite indices as part of mappings
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class CompositeIndexValidator {
 
     public static void validate(MapperService mapperService, CompositeIndexSettings compositeIndexSettings, IndexSettings indexSettings) {

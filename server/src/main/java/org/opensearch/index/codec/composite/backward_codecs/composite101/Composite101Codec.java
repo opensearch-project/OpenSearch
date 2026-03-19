@@ -12,7 +12,7 @@ import org.apache.lucene.backward_codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
 import org.opensearch.index.mapper.MapperService;
 
@@ -20,9 +20,9 @@ import org.opensearch.index.mapper.MapperService;
  *  Extends the Codec to support new file formats for composite indices eg: star tree index
  *  based on the mappings.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Composite101Codec extends FilterCodec {
     public static final String COMPOSITE_INDEX_CODEC_NAME = "Composite101Codec";
     private final MapperService mapperService;

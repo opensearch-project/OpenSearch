@@ -36,7 +36,7 @@ import java.util.Iterator;
  * The class uses specific byte offsets for each field in the serialized format,
  * enabling direct access to node properties without parsing the entire node structure.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class FixedLengthStarTreeNode implements StarTreeNode {
 

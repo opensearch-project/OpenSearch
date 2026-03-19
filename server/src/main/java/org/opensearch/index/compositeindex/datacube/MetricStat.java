@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.Arrays;
 import java.util.List;
@@ -16,9 +16,9 @@ import java.util.List;
 /**
  * Supported metric types for composite index
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public enum MetricStat {
     VALUE_COUNT("value_count", 0),
     SUM("sum", 1),

@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * Adapter class to convert {@link Rounding.DateTimeUnit} to {@link DateTimeUnitRounding}
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class DateTimeUnitAdapter implements DateTimeUnitRounding {
     private final Rounding.DateTimeUnit dateTimeUnit;

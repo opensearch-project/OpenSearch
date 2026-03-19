@@ -10,7 +10,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
@@ -41,9 +41,9 @@ import java.util.stream.Collectors;
 /**
  * A field mapper for star tree fields
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeMapper extends ParametrizedFieldMapper {
     public static final String CONTENT_TYPE = "star_tree";
     public static final String CONFIG = "config";
@@ -572,9 +572,9 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
     /**
      * Star tree mapped field type containing dimensions, metrics, star tree specs
      *
-     * @opensearch.experimental
+     * @opensearch.api
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static final class StarTreeFieldType extends CompositeDataCubeFieldType {
 
         private final StarTreeFieldConfiguration starTreeConfig;
