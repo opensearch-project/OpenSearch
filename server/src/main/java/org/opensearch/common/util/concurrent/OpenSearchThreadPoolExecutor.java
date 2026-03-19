@@ -199,7 +199,19 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     protected Runnable wrapRunnable(Runnable command) {
-        return contextHolder.preserveContext(command);
+        // Bind IndexInputScope per task, then preserve ThreadContext on top.
+        // Order matters: preserveContext must be outermost so unwrap() works correctly.
+        final Runnable scoped = () -> {
+            final IndexInputScope scope = new IndexInputScope();
+            ScopedValue.where(IndexInputScope.SCOPE, scope).run(() -> {
+                try {
+                    command.run();
+                } finally {
+                    scope.closeAll();
+                }
+            });
+        };
+        return contextHolder.preserveContext(scoped);
     }
 
     protected Runnable unwrap(Runnable runnable) {
