@@ -11,9 +11,6 @@ package org.opensearch.action.search;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -43,9 +40,7 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    /**
-     * Test that streaming consumer uses correct hard-coded multipliers
-     */
+    /** Tests that streaming consumer forces batch reduce size to 1. */
     public void testStreamingConsumerBatchSizes() {
         SearchRequest request = new SearchRequest();
         request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
@@ -63,30 +58,5 @@ public class StreamQueryPhaseResultConsumerTests extends OpenSearchTestCase {
 
         int batchSize = consumer.getBatchReduceSize(100, 10);
         assertEquals(1, batchSize);
-    }
-
-    private SearchPhaseResult createMockResult(QuerySearchResult qResult, SearchShardTarget target, int index) {
-        return new SearchPhaseResult() {
-            @Override
-            public QuerySearchResult queryResult() {
-                return qResult;
-            }
-
-            @Override
-            public SearchShardTarget getSearchShardTarget() {
-                return target;
-            }
-
-            @Override
-            public void setSearchShardTarget(SearchShardTarget shardTarget) {}
-
-            @Override
-            public int getShardIndex() {
-                return index;
-            }
-
-            @Override
-            public void setShardIndex(int shardIndex) {}
-        };
     }
 }
