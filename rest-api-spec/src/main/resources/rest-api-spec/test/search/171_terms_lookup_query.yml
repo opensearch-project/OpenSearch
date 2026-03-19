@@ -210,3 +210,74 @@
           query:
             match_all: {}
   - match: { hits.total: 5 } # Should always be 5
+
+  # --- TEST CASES FOR from AND size PARAMETERS --- #
+
+  # Test: size parameter limits the number of terms fetched
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+                size: 1
+  - match: { hits.total: 3 } # size=1 returns 3 docs: u1(foo), u2(bar), u5(foo)
+
+  # Test: from parameter skips the first N terms
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+                from: 1
+  - match: { hits.total: 1 } # from=1 returns 1 doc: u3(baz)
+
+  # Test: from and size combined
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+                from: 1
+                size: 1
+  - match: { hits.total: 1 } # from=1, size=1 returns 1 doc: u3(baz)
+
+  # Test: size=0 should return no terms
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: main_index
+        body:
+          query:
+            terms:
+              user:
+                index: lookup_index
+                path: followers
+                query:
+                  term:
+                    group: "g1"
+                size: 0
+  - match: { hits.total: 0 }

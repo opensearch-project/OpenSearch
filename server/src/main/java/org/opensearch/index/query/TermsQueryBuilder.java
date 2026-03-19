@@ -616,7 +616,17 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> i
                         int fetchSize = Math.min(Math.min(maxTermsCount, maxResultWindow), maxClauseCount);
 
                         try {
-                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query()).size(fetchSize);
+                            // Use user-specified size if provided, otherwise use calculated fetchSize
+                            int effectiveSize = termsLookup.size() != null ? termsLookup.size() : fetchSize;
+                            // Validate that effectiveSize doesn't exceed fetchSize
+                            if (effectiveSize > fetchSize) {
+                                throw new IllegalArgumentException(
+                                    "Terms lookup size [" + effectiveSize + "] exceeds maximum allowed [" + fetchSize + "]"
+                                );
+                            }
+                            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(termsLookup.query())
+                                .from(termsLookup.from())
+                                .size(effectiveSize);
 
                             // Use stored fields if possible, otherwise fetch source
                             if (termsLookup.store()) {
