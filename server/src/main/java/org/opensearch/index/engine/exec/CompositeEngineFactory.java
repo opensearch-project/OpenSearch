@@ -40,6 +40,8 @@ public class CompositeEngineFactory {
     private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers = new HashMap<>();
     private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers = new HashMap<>();
 
+    private final IndexFileDeleter indexFileDeleter;
+
     public CompositeEngineFactory(
         PluginsService pluginsService,
         ShardPath shardPath,
@@ -55,6 +57,7 @@ public class CompositeEngineFactory {
                 sourceProviderSuppliers.put(format, memoize(format, f -> plugin.createSourceProvider(f, shardPath)));
             }
         }
+        this.indexFileDeleter = new IndexFileDeleter(null, shardPath);
     }
 
     /**
@@ -90,5 +93,17 @@ public class CompositeEngineFactory {
      */
     public CompositeEngine create() {
         return new CompositeEngine(readerManagers, engineSuppliers, indexFilterProviderSuppliers, sourceProviderSuppliers);
+    }
+
+    /**
+     * Creates a {@link CatalogSnapshotLifecycleListener} that routes events
+     * through the {@link IndexFileDeleter} and fans out to the given reader managers.
+     *
+     * @param readerManagers the per-format reader managers that receive notifications
+     */
+    public CatalogSnapshotLifecycleListener createCatalogSnapshotListener(
+        Map<DataFormat, EngineReaderManager<?>> readerManagers
+    ) {
+        return new CompositeEngineCatalogSnapshotListener(readerManagers, indexFileDeleter);
     }
 }

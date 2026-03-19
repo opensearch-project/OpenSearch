@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.jni.ReaderHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.EngineSearcher;
 
@@ -21,11 +22,10 @@ import java.io.IOException;
 @ExperimentalApi
 public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
 
-    private final long readerPtr;
+    private final ReaderHandle readerHandle;
 
-    public DatafusionSearcher(long readerPtr) {
-        // TODO: initialize reader handle
-        this.readerPtr = readerPtr;
+    public DatafusionSearcher(ReaderHandle readerHandle) {
+        this.readerHandle = readerHandle;
     }
 
     @Override
@@ -47,12 +47,18 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         throw new UnsupportedOperationException("DataFusion native bridge not yet wired");
     }
 
-    public long getReaderPtr() {
-        return readerPtr;
+    /**
+     * Returns the type-safe handle to the native reader.
+     * Call {@link ReaderHandle#getPointer()} only at JNI invocation time
+     * to get the raw pointer with a liveness check.
+     */
+    public ReaderHandle getReaderHandle() {
+        return readerHandle;
     }
 
     @Override
     public void close() {
-        // TODO : reader handle close
+        // ReaderHandle lifecycle is owned by DatafusionReader / EngineReaderManager,
+        // not by the searcher. Do not close it here.
     }
 }

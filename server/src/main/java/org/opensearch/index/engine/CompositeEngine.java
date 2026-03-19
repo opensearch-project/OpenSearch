@@ -12,7 +12,6 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
-import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SearchExecEngine;
@@ -85,36 +84,6 @@ public class CompositeEngine implements Closeable {
             throw new IllegalArgumentException("No " + label + " registered for format: " + format.name());
         }
         return supplier.get();
-    }
-
-    // ---- Lifecycle listener helpers ----
-
-    public List<CatalogSnapshotLifecycleListener> getCatalogSnapshotLifecycleListeners() {
-        return new ArrayList<>(readerManagers.values());
-    }
-
-    public void notifyFilesAdded(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
-            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
-            if (rm != null) {
-                rm.onFilesAdded(entry.getValue());
-            }
-        }
-    }
-
-    public void notifyDelete(Map<DataFormat, Collection<String>> filesByFormat) throws IOException {
-        for (Map.Entry<DataFormat, Collection<String>> entry : filesByFormat.entrySet()) {
-            EngineReaderManager<?> rm = readerManagers.get(entry.getKey());
-            if (rm != null) {
-                rm.onFilesDeleted(entry.getValue());
-            }
-        }
-    }
-
-    public void notifyCatalogSnapshotDelete(CatalogSnapshot catalogSnapshot) throws IOException {
-        for (CatalogSnapshotLifecycleListener listener : getCatalogSnapshotLifecycleListeners()) {
-            listener.onDeleted(catalogSnapshot);
-        }
     }
 
     // ---- Snapshot acquisition ----

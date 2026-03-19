@@ -29,10 +29,10 @@ import java.util.Iterator;
 @ExperimentalApi
 public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionContext, byte[]> {
 
-    private final long runtimePtr;
+    private final NativeRuntimeHandle nativeRuntime;
 
-    public DatafusionSearchExecEngine(long runtimePtr, DataFormat dataFormat) {
-        this.runtimePtr = runtimePtr;
+    public DatafusionSearchExecEngine(NativeRuntimeHandle nativeRuntime, DataFormat dataFormat) {
+        this.nativeRuntime = nativeRuntime;
     }
 
     @Override

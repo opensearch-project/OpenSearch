@@ -30,8 +30,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final String spillDirectory;
     private final long spillMemoryLimit;
 
-    /** Pointer to the native DataFusion global runtime (Tokio + memory pool). */
-    private volatile long runtimePointer;
+    /** Handle to the native DataFusion global runtime (Tokio + memory pool). */
+    private volatile NativeRuntimeHandle runtimeHandle;
 
     /**
      * Creates a new DataFusionService.
@@ -56,8 +56,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         }
 
         // TODO: initialize Tokio runtime and memory pool via NativeBridge
-        // runtimePointer = NativeBridge.createGlobalRuntime(memoryPoolLimit, spillDirectory, spillMemoryLimit);
-        this.runtimePointer = 0L; // placeholder until NativeBridge is wired
+        // long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, spillDirectory, spillMemoryLimit);
+        long ptr = 1L; // placeholder until NativeBridge is wired
+        this.runtimeHandle = new NativeRuntimeHandle(ptr);
         logger.info("DataFusion service started");
     }
 
@@ -73,17 +74,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Returns the pointer to the native DataFusion global runtime.
-     * All JNI calls that need the Tokio runtime pass this pointer.
+     * Returns the handle to the native DataFusion global runtime.
+     * All consumers should hold this reference and call {@link NativeRuntimeHandle#get()}
+     * at JNI invocation time to obtain the current live pointer.
      *
      * @throws IllegalStateException if the service has not been started
      */
-    public long getRuntimePointer() {
-        long ptr = runtimePointer;
-        if (ptr == 0L && lifecycle.started() == false) {
+    public NativeRuntimeHandle getNativeRuntime() {
+        NativeRuntimeHandle handle = runtimeHandle;
+        if (handle == null) {
             throw new IllegalStateException("DataFusionService has not been started");
         }
-        return ptr;
+        return handle;
     }
 
     /**
@@ -94,11 +96,10 @@ public class DataFusionService extends AbstractLifecycleComponent {
     // public CacheManager getCacheManager() { return cacheManager; }
 
     private void releaseRuntime() {
-        long ptr = runtimePointer;
-        if (ptr != 0L) {
-            // TODO: NativeBridge.closeGlobalRuntime(ptr);
-            // TODO: NativeBridge.shutdownTokioRuntimeManager();
-            runtimePointer = 0L;
+        NativeRuntimeHandle handle = runtimeHandle;
+        if (handle != null) {
+            handle.close();
+            runtimeHandle = null;
             logger.info("DataFusion native runtime released");
         }
     }

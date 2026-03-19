@@ -122,7 +122,7 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionPlugin.createComponents() has not been called yet");
         }
-        return new DatafusionSearchExecEngine(dataFusionService.getRuntimePointer(), format);
+        return new DatafusionSearchExecEngine(dataFusionService.getNativeRuntime(), format);
     }
 
     /**

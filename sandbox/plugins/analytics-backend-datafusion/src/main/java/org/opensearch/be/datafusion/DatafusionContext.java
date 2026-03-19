@@ -40,7 +40,7 @@ public class DatafusionContext implements SearchExecutionContext {
     ) throws IOException {
         this.request = request;
         this.shardTarget = shardTarget;
-        this.engineSearcher = new DatafusionSearcher(reader.getReaderPtr());
+        this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
     }
 
     @Override

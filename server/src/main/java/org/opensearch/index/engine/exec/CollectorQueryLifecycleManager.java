@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CollectorLifecycleManager implements Closeable {
+public class CollectorQueryLifecycleManager implements Closeable {
 
     private final AtomicInteger nextKey = new AtomicInteger(1);
     private final Map<Integer, SegmentCollector> collectors = new ConcurrentHashMap<>();

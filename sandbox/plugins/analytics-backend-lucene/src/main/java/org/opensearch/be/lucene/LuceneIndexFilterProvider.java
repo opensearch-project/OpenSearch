@@ -13,6 +13,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.CollectorQueryLifecycleManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SegmentCollector;
 
@@ -35,7 +36,7 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
 
     /**
      * Creates a collector for the given segment and registers it in the
-     * context's {@link org.opensearch.index.engine.exec.CollectorLifecycleManager}.
+     * context's {@link CollectorQueryLifecycleManager}.
      *
      * @return an int key that identifies this collector across JNI
      */

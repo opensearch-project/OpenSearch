@@ -52,7 +52,12 @@ public class DatafusionReader implements Closeable {
         logger.debug("DatafusionReader closed for [{}]", directoryPath);
     }
 
-    public long getReaderPtr() {
-        return readerHandle.getPointer();
+    /**
+     * Returns the type-safe handle to the native reader.
+     * Callers should hold this reference and call
+     * {@link ReaderHandle#getPointer()} only at JNI invocation time.
+     */
+    public ReaderHandle getReaderHandle() {
+        return readerHandle;
     }
 }

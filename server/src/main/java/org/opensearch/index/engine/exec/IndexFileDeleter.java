@@ -9,34 +9,47 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.CompositeEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Tracks per-format file reference counts and computes which files are newly
+ * added or fully dereferenced after catalog snapshot changes.
+ * <p>
+ * This class does <em>not</em> notify reader managers itself — it returns the
+ * computed change sets so the caller ({@link org.opensearch.index.engine.CompositeEngine})
+ * can route notifications to the appropriate reader managers.
+ *
+ * @opensearch.experimental
+ */
 @ExperimentalApi
 public class IndexFileDeleter {
 
     private final Map<DataFormat, Map<String, AtomicInteger>> fileRefCounts = new ConcurrentHashMap<>();
-    private final CompositeEngine compositeEngine;
 
-    public IndexFileDeleter(CompositeEngine compositeEngine, CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath)
-        throws IOException {
-        this.compositeEngine = compositeEngine;
+    public IndexFileDeleter(CatalogSnapshot initialCatalogSnapshot, ShardPath shardPath) throws IOException {
         if (initialCatalogSnapshot != null) {
             addFileReferences(initialCatalogSnapshot);
             deleteUnreferencedFiles(shardPath);
         }
     }
 
-    public synchronized void addFileReferences(CatalogSnapshot snapshot) {
+    /**
+     * Increments reference counts for all files in the snapshot.
+     *
+     * @return files whose reference count went from 0 → 1 (newly added), grouped by format.
+     *         Returns an empty map when there are no new files.
+     */
+    public synchronized Map<DataFormat, Collection<String>> addFileReferences(CatalogSnapshot snapshot) {
         Map<DataFormat, Collection<String>> dfSegregatedFiles = segregateFilesByFormat(snapshot);
         Map<DataFormat, Collection<String>> dfNewFiles = new HashMap<>();
 
@@ -48,21 +61,24 @@ public class IndexFileDeleter {
             for (String file : files) {
                 AtomicInteger refCount = dfFileRefCounts.computeIfAbsent(file, k -> new AtomicInteger(0));
                 if (refCount.incrementAndGet() == 1) {
-                    // First reference — this file is new
                     newFiles.add(file);
                 }
             }
-            if (!newFiles.isEmpty()) {
+            if (newFiles.isEmpty() == false) {
                 dfNewFiles.put(dataFormat, newFiles);
             }
         }
 
-        if (!dfNewFiles.isEmpty()) {
-            notifyFilesAdded(dfNewFiles);
-        }
+        return dfNewFiles.isEmpty() ? Collections.emptyMap() : dfNewFiles;
     }
 
-    public synchronized void removeFileReferences(CatalogSnapshot snapshot) {
+    /**
+     * Decrements reference counts for all files in the snapshot.
+     *
+     * @return files whose reference count reached 0 (ready for deletion), grouped by format.
+     *         Returns an empty map when there are no files to delete.
+     */
+    public synchronized Map<DataFormat, Collection<String>> removeFileReferences(CatalogSnapshot snapshot) {
         Map<DataFormat, Collection<String>> dfSegregatedFiles = segregateFilesByFormat(snapshot);
         Map<DataFormat, Collection<String>> dfFilesToDelete = new HashMap<>();
 
@@ -80,30 +96,12 @@ public class IndexFileDeleter {
                     }
                 }
             }
-            if (!filesToDelete.isEmpty()) {
+            if (filesToDelete.isEmpty() == false) {
                 dfFilesToDelete.put(dataFormat, filesToDelete);
             }
         }
 
-        if (!dfFilesToDelete.isEmpty()) {
-            notifyFilesDeleted(dfFilesToDelete);
-        }
-    }
-
-    private void notifyFilesAdded(Map<DataFormat, Collection<String>> dfNewFiles) {
-        try {
-            compositeEngine.notifyFilesAdded(dfNewFiles);
-        } catch (Exception e) {
-            System.err.println("Failed to notify new files: " + dfNewFiles + ", error: " + e.getMessage());
-        }
-    }
-
-    private void notifyFilesDeleted(Map<DataFormat, Collection<String>> dfFilesToDelete) {
-        try {
-            compositeEngine.notifyDelete(dfFilesToDelete);
-        } catch (Exception e) {
-            System.err.println("Failed to delete unreferenced files: " + dfFilesToDelete + ", error: " + e.getMessage());
-        }
+        return dfFilesToDelete.isEmpty() ? Collections.emptyMap() : dfFilesToDelete;
     }
 
     private Map<DataFormat, Collection<String>> segregateFilesByFormat(CatalogSnapshot snapshot) {
