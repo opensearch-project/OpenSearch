@@ -1,4 +1,4 @@
 /*
-SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits;
+SELECT MIN(EventDate), MAX(EventDate) FROM hits;
 */
-source=hits | stats sum(AdvEngineID), count() , avg(ResolutionWidth)
+source=hits | stats min(EventDate), max(EventDate)

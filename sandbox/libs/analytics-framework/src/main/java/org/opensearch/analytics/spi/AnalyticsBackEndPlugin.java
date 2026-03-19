@@ -12,8 +12,9 @@ import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+
 /**
- * SPI extension point for back-end query engines (DataFusion, Lucene, etc.).
+ * SPI extension point for back-end query engines (DataFusion, Lucene, etc.)
  * @opensearch.internal
  */
 public interface AnalyticsBackEndPlugin {
@@ -25,4 +26,9 @@ public interface AnalyticsBackEndPlugin {
 
     /** Supported functions as a Calcite operator table, or null if the back-end adds no functions. */
     SqlOperatorTable operatorTable();
+
+    /** Whether this backend supports the SearchExecEngine path via CompositeEngine. */
+    default boolean supportsSearchExecEngine() {
+        return false;
+    }
 }

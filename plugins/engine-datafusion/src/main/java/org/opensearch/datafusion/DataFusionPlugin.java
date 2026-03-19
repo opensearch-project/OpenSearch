@@ -35,7 +35,9 @@ import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
@@ -72,9 +74,13 @@ import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPI
  * Main plugin class for OpenSearch DataFusion integration.
  *
  */
-public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin, AnalyticsBackEndPlugin {
+public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEnginePlugin, AnalyticsBackEndPlugin, ExtensiblePlugin, SearchAnalyticsBackEndPlugin {
 
     private DataFusionService dataFusionService;
+
+    public DataFusionService getDataFusionService() {
+        return dataFusionService;
+    }
     private final boolean isDataFusionEnabled;
 
     /**
@@ -223,6 +229,56 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     @Override
     public SqlOperatorTable operatorTable() {
         return null;
+    }
+
+    // Forward AnalyticsBackEndPlugin extensions from child plugins (e.g. analytics-backend-datafusion)
+    private final List<AnalyticsBackEndPlugin> childBackends = new ArrayList<>();
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        for (AnalyticsBackEndPlugin ext : loader.loadExtensions(AnalyticsBackEndPlugin.class)) {
+            // Inject ourselves so child backends can access the DataFusionService
+            if (ext instanceof ParentAware) {
+                ((ParentAware) ext).setParentPlugin(this);
+            }
+            childBackends.add(ext);
+        }
+    }
+
+    public List<AnalyticsBackEndPlugin> getChildBackends() {
+        return childBackends;
+    }
+
+    /** Marker interface for child backends that need the parent plugin. */
+    // ---- SearchAnalyticsBackEndPlugin (delegates to child backend if available) ----
+
+    private SearchAnalyticsBackEndPlugin getChildSearchBackend() {
+        for (AnalyticsBackEndPlugin child : childBackends) {
+            if (child instanceof SearchAnalyticsBackEndPlugin) {
+                return (SearchAnalyticsBackEndPlugin) child;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public org.opensearch.index.engine.exec.CatalogSnapshotAwareReaderManager<?> createReaderManager(
+            org.opensearch.plugins.spi.vectorized.DataFormat format, ShardPath shardPath) throws IOException {
+        SearchAnalyticsBackEndPlugin child = getChildSearchBackend();
+        if (child != null) return child.createReaderManager(format, shardPath);
+        return null;
+    }
+
+    @Override
+    public org.opensearch.index.engine.exec.SearchExecEngine<?, ?> createSearchExecEngine(
+            org.opensearch.plugins.spi.vectorized.DataFormat format, ShardPath shardPath) throws IOException {
+        SearchAnalyticsBackEndPlugin child = getChildSearchBackend();
+        if (child != null) return child.createSearchExecEngine(format, shardPath);
+        return null;
+    }
+
+    public interface ParentAware {
+        void setParentPlugin(DataFusionPlugin parent);
     }
 //
 //    @Override

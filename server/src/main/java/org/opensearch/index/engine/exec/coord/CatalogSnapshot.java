@@ -77,4 +77,15 @@ public abstract class CatalogSnapshot extends AbstractRefCounted implements Writ
     }
 
     public abstract void setUserData(Map<String, String> userData, boolean b);
+
+    /**
+     * Returns a reader for the given data format, or null if not available.
+     * Subclasses may override to provide format-specific readers.
+     *
+     * @param dataFormat the data format
+     * @return the reader object, or null
+     */
+    public Object getReader(org.opensearch.plugins.spi.vectorized.DataFormat dataFormat) {
+        return null;
+    }
 }
