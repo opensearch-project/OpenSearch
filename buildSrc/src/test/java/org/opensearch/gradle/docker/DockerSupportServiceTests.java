@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.gradle.docker.DockerSupportService.deriveId;
+import static org.opensearch.gradle.docker.DockerSupportService.getUnixPath;
 import static org.opensearch.gradle.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -122,5 +123,33 @@ public class DockerSupportServiceTests extends GradleIntegrationTestCase {
         osRelease.put("VERSION_ID", "6.10");
 
         assertThat("ol-6.10", equalTo(deriveId(osRelease)));
+    }
+
+    public void testGetUnixPathDefault() {
+        final String[] fallbackPath = { "/usr/bin", "/usr/local/bin" };
+        final String path = null;
+
+        assertArrayEquals(fallbackPath, getUnixPath(path, fallbackPath));
+    }
+
+    public void testGetUnixPathEmptyString() {
+        final String[] fallbackPath = { "/usr/bin", "/usr/local/bin" };
+        final String path = "";
+
+        assertArrayEquals(fallbackPath, getUnixPath(path, fallbackPath));
+    }
+
+    /**
+     * Tests:
+     * 1. Duplicates are removed.
+     * 2. The order is preserved, prioritizing the order from path over the order from fallback.
+     */
+    public void testGetUnixPathWithDuplicatesAndEmptyEntries() {
+        final String[] fallbackPath = { "/usr/bin", "/usr/local/bin" };
+        final String path = "/home/User/bin:/usr/local/bin:/bin::/home/User/bin";
+
+        final String[] expected = { "/home/User/bin", "/usr/local/bin", "/bin", "/usr/bin" };
+
+        assertArrayEquals(expected, getUnixPath(path, fallbackPath));
     }
 }
