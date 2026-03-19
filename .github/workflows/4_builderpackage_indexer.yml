@@ -108,7 +108,7 @@ jobs:
               '{distribution: $distribution, architecture: $architecture}'
           )
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: product_versions
         name: Get current version and latest Wazuh release from GitHub
         run: |
@@ -130,7 +130,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -190,7 +190,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: ${{ matrix.distribution == 'rpm' }}
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: "us-east-1"
           role-to-assume: ${{ secrets.AWS_IAM_OVA_ROLE }}
@@ -306,7 +306,7 @@ jobs:
           sudo dpkg -i "artifacts/dist/${{ steps.package.outputs.name }}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.name }}
           path: artifacts/dist/${{ steps.package.outputs.name }}
@@ -314,7 +314,7 @@ jobs:
 
       - name: Set up AWS CLI
         if: ${{ inputs.upload }}
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.CI_INTERNAL_DEVELOPMENT_BUCKET_USER_SECRET_KEY }}
