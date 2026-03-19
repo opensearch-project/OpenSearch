@@ -2271,10 +2271,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             nonClosingReaderWrapper = readerWrapperCache.computeIfAbsent(directoryReader, key -> {
                 try {
-                    OpenSearchDirectoryReader.addReaderCloseListener(
-                        key,
-                        cacheKey -> readerWrapperCache.remove(key)
-                    );
+                    OpenSearchDirectoryReader.addReaderCloseListener(key, cacheKey -> readerWrapperCache.remove(key));
                     return new NonClosingReaderWrapper(directoryReader);
                 } catch (IOException e) {
                     readerWrapperCache.remove(key);
