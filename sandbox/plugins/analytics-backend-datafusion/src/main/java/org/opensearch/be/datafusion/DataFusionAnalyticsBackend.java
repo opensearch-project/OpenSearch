@@ -11,10 +11,12 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
+import org.opensearch.datafusion.DatafusionEngine;
 import org.opensearch.index.engine.exec.CatalogSnapshotAwareReaderManager;
 import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
@@ -45,14 +47,12 @@ public class DataFusionAnalyticsBackend
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge(CatalogSnapshot snapshot) {
-        Collection<WriterFileSet> files = snapshot.getSearchableFiles("parquet");
-        if (files.isEmpty() || files.stream().allMatch(wfs -> wfs.getFiles().isEmpty())) {
-            throw new IllegalStateException("No parquet files available in catalog snapshot");
+    public EngineBridge<?, ?, ?> bridge(CompositeEngine engine, CatalogSnapshot snapshot) {
+        try {
+            return new SandboxDataFusionBridge(getRuntimePtr(), (DatafusionReader) engine.getReader(name(), snapshot));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        String dir = files.stream().findFirst().map(WriterFileSet::getDirectory).orElse("");
-        DatafusionReader reader = new DatafusionReader(dir, files);
-        return new SandboxDataFusionBridge(getRuntimePtr(), reader);
     }
 
     @Override

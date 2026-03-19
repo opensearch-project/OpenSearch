@@ -97,6 +97,7 @@ import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
@@ -173,6 +174,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
     private final Map<String, List<FileDeletionListener>> fileDeletionListeners = new HashMap<>();
     private final Map<DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
+    private final Map<String, SearchExecEngine<?, ?, ?, ?>> readEnginesByName = new HashMap<>();
+    private final Map<String, CatalogSnapshotAwareReaderManager<?>> readerManagersByName = new HashMap<>();
     @Nullable
     private final SearchBackendFactory searchBackendFactory;
     private final MergeScheduler mergeScheduler;
@@ -406,6 +409,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
                     currentSearchEngines.add(newSearchEngine);
                     readEngines.put(dataFormat, currentSearchEngines);
+                    readEnginesByName.put(dataFormat.getName(), newSearchEngine);
 
                     // TODO : figure out how to do internal and external refresh listeners
                     // Maybe external refresh should be managed in opensearch core and plugins should always give
@@ -433,6 +437,17 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 logger.warn("Failed to initialize SearchBackendFactory, search backends will be unavailable", e);
             }
             this.searchBackendFactory = backendFactory;
+
+            // Populate name-keyed reader managers from SearchAnalyticsBackEndPlugins
+            for (SearchAnalyticsBackEndPlugin backendPlugin : pluginsService.filterPlugins(SearchAnalyticsBackEndPlugin.class)) {
+                for (DataFormat format : backendPlugin.getSupportedFormats()) {
+                    try {
+                        readerManagersByName.put(backendPlugin.name(), backendPlugin.createReaderManager(format, shardPath));
+                    } catch (Exception e) {
+                        logger.warn("Failed to create reader manager for plugin [{}], format [{}]", backendPlugin.name(), format, e);
+                    }
+                }
+            }
 
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
@@ -602,6 +617,31 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Nullable
     public Object getReader(DataFormat format, CatalogSnapshot snapshot) throws IOException {
         CatalogSnapshotAwareReaderManager<?> rm = getReaderManager(format);
+        return rm != null ? rm.getReader(snapshot) : null;
+    }
+
+    public Object getEngine(String name) {
+        return readEnginesByName.get(name);
+    }
+
+    /**
+     * Returns the catalog-snapshot-aware reader manager for the given name, or null.
+     */
+    @Nullable
+    public CatalogSnapshotAwareReaderManager<?> getReaderManager(String name) {
+        return readerManagersByName.get(name);
+    }
+
+    /**
+     * Returns a reader for the given name and catalog snapshot, or null.
+     */
+    @Nullable
+    public Object getReader(String name, CatalogSnapshot snapshot) throws IOException {
+        CatalogSnapshotAwareReaderManager<?> rm = getReaderManager(name);
+        // hack
+        if (rm != null) {
+            rm.afterRefresh(true, snapshot);
+        }
         return rm != null ? rm.getReader(snapshot) : null;
     }
 

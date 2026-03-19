@@ -748,6 +748,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
         with_jni_env(|env| {
             match result {
                 Ok(Some(batch)) => {
+                    log_info!("[RUST streamNext] Batch produced: {} rows, {} columns, schema: {:?}",
+                        batch.num_rows(), batch.num_columns(), batch.schema().fields().iter().map(|f| f.name().as_str()).collect::<Vec<_>>());
                     // Convert to FFI
                     let struct_array: StructArray = batch.into();
                     let array_data = struct_array.into_data();
@@ -756,6 +758,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                     set_action_listener_ok_global(env, &listener_ref, ffi_array_ptr as jlong);
                 }
                 Ok(None) => {
+                    log_info!("[RUST streamNext] End of stream reached");
                     // End of stream
                     set_action_listener_ok_global(env, &listener_ref, 0);
                 }

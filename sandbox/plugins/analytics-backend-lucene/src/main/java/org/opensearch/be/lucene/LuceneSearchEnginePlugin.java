@@ -15,6 +15,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.CatalogSnapshotAwareReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SourceProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
@@ -36,7 +38,7 @@ public class LuceneSearchEnginePlugin implements AnalyticsBackEndPlugin, SearchA
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge() {
+    public EngineBridge<?, ?, ?> bridge(CompositeEngine engine, CatalogSnapshot snapshot) {
         return null;
     }
 

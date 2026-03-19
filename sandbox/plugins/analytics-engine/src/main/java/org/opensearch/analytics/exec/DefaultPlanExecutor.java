@@ -88,20 +88,21 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
         CompositeEngine engine = (CompositeEngine) indexShard.getIndexer();
 
-        // Prefer SearchExecEngine path if supported
-        if (plugin.supportsSearchExecEngine() && engine.getSearchBackendFactory() != null) {
-            logger.info("[DefaultPlanExecutor] Using SearchExecEngine path for back-end [{}]", plugin.name());
-            try {
-                return executeViaSearchExecEngine(engine, logicalFragment);
-            } catch (Exception e) {
-                throw new RuntimeException("SearchExecEngine execution failed for [" + plugin.name() + "]", e);
-            }
-        }
+//        // Prefer SearchExecEngine path if supported
+//        if (plugin.supportsSearchExecEngine() && engine.getSearchBackendFactory() != null) {
+//            logger.info("[DefaultPlanExecutor] Using SearchExecEngine path for back-end [{}]", plugin.name());
+//            try {
+//                return executeViaSearchExecEngine(engine, logicalFragment);
+//            } catch (Exception e) {
+//                throw new RuntimeException("SearchExecEngine execution failed for [" + plugin.name() + "]", e);
+//            }
+//        }
 
         // Bridge path
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> snapshot = engine.acquireSnapshot()) {
             EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
-                (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(snapshot.getRef());
+                (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(engine, snapshot.getRef());
+
             byte[] converted = bridge.convertFragment(logicalFragment);
 
             List<Object[]> rows = new ArrayList<>();

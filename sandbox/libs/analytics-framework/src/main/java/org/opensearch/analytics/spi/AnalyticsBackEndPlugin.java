@@ -11,6 +11,7 @@ package org.opensearch.analytics.spi;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 
 /**
@@ -22,7 +23,7 @@ public interface AnalyticsBackEndPlugin {
     String name();
 
     /** JNI boundary for executing serialized plans, or null for engines without native execution. */
-    EngineBridge<?, ?, ?> bridge(CatalogSnapshot snapshot);
+    EngineBridge<?, ?, ?> bridge(CompositeEngine engine, CatalogSnapshot snapshot);
 
     /** Supported functions as a Calcite operator table, or null if the back-end adds no functions. */
     SqlOperatorTable operatorTable();

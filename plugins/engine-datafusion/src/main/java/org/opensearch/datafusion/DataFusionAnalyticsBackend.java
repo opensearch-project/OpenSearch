@@ -12,6 +12,7 @@ import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 
 /**
  * SPI adapter that delegates to the real {@link DataFusionPlugin} instance,
@@ -40,8 +41,8 @@ public class DataFusionAnalyticsBackend implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge(CatalogSnapshot snapshot) {
-        return delegate().bridge(snapshot);
+    public EngineBridge<?, ?, ?> bridge(CompositeEngine engine, CatalogSnapshot snapshot) {
+        return delegate().bridge(engine, snapshot);
     }
 
     @Override

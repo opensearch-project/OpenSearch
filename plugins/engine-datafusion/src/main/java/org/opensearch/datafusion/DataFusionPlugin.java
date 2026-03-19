@@ -33,6 +33,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.SearchExecEngine;
 import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
@@ -212,7 +213,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge(CatalogSnapshot snapshot) {
+    public EngineBridge<?, ?, ?> bridge(CompositeEngine engine, CatalogSnapshot snapshot) {
+        DatafusionEngine dfEngine = (DatafusionEngine) engine.getEngine(name());
         long runtimePointer = dataFusionService.getRuntimePointer();
         Collection<WriterFileSet> files = snapshot.getSearchableFiles("parquet");
         // Derive directory path from the first WriterFileSet, or use empty string if no files

@@ -117,6 +117,17 @@ public class ClickBenchRestIT extends OpenSearchRestTestCase {
 //        logger.info("Bulk inserted test data into {} index", HITS_INDEX);
     }
 
+    // Expected results for each query based on the 10-doc test dataset.
+    // Each entry: queryId -> expected single-row values (in column order).
+    private static final Map<String, List<Object>> EXPECTED_RESULTS = Map.of(
+        "q1", List.of(10),           // COUNT(*)
+        "q2", List.of(2),            // COUNT(*) WHERE AdvEngineID != 0  (docs 1,7)
+        "q3", List.of(5, 10),        // SUM(AdvEngineID)=5, COUNT(*)=10
+        "q4", List.of(435090932899640449L), // MAX(UserID)
+        "q5", List.of(10),           // COUNT(DISTINCT UserID) - all 10 unique
+        "q6", List.of(7)             // COUNT(DISTINCT SearchPhrase) - 6 non-empty + 1 empty = 7
+    );
+
     public void testClickBenchQueries() throws Exception {
         createHitsIndex();
         bulkInsertTestData();
@@ -163,6 +174,29 @@ public class ClickBenchRestIT extends OpenSearchRestTestCase {
         @SuppressWarnings("unchecked")
         List<String> columns = (List<String>) responseMap.get("columns");
         assertFalse("Columns should not be empty for " + queryId, columns.isEmpty());
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) responseMap.get("rows");
+        logger.info("RESULT {}: columns={}, rows={}", queryId, columns, rows.size());
+        for (int i = 0; i < Math.min(rows.size(), 10); i++) {
+            logger.info("  row[{}]: {}", i, rows.get(i));
+        }
+        if (rows.size() > 10) {
+            logger.info("  ... ({} more rows)", rows.size() - 10);
+        }
+
+        // Assert expected results
+        List<Object> expected = EXPECTED_RESULTS.get(queryId);
+        if (expected != null) {
+            assertEquals("Expected exactly 1 row for " + queryId, 1, rows.size());
+            List<Object> actualRow = rows.get(0);
+            assertEquals("Column count mismatch for " + queryId, expected.size(), actualRow.size());
+            for (int i = 0; i < expected.size(); i++) {
+                long expectedVal = ((Number) expected.get(i)).longValue();
+                long actualVal = ((Number) actualRow.get(i)).longValue();
+                assertEquals(queryId + " column " + columns.get(i) + " (index " + i + ")", expectedVal, actualVal);
+            }
+        }
 
         logger.info("SUCCESS {}: {} columns", queryId, columns.size());
     }

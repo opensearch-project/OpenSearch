@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.datafusion.search.DatafusionContext;
 import org.opensearch.datafusion.search.DatafusionReader;
 
 import java.io.Closeable;
