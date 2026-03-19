@@ -192,6 +192,60 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         IOUtils.close(writer, dir);
     }
 
+    public void testCacheWrapperReader() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        DirectoryReader open = OpenSearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
+        IndexSearcher searcher = new IndexSearcher(open);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
+        searcher.setSimilarity(iwc.getSimilarity());
+        final AtomicInteger closeCalls = new AtomicInteger(0);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
+            "field",
+            reader,
+            closeCalls
+        );
+        ConcurrentHashMap<DirectoryReader, IndexShard.NonClosingReaderWrapper> readerWrapperCache = new ConcurrentHashMap<>();
+        Engine.Searcher wrap = IndexShard.wrapSearcher(
+            new Engine.Searcher(
+                "foo",
+                open,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                () -> {}
+            ),
+            wrapper,
+            readerWrapperCache
+        );
+        wrap.close();
+        assertEquals(1, readerWrapperCache.size());
+        IndexShard.NonClosingReaderWrapper nonClosingReaderWrapper = readerWrapperCache.get(open);
+        assertNotNull(nonClosingReaderWrapper);
+        wrap = IndexShard.wrapSearcher(
+            new Engine.Searcher(
+                "foo",
+                open,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                () -> {}
+            ),
+            wrapper,
+            readerWrapperCache
+        );
+        wrap.close();
+        assertEquals(1, readerWrapperCache.size());
+        IndexShard.NonClosingReaderWrapper newNonClosingReaderWrapper = readerWrapperCache.get(open);
+        assertEquals(newNonClosingReaderWrapper, nonClosingReaderWrapper);
+        IOUtils.close(open, writer, dir);
+    }
+
     private static class FieldMaskingReader extends FilterDirectoryReader {
         private final String field;
         private final AtomicInteger closeCalls;

@@ -241,6 +241,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
@@ -321,6 +322,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
+    private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> readerWrapperCache = new ConcurrentHashMap<>();
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -2226,7 +2228,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = readerWrapper == null
+                ? searcher
+                : wrapSearcher(searcher, readerWrapper, readerWrapperCache);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -2246,14 +2250,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
+        return wrapSearcher(engineSearcher, readerWrapper, null);
+    }
+
+    public static Engine.Searcher wrapSearcher(
+        Engine.Searcher engineSearcher,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+        ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> readerWrapperCache
+    ) throws IOException {
         assert readerWrapper != null;
-        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(
-            engineSearcher.getDirectoryReader()
-        );
+        DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
+        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(directoryReader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
-        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+
+        NonClosingReaderWrapper nonClosingReaderWrapper;
+        if (readerWrapperCache == null) {
+            nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+        } else {
+            nonClosingReaderWrapper = readerWrapperCache.computeIfAbsent(directoryReader, key -> {
+                try {
+                    OpenSearchDirectoryReader.addReaderCloseListener(
+                        directoryReader,
+                        cacheKey -> readerWrapperCache.remove(directoryReader)
+                    );
+                    return new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+                } catch (IOException e) {
+                    throw new OpenSearchException("failed to wrap searcher", e);
+                }
+            });
+        }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
@@ -2315,7 +2342,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @opensearch.internal
      */
-    private static final class NonClosingReaderWrapper extends FilterDirectoryReader {
+    @PublicApi(since = "1.0.0")
+    protected static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
             super(in, new SubReaderWrapper() {
