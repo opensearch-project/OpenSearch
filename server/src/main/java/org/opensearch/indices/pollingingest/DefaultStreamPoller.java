@@ -63,10 +63,10 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile long lastPointerBasedLagUpdateTime = 0;
 
     // Warmup configuration and state
-    private final IngestionSource.WarmupConfig warmupConfig;
+    private volatile IngestionSource.WarmupConfig warmupConfig;
     private volatile boolean warmupComplete = false;
     private volatile long warmupStartTime = 0;
-    private final CountDownLatch warmupLatch = new CountDownLatch(1);
+    private volatile CountDownLatch warmupLatch = new CountDownLatch(1);
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -428,6 +428,31 @@ public class DefaultStreamPoller implements StreamPoller {
             );
         }
         return completed;
+    }
+
+    /**
+     * Updates the warmup configuration dynamically.
+     * Called when index settings are changed at runtime.
+     */
+    @Override
+    public void updateWarmupConfig(IngestionSource.WarmupConfig newConfig) {
+        IngestionSource.WarmupConfig oldConfig = this.warmupConfig;
+        this.warmupConfig = newConfig;
+
+        // If warmup was enabled and is now disabled, mark as complete
+        if (oldConfig.isEnabled() && !newConfig.isEnabled() && !warmupComplete) {
+            warmupComplete = true;
+            warmupLatch.countDown();
+            logger.info("Warmup disabled for index {} shard {} via dynamic settings update", indexName, shardId);
+        }
+
+        logger.info(
+            "Warmup config updated for index {} shard {}: timeout={}, lagThreshold={}",
+            indexName,
+            shardId,
+            newConfig.timeout(),
+            newConfig.lagThreshold()
+        );
     }
 
     /**

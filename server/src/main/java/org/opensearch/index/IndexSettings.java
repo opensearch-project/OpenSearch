@@ -1071,6 +1071,16 @@ public final class IndexSettings {
     private volatile boolean isStarTreeIndexEnabled;
 
     /**
+     * The warmup timeout for pull-based ingestion.
+     */
+    private volatile TimeValue warmupTimeout;
+
+    /**
+     * The warmup lag threshold for pull-based ingestion.
+     */
+    private volatile long warmupLagThreshold;
+
+    /**
      * Returns the default search fields for this index.
      */
     public List<String> getDefaultFields() {
@@ -1239,6 +1249,8 @@ public final class IndexSettings {
         setDocIdFuzzySetFalsePositiveProbability(scopedSettings.get(INDEX_DOC_ID_FUZZY_SET_FALSE_POSITIVE_PROBABILITY_SETTING));
         isCompositeIndex = scopedSettings.get(StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING);
         isStarTreeIndexEnabled = scopedSettings.get(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING);
+        this.warmupTimeout = IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(nodeSettings);
+        this.warmupLagThreshold = IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(nodeSettings);
         scopedSettings.addSettingsUpdateConsumer(
             TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT_SETTING,
             tieredMergePolicyProvider::setNoCFSRatio
@@ -1381,6 +1393,8 @@ public final class IndexSettings {
             this::setRemoteStoreTranslogRepository
         );
         scopedSettings.addSettingsUpdateConsumer(StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING, this::setStarTreeIndexEnabled);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING, this::setWarmupTimeout);
+        scopedSettings.addSettingsUpdateConsumer(IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING, this::setWarmupLagThreshold);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2000,6 +2014,22 @@ public final class IndexSettings {
 
     public boolean getStarTreeIndexEnabled() {
         return isStarTreeIndexEnabled;
+    }
+
+    private void setWarmupTimeout(TimeValue warmupTimeout) {
+        this.warmupTimeout = warmupTimeout;
+    }
+
+    private void setWarmupLagThreshold(long warmupLagThreshold) {
+        this.warmupLagThreshold = warmupLagThreshold;
+    }
+
+    public TimeValue getWarmupTimeout() {
+        return warmupTimeout;
+    }
+
+    public long getWarmupLagThreshold() {
+        return warmupLagThreshold;
     }
 
     /**
