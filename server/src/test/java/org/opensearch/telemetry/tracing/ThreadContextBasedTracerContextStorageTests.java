@@ -273,10 +273,22 @@ public class ThreadContextBasedTracerContextStorageTests extends OpenSearchTestC
     }
 
     public void testNullSpanWithinSpanReference() {
+        // invalid span, should not be present in final transients
         SpanReference spanReference = new SpanReference(null);
         Map<String, Object> source = new HashMap<>();
         source.put(ThreadContextBasedTracerContextStorage.CURRENT_SPAN, spanReference);
         ThreadContextBasedTracerContextStorage context = (ThreadContextBasedTracerContextStorage) threadContextStorage;
         assertTrue(context.transients(source).isEmpty());
+
+        // valid span, present in final transients
+        final Span span = tracer.startSpan(SpanCreationContext.internal().name("test"));
+        spanReference = new SpanReference(span);
+        source = new HashMap<>();
+        source.put(ThreadContextBasedTracerContextStorage.CURRENT_SPAN, spanReference);
+        assertFalse(context.transients(source).isEmpty());
+        assertEquals(
+            span,
+            ((SpanReference) context.transients(source).get(ThreadContextBasedTracerContextStorage.CURRENT_SPAN)).getSpan()
+        );
     }
 }
