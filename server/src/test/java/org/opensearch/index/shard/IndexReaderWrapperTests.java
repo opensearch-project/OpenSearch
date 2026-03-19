@@ -244,6 +244,8 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         IndexShard.NonClosingReaderWrapper newNonClosingReaderWrapper = readerWrapperCache.get(open);
         assertEquals(newNonClosingReaderWrapper, nonClosingReaderWrapper);
         IOUtils.close(open, writer, dir);
+
+        assertTrue(readerWrapperCache.isEmpty());
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {

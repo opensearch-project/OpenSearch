@@ -2267,16 +2267,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         NonClosingReaderWrapper nonClosingReaderWrapper;
         if (readerWrapperCache == null) {
-            nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+            nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
         } else {
             nonClosingReaderWrapper = readerWrapperCache.computeIfAbsent(directoryReader, key -> {
                 try {
                     OpenSearchDirectoryReader.addReaderCloseListener(
-                        directoryReader,
-                        cacheKey -> readerWrapperCache.remove(directoryReader)
+                        key,
+                        cacheKey -> readerWrapperCache.remove(key)
                     );
-                    return new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+                    return new NonClosingReaderWrapper(directoryReader);
                 } catch (IOException e) {
+                    readerWrapperCache.remove(key);
                     throw new OpenSearchException("failed to wrap searcher", e);
                 }
             });
@@ -2342,7 +2343,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @opensearch.internal
      */
-    @PublicApi(since = "1.0.0")
+    @PublicApi(since = "3.6.0")
     protected static final class NonClosingReaderWrapper extends FilterDirectoryReader {
 
         private NonClosingReaderWrapper(DirectoryReader in) throws IOException {
