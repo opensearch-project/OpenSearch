@@ -38,4 +38,12 @@ public interface EngineContext {
      * by at least one registered back-end engine.
      */
     SqlOperatorTable operatorTable();
+
+    /** Holder for the global instance set by AnalyticsPlugin during createComponents. */
+    class Holder {
+        private static volatile EngineContext INSTANCE;
+
+        public static void set(EngineContext ctx) { INSTANCE = ctx; }
+        public static EngineContext get() { return INSTANCE; }
+    }
 }

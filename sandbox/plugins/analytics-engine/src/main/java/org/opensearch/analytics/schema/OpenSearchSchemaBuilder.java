@@ -14,6 +14,8 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -29,6 +31,8 @@ import java.util.Map;
  */
 public class OpenSearchSchemaBuilder {
 
+    private static final Logger logger = LogManager.getLogger(OpenSearchSchemaBuilder.class);
+
     private OpenSearchSchemaBuilder() {}
 
     /**
@@ -40,6 +44,10 @@ public class OpenSearchSchemaBuilder {
     public static SchemaPlus buildSchema(ClusterState clusterState) {
         CalciteSchema rootSchema = CalciteSchema.createRootSchema(true);
         SchemaPlus schemaPlus = rootSchema.plus();
+
+        logger.info("[buildSchema] clusterState version={}, indices count={}, index names={}",
+            clusterState.version(), clusterState.metadata().indices().size(),
+            clusterState.metadata().indices().keySet());
 
         for (Map.Entry<String, IndexMetadata> entry : clusterState.metadata().indices().entrySet()) {
             String indexName = entry.getKey();
@@ -58,8 +66,12 @@ public class OpenSearchSchemaBuilder {
             }
 
             schemaPlus.add(indexName, buildTable(properties));
+            logger.info("[buildSchema] Added table '{}', schemaPlus.getTableNames() now = {}",
+                indexName, schemaPlus.getTableNames());
         }
 
+        logger.info("[buildSchema] Final schemaPlus.getTableNames() = {}, subSchemaNames = {}",
+            schemaPlus.getTableNames(), schemaPlus.getSubSchemaNames());
         return schemaPlus;
     }
 

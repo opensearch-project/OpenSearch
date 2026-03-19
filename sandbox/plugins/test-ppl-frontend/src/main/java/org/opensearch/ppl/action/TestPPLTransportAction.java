@@ -17,7 +17,6 @@ import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.ppl.planner.PushDownPlanner;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -45,9 +44,10 @@ public class TestPPLTransportAction extends HandledTransportAction<PPLRequest, P
         QueryPlanExecutor<RelNode, Iterable<Object[]>> executor
     ) {
         super(UnifiedPPLExecuteAction.NAME, transportService, actionFilters, PPLRequest::new);
-
-        PushDownPlanner pushDownPlanner = new PushDownPlanner(engineContext.operatorTable(), executor);
-        this.unifiedQueryService = new UnifiedQueryService(pushDownPlanner, engineContext);
+        // Prefer the static INSTANCE set by AnalyticsPlugin.createComponents() —
+        // the Guice-injected engineContext may have a stale ClusterService.
+        EngineContext ctx = EngineContext.Holder.get() != null ? EngineContext.Holder.get() : engineContext;
+        this.unifiedQueryService = new UnifiedQueryService(executor, ctx);
     }
 
     /** Test-only constructor that accepts a pre-built {@link UnifiedQueryService}. */

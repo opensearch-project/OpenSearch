@@ -20,6 +20,7 @@ import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -36,7 +37,9 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -54,12 +57,15 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
      */
     public AnalyticsPlugin() {}
 
-    private final List<AnalyticsBackEndPlugin> backEnds = new ArrayList<>();
+    private final Map<String, AnalyticsBackEndPlugin> backEnds = new LinkedHashMap<>();
     private SqlOperatorTable operatorTable;
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        backEnds.addAll(loader.loadExtensions(AnalyticsBackEndPlugin.class));
+        for (AnalyticsBackEndPlugin ext : loader.loadExtensions(AnalyticsBackEndPlugin.class)) {
+            backEnds.put(ext.name(), ext);
+            logger.info("Registered analytics back-end: {}", ext.name());
+        }
         operatorTable = aggregateOperatorTables();
     }
 
@@ -77,22 +83,26 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(new DefaultPlanExecutor(backEnds), new DefaultEngineContext(clusterService, operatorTable));
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
+        EngineContext.Holder.set(ctx);
+        return List.of(ctx);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public Collection<Module> createGuiceModules() {
         return List.of(b -> {
+            b.bind(new TypeLiteral<List<AnalyticsBackEndPlugin>>() {
+            }).toInstance(List.copyOf(backEnds.values()));
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
-            b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            b.bind(EngineContext.class).toProvider(EngineContext.Holder::get);
         });
     }
 
     private SqlOperatorTable aggregateOperatorTables() {
         List<SqlOperatorTable> tables = new ArrayList<>();
-        for (AnalyticsBackEndPlugin backEnd : backEnds) {
+        for (AnalyticsBackEndPlugin backEnd : backEnds.values()) {
             SqlOperatorTable table = backEnd.operatorTable();
             if (table != null) {
                 tables.add(table);
@@ -107,11 +117,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     /**
      * Default implementation of {@link EngineContext}.
      */
-    static record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
+    static class DefaultEngineContext implements EngineContext {
+        private final ClusterService clusterService;
+        private final SqlOperatorTable operatorTable;
+
+        @Inject
+        public DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) {
+            this.clusterService = clusterService;
+            this.operatorTable = operatorTable;
+        }
 
         @Override
         public SchemaPlus getSchema() {
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+        }
+
+        @Override
+        public SqlOperatorTable operatorTable() {
+            return operatorTable;
         }
     }
 }

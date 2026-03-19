@@ -32,6 +32,6 @@ public class ParquetDataSourceCodec implements DataSourceCodec {
     }
 
     public DataFormat getDataFormat() {
-        return DataFormat.CSV;
+        return DataFormat.PARQUET;
     }
 }

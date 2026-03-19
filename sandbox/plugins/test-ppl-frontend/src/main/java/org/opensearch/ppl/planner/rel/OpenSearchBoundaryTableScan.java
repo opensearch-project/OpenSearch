@@ -15,6 +15,7 @@ import org.apache.calcite.adapter.enumerable.PhysType;
 import org.apache.calcite.adapter.enumerable.PhysTypeImpl;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.Linq4j;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.apache.calcite.linq4j.tree.Blocks;
 import org.apache.calcite.linq4j.tree.Expression;
 import org.apache.calcite.linq4j.tree.Expressions;
@@ -25,6 +26,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.sql.calcite.plan.Scannable;
 
 import java.util.List;
 
@@ -42,7 +44,7 @@ import java.util.List;
  * {@code execute()} passes the fragment to the {@link QueryPlanExecutor}, which
  * returns the result rows.
  */
-public class OpenSearchBoundaryTableScan extends TableScan implements EnumerableRel {
+public class OpenSearchBoundaryTableScan extends TableScan implements EnumerableRel, Scannable {
 
     private final RelNode logicalFragment;
     @SuppressWarnings("rawtypes")
@@ -95,7 +97,18 @@ public class OpenSearchBoundaryTableScan extends TableScan implements Enumerable
     }
 
     /**
-     * Called by generated Janino code at execution time.
+     * Implements {@link Scannable#scan()} so that {@code OpenSearchCalcitePreparingStmt}
+     * can bypass Janino code generation entirely when this node is the plan root.
+     */
+    @SuppressWarnings("unchecked")
+    @Override
+    public Enumerable<@Nullable Object> scan() {
+        return (Enumerable<@Nullable Object>) (Enumerable<?>) bind(null);
+    }
+
+    /**
+     * Called by generated Janino code at execution time (fallback when this
+     * node is NOT the plan root and codegen is used for the parent operators).
      * Delegates to {@link #bind(DataContext)} with a null DataContext.
      *
      * @return result rows as an Enumerable

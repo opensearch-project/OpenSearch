@@ -15,6 +15,11 @@
 def calciteVersion = '1.41.0'
 
 dependencies {
+  // CatalogSnapshot is referenced by AnalyticsBackEndPlugin.bridge(CatalogSnapshot).
+  // compileOnly so the server jar is not pulled transitively into plugin classpaths
+  // (plugins already get server via the opensearchplugin convention).
+  compileOnly project(':server')
+
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
@@ -26,6 +31,43 @@ dependencies {
   // SLF4J — Calcite's logging facade
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
 
+  // Calcite optional deps required at runtime — BuiltInMethod.<clinit> reflectively loads ALL
+  // methods which triggers class loading for every type referenced in Calcite's SqlFunctions.
+  // Every single one of these is needed or the class initializer fails with NoClassDefFoundError.
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "org.codehaus.janino:janino:3.1.12"
+  runtimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
+  runtimeOnly 'org.jooq:joou-java-6:0.9.4'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  runtimeOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
+  runtimeOnly 'org.apache.commons:commons-text:1.11.0'
+  runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+  runtimeOnly 'org.immutables:value-annotations:2.8.8'
+  runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
+  runtimeOnly "net.minidev:json-smart:${versions.json_smart}"
+  runtimeOnly 'net.minidev:accessors-smart:2.5.2'
+  runtimeOnly 'org.ow2.asm:asm:9.7.1'
+  runtimeOnly 'org.apache.calcite.avatica:avatica-metrics:1.27.0'
+  runtimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
+  runtimeOnly 'org.locationtech.jts.io:jts-io-common:1.19.0'
+  runtimeOnly 'org.locationtech.proj4j:proj4j:1.2.2'
+  runtimeOnly 'com.google.uzaygezen:uzaygezen-core:0.2'
+  runtimeOnly 'com.yahoo.datasketches:sketches-core:0.9.0'
+  runtimeOnly 'com.yahoo.datasketches:memory:0.9.0'
+  // Avatica JDBC transport deps (BuiltInConnectionProperty.<clinit> needs httpcore5)
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  // JTS spatial (jts-core needed by jts-io-common)
+  runtimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
+  // jackson-core is on the server classpath — no need to bundle
+  // Checker-qual (Guava/Calcite annotations)
+  runtimeOnly 'org.checkerframework:checker-qual:3.43.0'
+  // Error-prone annotations
+  runtimeOnly 'com.google.errorprone:error_prone_annotations:2.36.0'
+
   // Calcite bytecode references annotations from apiguardian (@API) and
   // checker-framework (@EnsuresNonNullIf). compileOnlyApi propagates to
   // consumers' compile/javadoc classpath without becoming a runtime dep.
@@ -35,7 +77,7 @@ dependencies {
 
 testingConventions.enabled = false
 
-// analytics-framework does not depend on server
+// analytics-framework uses compileOnly server for CatalogSnapshot
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
   failOnMissingClasses = false

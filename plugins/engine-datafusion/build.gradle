@@ -23,6 +23,7 @@ opensearchplugin {
     name = pluginName
     description = pluginDescription
     classname = "${projectPath}.${pathToPlugin}"
+    extendedPlugins = ['analytics-engine']
     licenseFile = rootProject.file('LICENSE.txt')
     noticeFile = rootProject.file('NOTICE.txt')
 }
@@ -30,6 +31,7 @@ opensearchplugin {
 
 dependencies {
     api project(':libs:opensearch-vectorized-exec-spi')
+    api project(':sandbox:libs:analytics-framework')
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
@@ -47,9 +49,31 @@ dependencies {
     // SLF4J API for Arrow logging compatibility
     implementation "org.slf4j:slf4j-api:${versions.slf4j}"
     // CheckerFramework annotations required by Arrow 17.0.0
-    implementation "org.checkerframework:checker-qual:3.42.0"
+    implementation "org.checkerframework:checker-qual:3.43.0"
     // FlatBuffers dependency required by Arrow 17.0.0
     implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+
+    // Substrait: RelNode → Substrait plan conversion via Calcite Isthmus
+    implementation('io.substrait:core:0.67.0') {
+        exclude group: 'ch.qos.logback', module: 'logback-classic'
+        exclude group: 'ch.qos.logback', module: 'logback-core'
+        exclude group: 'org.apache.calcite', module: 'calcite-core'
+        exclude group: 'org.apache.calcite', module: 'calcite-linq4j'
+        exclude group: 'com.google.code.gson', module: 'gson'
+        exclude group: 'org.antlr', module: 'antlr4-runtime'
+        exclude group: 'org.antlr', module: 'antlr4'
+    }
+    implementation('io.substrait:isthmus:0.67.0') {
+        exclude group: 'ch.qos.logback', module: 'logback-classic'
+        exclude group: 'ch.qos.logback', module: 'logback-core'
+        exclude group: 'org.apache.calcite', module: 'calcite-core'
+        exclude group: 'org.apache.calcite', module: 'calcite-linq4j'
+        exclude group: 'com.google.code.gson', module: 'gson'
+        exclude group: 'org.antlr', module: 'antlr4-runtime'
+        exclude group: 'org.antlr', module: 'antlr4'
+    }
+    implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
     testImplementation "junit:junit:${versions.junit}"
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -131,6 +155,47 @@ task copyNativeLibrary(type: Copy, dependsOn: buildRustLibrary) {
     }
 }
 
+// Exclude jars provided by analytics-engine plugin (shared via extendedPlugins classloader)
+// Exclude jars already in the analytics-engine parent plugin ZIP (via analytics-framework)
+bundlePlugin {
+    exclude 'analytics-framework-*.jar'
+    exclude 'calcite-core-*.jar'
+    exclude 'calcite-linq4j-*.jar'
+    exclude 'avatica-core-*.jar'
+    exclude 'avatica-metrics-*.jar'
+    exclude 'guava-*.jar'
+    exclude 'failureaccess-*.jar'
+    exclude 'slf4j-api-*.jar'
+    exclude 'checker-qual-*.jar'
+    exclude 'jackson-annotations-*.jar'
+    exclude 'jackson-databind-*.jar'
+    exclude 'jackson-core-*.jar'
+    exclude 'commons-codec-*.jar'
+    exclude 'janino-*.jar'
+    exclude 'commons-compiler-*.jar'
+    exclude 'joou-java-6-*.jar'
+    exclude 'commons-lang3-*.jar'
+    exclude 'commons-text-*.jar'
+    exclude 'commons-math3-*.jar'
+    exclude 'value-annotations-*.jar'
+    exclude 'json-path-*.jar'
+    exclude 'json-smart-*.jar'
+    exclude 'accessors-smart-*.jar'
+    exclude 'asm-*.jar'
+    exclude 'jts-core-*.jar'
+    exclude 'jts-io-common-*.jar'
+    exclude 'proj4j-*.jar'
+    exclude 'uzaygezen-core-*.jar'
+    exclude 'sketches-core-*.jar'
+    exclude 'memory-*.jar'
+    exclude 'httpcore5-*.jar'
+    exclude 'httpcore5-h2-*.jar'
+    exclude 'httpclient5-*.jar'
+    exclude 'jts-core-*.jar'
+    exclude 'jackson-core-*.jar'
+    exclude 'error_prone_annotations-*.jar'
+}
+
 // Ensure native library is built before Java compilation
 compileJava.dependsOn copyNativeLibrary
 
@@ -194,13 +259,37 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /slf4j-.*/, to: 'slf4j-api'
     mapping from: /checker-qual.*/, to: 'checker-qual'
     mapping from: /flatbuffers-.*/, to: 'flatbuffers-java'
+    mapping from: /substrait-.*/, to: 'substrait'
+    mapping from: /protobuf-.*/, to: 'protobuf-java'
 }
 
 // Configure third party audit to handle Apache Arrow dependencies
 tasks.named('thirdPartyAudit').configure {
     ignoreMissingClasses(
         // Apache Commons Codec (missing dependency)
-        'org.apache.commons.codec.binary.Hex'
+        'org.apache.commons.codec.binary.Hex',
+        // Immutables annotations (used by Substrait generated code, annotation-only)
+        'org.immutables.value.Value',
+        'org.immutables.value.Value$Check',
+        'org.immutables.value.Value$Default',
+        'org.immutables.value.Value$Derived',
+        'org.immutables.value.Value$Enclosing',
+        'org.immutables.value.Value$Immutable',
+        'org.immutables.value.Value$Lazy',
+        'org.immutables.value.Value$Parameter',
+        'org.immutables.value.Value$Style',
+        // Error Prone annotations (used by Substrait/Protobuf, annotation-only)
+        'com.google.errorprone.annotations.CanIgnoreReturnValue',
+        'com.google.errorprone.annotations.CheckReturnValue',
+        'com.google.errorprone.annotations.Immutable',
+        'com.google.errorprone.annotations.InlineMe',
+        'com.google.errorprone.annotations.InlineMeValidationDisabled',
+        'com.google.errorprone.annotations.concurrent.LazyInit',
+        // JSR-305 annotations (used by Substrait, annotation-only)
+        'javax.annotation.Nonnull',
+        'javax.annotation.Nullable',
+        'javax.annotation.concurrent.Immutable',
+        'javax.annotation.concurrent.NotThreadSafe'
     )
     ignoreViolations(
         // Apache Arrow internal classes that use Unsafe operations

@@ -10,13 +10,19 @@ package org.opensearch.be.datafusion;
 
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.backend.EngineBridge;
+import org.opensearch.analytics.backend.EngineResultStream;
 
 /**
- * DataFusion EngineBridge implementation.
- * Uses a byte[] representing serialized plan to execute.
+ * DataFusion EngineBridge implementation (sandbox stub).
+ *
+ * @deprecated This sandbox stub is superseded by
+ * {@code org.opensearch.datafusion.DataFusionBridge} in the engine-datafusion plugin,
+ * which provides full native execution via JNI and returns a typed
+ * {@code DataFusionResultStream}. This class will be removed once the
+ * sandbox analytics-backend-datafusion module is retired.
  */
-public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
-    // S=byte[] (Substrait), H=Long (stream pointer), L=RelNode (logical plan)
+@Deprecated
+public class DataFusionBridge implements EngineBridge<byte[], EngineResultStream, RelNode> {
 
     /** Creates a new DataFusion bridge. */
     public DataFusionBridge() {}
@@ -27,7 +33,9 @@ public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
      *
      * @param fragment the logical plan subtree to serialise
      * @return substrait bytes
+     * @deprecated Use {@code org.opensearch.datafusion.DataFusionBridge#convertFragment} instead.
      */
+    @Deprecated
     @Override
     public byte[] convertFragment(RelNode fragment) {
         return new byte[0];
@@ -37,10 +45,12 @@ public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
      * Execute query fragment
      *
      * @param fragment the serialised plan produced by {@link #convertFragment}
-     * @return RecordBatchStream pointer
+     * @return null (stub — no native execution in sandbox)
+     * @deprecated Use {@code org.opensearch.datafusion.DataFusionBridge#execute} instead.
      */
+    @Deprecated
     @Override
-    public Long execute(byte[] fragment) {
-        return 0L;
+    public EngineResultStream execute(byte[] fragment) {
+        return null;
     }
 }

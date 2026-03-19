@@ -16,6 +16,7 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.datafusion.DataFusionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.ppl.TestPPLPlugin;
 import org.opensearch.ppl.action.PPLRequest;
@@ -64,7 +65,7 @@ public class ClickBenchUnifiedPipelineIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestPPLPlugin.class, AnalyticsPlugin.class);
+        return List.of(TestPPLPlugin.class, AnalyticsPlugin.class, DataFusionPlugin.class);
     }
 
     @Override

@@ -20,9 +20,13 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link DefaultPlanExecutor}.
@@ -31,6 +35,8 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
 
     private RelDataTypeFactory typeFactory;
     private RelOptCluster cluster;
+    private IndicesService indicesService;
+    private ClusterService clusterService;
 
     @Override
     public void setUp() throws Exception {
@@ -39,46 +45,48 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         RexBuilder rexBuilder = new RexBuilder(typeFactory);
         HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
         cluster = RelOptCluster.create(planner, rexBuilder);
+        indicesService = mock(IndicesService.class);
+        clusterService = mock(ClusterService.class);
     }
 
     /**
-     * Test that execute() does not throw for a valid fragment.
+     * Test that execute() throws IllegalStateException when no back-end plugins are registered.
      */
     public void testExecuteDoesNotThrowForValidFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), indicesService, clusterService);
 
         RelNode fragment = createRelNodeWithFieldCount(3);
         Object context = new Object();
 
-        Object result = service.execute(fragment, context);
-        assertNotNull("execute() stub should return non-null", result);
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> service.execute(fragment, context));
+        assertTrue(ex.getMessage().contains("No analytics back-end plugins registered"));
     }
 
     /**
-     * Test that execute() works with a multi-field fragment.
+     * Test that execute() throws IllegalStateException with no plugins for a multi-field fragment.
      */
     public void testExecuteWithMultiFieldFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), indicesService, clusterService);
 
         int fieldCount = 5;
         RelNode fragment = createRelNodeWithFieldCount(fieldCount);
         Object context = new Object();
 
-        Object result = service.execute(fragment, context);
-        assertNotNull("execute() stub should return non-null", result);
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> service.execute(fragment, context));
+        assertTrue(ex.getMessage().contains("No analytics back-end plugins registered"));
     }
 
     /**
-     * Test that execute() works with a single-field fragment.
+     * Test that execute() throws IllegalStateException with no plugins for a single-field fragment.
      */
     public void testExecuteWithSingleFieldFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), indicesService, clusterService);
 
         RelNode fragment = createRelNodeWithFieldCount(1);
         Object context = new Object();
 
-        Object result = service.execute(fragment, context);
-        assertNotNull("execute() stub should return non-null", result);
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> service.execute(fragment, context));
+        assertTrue(ex.getMessage().contains("No analytics back-end plugins registered"));
     }
 
     private RelNode createRelNodeWithFieldCount(int fieldCount) {

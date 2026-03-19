@@ -44,26 +44,11 @@ dependencies {
   // Also provides calcite-core transitively via api.
   api project(':sandbox:libs:analytics-framework')
 
+  testImplementation project(':plugins:engine-datafusion')
+  testImplementation project(':sandbox:plugins:test-ppl-frontend')
+
   // Guava for test compilation — Calcite API exposes guava types
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
-
-  // Calcite code generation (optional in calcite-core POM, needed at runtime for Enumerable pipeline)
-  testRuntimeOnly "org.codehaus.janino:janino:3.1.12"
-  testRuntimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
-
-  // SQL Unified Query API for PPL parsing
-  testImplementation("org.opensearch.query:unified-query-api:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-core:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-  testImplementation("org.opensearch.query:unified-query-ppl:${sqlUnifiedQueryVersion}") {
-    exclude group: 'org.opensearch'
-  }
-
-  // Calcite bytecode references @Immutable from immutables — resolve at test compile time
-  testCompileOnly 'org.immutables:value-annotations:2.8.8'
 }
 
 configurations.all {

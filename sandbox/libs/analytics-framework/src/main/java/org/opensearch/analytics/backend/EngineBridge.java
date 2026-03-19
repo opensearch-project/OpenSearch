@@ -26,11 +26,11 @@ package org.opensearch.analytics.backend;
  * direct native-memory access using the returned handle.
  *
  * @param <Fragment>     serialised plan type (e.g., {@code byte[]} for Substrait)
- * @param <Stream>       result stream handle
+ * @param <Stream>       result stream type, bounded by {@link EngineResultStream}
  * @param <LogicalPlan>> logical plan type (e.g., Calcite {@code RelNode})
  * @opensearch.internal
  */
-public interface EngineBridge<Fragment, Stream, LogicalPlan> {
+public interface EngineBridge<Fragment, Stream extends EngineResultStream, LogicalPlan> {
 
     /**
      * Converts a logical plan fragment into the native engine's serialised
