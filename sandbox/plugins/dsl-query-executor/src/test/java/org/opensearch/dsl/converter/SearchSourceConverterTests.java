@@ -16,6 +16,8 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.search.aggregations.AggregatorFactories;
+import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -43,7 +45,7 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         converter = new SearchSourceConverter(schema);
     }
 
-    public void testConvertProducesHitsPlan() {
+    public void testConvertProducesHitsPlan() throws ConversionException {
         QueryPlans plans = converter.convert(new SearchSourceBuilder(), "test-index");
 
         assertEquals(1, plans.getAll().size());
@@ -53,7 +55,7 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         assertTrue(plan.relNode() instanceof LogicalTableScan);
     }
 
-    public void testConvertResolvesFieldNames() {
+    public void testConvertResolvesFieldNames() throws ConversionException {
         QueryPlans plans = converter.convert(new SearchSourceBuilder(), "test-index");
 
         QueryPlans.QueryPlan plan = plans.get(QueryPlans.Type.HITS).get(0);
@@ -64,5 +66,35 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
     public void testConvertThrowsForMissingIndex() {
         expectThrows(IllegalArgumentException.class,
             () -> converter.convert(new SearchSourceBuilder(), "nonexistent-index"));
+    }
+
+    public void testAggsWithSizeZeroProducesOnlyAggregationPlan() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .size(0)
+            .aggregation(new AvgAggregationBuilder("avg_price").field("price"));
+        QueryPlans plans = converter.convert(source, "test-index");
+
+        assertEquals(1, plans.getAll().size());
+        assertFalse(plans.has(QueryPlans.Type.HITS));
+        assertTrue(plans.has(QueryPlans.Type.AGGREGATION));
+    }
+
+    public void testAggsWithSizeGreaterThanZeroProducesBothPlans() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .size(10)
+            .aggregation(new AvgAggregationBuilder("avg_price").field("price"));
+        QueryPlans plans = converter.convert(source, "test-index");
+
+        assertEquals(2, plans.getAll().size());
+        assertTrue(plans.has(QueryPlans.Type.HITS));
+        assertTrue(plans.has(QueryPlans.Type.AGGREGATION));
+    }
+
+    public void testNoAggsProducesOnlyHitsPlan() throws ConversionException {
+        QueryPlans plans = converter.convert(new SearchSourceBuilder(), "test-index");
+
+        assertEquals(1, plans.getAll().size());
+        assertTrue(plans.has(QueryPlans.Type.HITS));
+        assertFalse(plans.has(QueryPlans.Type.AGGREGATION));
     }
 }
