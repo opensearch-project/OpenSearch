@@ -486,6 +486,15 @@ public class IngestionEngine extends InternalEngine {
         super.close();
     }
 
+    /**
+     * Updates warmup configuration dynamically.
+     */
+    public void updateWarmupConfig(IngestionSource.WarmupConfig newConfig) {
+        if (streamPoller != null) {
+            streamPoller.updateWarmupConfig(newConfig);
+        }
+    }
+
     public DocumentMapperForType getDocumentMapperForType() {
         return documentMapperForType;
     }

@@ -976,4 +976,142 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         warmupPoller.close();
     }
+
+    // ==================== Dynamic Warmup Config Update Tests ====================
+
+    public void testUpdateWarmupConfigDisableWhileInProgress() throws InterruptedException {
+        // Create a poller with warmup enabled
+        IngestionSource.WarmupConfig enabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L);
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            enabledConfig
+        );
+
+        // Warmup should not be complete yet
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        // Dynamically disable warmup (timeout=-1)
+        IngestionSource.WarmupConfig disabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
+        warmupPoller.updateWarmupConfig(disabledConfig);
+
+        // Warmup should now be complete since we disabled it
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testUpdateWarmupConfigThresholdWhileInProgress() {
+        // Create a poller with warmup enabled and a high threshold
+        IngestionSource.WarmupConfig initialConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L);
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            initialConfig
+        );
+
+        // Warmup should not be complete yet
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        // Update threshold to a different value while warmup is in progress
+        IngestionSource.WarmupConfig updatedConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 50L);
+        warmupPoller.updateWarmupConfig(updatedConfig);
+
+        // Warmup should still not be complete (we just changed threshold, not disabled it)
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testUpdateWarmupConfigDoesNotReEnableAfterCompletion() {
+        // Create a poller with warmup disabled (warmup immediately complete)
+        IngestionSource.WarmupConfig disabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            disabledConfig
+        );
+
+        // Warmup should be complete since it was disabled
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        // Dynamically enable warmup - should NOT re-trigger since shard is already serving
+        IngestionSource.WarmupConfig enabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 50L);
+        warmupPoller.updateWarmupConfig(enabledConfig);
+
+        // Warmup should still be complete (not re-triggered)
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
+    public void testUpdateWarmupConfigTimeoutWhileInProgress() {
+        // Create a poller with warmup enabled with a short timeout
+        IngestionSource.WarmupConfig initialConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueSeconds(30), 100L);
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            initialConfig
+        );
+
+        // Warmup should not be complete yet
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        // Update timeout to a longer value while warmup is in progress
+        IngestionSource.WarmupConfig updatedConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L);
+        warmupPoller.updateWarmupConfig(updatedConfig);
+
+        // Warmup should still not be complete (we just changed timeout)
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
 }
