@@ -37,8 +37,8 @@ public class CompositeEngineFactory {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
     private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers = new HashMap<>();
-    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?>, IOException>> indexFilterProviderSuppliers = new HashMap<>();
-    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?>, IOException>> sourceProviderSuppliers = new HashMap<>();
+    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers = new HashMap<>();
+    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers = new HashMap<>();
 
     public CompositeEngineFactory(
         PluginsService pluginsService,

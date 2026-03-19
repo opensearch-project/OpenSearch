@@ -11,7 +11,6 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
-import java.io.IOException;
 
 /**
  * @opensearch.experimental

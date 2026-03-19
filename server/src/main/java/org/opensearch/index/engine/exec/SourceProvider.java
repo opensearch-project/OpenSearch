@@ -12,18 +12,20 @@ import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
- * @param <C> the context type
- * @param <R> the result batch type
+ * Provides source-field data for a given data format.
+ *
+ * @param <C>       the context type
+ * @param <R>       the result batch type
+ * @param <ReaderT> the engine-specific reader type
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SourceProvider<C extends SourceContext, R> extends Closeable {
+public interface SourceProvider<C extends SourceContext, R, ReaderT> extends Closeable {
 
-    C createContext(Object query, Object reader) throws IOException;
+    C createContext(Object query, ReaderT reader) throws IOException;
 
-    Object execute(C context) throws IOException;
-
-    R next(C context, Object stream) throws IOException;
+    Iterator<R> execute(C context) throws IOException;
 }

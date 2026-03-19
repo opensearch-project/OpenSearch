@@ -51,12 +51,12 @@ public class LuceneSearchEnginePlugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public IndexFilterProvider<?, ?> createIndexFilterProvider(DataFormat format, ShardPath shardPath) throws IOException {
+    public IndexFilterProvider<?, ?, ?> createIndexFilterProvider(DataFormat format, ShardPath shardPath) throws IOException {
         return new LuceneIndexFilterProvider();
     }
 
     @Override
-    public SourceProvider<?, ?> createSourceProvider(DataFormat format, ShardPath shardPath) throws IOException {
+    public SourceProvider<?, ?, ?> createSourceProvider(DataFormat format, ShardPath shardPath) throws IOException {
         return new LuceneSourceProvider();
     }
 

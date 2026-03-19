@@ -13,6 +13,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.SourceProvider;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 
 /**
  * Lucene-backed {@link SourceProvider}.
@@ -26,23 +28,17 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSourceProvider implements SourceProvider<LuceneSourceContext, Object> {
+public class LuceneSourceProvider implements SourceProvider<LuceneSourceContext, Object, DirectoryReader> {
 
     @Override
-    public LuceneSourceContext createContext(Object query, Object reader) throws IOException {
-        return new LuceneSourceContext(query, (DirectoryReader) reader);
+    public LuceneSourceContext createContext(Object query, DirectoryReader reader) throws IOException {
+        return new LuceneSourceContext(query, reader);
     }
 
     @Override
-    public Object execute(LuceneSourceContext context) throws IOException {
-        // TODO: execute query via context.getSearcher(), collect results, return stream handle
-        throw new UnsupportedOperationException("Lucene source execution not yet implemented");
-    }
-
-    @Override
-    public Object next(LuceneSourceContext context, Object stream) throws IOException {
-        // TODO: pull next batch (Arrow VectorSchemaRoot) from stream
-        throw new UnsupportedOperationException("Lucene source streaming not yet implemented");
+    public Iterator<Object> execute(LuceneSourceContext context) throws IOException {
+        // TODO: execute query via context.getSearcher(), collect results, return iterator
+        return Collections.emptyIterator();
     }
 
     @Override

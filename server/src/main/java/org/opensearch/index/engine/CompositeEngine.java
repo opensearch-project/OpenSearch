@@ -38,8 +38,8 @@ public class CompositeEngine implements Closeable {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
     private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers;
-    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?>, IOException>> indexFilterProviderSuppliers;
-    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?>, IOException>> sourceProviderSuppliers;
+    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers;
+    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers;
 
     /**
      * Constructs a new CompositeEngine with pre-built maps.
@@ -48,8 +48,8 @@ public class CompositeEngine implements Closeable {
     public CompositeEngine(
         Map<DataFormat, EngineReaderManager<?>> readerManagers,
         Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers,
-        Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?>, IOException>> indexFilterProviderSuppliers,
-        Map<DataFormat, CheckedSupplier<SourceProvider<?, ?>, IOException>> sourceProviderSuppliers
+        Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers,
+        Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers
     ) {
         this.readerManagers = readerManagers;
         this.engineSuppliers = engineSuppliers;
@@ -67,11 +67,11 @@ public class CompositeEngine implements Closeable {
         return getFromSupplier(engineSuppliers, format, "search exec engine");
     }
 
-    public IndexFilterProvider<?, ?> getIndexFilterProvider(DataFormat format) throws IOException {
+    public IndexFilterProvider<?, ?, ?> getIndexFilterProvider(DataFormat format) throws IOException {
         return getFromSupplier(indexFilterProviderSuppliers, format, "index filter provider");
     }
 
-    public SourceProvider<?, ?> getSourceProvider(DataFormat format) throws IOException {
+    public SourceProvider<?, ?, ?> getSourceProvider(DataFormat format) throws IOException {
         return getFromSupplier(sourceProviderSuppliers, format, "source provider");
     }
 

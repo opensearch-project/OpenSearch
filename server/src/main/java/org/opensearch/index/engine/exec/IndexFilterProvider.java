@@ -14,14 +14,17 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * @param <Q> the query type (e.g. Lucene Query)
- * @param <C> the context type
+ * Provides index-level filtering (partition pruning, segment filtering) for a given data format.
+ *
+ * @param <Q>       the query type (e.g. Lucene Query)
+ * @param <C>       the context type
+ * @param <ReaderT> the engine-specific reader type
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface IndexFilterProvider<Q, C extends IndexFilterContext> extends Closeable {
+public interface IndexFilterProvider<Q, C extends IndexFilterContext, ReaderT> extends Closeable {
 
-    C createContext(Q query, Object reader) throws IOException;
+    C createContext(Q query, ReaderT reader) throws IOException;
 
     int createCollector(C context, int segmentOrd, int minDoc, int maxDoc);
 
