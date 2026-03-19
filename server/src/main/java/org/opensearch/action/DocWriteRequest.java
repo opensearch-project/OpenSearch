@@ -243,17 +243,35 @@ public interface DocWriteRequest<T> extends IndicesRequest, DocRequest, Accounta
     }
 
     /**
-     * Validates whether the doc id length is under the limit.
+     * The default maximum length of the {@code _id} field in bytes, used by
+     * {@link org.opensearch.index.IndexSettings#MAX_DOC_ID_LENGTH_SETTING}.
+     */
+    static final int DEFAULT_MAX_DOC_ID_LENGTH = 512;
+
+    /**
+     * Absolute upper bound for the {@code _id} field length, equal to Lucene's
+     * maximum term length. Used for early request validation before index settings
+     * are available.
+     */
+    static final int MAX_DOC_ID_LENGTH_HARD_LIMIT = 32766;
+
+    /**
+     * Validates whether the doc id length is under the given limit.
      * @param id DocId to verify
+     * @param maxLength maximum allowed length in UTF-8 bytes
      * @param validationException containing all the validation errors.
      * @return validationException
      */
-    static ActionRequestValidationException validateDocIdLength(String id, ActionRequestValidationException validationException) {
+    static ActionRequestValidationException validateDocIdLength(
+        String id,
+        int maxLength,
+        ActionRequestValidationException validationException
+    ) {
         if (id != null) {
             int docIdLength = UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length());
-            if (docIdLength > 512) {
+            if (docIdLength > maxLength) {
                 return addValidationError(
-                    "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + docIdLength,
+                    "id [" + id + "] is too long, must be no longer than " + maxLength + " bytes but was: " + docIdLength,
                     validationException
                 );
             }

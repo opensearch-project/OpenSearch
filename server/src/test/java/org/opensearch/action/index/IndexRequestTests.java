@@ -96,7 +96,7 @@ public class IndexRequestTests extends OpenSearchTestCase {
         assertThat(request.validate().validationErrors(), not(empty()));
     }
 
-    public void testIndexingRejectsLongIds() {
+    public void testIndexingRejectsIdsExceedingLuceneLimit() {
         String id = randomAlphaOfLength(511);
         IndexRequest request = new IndexRequest("index").id(id);
         request.source("{}", MediaTypeRegistry.JSON);
@@ -109,12 +109,21 @@ public class IndexRequestTests extends OpenSearchTestCase {
         validate = request.validate();
         assertNull(validate);
 
-        id = randomAlphaOfLength(513);
+        // IDs between 513 and 32766 are now allowed at the request level;
+        // the index-level setting (default 512) is enforced at the shard.
+        id = randomAlphaOfLength(1024);
+        request = new IndexRequest("index").id(id);
+        request.source("{}", MediaTypeRegistry.JSON);
+        validate = request.validate();
+        assertNull(validate);
+
+        // IDs exceeding Lucene's max term length are always rejected
+        id = randomAlphaOfLength(32767);
         request = new IndexRequest("index").id(id);
         request.source("{}", MediaTypeRegistry.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+        assertThat(validate.getMessage(), containsString("is too long, must be no longer than 32766 bytes"));
     }
 
     public void testWaitForActiveShards() {

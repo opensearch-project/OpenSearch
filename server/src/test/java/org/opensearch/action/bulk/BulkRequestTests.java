@@ -273,48 +273,51 @@ public class BulkRequestTests extends OpenSearchTestCase {
         );
     }
 
-    public void testBulkRequestInvalidDocIDDuringCreate() {
+    public void testBulkRequestDocIDAtLuceneLimitDuringCreate() {
+        // IDs up to Lucene's max term length pass request-level validation.
+        // The index-level setting (default 512) is enforced at the shard.
         String validDocID = String.join("", Collections.nCopies(512, "a"));
-        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
-
-        // doc id length under limit
         IndexRequest indexRequest = new IndexRequest("index").id(validDocID).source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(indexRequest);
         assertNull(bulkRequest.validate());
 
-        // doc id length over limit
-        indexRequest.id(invalidDocID);
+        // 1024-byte ID passes request validation (within Lucene limit)
+        String longerDocID = String.join("", Collections.nCopies(1024, "a"));
+        indexRequest.id(longerDocID);
+        assertNull(bulkRequest.validate());
+
+        // ID exceeding Lucene's max term length is rejected at request level
+        String tooLongDocID = String.join("", Collections.nCopies(32767, "a"));
+        indexRequest.id(tooLongDocID);
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertEquals(
             1,
-            validate.validationErrors()
-                .stream()
-                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
-                .count()
+            validate.validationErrors().stream().filter(msg -> msg.contains("is too long, must be no longer than 32766 bytes")).count()
         );
     }
 
-    public void testBulkRequestInvalidDocIDDuringUpdate() {
+    public void testBulkRequestDocIDAtLuceneLimitDuringUpdate() {
         String validDocID = String.join("", Collections.nCopies(512, "a"));
-        String invalidDocID = String.join("", Collections.nCopies(513, "a"));
-        // doc id length under limit
         UpdateRequest updateRequest = new UpdateRequest("index", validDocID).doc("reason", "no source");
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(updateRequest);
         assertNull(bulkRequest.validate());
 
-        // doc id length over limit
-        updateRequest.id(invalidDocID);
+        // 1024-byte ID passes request validation (within Lucene limit)
+        String longerDocID = String.join("", Collections.nCopies(1024, "a"));
+        updateRequest.id(longerDocID);
+        assertNull(bulkRequest.validate());
+
+        // ID exceeding Lucene's max term length is rejected at request level
+        String tooLongDocID = String.join("", Collections.nCopies(32767, "a"));
+        updateRequest.id(tooLongDocID);
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertEquals(
             1,
-            validate.validationErrors()
-                .stream()
-                .filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was: "))
-                .count()
+            validate.validationErrors().stream().filter(msg -> msg.contains("is too long, must be no longer than 32766 bytes")).count()
         );
     }
 

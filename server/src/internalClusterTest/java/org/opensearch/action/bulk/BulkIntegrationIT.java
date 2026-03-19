@@ -44,6 +44,7 @@ import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -218,38 +219,44 @@ public class BulkIntegrationIT extends OpenSearchIntegTestCase {
         assertFalse(thread.isAlive());
     }
 
-    public void testDocIdTooLong() {
+    public void testDocIdTooLongDefaultSetting() {
         String index = "testing";
         createIndex(index);
         String validId = String.join("", Collections.nCopies(512, "a"));
         String invalidId = String.join("", Collections.nCopies(513, "a"));
 
-        // Index Request
+        // Index Request - valid id should succeed
         IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("foo", "baz"));
-        // Valid id shouldn't throw any exception
         assertFalse(client().prepareBulk().add(indexRequest.id(validId)).get().hasFailures());
-        // Invalid id should throw the ActionRequestValidationException
-        validateDocIdLimit(() -> client().prepareBulk().add(indexRequest.id(invalidId)).get());
 
-        // Update Request
+        // Index Request - id exceeding default limit (512) is rejected at shard level
+        BulkResponse bulkResponse = client().prepareBulk().add(indexRequest.id(invalidId)).get();
+        assertTrue(bulkResponse.hasFailures());
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("is too long, must be no longer than 512 bytes"));
+
+        // Update Request - valid id should succeed
         UpdateRequest updateRequest = new UpdateRequest(index, validId).doc("reason", "no source");
-        // Valid id shouldn't throw any exception
         assertFalse(client().prepareBulk().add(updateRequest).get().hasFailures());
-        // Invalid id should throw the ActionRequestValidationException
-        validateDocIdLimit(() -> client().prepareBulk().add(updateRequest.id(invalidId)).get());
+
+        // Update Request - id exceeding default limit is rejected at shard level
+        bulkResponse = client().prepareBulk().add(updateRequest.id(invalidId)).get();
+        assertTrue(bulkResponse.hasFailures());
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("is too long, must be no longer than 512 bytes"));
     }
 
-    private void validateDocIdLimit(Runnable runner) {
-        try {
-            runner.run();
-            fail("Request validation for docId didn't fail");
-        } catch (ActionRequestValidationException e) {
-            assertEquals(
-                1,
-                e.validationErrors().stream().filter(msg -> msg.contains("is too long, must be no longer than 512 bytes but was")).count()
-            );
-        } catch (Exception e) {
-            fail("Request validation for docId failed with different exception: " + e);
-        }
+    public void testDocIdWithCustomMaxLength() {
+        String index = "testing_custom_id_length";
+        createIndex(index, Settings.builder().put("index.max_doc_id_length", 2048).build());
+        String longId = String.join("", Collections.nCopies(1024, "a"));
+        String tooLongId = String.join("", Collections.nCopies(2049, "a"));
+
+        // 1024-byte ID should succeed with custom limit of 2048
+        IndexRequest indexRequest = new IndexRequest(index).source(Collections.singletonMap("foo", "baz"));
+        assertFalse(client().prepareBulk().add(indexRequest.id(longId)).get().hasFailures());
+
+        // 2049-byte ID should be rejected
+        BulkResponse bulkResponse = client().prepareBulk().add(indexRequest.id(tooLongId)).get();
+        assertTrue(bulkResponse.hasFailures());
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("is too long, must be no longer than 2048 bytes"));
     }
 }
