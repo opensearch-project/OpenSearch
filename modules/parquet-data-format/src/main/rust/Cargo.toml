@@ -9,11 +9,11 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 
-arrow = { version = "54.0.0", features = ["ffi"] }
+arrow = { version = "58.0.0", features = ["ffi"] }
 
-arrow-array = "54.0.0"
-arrow-schema = "54.0.0"
-arrow-buffer = "54.0.0"
+arrow-array = "58.0.0"
+arrow-schema = "58.0.0"
+arrow-buffer = "58.0.0"
 
 # JNI dependencies
 jni = "0.21"
@@ -38,11 +38,12 @@ log = "0.4"
 vectorized-exec-spi = { path = "../../../../../libs/vectorized-exec-spi/rust" }
 
 # Parquet support
-parquet = "54.0.0"
+parquet = { version = "58.0.0", features = ["arrow"] }
 
 # Object store for file access
 object_store = "0.11"
 url = "2.0"
+rayon = "1"
 
 # Substrait support
 substrait = "0.47"
@@ -51,14 +52,10 @@ prost = "0.13"
 # Temporary directory support
 tempfile = "3.0"
 
-#jni = "0.21.1"
-#arrow = { version = "53.0.0", features = ["ffi"] }
-#parquet = "53.0.0"
 lazy_static = "1.4.0"
 dashmap = "7.0.0-rc2"
 chrono = "0.4"
 mimalloc = { version = "0.1.48", default-features = false }
-
 
 [build-dependencies]
 cbindgen = "0.27"

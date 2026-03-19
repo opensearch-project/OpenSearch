@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.index.engine.exec.DataFormat;
+import org.opensearch.index.engine.exec.merge.MergeInput;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.merge.MergeResult;
 import org.opensearch.index.engine.exec.merge.RowId;
@@ -32,14 +33,16 @@ import static com.parquet.parquetdataformat.bridge.RustBridge.mergeParquetFilesI
 /**
  * Implements record-batch-based merging of Parquet files.
  */
-public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
+public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
 
     private static final Logger logger =
-        LogManager.getLogger(RecordBatchMergeStrategy.class);
+        LogManager.getLogger(StreamingParquetMergeStrategy.class);
 
     @Override
-    public MergeResult mergeParquetFiles(List<WriterFileSet> files, long writerGeneration, String indexName) {
+    public MergeResult mergeParquetFiles(MergeInput mergeInput) {
 
+        List<WriterFileSet> files = mergeInput.getFileMetadataList();
+        long writerGeneration = mergeInput.getWriterGeneration();
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");
         }
@@ -54,7 +57,7 @@ public class RecordBatchMergeStrategy implements ParquetMergeStrategy {
 
         try {
             // Merge files in Rust
-            mergeParquetFilesInRust(filePaths, mergedFilePath, indexName);
+            mergeParquetFilesInRust(filePaths, mergedFilePath, mergeInput.getIndexName(), mergeInput.getSortingField(), mergeInput.isReverseSort());
 
             // Build row ID mapping
             Map<RowId, Long> rowIdMapping = new HashMap<>();

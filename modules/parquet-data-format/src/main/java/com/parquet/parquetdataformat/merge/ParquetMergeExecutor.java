@@ -8,25 +8,21 @@
 
 package com.parquet.parquetdataformat.merge;
 
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.merge.MergeInput;
 import org.opensearch.index.engine.exec.merge.MergeResult;
-import java.util.List;
-
 /**
  * Executes Parquet merge operations using a chosen compaction strategy.
  */
 public class ParquetMergeExecutor extends ParquetMerger {
 
     private final ParquetMergeStrategy strategy;
-    private final String indexName;
 
-    public ParquetMergeExecutor(CompactionStrategy compactionStrategy, String indexName) {
+    public ParquetMergeExecutor(CompactionStrategy compactionStrategy) {
         this.strategy = ParquetMergeStrategyFactory.getStrategy(compactionStrategy);
-        this.indexName = indexName;
     }
 
     @Override
-    public MergeResult merge(List<WriterFileSet> fileMetadataList, long writerGeneration) {
-        return strategy.mergeParquetFiles(fileMetadataList, writerGeneration, indexName);
+    public MergeResult merge(MergeInput mergeInput) {
+        return strategy.mergeParquetFiles(mergeInput);
     }
 }

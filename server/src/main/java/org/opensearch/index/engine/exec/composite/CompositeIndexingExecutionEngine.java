@@ -10,9 +10,11 @@ package org.opensearch.index.engine.exec.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.SortField;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.coord.Segment;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,6 +68,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         IndexSettings indexSettings
     ) {
         this.writerGeneration = new AtomicLong(initialWriterGeneration);
+        SortField[] sortFields = engineConfig.getIndexSort() != null
+            ? engineConfig.getIndexSort().getSort()
+            : null;
+        String sortKey = (sortFields != null && sortFields.length > 0) ? sortFields[0].getField() : null;
+        boolean reverseSort = (sortFields != null && sortFields.length > 0) && sortFields[0].getReverse();
         List<DataSourcePlugin> dataSourcePlugins = pluginsService.filterPlugins(DataSourcePlugin.class)
             .stream().toList();
         if (dataSourcePlugins.isEmpty()) throw new IllegalStateException("No data formats found, can't initialise Engine");
@@ -125,6 +132,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             IndexingExecutionEngine<?> indexingEngine = plugin.indexingEngine(
                 engineConfig, mapperService, isPrimary, shardPath, indexSettings, assignments
             );
+            indexingEngine.setSortColumn(sortKey);
+            indexingEngine.setReverseSort(reverseSort);
             delegates.add(indexingEngine);
         }
 

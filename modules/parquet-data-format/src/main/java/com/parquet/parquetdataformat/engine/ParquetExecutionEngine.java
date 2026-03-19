@@ -77,6 +77,8 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     private final ParquetMerger parquetMerger;
     private final ArrowBufferPool arrowBufferPool;
     private final IndexSettings indexSettings;
+    private volatile String sortColumn;
+    private volatile boolean reverseSort;
     private final boolean isPrimaryEngine;
 
     public ParquetExecutionEngine(
@@ -90,7 +92,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
         this.shardPath = shardPath;
         this.arrowBufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
-        this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH, indexSettings.getIndex().getName());
+        this.parquetMerger = new ParquetMergeExecutor(CompactionStrategy.RECORD_BATCH);
         this.isPrimaryEngine = isPrimaryEngine;
         // Push current settings to Rust store once on construction, then keep in sync on updates
         pushSettingsToRust(indexSettings);
@@ -106,6 +108,16 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
 //                ParquetSettings.DICT_SIZE_BYTES
 //            )
 //        );
+    }
+
+    @Override
+    public void setSortColumn(String sortColumn) {
+        this.sortColumn = sortColumn;
+    }
+
+    @Override
+    public void setReverseSort(boolean reverseSort) {
+        this.reverseSort = reverseSort;
     }
 
     private void pushSettingsToRust(IndexSettings indexSettings) {
@@ -155,7 +167,7 @@ public class ParquetExecutionEngine implements IndexingExecutionEngine<ParquetDa
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
         String fileName = Path.of(shardPath.getDataPath().toString(), getDataFormat().name(), FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT).toString();
         EngineRole role = isPrimaryEngine ? EngineRole.PRIMARY : EngineRole.SECONDARY;
-        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, indexSettings, role);
+        return new ParquetWriter(fileName, schema.get(), writerGeneration, arrowBufferPool, indexSettings, sortColumn, reverseSort, role);
     }
 
     @Override
