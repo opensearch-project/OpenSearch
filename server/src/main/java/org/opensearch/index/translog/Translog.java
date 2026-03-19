@@ -1442,9 +1442,11 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
         public static final int FORMAT_NO_PARENT = FORMAT_6_0 + 1; // since 7.0
         public static final int FORMAT_NO_VERSION_TYPE = FORMAT_NO_PARENT + 1;
         public static final int FORMAT_NO_DOC_TYPE = FORMAT_NO_VERSION_TYPE + 1;
-        public static final int SERIALIZATION_FORMAT = FORMAT_NO_DOC_TYPE;
+        public static final int FORMAT_ROUTING = FORMAT_NO_DOC_TYPE + 1;
+        public static final int SERIALIZATION_FORMAT = FORMAT_ROUTING;
 
         private final String id;
+        private final String routing;
         private final long seqNo;
         private final long primaryTerm;
         private final long version;
@@ -1468,22 +1470,32 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             }
             seqNo = in.readLong();
             primaryTerm = in.readLong();
+            if (format >= FORMAT_ROUTING) {
+                routing = in.readOptionalString();
+            } else {
+                routing = null;
+            }
         }
 
         public Delete(Engine.Delete delete, Engine.DeleteResult deleteResult) {
-            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion());
+            this(delete.id(), deleteResult.getSeqNo(), delete.primaryTerm(), deleteResult.getVersion(), delete.routing());
         }
 
         /** utility for testing */
         public Delete(String id, long seqNo, long primaryTerm) {
-            this(id, seqNo, primaryTerm, Versions.MATCH_ANY);
+            this(id, seqNo, primaryTerm, Versions.MATCH_ANY, null);
         }
 
         public Delete(String id, long seqNo, long primaryTerm, long version) {
+            this(id, seqNo, primaryTerm, version, null);
+        }
+
+        public Delete(String id, long seqNo, long primaryTerm, long version, String routing) {
             this.id = Objects.requireNonNull(id);
             this.seqNo = seqNo;
             this.primaryTerm = primaryTerm;
             this.version = version;
+            this.routing = routing;
         }
 
         @Override
@@ -1493,12 +1505,19 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
         @Override
         public long estimateSize() {
-            return (id.length() * 2) + (3 * Long.BYTES); // seq_no, primary_term,
-                                                         // and version;
+            return (id.length() * 2) + (3 * Long.BYTES) // seq_no, primary_term, and version
+                + (routing != null ? 2 * routing.length() : 0);
         }
 
         public String id() {
             return id;
+        }
+
+        /**
+         * Returns the routing value for this delete operation, or {@code null} if no custom routing was specified.
+         */
+        public String routing() {
+            return routing;
         }
 
         @Override
@@ -1537,6 +1556,9 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             }
             out.writeLong(seqNo);
             out.writeLong(primaryTerm);
+            if (format >= FORMAT_ROUTING) {
+                out.writeOptionalString(routing);
+            }
         }
 
         @Override
@@ -1550,7 +1572,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
 
             Delete delete = (Delete) o;
 
-            return version == delete.version && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm;
+            return version == delete.version && seqNo == delete.seqNo && primaryTerm == delete.primaryTerm
+                && Objects.equals(routing, delete.routing);
         }
 
         @Override
@@ -1558,12 +1581,14 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             int result = Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(primaryTerm);
             result = 31 * result + Long.hashCode(version);
+            result = 31 * result + (routing != null ? routing.hashCode() : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "Delete{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version + '}';
+            return "Delete{" + "seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", version=" + version
+                + (routing != null ? ", routing=" + routing : "") + '}';
         }
     }
 

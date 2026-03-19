@@ -477,9 +477,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(194L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(139L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -487,9 +487,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(231L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(176L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -497,9 +497,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(273L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(218L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -507,9 +507,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(273L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -519,7 +519,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(328L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
@@ -527,9 +527,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                 builder.endObject();
                 assertEquals(
                     "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                        + 326
+                        + 328
                         + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                        + 271
+                        + 273
                         + ",\"earliest_last_modified_age\":"
                         + stats.getEarliestLastModifiedAge()
                         + ",\"remote_store\":{\"upload\":{"
@@ -546,7 +546,7 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(328L));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));

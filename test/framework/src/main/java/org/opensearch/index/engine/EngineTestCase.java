@@ -101,6 +101,7 @@ import org.opensearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.RoutingFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext;
@@ -493,6 +494,11 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String id) {
+                return newDeleteTombstoneDoc(id, null);
+            }
+
+            @Override
+            public ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
                 final ParseContext.Document doc = new ParseContext.Document();
                 Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
                 doc.add(uidField);
@@ -504,11 +510,14 @@ public abstract class EngineTestCase extends OpenSearchTestCase {
                 doc.add(seqID.primaryTerm);
                 seqID.tombstoneField.setLongValue(1);
                 doc.add(seqID.tombstoneField);
+                if (routing != null) {
+                    doc.add(new StoredField(RoutingFieldMapper.NAME, routing));
+                }
                 return new ParsedDocument(
                     versionField,
                     seqID,
                     id,
-                    null,
+                    routing,
                     Collections.singletonList(doc),
                     new BytesArray("{}"),
                     MediaTypeRegistry.JSON,

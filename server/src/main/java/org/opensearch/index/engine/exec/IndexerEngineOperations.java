@@ -107,4 +107,16 @@ public interface IndexerEngineOperations {
         long ifSeqNo,
         long ifPrimaryTerm
     );
+
+    Engine.Delete prepareDelete(
+        String id,
+        String routing,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    );
 }

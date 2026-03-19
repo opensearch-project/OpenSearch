@@ -617,6 +617,13 @@ public final class EngineConfig {
         ParsedDocument newDeleteTombstoneDoc(String id);
 
         /**
+         * Creates a tombstone document for a delete operation, preserving the routing value.
+         */
+        default ParsedDocument newDeleteTombstoneDoc(String id, String routing) {
+            return newDeleteTombstoneDoc(id);
+        }
+
+        /**
          * Creates a tombstone document for a noop operation.
          * @param reason the reason of an a noop
          */
