@@ -24,10 +24,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -85,6 +87,18 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         }
 
         CompositeEngine engine = (CompositeEngine) indexShard.getIndexer();
+
+        // Prefer SearchExecEngine path if supported
+        if (plugin.supportsSearchExecEngine() && engine.getSearchBackendFactory() != null) {
+            logger.info("[DefaultPlanExecutor] Using SearchExecEngine path for back-end [{}]", plugin.name());
+            try {
+                return executeViaSearchExecEngine(engine, logicalFragment);
+            } catch (Exception e) {
+                throw new RuntimeException("SearchExecEngine execution failed for [" + plugin.name() + "]", e);
+            }
+        }
+
+        // Bridge path
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> snapshot = engine.acquireSnapshot()) {
             EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
                 (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(snapshot.getRef());
@@ -189,6 +203,46 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
      * @return the selected back-end plugin
      * @throws IllegalStateException if no back-end plugins are registered
      */
+    @SuppressWarnings("unchecked")
+    private List<Object[]> executeViaSearchExecEngine(
+        CompositeEngine compositeEngine,
+        RelNode logicalFragment
+    ) throws Exception {
+        DataFormat format = DataFormat.PARQUET;
+
+        var searchEngine = (org.opensearch.index.engine.exec.SearchExecEngine) compositeEngine.getSearchExecBackendEngine(format);
+        // TODO: get composite reader from compositeEngine directly (compositeEngine owns the snapshot)
+        Object reader = compositeEngine.getReader(format);
+        Object plan = searchEngine.convertFragment(logicalFragment);
+        var context = searchEngine.createContext(reader, null, null, null);
+        Iterator<?> result = searchEngine.executePlan(plan, context);
+
+        // Read results — executePlan returns Iterator with a single EngineResultStream
+        List<Object[]> rows = new ArrayList<>();
+        while (result.hasNext()) {
+            Object item = result.next();
+            if (item instanceof EngineResultStream) {
+                try (EngineResultStream resultStream = (EngineResultStream) item) {
+                    EngineResultBatchIterator batchIterator = resultStream.iterator();
+                    while (batchIterator.hasNext()) {
+                        EngineResultBatch batch = batchIterator.next();
+                        List<String> fieldNames = batch.getFieldNames();
+                        for (int row = 0; row < batch.getRowCount(); row++) {
+                            Object[] rowValues = new Object[fieldNames.size()];
+                            for (int col = 0; col < fieldNames.size(); col++) {
+                                rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
+                            }
+                            rows.add(rowValues);
+                        }
+                    }
+                }
+            }
+        }
+
+        logger.info("[DefaultPlanExecutor] SearchExecEngine completed, {} rows", rows.size());
+        return rows;
+    }
+
     private AnalyticsBackEndPlugin selectBackEnd() {
         if (backEnds.isEmpty()) {
             throw new IllegalStateException("No analytics back-end plugins registered");

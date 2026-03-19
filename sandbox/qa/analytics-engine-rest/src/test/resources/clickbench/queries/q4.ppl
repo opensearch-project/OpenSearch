@@ -1,4 +1,4 @@
 /*
 SELECT AVG(UserID) FROM hits;
 */
-source=hits | stats avg(UserID)
+source=hits | stats max(UserID)

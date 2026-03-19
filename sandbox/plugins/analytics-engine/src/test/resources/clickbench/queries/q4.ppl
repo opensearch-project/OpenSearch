@@ -1,4 +1,4 @@
 /*
-SELECT AVG(UserID) FROM hits;
+SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0 GROUP BY AdvEngineID ORDER BY COUNT(*) DESC;
 */
-source=hits | stats avg(UserID)
+source=hits | where AdvEngineID!=0 | stats bucket_nullable=false count() by AdvEngineID | sort - `count()`
