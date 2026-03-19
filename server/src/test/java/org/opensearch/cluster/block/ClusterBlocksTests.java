@@ -201,6 +201,21 @@ public class ClusterBlocksTests extends OpenSearchTestCase {
         }
     }
 
+    public void testAllBlockSettingsAreInExemptionList() {
+        // Verify that all block settings are in the exemption list to allow unblocking
+        // This is critical for bug #20293: combined blocks should not create unrecoverable state
+        assertTrue(ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_READ_ONLY_SETTING));
+        assertTrue(ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_BLOCKS_READ_SETTING));
+        assertTrue(ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING));
+        assertTrue(ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_BLOCKS_METADATA_SETTING));
+        assertTrue(
+            ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING)
+        );
+        assertTrue(ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.contains(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING));
+        // Should have exactly 6 block settings
+        assertEquals(6, ClusterBlocks.INDEX_DATA_READ_ONLY_BLOCK_SETTINGS.size());
+    }
+
     private IndexMetadata createIndexMetadata(String index, boolean isRemoteIndex, String alias, Setting<Boolean> blockSetting) {
         IndexMetadata.Builder builder = IndexMetadata.builder(index).settings(createIndexSettingBuilder(isRemoteIndex, blockSetting));
         if (alias != null) {

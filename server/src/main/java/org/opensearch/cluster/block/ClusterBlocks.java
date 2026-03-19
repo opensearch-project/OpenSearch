@@ -74,7 +74,10 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements Ve
     public static final Set<Setting<Boolean>> INDEX_DATA_READ_ONLY_BLOCK_SETTINGS = Set.of(
         IndexMetadata.INDEX_READ_ONLY_SETTING,
         IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
-        IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING
+        IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
+        IndexMetadata.INDEX_BLOCKS_READ_SETTING,
+        IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING
     );
     private final Set<ClusterBlock> global;
 

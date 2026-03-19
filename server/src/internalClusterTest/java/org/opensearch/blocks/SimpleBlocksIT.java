@@ -142,6 +142,50 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         canIndexDocument("test1");
     }
 
+    /**
+     * Test for bug #20293: Setting both index.blocks.read_only and index.blocks.write
+     * creates an unrecoverable state where settings cannot be changed.
+     */
+    public void testCombinedReadOnlyAndWriteBlocksCanBeRemoved() {
+        canCreateIndex("test");
+        canIndexDocument("test");
+
+        // Set both read_only and write blocks
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_READ_ONLY, true)
+                .put(SETTING_BLOCKS_WRITE, true))
+            .execute()
+            .actionGet();
+
+        // Verify both blocks are active
+        canNotIndexDocument("test");
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertTrue(state.blocks().hasIndexBlock("test", IndexMetadata.INDEX_READ_ONLY_BLOCK));
+        assertTrue(state.blocks().hasIndexBlock("test", IndexMetadata.INDEX_WRITE_BLOCK));
+
+        // Try to remove read_only block - this should work
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_READ_ONLY, false))
+            .execute()
+            .actionGet();
+
+        // Try to remove write block - this should also work
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false))
+            .execute()
+            .actionGet();
+
+        // Verify index is now unblocked and can be written to
+        canIndexDocument("test");
+    }
+
     private void canCreateIndex(String index) {
         try {
             CreateIndexResponse r = client().admin().indices().prepareCreate(index).execute().actionGet();
