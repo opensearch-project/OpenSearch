@@ -8,9 +8,6 @@
 
 package org.opensearch.plugins;
 
-import java.io.IOException;
-import java.util.List;
-
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
@@ -18,12 +15,15 @@ import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.engine.exec.SourceProvider;
 import org.opensearch.index.shard.ShardPath;
 
+import java.io.IOException;
+import java.util.List;
+
 /**
  * Interface for back-end query engines.
  *
  * @opensearch.internal
  */
-public interface SearchAnalyticsBackEndPlugin {
+public interface SearchBackEndPlugin {
 
     String name();
 
@@ -34,7 +34,7 @@ public interface SearchAnalyticsBackEndPlugin {
     /**
      * Create a search execution engine. Return null if this plugin is an index provider only.
      */
-    default SearchExecEngine<?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
+    default SearchExecEngine<?, ?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
         return null;
     }
 

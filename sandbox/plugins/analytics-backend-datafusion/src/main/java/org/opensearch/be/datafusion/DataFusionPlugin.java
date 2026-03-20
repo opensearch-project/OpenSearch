@@ -12,7 +12,7 @@ import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineBridge;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -43,9 +43,9 @@ import java.util.function.Supplier;
  * <p>
  * Initializes the {@link DataFusionService} at node startup and creates
  * per-shard {@link DatafusionSearchExecEngine} instances via the
- * {@link AnalyticsBackEndPlugin} SPI.
+ * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
+public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -118,7 +118,7 @@ public class DataFusionPlugin extends Plugin implements AnalyticsBackEndPlugin {
     }
 
     @Override
-    public SearchExecEngine<?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
+    public SearchExecEngine<?, ?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
         if (dataFusionService == null) {
             throw new IllegalStateException("DataFusionPlugin.createComponents() has not been called yet");
         }

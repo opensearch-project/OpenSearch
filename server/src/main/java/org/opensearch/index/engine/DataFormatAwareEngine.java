@@ -12,6 +12,7 @@ import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
+import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SearchExecEngine;
@@ -21,6 +22,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,25 +30,26 @@ import java.util.Map;
  * Owns all reader managers, lazily creates search engines, index filter providers
  * and source providers per data format.
  * <p>
- * Instances are created by {@link org.opensearch.index.engine.exec.CompositeEngineFactory}.
+ * Instances are created by {@link DataFormatAwareEngineFactory}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeEngine implements Closeable {
+public class DataFormatAwareEngine implements Closeable {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
-    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers;
+    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?, ?>, IOException>> engineSuppliers;
     private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers;
     private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers;
+    private volatile CatalogSnapshot latestSnapshot;
 
     /**
      * Constructs a new CompositeEngine with pre-built maps.
-     * Prefer using {@link org.opensearch.index.engine.exec.CompositeEngineFactory#create()}.
+     * Prefer using {@link DataFormatAwareEngineFactory#create()}.
      */
-    public CompositeEngine(
+    public DataFormatAwareEngine(
         Map<DataFormat, EngineReaderManager<?>> readerManagers,
-        Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers,
+        Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?, ?>, IOException>> engineSuppliers,
         Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers,
         Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers
     ) {
@@ -56,13 +59,11 @@ public class CompositeEngine implements Closeable {
         this.sourceProviderSuppliers = sourceProviderSuppliers;
     }
 
-    // ---- Public getters ----
-
     public EngineReaderManager<?> getReaderManager(DataFormat format) {
         return readerManagers.get(format);
     }
 
-    public SearchExecEngine<?, ?> getSearchExecEngine(DataFormat format) throws IOException {
+    public SearchExecEngine<?, ?, ?> getSearchExecEngine(DataFormat format) throws IOException {
         return getFromSupplier(engineSuppliers, format, "search exec engine");
     }
 
@@ -74,11 +75,8 @@ public class CompositeEngine implements Closeable {
         return getFromSupplier(sourceProviderSuppliers, format, "source provider");
     }
 
-    private <T> T getFromSupplier(
-        Map<DataFormat, CheckedSupplier<T, IOException>> suppliers,
-        DataFormat format,
-        String label
-    ) throws IOException {
+    private <T> T getFromSupplier(Map<DataFormat, CheckedSupplier<T, IOException>> suppliers, DataFormat format, String label)
+        throws IOException {
         CheckedSupplier<T, IOException> supplier = suppliers.get(format);
         if (supplier == null) {
             throw new IllegalArgumentException("No " + label + " registered for format: " + format.name());
@@ -86,42 +84,78 @@ public class CompositeEngine implements Closeable {
         return supplier.get();
     }
 
-    // ---- Snapshot acquisition ----
-
     /**
-     * Acquires a snapshot across all reader managers, returning a releasable reference.
+     * Called by the catalog snapshot lifecycle listener after a refresh
+     * to update the latest searchable snapshot.
      */
-    public ReleasableRef acquireSnapshot(CatalogSnapshot catalogSnapshot) throws IOException {
-        List<Object> readers = new ArrayList<>();
-        for (EngineReaderManager<?> rm : readerManagers.values()) {
-            readers.add(rm.getReader(catalogSnapshot));
+    public void setLatestSnapshot(CatalogSnapshot snapshot) {
+        CatalogSnapshot prev = this.latestSnapshot;
+        this.latestSnapshot = snapshot;
+        if (prev != null) {
+            prev.decRef();
         }
-        return new ReleasableRef(readers);
     }
 
     /**
-     * A releasable reference to a set of readers acquired from reader managers.
+     * Acquires a DataFormatAwareReader on the latest catalog snapshot.
+     * The snapshot is incRef'd; the caller MUST close the returned
+     * {@link DataFormatAwareReader} when done, which decRef's the snapshot.
+     */
+    public DataFormatAwareReader acquireReader() throws IOException {
+        CatalogSnapshot snapshot = latestSnapshot;
+        if (snapshot == null) {
+            throw new IllegalStateException("No catalog snapshot available");
+        }
+        return acquireReader(snapshot);
+    }
+
+    /**
+     * Acquires a composite reader on a specific catalog snapshot.
+     */
+    public DataFormatAwareReader acquireReader(CatalogSnapshot catalogSnapshot) throws IOException {
+        catalogSnapshot.incRef();
+        try {
+            Map<DataFormat, Object> readers = new HashMap<>();
+            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
+                Object reader = entry.getValue().getReader(catalogSnapshot);
+                if (reader != null) {
+                    readers.put(entry.getKey(), reader);
+                }
+            }
+            return new DataFormatAwareReader(catalogSnapshot, readers);
+        } catch (Exception e) {
+            catalogSnapshot.decRef();
+            throw e;
+        }
+    }
+
+    /**
+     * A catalog-snapshot-backed data-format aware reader providing per-format reader access.
+     * Closing this reader releases the catalog snapshot reference.
      */
     @ExperimentalApi
-    public static class ReleasableRef implements Closeable {
-        private final List<Object> readers;
+    public static class DataFormatAwareReader implements Closeable {
+        private final CatalogSnapshot catalogSnapshot;
+        private final Map<DataFormat, Object> readers;
 
-        ReleasableRef(List<Object> readers) {
+        DataFormatAwareReader(CatalogSnapshot catalogSnapshot, Map<DataFormat, Object> readers) {
+            this.catalogSnapshot = catalogSnapshot;
             this.readers = readers;
         }
 
-        public List<Object> getReaders() {
-            return readers;
+        public Object getReader(DataFormat format) {
+            return readers.get(format);
+        }
+
+        public CatalogSnapshot getCatalogSnapshot() {
+            return catalogSnapshot;
         }
 
         @Override
-        public void close() throws IOException {
-            // Reader managers handle their own reference counting;
-            // this is a placeholder for future release logic.
+        public void close() {
+            catalogSnapshot.decRef();
         }
     }
-
-    // ---- Closeable ----
 
     @Override
     public void close() throws IOException {
@@ -151,10 +185,7 @@ public class CompositeEngine implements Closeable {
      * Attempts to retrieve each memoized instance and close it if it implements {@link Closeable}.
      * Suppliers that were never invoked will return quickly from the memoize wrapper.
      */
-    private static <T> void closeSupplierInstances(
-        Collection<CheckedSupplier<T, IOException>> suppliers,
-        List<Exception> exceptions
-    ) {
+    private static <T> void closeSupplierInstances(Collection<CheckedSupplier<T, IOException>> suppliers, List<Exception> exceptions) {
         for (CheckedSupplier<T, IOException> supplier : suppliers) {
             try {
                 T instance = supplier.get();

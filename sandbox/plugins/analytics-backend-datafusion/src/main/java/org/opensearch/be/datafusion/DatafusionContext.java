@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.search.SearchExecutionContext;
@@ -20,7 +21,7 @@ import java.io.IOException;
  * DataFusion-specific search execution context.
  * <p>
  * Carries the DataFusion query plan, engine searcher, optional {@link IndexFilterTree},
- * and columnar results.
+ * and the native result stream handle after execution.
  *
  * @opensearch.experimental
  */
@@ -30,17 +31,21 @@ public class DatafusionContext implements SearchExecutionContext {
     private final ShardSearchRequest request;
     private final SearchShardTarget shardTarget;
     private final DatafusionSearcher engineSearcher;
+    private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
     private IndexFilterTree filterTree;
+    private StreamHandle streamHandle;
 
     public DatafusionContext(
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
-        DatafusionReader reader
+        DatafusionReader reader,
+        NativeRuntimeHandle nativeRuntime
     ) throws IOException {
         this.request = request;
         this.shardTarget = shardTarget;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
+        this.nativeRuntime = nativeRuntime;
     }
 
     @Override
@@ -56,11 +61,18 @@ public class DatafusionContext implements SearchExecutionContext {
     @Override
     public void close() throws IOException {
         try {
-            if (filterTree != null) {
-                filterTree.close();
+            if (streamHandle != null) {
+                streamHandle.close();
+                streamHandle = null;
             }
         } finally {
-            engineSearcher.close();
+            try {
+                if (filterTree != null) {
+                    filterTree.close();
+                }
+            } finally {
+                engineSearcher.close();
+            }
         }
     }
 
@@ -68,6 +80,13 @@ public class DatafusionContext implements SearchExecutionContext {
 
     public DatafusionSearcher getEngineSearcher() {
         return engineSearcher;
+    }
+
+    /**
+     * Returns the live native runtime pointer for JNI calls.
+     */
+    public long getRuntimePtr() {
+        return nativeRuntime.get();
     }
 
     public DatafusionQuery getDatafusionQuery() {
@@ -78,19 +97,25 @@ public class DatafusionContext implements SearchExecutionContext {
         this.datafusionQuery = query;
     }
 
-    /**
-     * Returns the optional filter tree for indexed parquet queries.
-     * {@code null} indicates a pure parquet query with no external index involvement.
-     */
     public IndexFilterTree getFilterTree() {
         return filterTree;
     }
 
-    /**
-     * Sets the filter tree for indexed parquet queries.
-     */
     public void setFilterTree(IndexFilterTree filterTree) {
         this.filterTree = filterTree;
     }
 
+    /**
+     * Returns the native result stream handle, or {@code null} if execution has not completed.
+     */
+    public StreamHandle getStreamHandle() {
+        return streamHandle;
+    }
+
+    /**
+     * Sets the native result stream handle after query execution.
+     */
+    public void setStreamHandle(StreamHandle streamHandle) {
+        this.streamHandle = streamHandle;
+    }
 }

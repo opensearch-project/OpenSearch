@@ -62,8 +62,8 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -124,7 +124,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
-import org.opensearch.index.engine.exec.CompositeEngineFactory;
+import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -427,8 +427,12 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
-    private final CheckedTriFunction<ShardPath, MapperService, IndexSettings, CompositeEngineFactory, IOException>
-        compositeEngineFactorySupplier;
+    private final CheckedTriFunction<
+        ShardPath,
+        MapperService,
+        IndexSettings,
+        DataFormatAwareEngineFactory,
+        IOException> compositeEngineFactorySupplier;
 
     @Override
     protected void doStart() {
@@ -614,7 +618,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
-        this.compositeEngineFactorySupplier = (shardPath, mapperService, indexSettings) -> new CompositeEngineFactory(
+        this.compositeEngineFactorySupplier = (shardPath, mapperService, indexSettings) -> new DataFormatAwareEngineFactory(
             pluginsService,
             shardPath,
             mapperService,

@@ -25,22 +25,20 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchExecEngine implements SearchExecEngine<LuceneSearchContext, Query> {
+public class LuceneSearchExecEngine implements SearchExecEngine<LuceneSearchContext, Query, Void> {
 
     @Override
-    public void execute(LuceneSearchContext context) throws IOException {
-        DirectoryReader reader = context.getReader();
-        LuceneEngineSearcher searcher = new LuceneEngineSearcher(new IndexSearcher(reader), reader);
-        try {
-            searcher.search(context);
-        } finally {
-            searcher.close();
+    public Query convertFragment(Object fragment) {
+        if (fragment instanceof Query) {
+            return (Query) fragment;
         }
+        throw new UnsupportedOperationException("Expected Lucene Query, got " + fragment.getClass().getSimpleName());
     }
 
     @Override
     public LuceneSearchContext createContext(
         Object reader,
+        Query plan,
         ShardSearchRequest request,
         SearchShardTarget shardTarget,
         SearchShardTask task
@@ -50,10 +48,14 @@ public class LuceneSearchExecEngine implements SearchExecEngine<LuceneSearchCont
     }
 
     @Override
-    public Query convertFragment(Object fragment) {
-        if (fragment instanceof Query) {
-            return (Query) fragment;
+    public Void execute(LuceneSearchContext context) throws IOException {
+        DirectoryReader reader = context.getReader();
+        LuceneEngineSearcher searcher = new LuceneEngineSearcher(new IndexSearcher(reader), reader);
+        try {
+            searcher.search(context);
+        } finally {
+            searcher.close();
         }
-        throw new UnsupportedOperationException("Expected Lucene Query, got " + fragment.getClass().getSimpleName());
+        return null; // TODO : figure out this path or remove this class for now
     }
 }

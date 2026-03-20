@@ -52,7 +52,7 @@ public class LuceneEngineSearcher implements EngineSearcher<LuceneSearchContext>
         Query rewritten = indexSearcher.rewrite(query);
         Weight weight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         List<LeafReaderContext> leaves = directoryReader.leaves();
-        //TODO : Complete the wiring for search execution
+        // TODO : Complete the wiring for search execution
 
     }
 

@@ -129,7 +129,7 @@ import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.CompositeEngine;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineBackedIndexer;
@@ -145,7 +145,7 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.engine.exec.CompositeEngineFactory;
+import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -318,7 +318,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Indexer> currentEngineReference = new AtomicReference<>();
-    private final AtomicReference<CompositeEngine> currentCompositeEngineReference = new AtomicReference<>();
+    private final AtomicReference<DataFormatAwareEngine> currentCompositeEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
 
@@ -407,7 +407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
-    private final CompositeEngineFactory compositeEngineFactory;
+    private final DataFormatAwareEngineFactory dataFormatAwareEngineFactory;
 
     @InternalApi
     public IndexShard(
@@ -449,7 +449,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
-        @Nullable final CompositeEngineFactory compositeEngineFactory
+        @Nullable final DataFormatAwareEngineFactory dataFormatAwareEngineFactory
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -575,9 +575,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
-        this.compositeEngineFactory = compositeEngineFactory;
-        if (compositeEngineFactory != null) {
-            this.currentCompositeEngineReference.set(compositeEngineFactory.create());
+        this.dataFormatAwareEngineFactory = dataFormatAwareEngineFactory;
+        if (dataFormatAwareEngineFactory != null) {
+            this.currentCompositeEngineReference.set(dataFormatAwareEngineFactory.create());
         }
     }
 
@@ -2217,15 +2217,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the current CompositeEngine, or null if no optimized index is active.
      */
-    public CompositeEngine getCompositeEngine() {
+    public DataFormatAwareEngine getCompositeEngine() {
         return currentCompositeEngineReference.get();
     }
 
     /**
      * Sets the CompositeEngine for this shard (called during shard initialization for optimized indexes).
      */
-    public void setCompositeEngine(CompositeEngine compositeEngine) {
-        currentCompositeEngineReference.set(compositeEngine);
+    public void setCompositeEngine(DataFormatAwareEngine dataFormatAwareEngine) {
+        currentCompositeEngineReference.set(dataFormatAwareEngine);
     }
 
     private void markSearcherAccessed() {

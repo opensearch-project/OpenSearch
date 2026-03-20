@@ -26,12 +26,12 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeEngineCatalogSnapshotListener implements CatalogSnapshotLifecycleListener {
+public class DataFormatEngineCatalogSnapshotListener implements CatalogSnapshotLifecycleListener {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
     private final IndexFileDeleter indexFileDeleter;
 
-    public CompositeEngineCatalogSnapshotListener(
+    public DataFormatEngineCatalogSnapshotListener(
         Map<DataFormat, EngineReaderManager<?>> readerManagers,
         IndexFileDeleter indexFileDeleter
     ) {

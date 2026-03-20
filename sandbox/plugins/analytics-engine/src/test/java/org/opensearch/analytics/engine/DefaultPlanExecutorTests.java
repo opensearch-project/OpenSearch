@@ -45,7 +45,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
      * Test that execute() does not throw for a valid fragment.
      */
     public void testExecuteDoesNotThrowForValidFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), null, null);
 
         RelNode fragment = createRelNodeWithFieldCount(3);
         Object context = new Object();
@@ -58,7 +58,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
      * Test that execute() works with a multi-field fragment.
      */
     public void testExecuteWithMultiFieldFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), null, null);
 
         int fieldCount = 5;
         RelNode fragment = createRelNodeWithFieldCount(fieldCount);
@@ -72,7 +72,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
      * Test that execute() works with a single-field fragment.
      */
     public void testExecuteWithSingleFieldFragment() {
-        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of());
+        DefaultPlanExecutor service = new DefaultPlanExecutor(List.of(), null, null);
 
         RelNode fragment = createRelNodeWithFieldCount(1);
         Object context = new Object();

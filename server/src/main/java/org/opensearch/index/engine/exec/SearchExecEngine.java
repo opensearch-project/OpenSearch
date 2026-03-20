@@ -10,54 +10,44 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.search.SearchExecutionContext;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
 
 /**
  * Shard-level search execution engine interface.
  *
  * @param <C> the engine-specific context type
  * @param <T> the engine-native plan type (e.g. byte[] for substrait)
+ * @param <S> the result stream type returned by {@link #execute}
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SearchExecEngine<C extends SearchExecutionContext, T> extends Closeable {
-
-    void execute(C context) throws IOException;
-
-    default void execute(C context, ActionListener<C> listener) {
-        try {
-            execute(context);
-            listener.onResponse(context);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
+public interface SearchExecEngine<C extends SearchExecutionContext, T, S> extends Closeable {
 
     /**
-     * Create a search context. The reader is provided by {@link org.opensearch.index.engine.CompositeEngine}
-     * which owns all reader managers.
+     * Converts a logical plan fragment into the engine's native plan format.
      */
-    C createContext(
-        Object reader,
-        ShardSearchRequest request,
-        SearchShardTarget shardTarget,
-        SearchShardTask task
-    ) throws IOException;
-
     default T convertFragment(Object fragment) {
         throw new UnsupportedOperationException("convertFragment not supported by " + getClass().getSimpleName());
     }
 
-    default Iterator<?> executePlan(T plan, C context) {
-        throw new UnsupportedOperationException("executePlan not supported by " + getClass().getSimpleName());
-    }
+    /**
+     * Creates a search context bound to the given reader and plan.
+     * The reader is provided by {@link DataFormatAwareEngine}
+     * which owns all reader managers.
+     */
+    C createContext(Object reader, T plan, ShardSearchRequest request, SearchShardTarget shardTarget, SearchShardTask task)
+        throws IOException;
+
+    /**
+     * Executes the plan held by the context and returns the result stream.
+     */
+    S execute(C context) throws IOException;
 
     @Override
     default void close() throws IOException {}

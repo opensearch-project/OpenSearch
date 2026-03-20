@@ -33,11 +33,7 @@ public class LuceneSearchContext implements SearchExecutionContext {
     private final LuceneEngineSearcher searcher;
     private Query query;
 
-    public LuceneSearchContext(
-        ShardSearchRequest request,
-        SearchShardTarget shardTarget,
-        DirectoryReader reader
-    ) throws IOException {
+    public LuceneSearchContext(ShardSearchRequest request, SearchShardTarget shardTarget, DirectoryReader reader) throws IOException {
         this.reader = reader;
         IndexSearcher indexSearcher = new IndexSearcher(reader);
         this.searcher = new LuceneEngineSearcher(indexSearcher, reader);
@@ -56,6 +52,7 @@ public class LuceneSearchContext implements SearchExecutionContext {
     public void setQuery(Query query) {
         this.query = query;
     }
+
     /**
      * Returns the number of segments for the registered weight.
      */

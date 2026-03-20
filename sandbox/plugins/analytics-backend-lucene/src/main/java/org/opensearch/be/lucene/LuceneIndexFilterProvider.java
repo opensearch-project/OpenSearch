@@ -33,7 +33,6 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
         return new LuceneIndexFilterContext(query, reader);
     }
 
-
     /**
      * Creates a collector for the given segment and registers it in the
      * context's {@link CollectorQueryLifecycleManager}.
@@ -74,7 +73,6 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
             return EMPTY_COLLECTOR;
         }
     }
-
 
     private static final SegmentCollector EMPTY_COLLECTOR = (min, max) -> new long[0];
 

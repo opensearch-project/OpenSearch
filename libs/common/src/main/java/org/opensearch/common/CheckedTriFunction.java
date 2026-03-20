@@ -9,7 +9,6 @@
 package org.opensearch.common;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.annotation.InternalApi;
 
 /**
  * A {@link TriFunction}-like interface which allows throwing checked exceptions.

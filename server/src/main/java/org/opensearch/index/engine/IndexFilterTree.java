@@ -25,8 +25,7 @@ import java.io.IOException;
 @ExperimentalApi
 public class IndexFilterTree implements Closeable {
 
-   // TODO
+    // TODO
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 }

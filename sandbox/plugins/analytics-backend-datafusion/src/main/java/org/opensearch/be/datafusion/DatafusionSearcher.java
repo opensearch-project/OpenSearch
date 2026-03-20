@@ -8,7 +8,9 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.be.datafusion.jni.ReaderHandle;
+import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.EngineSearcher;
 
@@ -16,6 +18,9 @@ import java.io.IOException;
 
 /**
  * DataFusion searcher — executes substrait query plans against a native DataFusion reader.
+ * <p>
+ * After {@link #search}, the result stream handle is available on the context
+ * via {@link DatafusionContext#getStreamHandle()}.
  *
  * @opensearch.experimental
  */
@@ -38,13 +43,21 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
     }
 
     private void searchWithFilterTree(DatafusionContext context) {
-        // TODO: wire NativeBridge — execute substrait plan, consume stream, populate context
-        throw new UnsupportedOperationException("DataFusion native bridge not yet wired");
+        throw new UnsupportedOperationException("Indexed query path not yet wired");
     }
 
     private void searchVanilla(DatafusionContext context) throws IOException {
-        // TODO: wire NativeBridge — execute substrait plan, consume stream, populate context
-        throw new UnsupportedOperationException("DataFusion native bridge not yet wired");
+        DatafusionQuery query = context.getDatafusionQuery();
+        if (query == null) {
+            throw new IllegalStateException("DatafusionQuery must be set before search");
+        }
+        long streamPtr = NativeBridge.executeQuery(
+            readerHandle.getPointer(),
+            query.getIndexName(),
+            query.getSubstraitBytes(),
+            context.getRuntimePtr()
+        );
+        context.setStreamHandle(new StreamHandle(streamPtr, context.getRuntimePtr()));
     }
 
     /**

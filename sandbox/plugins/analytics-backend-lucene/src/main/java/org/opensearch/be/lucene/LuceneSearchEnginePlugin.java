@@ -10,14 +10,13 @@ package org.opensearch.be.lucene;
 
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.SourceProvider;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +27,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchEnginePlugin implements AnalyticsBackEndPlugin {
+public class LuceneSearchEnginePlugin implements AnalyticsSearchBackendPlugin {
 
     @Override
     public String name() {

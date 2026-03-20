@@ -10,16 +10,13 @@ package org.opensearch.analytics.spi;
 
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
-import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
-
-import java.io.IOException;
-import java.util.List;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 /**
  * SPI extension point for back-end query engines (DataFusion, Lucene, etc.).
  * @opensearch.internal
  */
-public interface AnalyticsBackEndPlugin extends SearchAnalyticsBackEndPlugin {
+public interface AnalyticsSearchBackendPlugin extends SearchBackEndPlugin {
     /** Unique engine name (e.g., "lucene", "datafusion"). */
     String name();
 

@@ -12,43 +12,44 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.CompositeEngine;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Factory that discovers {@link SearchAnalyticsBackEndPlugin}s via
+ * Factory that discovers {@link SearchBackEndPlugin}s via
  * {@link PluginsService} and builds the per-format reader managers and
- * memoizing suppliers consumed by {@link CompositeEngine}.
+ * memoizing suppliers consumed by {@link DataFormatAwareEngine}.
  * <p>
- * This keeps CompositeEngine decoupled from the plugin layer.
+ * This keeps DataformatAwareEngine decoupled from the plugin layer.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeEngineFactory {
+public class DataFormatAwareEngineFactory {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?>, IOException>> engineSuppliers = new HashMap<>();
-    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers = new HashMap<>();
+    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?, ?>, IOException>> engineSuppliers = new HashMap<>();
+    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers =
+        new HashMap<>();
     private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers = new HashMap<>();
 
     private final IndexFileDeleter indexFileDeleter;
 
-    public CompositeEngineFactory(
+    public DataFormatAwareEngineFactory(
         PluginsService pluginsService,
         ShardPath shardPath,
         MapperService mapperService,
         IndexSettings indexSettings
     ) throws IOException {
-        for (SearchAnalyticsBackEndPlugin plugin : pluginsService.filterPlugins(SearchAnalyticsBackEndPlugin.class)) {
+        for (SearchBackEndPlugin plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
             for (DataFormat format : plugin.getSupportedFormats()) {
                 // TODO: use mapperService and indexSettings to filter formats relevant to this index
                 readerManagers.put(format, plugin.createReaderManager(format, shardPath));
@@ -88,11 +89,11 @@ public class CompositeEngineFactory {
     }
 
     /**
-     * Creates a new {@link CompositeEngine} populated with the discovered
+     * Creates a new {@link DataFormatAwareEngine} populated with the discovered
      * reader managers and memoizing suppliers.
      */
-    public CompositeEngine create() {
-        return new CompositeEngine(readerManagers, engineSuppliers, indexFilterProviderSuppliers, sourceProviderSuppliers);
+    public DataFormatAwareEngine create() {
+        return new DataFormatAwareEngine(readerManagers, engineSuppliers, indexFilterProviderSuppliers, sourceProviderSuppliers);
     }
 
     /**
@@ -101,9 +102,7 @@ public class CompositeEngineFactory {
      *
      * @param readerManagers the per-format reader managers that receive notifications
      */
-    public CatalogSnapshotLifecycleListener createCatalogSnapshotListener(
-        Map<DataFormat, EngineReaderManager<?>> readerManagers
-    ) {
-        return new CompositeEngineCatalogSnapshotListener(readerManagers, indexFileDeleter);
+    public CatalogSnapshotLifecycleListener createCatalogSnapshotListener(Map<DataFormat, EngineReaderManager<?>> readerManagers) {
+        return new DataFormatEngineCatalogSnapshotListener(readerManagers, indexFileDeleter);
     }
 }
