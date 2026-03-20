@@ -36,11 +36,9 @@ public interface DataFormatPlugin {
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
      * @param indexSettings the index settings
-     * @param <T> the data format type
-     * @param <P> the document input type
      * @return the indexing execution engine instance
      */
-    <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+    IndexingExecutionEngine<?, ?> indexingEngine(
         MapperService mapperService,
         ShardPath shardPath,
         IndexSettings indexSettings

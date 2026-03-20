@@ -12,7 +12,6 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Tests for {@link CompositeWriter}.
@@ -76,19 +75,6 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
-    public void testTryLockWithTimeoutSucceeds() throws Exception {
-        CompositeWriter writer = new CompositeWriter(engine, 0);
-        assertTrue(writer.tryLock(100, TimeUnit.MILLISECONDS));
-        writer.unlock();
-        writer.close();
-    }
-
-    public void testNewConditionThrowsUnsupported() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, 0);
-        expectThrows(UnsupportedOperationException.class, writer::newCondition);
-        writer.close();
-    }
-
     public void testFlushReturnsFileInfos() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         FileInfos fileInfos = writer.flush();
@@ -109,10 +95,4 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
-    public void testLockInterruptiblySucceeds() throws Exception {
-        CompositeWriter writer = new CompositeWriter(engine, 0);
-        writer.lockInterruptibly();
-        writer.unlock();
-        writer.close();
-    }
 }

@@ -10,12 +10,11 @@ package org.opensearch.composite.queue;
 
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 
 /**
  * A concurrent queue wrapper that adds lock-and-poll / add-and-unlock semantics
- * on top of {@link ConcurrentQueue}. Entries must implement {@link Lock} so that
+ * on top of {@link ConcurrentQueue}. Entries must implement {@link Lockable} so that
  * they can be atomically locked when polled and unlocked when returned.
  * <p>
  * This is used by the composite writer pool to ensure that a writer is locked
@@ -24,7 +23,7 @@ import java.util.function.Supplier;
  * @param <T> the type of lockable elements held in this queue
  * @opensearch.experimental
  */
-public final class LockableConcurrentQueue<T extends Lock> {
+public final class LockableConcurrentQueue<T extends Lockable> {
 
     private final ConcurrentQueue<T> queue;
     private final AtomicInteger addAndUnlockCounter = new AtomicInteger();
@@ -47,7 +46,7 @@ public final class LockableConcurrentQueue<T extends Lock> {
         int addAndUnlockCount;
         do {
             addAndUnlockCount = addAndUnlockCounter.get();
-            T entry = queue.poll(Lock::tryLock);
+            T entry = queue.poll(Lockable::tryLock);
             if (entry != null) {
                 return entry;
             }

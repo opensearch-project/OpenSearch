@@ -105,10 +105,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         List<IndexingExecutionEngine<?, ?>> secondaries = new ArrayList<>();
         for (String secondaryName : secondaryFormatNames) {
-            if (secondaryName.equals(primaryFormatName)) {
-                logger.warn("Secondary data format [{}] is the same as primary, skipping duplicate", secondaryName);
-                continue;
-            }
             DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
             secondaries.add(secondaryPlugin.indexingEngine(mapperService, shardPath, indexSettings));
             allFormats.add(secondaryPlugin.getDataFormat());

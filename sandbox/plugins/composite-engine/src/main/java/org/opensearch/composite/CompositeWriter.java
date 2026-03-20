@@ -24,10 +24,9 @@ import java.util.AbstractMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import org.opensearch.composite.queue.Lockable;
 
 /**
  * A composite {@link Writer} that wraps one {@link Writer} per registered data format
@@ -41,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
+public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
@@ -201,27 +200,12 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
     }
 
     @Override
-    public void lockInterruptibly() throws InterruptedException {
-        lock.lockInterruptibly();
-    }
-
-    @Override
     public boolean tryLock() {
         return lock.tryLock();
     }
 
     @Override
-    public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
-        return lock.tryLock(time, unit);
-    }
-
-    @Override
     public void unlock() {
         lock.unlock();
-    }
-
-    @Override
-    public Condition newCondition() {
-        throw new UnsupportedOperationException();
     }
 }

@@ -76,13 +76,12 @@ final class CompositeTestHelper {
             }
 
             @Override
-            @SuppressWarnings("unchecked")
-            public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+            public IndexingExecutionEngine<?, ?> indexingEngine(
                 MapperService mapperService,
                 ShardPath shardPath,
                 IndexSettings indexSettings
             ) {
-                return (IndexingExecutionEngine<T, P>) new StubIndexingExecutionEngine(format);
+                return new StubIndexingExecutionEngine(format);
             }
         };
     }
@@ -96,13 +95,12 @@ final class CompositeTestHelper {
             }
 
             @Override
-            @SuppressWarnings("unchecked")
-            public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+            public IndexingExecutionEngine<?, ?> indexingEngine(
                 MapperService mapperService,
                 ShardPath shardPath,
                 IndexSettings indexSettings
             ) {
-                return (IndexingExecutionEngine<T, P>) new StubIndexingExecutionEngine(format);
+                return new StubIndexingExecutionEngine(format);
             }
         };
     }

@@ -17,7 +17,6 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -129,6 +128,10 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
                 continue;
             }
             String name = format.name();
+            if (name == null || name.isBlank()) {
+                logger.warn("DataFormatPlugin [{}] returned a DataFormat with null/blank name, skipping", plugin.getClass().getName());
+                continue;
+            }
             DataFormatPlugin existing = registry.get(name);
             if (existing != null) {
                 long existingPriority = existing.getDataFormat().priority();
@@ -180,13 +183,12 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+    public IndexingExecutionEngine<?, ?> indexingEngine(
         MapperService mapperService,
         ShardPath shardPath,
         IndexSettings indexSettings
     ) {
-        return (IndexingExecutionEngine<T, P>) new CompositeIndexingExecutionEngine(
+        return new CompositeIndexingExecutionEngine(
             dataFormatPlugins,
             indexSettings,
             mapperService,

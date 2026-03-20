@@ -24,11 +24,35 @@ public class LockableConcurrentQueueTests extends OpenSearchTestCase {
     /**
      * A simple lockable entry for testing.
      */
-    static class LockableEntry extends ReentrantLock {
+    static class LockableEntry implements Lockable {
         final String id;
+        private final ReentrantLock delegate = new ReentrantLock();
 
         LockableEntry(String id) {
             this.id = id;
+        }
+
+        @Override
+        public void lock() {
+            delegate.lock();
+        }
+
+        @Override
+        public boolean tryLock() {
+            return delegate.tryLock();
+        }
+
+        @Override
+        public void unlock() {
+            delegate.unlock();
+        }
+
+        boolean isHeldByCurrentThread() {
+            return delegate.isHeldByCurrentThread();
+        }
+
+        boolean isLocked() {
+            return delegate.isLocked();
         }
 
         @Override
