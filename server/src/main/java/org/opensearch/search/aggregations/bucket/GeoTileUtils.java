@@ -82,6 +82,13 @@ public final class GeoTileUtils {
     public static final double LATITUDE_MASK = 85.0511287798066;
 
     /**
+     * Maximum number of tiles that can be generated for a single shape.
+     * This prevents excessive CPU usage for shapes with large bounding boxes (e.g., long LineStrings).
+     * The limit is set to allow reasonable precision while preventing cluster stalls.
+     */
+    public static final int MAX_TILES_PER_SHAPE = 65536;
+
+    /**
      * Since shapes are encoded, their boundaries are to be compared to against the encoded/decoded values of <code>LATITUDE_MASK</code>
      */
     public static final double NORMALIZED_LATITUDE_MASK = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(LATITUDE_MASK));
@@ -289,6 +296,11 @@ public final class GeoTileUtils {
     }
 
     /**
+     * Interval at which we check for cancellation inside the tile iteration loop.
+     */
+    private static final int CANCELLATION_CHECK_INTERVAL = 1024;
+
+    /**
      * The function encodes the shape provided as {@link GeoShapeDocValue} to a {@link List} of {@link Long} values
      * (representing the GeoTiles) which are intersecting with the shapes at a given precision.
      *
@@ -297,6 +309,19 @@ public final class GeoTileUtils {
      * @return {@link List} of {@link Long}
      */
     public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision) {
+        return encodeShape(geoShapeDocValue, precision, () -> {});
+    }
+
+    /**
+     * Encodes the shape to a list of intersecting tile long values, with periodic cancellation checks.
+     *
+     * @param geoShapeDocValue {@link GeoShapeDocValue}
+     * @param precision int
+     * @param checkCancelled a {@link Runnable} invoked periodically to allow the caller to abort
+     *                       (e.g. by throwing a TaskCancelledException)
+     * @return {@link List} of {@link Long}
+     */
+    public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision, final Runnable checkCancelled) {
         final GeoShapeDocValue.BoundingRectangle boundingRectangle = geoShapeDocValue.getBoundingRectangle();
         // generate all the grid long values that this shape intersects.
         final long totalTilesAtPrecision = 1L << checkPrecisionRange(precision);
@@ -306,9 +331,36 @@ public final class GeoTileUtils {
         // take maxY and for maxYTile we need to take minY.
         int minYTile = getYTile(boundingRectangle.getMaxY(), totalTilesAtPrecision);
         int maxYTile = getYTile(boundingRectangle.getMinY(), totalTilesAtPrecision);
+
+        // Calculate the potential number of tiles to prevent excessive iteration
+        long xTileRange = (long) maxXTile - minXTile + 1;
+        long yTileRange = (long) maxYTile - minYTile + 1;
+        long potentialTiles = xTileRange * yTileRange;
+
+        // Hard limit: reject shapes that would generate an unreasonable number of tiles
+        if (potentialTiles > MAX_TILES_PER_SHAPE) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Tile aggregation on GeoShape field would generate too many tiles (%d) at precision %d. "
+                        + "The shape spans %d x-tiles and %d y-tiles. Maximum allowed is %d tiles per shape. "
+                        + "Consider using a lower precision or a smaller shape.",
+                    potentialTiles,
+                    precision,
+                    xTileRange,
+                    yTileRange,
+                    MAX_TILES_PER_SHAPE
+                )
+            );
+        }
+
         final List<Long> encodedValues = new ArrayList<>();
+        int iterationCount = 0;
         for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
+                if (++iterationCount % CANCELLATION_CHECK_INTERVAL == 0) {
+                    checkCancelled.run();
+                }
                 // Convert the precision, x , y to encoded value.
                 long encodedValue = longEncodeTiles(precision, x, y);
                 // Convert encoded value to rectangle

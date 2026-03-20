@@ -33,6 +33,7 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.GeoShapeCellIdSource;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.util.GeoShapeHashUtil;
@@ -175,11 +176,16 @@ class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
                 parent,
                 cardinality,
                 metadata) -> {
+                final SearchContext ctx = aggregationContext;
                 final GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource(
                     (ValuesSource.GeoShape) valuesSource,
                     precision,
                     geoBoundingBox,
-                    GeoShapeHashUtil::encodeShape
+                    (docValue, p) -> GeoShapeHashUtil.encodeShape(docValue, p, () -> {
+                        if (ctx.isCancelled()) {
+                            throw new TaskCancelledException("Cancelling geohash_grid aggregation on geo_shape field");
+                        }
+                    })
                 );
                 return new GeoHashGridAggregator(
                     name,
