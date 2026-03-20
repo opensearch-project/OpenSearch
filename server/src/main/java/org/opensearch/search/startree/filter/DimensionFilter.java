@@ -19,7 +19,7 @@ import java.io.IOException;
 /**
  * Contains the logic to filter over a dimension either in StarTree Index or it's Dimension DocValues
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface DimensionFilter {
     /**
      * Converts parsed user values to ordinals based on segment and other init actions can be performed.
@@ -59,7 +59,7 @@ public interface DimensionFilter {
     /**
      * Represents how to match a value when comparing during StarTreeTraversal
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     enum MatchType {
         GT,
         LT,

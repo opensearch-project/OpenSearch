@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreesBuilder implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(StarTreesBuilder.class);

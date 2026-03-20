@@ -22,7 +22,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
 
     public SortedSetStarTreeValuesIterator(DocIdSetIterator docIdSetIterator) {

@@ -17,7 +17,7 @@ import org.opensearch.index.compositeindex.datacube.DimensionDataType;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class DimensionConfig {
 
     private final DocValuesType docValuesType;

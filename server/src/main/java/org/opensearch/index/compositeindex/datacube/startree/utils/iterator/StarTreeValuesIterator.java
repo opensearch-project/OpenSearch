@@ -20,7 +20,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class StarTreeValuesIterator {
 
     public static final int NO_MORE_ENTRIES = Integer.MAX_VALUE;

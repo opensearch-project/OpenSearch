@@ -22,7 +22,7 @@ import java.util.List;
  * collect relevant metrics across nested aggregations in a single traversal
  * @opensearch.internal
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class StarTreeBucketCollector {
 
     protected final StarTreeValues starTreeValues;

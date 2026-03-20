@@ -27,7 +27,7 @@ import java.util.Set;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeValidator {
     public static void validate(MapperService mapperService, CompositeIndexSettings compositeIndexSettings, IndexSettings indexSettings) {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();

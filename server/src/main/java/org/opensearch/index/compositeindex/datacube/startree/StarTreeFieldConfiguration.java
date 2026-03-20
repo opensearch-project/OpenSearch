@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeFieldConfiguration implements ToXContent {
 
     private final AtomicInteger maxLeafDocs = new AtomicInteger();
@@ -53,7 +53,7 @@ public class StarTreeFieldConfiguration implements ToXContent {
      *
      * @opensearch.experimental
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public enum StarTreeBuildMode {
         // TODO : remove onheap support unless this proves useful
         ON_HEAP("onheap", (byte) 0),

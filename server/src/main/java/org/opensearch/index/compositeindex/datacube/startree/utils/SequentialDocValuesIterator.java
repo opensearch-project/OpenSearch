@@ -26,7 +26,7 @@ import java.io.IOException;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SequentialDocValuesIterator {
 
     /**

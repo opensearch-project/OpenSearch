@@ -17,7 +17,7 @@ import java.util.Arrays;
  *
  * @opensearch.experimental
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeDocument {
     public final Long[] dimensions;
     public final Object[] metrics;
