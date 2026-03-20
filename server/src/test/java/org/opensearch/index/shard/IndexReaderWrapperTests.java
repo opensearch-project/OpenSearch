@@ -210,7 +210,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
             reader,
             closeCalls
         );
-        ConcurrentHashMap<DirectoryReader, IndexShard.NonClosingReaderWrapper> readerWrapperCache = new ConcurrentHashMap<>();
+        ConcurrentHashMap<DirectoryReader, DirectoryReader> readerWrapperCache = new ConcurrentHashMap<>();
         Engine.Searcher wrap = IndexShard.wrapSearcher(
             new Engine.Searcher(
                 "foo",
@@ -225,7 +225,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         );
         wrap.close();
         assertEquals(1, readerWrapperCache.size());
-        IndexShard.NonClosingReaderWrapper nonClosingReaderWrapper = readerWrapperCache.get(open);
+        DirectoryReader nonClosingReaderWrapper = readerWrapperCache.get(open);
         assertNotNull(nonClosingReaderWrapper);
         wrap = IndexShard.wrapSearcher(
             new Engine.Searcher(
@@ -241,7 +241,7 @@ public class IndexReaderWrapperTests extends OpenSearchTestCase {
         );
         wrap.close();
         assertEquals(1, readerWrapperCache.size());
-        IndexShard.NonClosingReaderWrapper newNonClosingReaderWrapper = readerWrapperCache.get(open);
+        DirectoryReader newNonClosingReaderWrapper = readerWrapperCache.get(open);
         assertEquals(newNonClosingReaderWrapper, nonClosingReaderWrapper);
         IOUtils.close(open, writer, dir);
 
