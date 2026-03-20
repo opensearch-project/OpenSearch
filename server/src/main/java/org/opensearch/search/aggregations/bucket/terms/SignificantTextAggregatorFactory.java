@@ -315,9 +315,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
-        // The underlying structured used to find duplicate byte sequences (DuplicateByteSequenceSpotter)
-        // is stateful and not thread-safe, so disable concurrent search if this particular feature is
-        // being used.
-        return filterDuplicateText == false;
+        return true;
     }
 }
