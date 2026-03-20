@@ -1,0 +1,2 @@
+:plugins:repository-azure:check
+:plugins:repository-gcs:check
