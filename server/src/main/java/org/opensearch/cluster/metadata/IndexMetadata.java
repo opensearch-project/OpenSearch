@@ -1032,6 +1032,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Defines the maximum time to wait for lag to catch up during warmup phase.
+     * A value of -1 means warmup is disabled (the default). A value >= 0 enables warmup with that timeout.
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT = "index.ingestion_source.warmup.timeout";
+    public static final Setting<TimeValue> INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING = Setting.timeSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_TIMEOUT,
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Defines the acceptable pointer-based lag threshold. Warmup completes when lag is at or below this value.
+     * A value of 0 means fully caught up (no lag).
+     */
+    public static final String SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD = "index.ingestion_source.warmup.lag_threshold";
+    public static final Setting<Long> INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING = Setting.longSetting(
+        SETTING_INGESTION_SOURCE_WARMUP_LAG_THRESHOLD,
+        100L,
+        0L,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
     private static final String INDEX_FORMAT = "index.format";
@@ -1301,6 +1327,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final IngestionMessageMapper.MapperType mapperType = INGESTION_SOURCE_MAPPER_TYPE_SETTING.get(settings);
             final Map<String, Object> mapperSettings = INGESTION_SOURCE_MAPPER_SETTINGS.getAsMap(settings);
 
+            // Warmup settings
+            final IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(
+                INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING.get(settings),
+                INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING.get(settings)
+            );
+
             return new IngestionSource.Builder(ingestionSourceType).setParams(ingestionSourceParams)
                 .setPointerInitReset(pointerInitReset)
                 .setErrorStrategy(errorStrategy)
@@ -1312,6 +1344,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 .setPointerBasedLagUpdateInterval(pointerBasedLagUpdateInterval)
                 .setMapperType(mapperType)
                 .setMapperSettings(mapperSettings)
+                .setWarmupConfig(warmupConfig)
                 .build();
         }
         return null;

@@ -2513,6 +2513,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener
             // and before moving this shard to POST_RECOVERY state (i.e., allow to read from this shard).
             getIndexer().refresh("post_recovery");
+
+            // Wait for ingestion warmup if enabled (pull-based ingestion only)
+            handlePullBasedIngestionWarmup(getIndexer());
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
@@ -2522,6 +2526,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
+            }
+        }
+    }
+
+    /**
+     * Handles warmup for pull-based ingestion (PBI) engines.
+     * When warmup is enabled, this method blocks until the shard has caught up with the streaming source
+     * or until the configured timeout is reached.
+     *
+     * @param indexer the indexer to check for warmup
+     */
+    private void handlePullBasedIngestionWarmup(Indexer indexer) {
+        if (!(indexer instanceof EngineBackedIndexer)) {
+            return;
+        }
+        Engine engine = ((EngineBackedIndexer) indexer).getEngine();
+        if (engine instanceof IngestionEngine) {
+            IngestionEngine ingestionEngine = (IngestionEngine) engine;
+            try {
+                ingestionEngine.awaitWarmupComplete();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new OpenSearchException("Interrupted waiting for ingestion warmup", e);
             }
         }
     }
