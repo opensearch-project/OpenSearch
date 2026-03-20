@@ -22,6 +22,11 @@ import java.util.List;
 public class GeoShapeHashUtil {
 
     /**
+     * Interval at which we check for cancellation inside the geohash iteration loop.
+     */
+    private static final int CANCELLATION_CHECK_INTERVAL = 1024;
+
+    /**
      * The function encodes the shape provided as {@link GeoShapeDocValue} to a {@link List} of {@link Long} values
      * (representing the GeoHashes) which are intersecting with the shapes at a given precision.
      *
@@ -30,6 +35,18 @@ public class GeoShapeHashUtil {
      * @return {@link List} containing encoded {@link Long} values
      */
     public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision) {
+        return encodeShape(geoShapeDocValue, precision, () -> {});
+    }
+
+    /**
+     * Encodes the shape to a list of intersecting geohash long values, with periodic cancellation checks.
+     *
+     * @param geoShapeDocValue {@link GeoShapeDocValue}
+     * @param precision int
+     * @param checkCancelled a {@link Runnable} invoked periodically to allow the caller to abort
+     * @return {@link List} containing encoded {@link Long} values
+     */
+    public static List<Long> encodeShape(final GeoShapeDocValue geoShapeDocValue, final int precision, final Runnable checkCancelled) {
         final List<Long> encodedValues = new ArrayList<>();
         final GeoShapeDocValue.BoundingRectangle boundingRectangle = geoShapeDocValue.getBoundingRectangle();
         long topLeftGeoHash = Geohash.longEncode(boundingRectangle.getMinX(), boundingRectangle.getMaxY(), precision);
@@ -39,7 +56,11 @@ public class GeoShapeHashUtil {
         long currentValue = topLeftGeoHash;
         long rightMax = topRightGeoHash;
         long tempCurrent = currentValue;
+        int iterationCount = 0;
         while (true) {
+            if (++iterationCount % CANCELLATION_CHECK_INTERVAL == 0) {
+                checkCancelled.run();
+            }
             // check if this currentValue intersect with shape.
             final Rectangle geohashRectangle = Geohash.toBoundingBox(Geohash.stringEncode(tempCurrent));
             if (geoShapeDocValue.isIntersectingRectangle(geohashRectangle)) {

@@ -33,9 +33,13 @@
 package org.opensearch.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.geo.GeoShapeDocValue;
+import org.opensearch.geometry.Line;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
 
 import static org.opensearch.search.aggregations.bucket.GeoTileUtils.MAX_ZOOM;
 import static org.opensearch.search.aggregations.bucket.GeoTileUtils.checkPrecisionRange;
@@ -47,6 +51,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class GeoTileUtilsTests extends OpenSearchTestCase {
 
@@ -264,5 +270,58 @@ public class GeoTileUtilsTests extends OpenSearchTestCase {
         assertThat(GeoTileUtils.getXTile(x, tiles), equalTo(xTile));
         assertThat(GeoTileUtils.getYTile(y, tiles), equalTo(yTile));
 
+    }
+
+    /**
+     * Test that encodeShape throws an exception when the shape would generate too many tiles.
+     * This tests the fix for bug #20413 where a LineString with a large bounding box could
+     * generate millions of tiles at high precision, causing CPU to max out.
+     */
+    public void testEncodeShapeExceedsTileLimit() {
+        // Create a LineString spanning most of the world in both longitude and latitude.
+        // The diagonal span ensures a large bounding box in both x and y tile dimensions.
+        Line line = new Line(new double[] { -170.0, 170.0 }, new double[] { -60.0, 60.0 });
+        GeoShapeDocValue docValue = GeoShapeDocValue.createGeometryDocValue(line);
+
+        // At precision 15 (2^15 = 32768 tiles/axis), this line's bounding box spans
+        // ~31000 x-tiles and many y-tiles, well exceeding MAX_TILES_PER_SHAPE (65536)
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> GeoTileUtils.encodeShape(docValue, 15));
+        assertThat(exception.getMessage(), containsString("would generate too many tiles"));
+        assertThat(exception.getMessage(), containsString("at precision 15"));
+    }
+
+    /**
+     * Test that encodeShape works correctly for shapes within the tile limit.
+     */
+    public void testEncodeShapeWithinTileLimit() {
+        // Create a small LineString
+        Line line = new Line(new double[] { -1.0, 1.0 }, new double[] { 0.0, 0.0 });
+        GeoShapeDocValue docValue = GeoShapeDocValue.createGeometryDocValue(line);
+
+        // This should work fine even at high precision
+        List<Long> tiles = GeoTileUtils.encodeShape(docValue, 10);
+
+        // Should generate some tiles but not exceed the limit
+        assertThat(tiles.size(), greaterThan(0));
+        assertThat(tiles.size(), lessThan(GeoTileUtils.MAX_TILES_PER_SHAPE));
+    }
+
+    /**
+     * Test that encodeShape respects the cancellation callback.
+     * This verifies that long-running tile iterations can be cancelled by the search timeout.
+     */
+    public void testEncodeShapeRespectsCancel() {
+        // Create a moderate LineString that generates enough tiles to trigger the check
+        Line line = new Line(new double[] { -10.0, 10.0 }, new double[] { -5.0, 5.0 });
+        GeoShapeDocValue docValue = GeoShapeDocValue.createGeometryDocValue(line);
+
+        // Use a cancellation callback that throws after being called
+        RuntimeException cancelException = new RuntimeException("cancelled");
+        Runnable alwaysCancel = () -> { throw cancelException; };
+
+        // At a moderate precision, iteration count should exceed the check interval (1024)
+        // and the cancellation should fire
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> GeoTileUtils.encodeShape(docValue, 10, alwaysCancel));
+        assertSame(cancelException, thrown);
     }
 }
