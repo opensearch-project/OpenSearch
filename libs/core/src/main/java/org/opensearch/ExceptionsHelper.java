@@ -296,6 +296,7 @@ public final class ExceptionsHelper {
      * @param clazzes Classes to look for
      * @return Matching Throwable if one is found, otherwise {@code null}
      */
+    @SafeVarargs
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
             final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
