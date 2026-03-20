@@ -50,6 +50,6 @@ tasks.register('localDistro', Sync) {
   from(opensearch_distributions.local.extracted)
   into("build/distribution/local")
   doLast {
-    logger.lifecycle("OpenSearch distribution installed to ${destinationDir}/opensearch-${opensearchVersion}")
+    logger.lifecycle("OpenSearch distribution installed to ${new File(destinationDir, 'opensearch-' + opensearchVersion)}")
   }
 }
