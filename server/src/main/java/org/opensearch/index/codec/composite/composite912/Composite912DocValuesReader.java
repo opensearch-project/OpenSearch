@@ -26,7 +26,9 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FileTypeHint;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
@@ -90,10 +92,23 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
         );
 
         boolean success = false;
-        try (ChecksumIndexInput metaIn = readState.directory.openChecksumInput(metaFileName)) {
+        // Resolve the directory for star tree files. For compound file segments that were
+        // retroactively upgraded, star tree files (.cid, .cim, .cidvd, .cidvm) are in the
+        // parent directory (segmentInfo.dir), not inside the .cfs compound file.
+        // For normal star tree segments, files are in readState.directory.
+        // This fallback is safe: it only triggers when the file isn't found in the primary directory.
+        Directory starTreeDir = readState.directory;
+        try {
+            readState.directory.openInput(metaFileName, IOContext.DEFAULT).close();
+        } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
+            // Star tree files not in readState.directory (compound case) — use parent directory
+            starTreeDir = readState.segmentInfo.dir;
+        }
+
+        try (ChecksumIndexInput metaIn = starTreeDir.openChecksumInput(metaFileName)) {
 
             // initialize data input
-            dataIn = readState.directory.openInput(dataFileName, readState.context.withHints(FileTypeHint.DATA));
+            dataIn = starTreeDir.openInput(dataFileName, readState.context.withHints(FileTypeHint.DATA));
             CodecUtil.checkIndexHeader(
                 dataIn,
                 Composite912DocValuesFormat.DATA_CODEC_NAME,
@@ -192,7 +207,7 @@ public class Composite912DocValuesReader extends DocValuesProducer implements Co
                 // the dummy field info is used to fetch the doc id set iterators for respective fields based on field name
                 FieldInfos fieldInfos = new FieldInfos(getFieldInfoList(fields, dimensionFieldTypeMap));
                 this.readState = new SegmentReadState(
-                    readState.directory,
+                    starTreeDir,
                     readState.segmentInfo,
                     fieldInfos,
                     readState.context,

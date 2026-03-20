@@ -68,8 +68,8 @@ import static org.opensearch.core.xcontent.MediaTypeRegistry.JSON;
  * <ol>
  *   <li>Phase 1: Submit a mapping update to add the star tree field configuration to the index mapping,
  *       bypassing the {@code index.composite_index} setting check via {@link MergeReason#STAR_TREE_UPGRADE}.</li>
- *   <li>Phase 2+3: Per-shard engine restart and force merge via the broadcast mechanism, which calls
- *       {@link IndexShard#upgradeToStarTree()} on each primary shard.</li>
+ *   <li>Phase 2: Per-shard star tree building and SegmentInfos rewrite via the broadcast mechanism, which calls
+ *       {@link IndexShard#upgradeToStarTree(StarTreeField)} on each primary shard.</li>
  * </ol>
  *
  * @opensearch.experimental
@@ -160,8 +160,19 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
     @Override
     protected ShardStarTreeUpgradeResult shardOperation(StarTreeUpgradeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
+
+        // Verify mapping is available on this node — this index never had star tree before,
+        // so composite field types will be empty until cluster state propagates
+        if (indexShard.mapperService().getCompositeFieldTypes().isEmpty()) {
+            throw new IOException(
+                "Star tree field not yet available in MapperService on shard ["
+                    + shardRouting.shardId()
+                    + "]. Cluster state may not have propagated yet. Retry."
+            );
+        }
+
         try {
-            indexShard.upgradeToStarTree();
+            indexShard.upgradeToStarTree(request.getStarTreeField());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("star tree upgrade interrupted on shard [" + shardRouting.shardId() + "]", e);

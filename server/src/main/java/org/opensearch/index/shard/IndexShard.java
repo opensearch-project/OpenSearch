@@ -128,6 +128,8 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeUpgradeService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
@@ -248,6 +250,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -981,6 +984,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
+
+    private final AtomicBoolean starTreeUpgradeInProgress = new AtomicBoolean();
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to
@@ -2304,42 +2309,66 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws InterruptedException if the calling thread is interrupted while blocking operations
      * @throws TimeoutException if timed out waiting for in-flight operations to finish
      */
-    public void upgradeToStarTree() throws IOException, InterruptedException, TimeoutException {
+    /**
+     * Upgrades this shard's segments to use star tree indexes via per-segment star tree building
+     * and direct SegmentInfos rewrite. No force merge is needed.
+     * <p>
+     * Flow: flush → block operations → swap to read-only engine → build star tree data per segment
+     * → rewrite SegmentInfos with Composite912Codec → resetEngineToGlobalCheckpoint → unblock.
+     * <p>
+     * Reads remain available during the upgrade via the read-only engine (serving from the
+     * pre-upgrade committed state). Writes are blocked for the duration.
+     *
+     * @param starTreeField the star tree configuration (dimensions, metrics, build parameters)
+     * @return the number of segments that were upgraded
+     */
+    public int upgradeToStarTree(StarTreeField starTreeField) throws IOException, InterruptedException, TimeoutException {
         verifyActive();
-        logger.info("{} starting star tree upgrade", shardId);
-        // Create a fresh CodecService that picks up the composite codec.
-        this.codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
-        try {
-            // Engine restart to pick up composite codec
-            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
-
-            // After engine restart, if the translog was empty (data fully committed), there may be
-            // only 1 segment. Lucene's forceMerge(1) is a no-op with a single segment because there's
-            // nothing to merge down to. We need at least 2 segments so the merge actually fires and
-            // the composite codec's merge path builds the star tree data.
-            //
-            // NOTE: We cannot use forceMerge with upgrade=true here because OpenSearchMergePolicy's
-            // shouldUpgrade() checks Lucene version — segments written by the current version won't
-            // be selected for upgrade merging.
-            //
-            // Write a no-op tombstone to the IndexWriter, then flush to commit it as a new segment.
-            // This guarantees at least 2 segments exist, so forceMerge(1) will merge them through
-            // the composite codec.
-            final Engine engine = getEngine();
-            final long seqNo = getLocalCheckpoint() + 1;
-            engine.noOp(
-                new Engine.NoOp(seqNo, getOperationPrimaryTerm(), Engine.Operation.Origin.PRIMARY, System.nanoTime(), "star-tree-upgrade")
-            );
-            engine.flush(false, true);
-
-            // Now forceMerge(1) will merge the 2+ segments through the composite codec,
-            // triggering Composite912DocValuesWriter's fallback path that builds star tree
-            // data from raw doc values.
-            engine.forceMerge(true, 1, false, false, false, null);
-            logger.info("{} star tree upgrade completed successfully — star tree data built", shardId);
-        } finally {
-            this.codecServiceOverride = null;
+        if (starTreeUpgradeInProgress.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("star tree upgrade already in progress on shard [" + shardId + "]");
         }
+        logger.info("{} starting per-segment star tree upgrade", shardId);
+
+        final AtomicInteger upgradedCount = new AtomicInteger(0);
+        try {
+            // First flush: reduce work needed after blocking
+            flush(new FlushRequest().force(true));
+
+            indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
+                // Second flush: ensure all data committed before engine close
+                // (catches any writes between first flush and block)
+                flush(new FlushRequest().waitIfOngoing(true));
+
+                // Close the engine — releases all file handles and the IndexWriter.
+                // This is critical: if the IndexWriter is alive when we rewrite SegmentInfos,
+                // the next engine open will flush a new commit that deletes our star tree files.
+                synchronized (engineMutex) {
+                    IOUtils.close(currentEngineReference.getAndSet(null));
+                }
+                try {
+                    // Phase 1: build star tree files per segment + Phase 2: rewrite SegmentInfos
+                    int count = StarTreeUpgradeService.upgradeSegments(store().directory(), starTreeField, mapperService);
+                    upgradedCount.set(count);
+                } finally {
+                    // Create a fresh engine directly from segments_N+1.
+                    // The new engine's IndexWriter opens segments_N+1 which has Composite912Codec
+                    // and the star tree files in the file set — so it won't delete them.
+                    synchronized (engineMutex) {
+                        Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
+                        onNewEngine(newEngine);
+                        currentEngineReference.set(newEngine);
+                        // Warm up the searcher so scheduled refreshes don't hit assertion errors
+                        newEngine.refresh("star-tree-upgrade");
+                        active.set(true);
+                    }
+                }
+            });
+
+            logger.info("{} per-segment star tree upgrade completed — {} segments upgraded", shardId, upgradedCount.get());
+        } finally {
+            starTreeUpgradeInProgress.set(false);
+        }
+        return upgradedCount.get();
     }
 
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
