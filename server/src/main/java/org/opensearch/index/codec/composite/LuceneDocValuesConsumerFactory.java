@@ -11,6 +11,7 @@ package org.opensearch.index.codec.composite;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesConsumerWrapper;
 import org.apache.lucene.index.SegmentWriteState;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
@@ -25,6 +26,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
+@PublicApi(since = "3.6.0")
 public class LuceneDocValuesConsumerFactory {
 
     public static DocValuesConsumer getDocValuesConsumerForCompositeCodec(

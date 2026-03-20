@@ -8,6 +8,7 @@
 
 package org.opensearch.index.compositeindex;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 /**
@@ -17,6 +18,7 @@ import org.opensearch.index.mapper.CompositeMappedFieldType;
  *
  * @opensearch.api
  */
+@PublicApi(since = "3.6.0")
 public class CompositeIndexMetadata {
 
     private final String compositeFieldName;
