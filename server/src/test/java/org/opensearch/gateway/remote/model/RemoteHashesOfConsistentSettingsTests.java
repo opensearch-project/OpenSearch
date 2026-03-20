@@ -65,7 +65,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
@@ -84,7 +85,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertNull(remoteObjectForUpload.getFullBlobName());
 
@@ -103,7 +105,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertNull(remoteObjectForUpload.getBlobFileName());
 
@@ -136,7 +139,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertEquals(params.getPathTokens(), List.of(GLOBAL_METADATA_PATH_TOKEN));
@@ -149,7 +153,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -165,7 +170,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
@@ -180,7 +186,8 @@ public class RemoteHashesOfConsistentSettingsTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             clusterUUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());

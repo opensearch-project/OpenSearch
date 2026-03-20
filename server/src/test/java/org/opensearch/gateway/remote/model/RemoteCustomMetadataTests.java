@@ -97,7 +97,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.clusterUUID(), is(clusterUUID));
 
@@ -120,7 +121,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
@@ -143,7 +145,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -179,7 +182,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertThat(params.getPathTokens(), is(List.of(RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN)));
@@ -195,7 +199,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -215,7 +220,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
 
@@ -245,7 +251,8 @@ public class RemoteCustomMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            customWritableRegistry()
+            customWritableRegistry(),
+            Version.CURRENT
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());

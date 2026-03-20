@@ -388,7 +388,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             hashesOfConsistentSettings,
             METADATA_VERSION,
             CLUSTER_UUID,
-            compressor
+            compressor,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -523,7 +524,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);

@@ -1153,7 +1153,8 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
             when(blobContainer.readBlob("custom-md2-file__1")).thenAnswer(i -> {
                 ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>(
                     "custom",
-                    is -> readFrom(is, namedWriteableRegistry, addedCustom.getWriteableName())
+                    is -> readFrom(is, namedWriteableRegistry, addedCustom.getWriteableName()),
+                    Version.CURRENT
                 );
                 BytesReference bytes = customMetadataFormat.serialize(addedCustom, "custom-md2-file__1", compressor);
                 return new ByteArrayInputStream(bytes.streamInput().readAllBytes());
@@ -4164,7 +4165,11 @@ public class RemoteClusterStateServiceTests extends OpenSearchTestCase {
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> getFileNameFromPath(entry.getValue().getUploadedFilename())));
 
-            ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>("custom", null);
+            ChecksumWritableBlobStoreFormat<Metadata.Custom> customMetadataFormat = new ChecksumWritableBlobStoreFormat<>(
+                "custom",
+                null,
+                Version.CURRENT
+            );
             for (Map.Entry<String, String> entry : customFileMap.entrySet()) {
                 String custom = entry.getKey();
                 String fileName = entry.getValue();

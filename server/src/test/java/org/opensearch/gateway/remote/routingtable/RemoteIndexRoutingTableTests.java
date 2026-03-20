@@ -103,7 +103,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
             assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
@@ -138,7 +139,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
             assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
@@ -173,7 +175,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
             assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -219,7 +222,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
             assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -251,7 +255,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
 
             String blobFileName = remoteObjectForUpload.generateBlobFileName();
@@ -284,7 +289,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
 
             assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
@@ -322,7 +328,8 @@ public class RemoteIndexRoutingTableTests extends OpenSearchTestCase {
                 clusterUUID,
                 compressor,
                 STATE_TERM,
-                STATE_VERSION
+                STATE_VERSION,
+                Version.CURRENT
             );
 
             assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);

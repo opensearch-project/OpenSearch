@@ -97,7 +97,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
         assertEquals(remoteDiffForUpload.clusterUUID(), clusterUUID);
 
@@ -120,7 +121,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
         assertThat(remoteDiffForUpload.getFullBlobName(), nullValue());
 
@@ -143,7 +145,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
         assertThat(remoteDiffForUpload.getBlobFileName(), nullValue());
 
@@ -166,7 +169,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
         assertThat(remoteDiffForUpload.getBlobFileName(), nullValue());
 
@@ -191,7 +195,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
 
         String blobFileName = remoteDiffForUpload.generateBlobFileName();
@@ -217,7 +222,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
 
         remoteDiffForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
@@ -243,7 +249,8 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
             clusterUUID,
             compressor,
             STATE_TERM,
-            STATE_VERSION
+            STATE_VERSION,
+            Version.CURRENT
         );
 
         // Serialize the remote diff

@@ -670,6 +670,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             clusterState.term(),
             clusterState.version(),
             clusterState.getRoutingTable().indicesRouting().get(indexName),
+            Version.CURRENT,
             new LatchedActionListener<>(listener, latch)
         );
         latch.await();
@@ -720,6 +721,7 @@ public class RemoteRoutingTableServiceTests extends OpenSearchTestCase {
             currentState.term(),
             currentState.version(),
             new RoutingTableIncrementalDiff(previousState.getRoutingTable(), currentState.getRoutingTable()),
+            Version.CURRENT,
             new LatchedActionListener<>(listener, latch)
         );
         latch.await();

@@ -108,7 +108,13 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
 
     public void testGetAsyncWriteRunnable_DiscoveryNodes() throws IOException, InterruptedException {
         DiscoveryNodes discoveryNodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(discoveryNodes, VERSION, CLUSTER_UUID, compressor);
+        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(
+            discoveryNodes,
+            VERSION,
+            CLUSTER_UUID,
+            compressor,
+            Version.CURRENT
+        );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
             return null;
@@ -163,7 +169,13 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
 
     public void testGetAsyncWriteRunnable_ClusterBlocks() throws IOException, InterruptedException {
         ClusterBlocks clusterBlocks = randomClusterBlocks();
-        RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(clusterBlocks, VERSION, CLUSTER_UUID, compressor);
+        RemoteClusterBlocks remoteClusterBlocks = new RemoteClusterBlocks(
+            clusterBlocks,
+            VERSION,
+            CLUSTER_UUID,
+            compressor,
+            Version.CURRENT
+        );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
             return null;
@@ -222,7 +234,8 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
             VERSION,
             CLUSTER_UUID,
             compressor,
-            namedWriteableRegistry
+            namedWriteableRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -285,7 +298,13 @@ public class RemoteClusterStateAttributesManagerTests extends OpenSearchTestCase
 
     public void testGetAsyncWriteRunnable_Exception() throws IOException, InterruptedException {
         DiscoveryNodes discoveryNodes = getDiscoveryNodes();
-        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(discoveryNodes, VERSION, CLUSTER_UUID, compressor);
+        RemoteDiscoveryNodes remoteDiscoveryNodes = new RemoteDiscoveryNodes(
+            discoveryNodes,
+            VERSION,
+            CLUSTER_UUID,
+            compressor,
+            Version.CURRENT
+        );
 
         IOException ioException = new IOException("mock test exception");
         doAnswer(invocationOnMock -> {
