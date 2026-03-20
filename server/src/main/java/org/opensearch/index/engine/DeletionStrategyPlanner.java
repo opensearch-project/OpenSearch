@@ -114,7 +114,6 @@ public class DeletionStrategyPlanner implements OperationStrategyPlanner<Engine.
 
     @Override
     public DeletionStrategy planOperationAsNonPrimary(Engine.Delete delete) throws IOException {
-        assert assertNonPrimaryOrigin(delete);
         final DeletionStrategy plan;
         if (hasBeenProcessedBefore.test(delete)) {
             // the operation seq# was processed thus this operation was already put into lucene

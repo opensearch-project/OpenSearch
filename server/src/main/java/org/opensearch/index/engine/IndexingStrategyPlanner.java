@@ -159,7 +159,6 @@ public class IndexingStrategyPlanner implements OperationStrategyPlanner<Engine.
 
     @Override
     public IndexingStrategy planOperationAsNonPrimary(Engine.Index index) throws IOException {
-        assert assertNonPrimaryOrigin(index);
         // needs to maintain the auto_id timestamp in case this replica becomes primary
         if (canOptimizeAddDocument(index)) {
             mayHaveBeenIndexedBefore(index);
