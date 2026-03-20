@@ -26,6 +26,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.datafusion.action.ClearCacheAction;
 import org.opensearch.datafusion.action.DataFusionAction;
 import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
@@ -170,7 +171,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionAction());
+        return List.of(new DataFusionAction(), new ClearCacheAction());
     }
 
     @Override

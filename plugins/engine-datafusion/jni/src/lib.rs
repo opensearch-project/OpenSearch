@@ -938,3 +938,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     // Log Liquid Cache stats after stream is fully consumed
     liquid_cache::LiquidOnlyRuntime::log_stats_if_initialized();
 }
+
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_clearLiquidCache(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    liquid_cache::LiquidOnlyRuntime::reset_cache_if_initialized();
+}

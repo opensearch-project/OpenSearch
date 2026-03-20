@@ -17,7 +17,7 @@ use datafusion::{
 use liquid_cache_datafusion_local::LiquidCacheLocalBuilder;
 use liquid_cache_datafusion_local::storage::cache::LiquidCache;
 use liquid_cache_datafusion_local::storage::cache_policies::LiquidPolicy;
-use vectorized_exec_spi::log_info;
+use vectorized_exec_spi::{log_info, log_error};
 
 pub const LIQUID_CACHE_DIR: &str = "/tmp/opensearch/liquid_cache";
 
@@ -132,6 +132,31 @@ impl LiquidOnlyRuntime {
     pub fn log_stats_if_initialized() {
         if let Some(Ok(runtime)) = LIQUID_ONLY.get() {
             runtime.log_stats();
+        }
+    }
+
+    /// Reset the cache, clearing all in-memory entries and disk files.
+    pub fn reset_cache(&self) {
+        self.cache_storage.reset();
+
+        let cache_dir = PathBuf::from(LIQUID_CACHE_DIR);
+        if cache_dir.exists() {
+            if let Err(e) = fs::remove_dir_all(&cache_dir) {
+                log_error!("[LiquidCache] Failed to clean cache dir: {}", e);
+            }
+        }
+        if let Err(e) = fs::create_dir_all(&cache_dir) {
+            log_error!("[LiquidCache] Failed to recreate cache dir: {}", e);
+        }
+
+        log_info!("[LiquidCache] Cache cleared");
+        self.log_stats();
+    }
+
+    /// Reset cache if Liquid Cache has been initialized.
+    pub fn reset_cache_if_initialized() {
+        if let Some(Ok(runtime)) = LIQUID_ONLY.get() {
+            runtime.reset_cache();
         }
     }
 }

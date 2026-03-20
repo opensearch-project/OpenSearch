@@ -49,6 +49,9 @@ public final class NativeBridge {
     public static native void streamGetSchema(long stream, ActionListener<Long> listener);
     public static native void streamClose(long stream);
 
+    // Liquid Cache
+    public static native void clearLiquidCache();
+
     // Cache management
     public static native long createCustomCacheManager();
     public static native long createCache(long cacheManagerPointer, String cacheType, long sizeLimit, String evictionType);
