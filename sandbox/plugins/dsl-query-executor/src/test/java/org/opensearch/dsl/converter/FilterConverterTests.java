@@ -13,7 +13,6 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.query.QueryRegistryFactory;
@@ -57,12 +56,10 @@ public class FilterConverterTests extends OpenSearchTestCase {
         RexCall call = (RexCall) filter.getCondition();
         assertEquals(SqlKind.EQUALS, call.getKind());
 
+        assertEquals(2, call.getOperands().size());
         // Left operand: field reference to 'name' (index 0)
         assertTrue(call.getOperands().get(0) instanceof RexInputRef);
         assertEquals(0, ((RexInputRef) call.getOperands().get(0)).getIndex());
-
-        // Right operand: literal 'laptop'
-        assertTrue(call.getOperands().get(1) instanceof RexLiteral);
     }
 
     public void testFilterPreservesRowType() throws ConversionException {

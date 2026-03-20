@@ -22,6 +22,9 @@ import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
+import org.opensearch.dsl.aggregation.AggregationMetadata;
+import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
+import org.opensearch.dsl.aggregation.AggregationTreeWalker;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.search.SearchService;
@@ -44,6 +47,8 @@ public class SearchSourceConverter {
     private final FilterConverter filterConverter;
     private final ProjectConverter projectConverter;
     private final SortConverter sortConverter;
+    private final AggregateConverter aggregateConverter;
+    private final AggregationTreeWalker treeWalker;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -66,6 +71,10 @@ public class SearchSourceConverter {
         this.filterConverter = new FilterConverter(QueryRegistryFactory.create());
         this.projectConverter = new ProjectConverter();
         this.sortConverter = new SortConverter();
+        this.aggregateConverter = new AggregateConverter();
+
+        var aggRegistry = AggregationRegistryFactory.create();
+        this.treeWalker = new AggregationTreeWalker(aggRegistry);
     }
 
     /**
@@ -100,11 +109,17 @@ public class SearchSourceConverter {
             builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, hits));
         }
 
-        // Aggregation path: Scan → Filter → Aggregate
+        // Aggregation path: Scan → Filter → Aggregate (one per granularity level)
         if (hasAggs) {
-            RelNode aggs = base;
-            // TODO: aggs = applyAggregate(aggs, ctx);
-            builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs));
+            List<AggregationMetadata> metadataList = treeWalker.walk(
+                searchSource.aggregations().getAggregatorFactories(),
+                table.getRowType(),
+                cluster.getTypeFactory()
+            );
+            for (AggregationMetadata metadata : metadataList) {
+                RelNode aggs = aggregateConverter.convert(base, metadata);
+                builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs));
+            }
         }
 
         return builder.build();

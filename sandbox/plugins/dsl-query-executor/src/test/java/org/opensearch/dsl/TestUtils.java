@@ -69,11 +69,12 @@ public class TestUtils {
         schema.add("test", new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
+                // Nullable fields — matches OpenSearchSchemaBuilder behavior
                 return tf.builder()
-                    .add("name", SqlTypeName.VARCHAR)
-                    .add("price", SqlTypeName.INTEGER)
-                    .add("brand", SqlTypeName.VARCHAR)
-                    .add("rating", SqlTypeName.DOUBLE)
+                    .add("name", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("price", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.INTEGER), true))
+                    .add("brand", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("rating", tf.createTypeWithNullability(tf.createSqlType(SqlTypeName.DOUBLE), true))
                     .build();
             }
         });

@@ -34,11 +34,12 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
         schema.add("test-index", new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+                // Nullable fields — matches OpenSearchSchemaBuilder behavior
                 return typeFactory.builder()
-                    .add("name", SqlTypeName.VARCHAR)
-                    .add("price", SqlTypeName.INTEGER)
-                    .add("brand", SqlTypeName.VARCHAR)
-                    .add("rating", SqlTypeName.DOUBLE)
+                    .add("name", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("price", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), true))
+                    .add("brand", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true))
+                    .add("rating", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.DOUBLE), true))
                     .build();
             }
         });
