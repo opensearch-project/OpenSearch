@@ -193,7 +193,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            xContentRegistry
+            xContentRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -259,7 +260,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            xContentRegistry
+            xContentRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -321,7 +323,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            xContentRegistry
+            xContentRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -456,7 +459,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            xContentRegistry
+            xContentRegistry,
+            Version.CURRENT
         );
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(4, ActionListener.class).onResponse(null);
@@ -607,7 +611,8 @@ public class RemoteGlobalMetadataManagerTests extends OpenSearchTestCase {
             METADATA_VERSION,
             CLUSTER_UUID,
             compressor,
-            xContentRegistry
+            xContentRegistry,
+            Version.CURRENT
         );
         IOException ioException = new IOException("mock test exception");
         doAnswer(invocationOnMock -> {

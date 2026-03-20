@@ -102,7 +102,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.clusterUUID(), is(clusterUUID));
 
@@ -121,7 +122,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
@@ -140,7 +142,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -170,7 +173,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertThat(params.getPathTokens(), is(List.of(MANIFEST)));
@@ -183,7 +187,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -201,7 +206,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
 
@@ -219,7 +225,8 @@ public class RemoteClusterMetadataManifestTests extends OpenSearchTestCase {
             manifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());

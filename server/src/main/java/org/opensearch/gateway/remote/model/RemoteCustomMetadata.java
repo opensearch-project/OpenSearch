@@ -53,8 +53,7 @@ public class RemoteCustomMetadata extends AbstractClusterMetadataWriteableBlobEn
         NamedWriteableRegistry namedWriteableRegistry,
         final Version minNodeVersion
     ) {
-        super(clusterUUID, compressor, null);
-        setMinNodeVersion(minNodeVersion);
+        super(clusterUUID, compressor, minNodeVersion);
         this.custom = custom;
         this.customType = customType;
         this.metadataVersion = metadataVersion;
@@ -74,7 +73,7 @@ public class RemoteCustomMetadata extends AbstractClusterMetadataWriteableBlobEn
         final NamedWriteableRegistry namedWriteableRegistry,
         final Version version
     ) {
-        super(clusterUUID, compressor, null);
+        super(clusterUUID, compressor, version);
         this.blobName = blobName;
         this.customType = customType;
         this.namedWriteableRegistry = namedWriteableRegistry;

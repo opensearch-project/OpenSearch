@@ -43,8 +43,7 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
         final Compressor compressor,
         final Version minNodeVersion
     ) {
-        super(clusterUUID, compressor, null);
-        setMinNodeVersion(minNodeVersion);
+        super(clusterUUID, compressor, minNodeVersion);
         this.metadataVersion = metadataVersion;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
@@ -60,7 +59,7 @@ public class RemoteHashesOfConsistentSettings extends AbstractClusterMetadataWri
         final Compressor compressor,
         final Version version
     ) {
-        super(clusterUUID, compressor, null);
+        super(clusterUUID, compressor, version);
         this.blobName = blobName;
         this.hashesOfConsistentSettingsFormat = new ChecksumWritableBlobStoreFormat<>(
             "hashes-of-consistent-settings",

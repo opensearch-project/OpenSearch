@@ -25,15 +25,6 @@ public abstract class AbstractClusterMetadataWriteableBlobEntity<T> extends Remo
     public AbstractClusterMetadataWriteableBlobEntity(
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
-    ) {
-        super(clusterUUID, compressor);
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    public AbstractClusterMetadataWriteableBlobEntity(
-        final String clusterUUID,
-        final Compressor compressor,
         final NamedXContentRegistry namedXContentRegistry,
         final Version minNodeVersion
     ) {
@@ -41,8 +32,8 @@ public abstract class AbstractClusterMetadataWriteableBlobEntity<T> extends Remo
         this.namedXContentRegistry = namedXContentRegistry;
     }
 
-    public AbstractClusterMetadataWriteableBlobEntity(final String clusterUUID, final Compressor compressor) {
-        super(clusterUUID, compressor);
+    public AbstractClusterMetadataWriteableBlobEntity(final String clusterUUID, final Compressor compressor, final Version minNodeVersion) {
+        super(clusterUUID, compressor, minNodeVersion);
         this.namedXContentRegistry = null;
     }
 

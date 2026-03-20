@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.network.NetworkModule;
@@ -62,7 +63,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertEquals(remoteObjectForUpload.clusterUUID(), clusterUUID);
 
@@ -82,7 +84,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertNull(remoteObjectForUpload.getFullBlobName());
 
@@ -102,7 +105,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertNull(remoteObjectForUpload.getBlobFileName());
 
@@ -133,7 +137,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertEquals(params.getPathTokens(), List.of(RemoteClusterStateUtils.GLOBAL_METADATA_PATH_TOKEN));
@@ -147,7 +152,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -165,7 +171,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
 
@@ -184,7 +191,8 @@ public class RemoteTransientSettingsMetadataTests extends OpenSearchTestCase {
             METADATA_VERSION,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             remoteObjectForUpload.setFullBlobName(BlobPath.cleanPath());

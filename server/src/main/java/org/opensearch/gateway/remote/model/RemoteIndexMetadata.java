@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.Streams;
@@ -55,9 +56,10 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         final NamedXContentRegistry namedXContentRegistry,
         final RemoteStoreEnums.PathType pathType,
         final RemoteStoreEnums.PathHashAlgorithm pathHashAlgo,
-        final String fixedPrefix
+        final String fixedPrefix,
+        final Version minNodeVersion
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry, minNodeVersion);
         this.indexMetadata = indexMetadata;
         this.pathType = pathType;
         this.pathHashAlgo = pathHashAlgo;
@@ -70,7 +72,7 @@ public class RemoteIndexMetadata extends AbstractClusterMetadataWriteableBlobEnt
         final Compressor compressor,
         final NamedXContentRegistry namedXContentRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry, Version.CURRENT);
         this.blobName = blobName;
     }
 

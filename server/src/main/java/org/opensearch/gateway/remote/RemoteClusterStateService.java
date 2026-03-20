@@ -674,7 +674,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -688,7 +689,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -702,7 +704,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -716,7 +719,8 @@ public class RemoteClusterStateService implements Closeable {
                     clusterState.metadata().version(),
                     clusterState.metadata().clusterUUID(),
                     blobStoreRepository.getCompressor(),
-                    blobStoreRepository.getNamedXContentRegistry()
+                    blobStoreRepository.getNamedXContentRegistry(),
+                    minNodeVersion
                 ),
                 listener
             );
@@ -791,7 +795,8 @@ public class RemoteClusterStateService implements Closeable {
                     blobStoreRepository.getNamedXContentRegistry(),
                     remoteIndexMetadataManager.getPathTypeSetting(),
                     remoteIndexMetadataManager.getPathHashAlgoSetting(),
-                    remotePathPrefix
+                    remotePathPrefix,
+                    minNodeVersion
                 ),
                 listener
             );

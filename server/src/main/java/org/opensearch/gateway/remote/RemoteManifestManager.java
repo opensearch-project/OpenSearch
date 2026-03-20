@@ -151,7 +151,8 @@ public class RemoteManifestManager {
             uploadManifest,
             clusterUUID,
             compressor,
-            namedXContentRegistry
+            namedXContentRegistry,
+            Version.CURRENT
         );
         manifestBlobStore.writeAsync(remoteClusterMetadataManifest, completionListener);
 

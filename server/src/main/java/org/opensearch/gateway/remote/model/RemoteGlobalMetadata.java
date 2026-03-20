@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -40,7 +41,7 @@ public class RemoteGlobalMetadata extends AbstractClusterMetadataWriteableBlobEn
         final Compressor compressor,
         final NamedXContentRegistry namedXContentRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry, Version.CURRENT);
         this.blobName = blobName;
     }
 

@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.model;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.TemplatesMetadata;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -48,9 +49,10 @@ public class RemoteTemplatesMetadata extends AbstractClusterMetadataWriteableBlo
         final long metadataVersion,
         final String clusterUUID,
         final Compressor compressor,
-        final NamedXContentRegistry namedXContentRegistry
+        final NamedXContentRegistry namedXContentRegistry,
+        final Version minNodeVersion
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry, minNodeVersion);
         this.templatesMetadata = templatesMetadata;
         this.metadataVersion = metadataVersion;
     }
@@ -61,7 +63,7 @@ public class RemoteTemplatesMetadata extends AbstractClusterMetadataWriteableBlo
         final Compressor compressor,
         final NamedXContentRegistry namedXContentRegistry
     ) {
-        super(clusterUUID, compressor, namedXContentRegistry);
+        super(clusterUUID, compressor, namedXContentRegistry, Version.CURRENT);
         this.blobName = blobName;
     }
 

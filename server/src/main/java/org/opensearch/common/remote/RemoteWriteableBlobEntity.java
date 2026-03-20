@@ -26,13 +26,7 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
     private final String clusterUUID;
     private final Compressor compressor;
     private String[] pathTokens;
-    private Version minNodeVersion;
-
-    public RemoteWriteableBlobEntity(final String clusterUUID, final Compressor compressor) {
-        this.clusterUUID = clusterUUID;
-        this.compressor = compressor;
-        this.minNodeVersion = Version.CURRENT;
-    }
+    private final Version minNodeVersion;
 
     public RemoteWriteableBlobEntity(final String clusterUUID, final Compressor compressor, final Version minNodeVersion) {
         this.clusterUUID = clusterUUID;
@@ -97,10 +91,6 @@ public abstract class RemoteWriteableBlobEntity<T> implements RemoteWriteableEnt
 
     public Version getMinNodeVersion() {
         return minNodeVersion;
-    }
-
-    public void setMinNodeVersion(Version minNodeVersion) {
-        this.minNodeVersion = minNodeVersion;
     }
 
 }

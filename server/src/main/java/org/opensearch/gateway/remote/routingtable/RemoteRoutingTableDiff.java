@@ -67,8 +67,7 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
         long version,
         Version minNodeVersion
     ) {
-        super(clusterUUID, compressor);
-        setMinNodeVersion(minNodeVersion);
+        super(clusterUUID, compressor, minNodeVersion);
         this.routingTableIncrementalDiff = routingTableIncrementalDiff;
         this.term = term;
         this.version = version;
@@ -87,7 +86,7 @@ public class RemoteRoutingTableDiff extends AbstractClusterMetadataWriteableBlob
      * @param compressor the compressor to be used.
      */
     public RemoteRoutingTableDiff(String blobName, String clusterUUID, Compressor compressor, final Version version) {
-        super(clusterUUID, compressor);
+        super(clusterUUID, compressor, version);
         this.routingTableIncrementalDiff = null;
         this.blobName = blobName;
         this.remoteRoutingTableDiffFormat = new ChecksumWritableBlobStoreFormat<>(codec, RoutingTableIncrementalDiff::readFrom, version);

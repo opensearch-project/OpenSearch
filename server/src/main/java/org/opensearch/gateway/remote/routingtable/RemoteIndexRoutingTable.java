@@ -48,8 +48,7 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
         long version,
         Version minNodeVersion
     ) {
-        super(clusterUUID, compressor);
-        setMinNodeVersion(minNodeVersion);
+        super(clusterUUID, compressor, minNodeVersion);
         this.index = indexRoutingTable.getIndex();
         this.indexRoutingTable = indexRoutingTable;
         this.term = term;
@@ -68,7 +67,7 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
      * @param compressor Compressor object
      */
     public RemoteIndexRoutingTable(String blobName, String clusterUUID, Compressor compressor, Version opensearchVersion) {
-        super(clusterUUID, compressor);
+        super(clusterUUID, compressor, opensearchVersion);
         this.index = null;
         this.term = -1;
         this.version = -1;

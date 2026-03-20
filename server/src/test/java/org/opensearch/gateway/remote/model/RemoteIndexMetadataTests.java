@@ -102,7 +102,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.clusterUUID(), is(clusterUUID));
 
@@ -124,7 +125,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getFullBlobName(), nullValue());
 
@@ -146,7 +148,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         assertThat(remoteObjectForUpload.getBlobFileName(), nullValue());
 
@@ -168,7 +171,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         BlobPathParameters params = remoteObjectForUpload.getBlobPathParameters();
         assertThat(params.getPathTokens(), is(List.of(INDEX, indexMetadata.getIndexUUID())));
@@ -184,7 +188,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         String blobFileName = remoteObjectForUpload.generateBlobFileName();
         String[] nameTokens = blobFileName.split(RemoteClusterStateUtils.DELIMITER);
@@ -203,7 +208,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         assertThrows(AssertionError.class, remoteObjectForUpload::getUploadedMetadata);
         remoteObjectForUpload.setFullBlobName(new BlobPath().add(TEST_BLOB_PATH));
@@ -220,7 +226,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             null,
             null,
-            null
+            null,
+            Version.CURRENT
         );
         try (InputStream inputStream = remoteObjectForUpload.serialize()) {
             assertThat(inputStream.available(), greaterThan(0));
@@ -239,7 +246,8 @@ public class RemoteIndexMetadataTests extends OpenSearchTestCase {
             namedXContentRegistry,
             PathType.HASHED_PREFIX,
             PathHashAlgorithm.FNV_1A_COMPOSITE_1,
-            fixedPrefix
+            fixedPrefix,
+            Version.CURRENT
         );
         String testPath = "test-path";
         String expectedPath = fixedPrefix + "410100110100101/test-path/index-uuid/";
