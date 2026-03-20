@@ -24,7 +24,7 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormat implements DataFormat {
+public class CompositeDataFormat extends DataFormat {
 
     private final List<DataFormat> dataFormats;
 

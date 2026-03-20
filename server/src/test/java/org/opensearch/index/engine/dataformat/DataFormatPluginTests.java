@@ -222,7 +222,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1, input.existingSegments().size());
     }
 
-    static class MockDataFormat implements DataFormat {
+    static class MockDataFormat extends DataFormat {
         @Override
         public String name() {
             return "mock-columnar";

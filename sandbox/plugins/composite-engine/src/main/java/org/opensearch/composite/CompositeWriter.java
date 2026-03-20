@@ -21,8 +21,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
 import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -47,7 +46,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
     private final Map.Entry<DataFormat, Writer<DocumentInput<?>>> primaryWriter;
-    private final List<Map.Entry<DataFormat, Writer<DocumentInput<?>>>> secondaryWriters;
+    private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
     private final ReentrantLock lock;
     private final long writerGeneration;
     private final RowIdGenerator rowIdGenerator;
@@ -77,16 +76,14 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
             (Writer<DocumentInput<?>>) primaryDelegate.createWriter(writerGeneration)
         );
 
-        List<Map.Entry<DataFormat, Writer<DocumentInput<?>>>> secondaries = new ArrayList<>();
+        Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new LinkedHashMap<>();
         for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
-            secondaries.add(
-                new AbstractMap.SimpleImmutableEntry<>(
-                    delegate.getDataFormat(),
-                    (Writer<DocumentInput<?>>) delegate.createWriter(writerGeneration)
-                )
+            secondaries.put(
+                delegate.getDataFormat(),
+                (Writer<DocumentInput<?>>) delegate.createWriter(writerGeneration)
             );
         }
-        this.secondaryWriters = List.copyOf(secondaries);
+        this.secondaryWritersByFormat = Map.copyOf(secondaries);
         this.rowIdGenerator = new RowIdGenerator(CompositeWriter.class.getName());
     }
 
@@ -102,16 +99,20 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
             }
         }
 
-        // Then write to each secondary
-        List<DocumentInput<?>> secondaryInputs = new ArrayList<>(doc.getSecondaryInputs().values());
-        for (int i = 0; i < secondaryWriters.size(); i++) {
-            Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry = secondaryWriters.get(i);
-            DocumentInput<?> input = secondaryInputs.get(i);
-            WriteResult result = entry.getValue().addDoc(input);
+        // Then write to each secondary — keyed lookup by DataFormat (equals/hashCode based on name)
+        Map<DataFormat, DocumentInput<?>> secondaryInputs = doc.getSecondaryInputs();
+        for (Map.Entry<DataFormat, DocumentInput<?>> inputEntry : secondaryInputs.entrySet()) {
+            DataFormat format = inputEntry.getKey();
+            Writer<DocumentInput<?>> writer = secondaryWritersByFormat.get(format);
+            if (writer == null) {
+                logger.warn("No writer found for secondary format [{}], skipping", format.name());
+                continue;
+            }
+            WriteResult result = writer.addDoc(inputEntry.getValue());
             switch (result) {
-                case WriteResult.Success s -> logger.trace("Successfully added document in secondary format [{}]", entry.getKey().name());
+                case WriteResult.Success s -> logger.trace("Successfully added document in secondary format [{}]", format.name());
                 case WriteResult.Failure f -> {
-                    logger.debug("Failed to add document in secondary format [{}]", entry.getKey().name());
+                    logger.debug("Failed to add document in secondary format [{}]", format.name());
                     return result;
                 }
             }
@@ -127,9 +128,12 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
         Optional<WriterFileSet> primaryWfs = primaryWriter.getValue().flush().getWriterFileSet(primaryWriter.getKey());
         primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryWriter.getKey(), writerFileSet));
         // Flush secondaries
-        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWriters) {
-            Optional<WriterFileSet> wfs = entry.getValue().flush().getWriterFileSet(entry.getKey());
-            wfs.ifPresent(writerFileSet -> builder.putWriterFileSet(entry.getKey(), writerFileSet));
+        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
+            FileInfos fileInfos = writer.flush();
+            // Iterate all format entries in the returned FileInfos
+            for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
+                builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
+            }
         }
         return builder.build();
     }
@@ -137,16 +141,16 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lock {
     @Override
     public void sync() throws IOException {
         primaryWriter.getValue().sync();
-        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWriters) {
-            entry.getValue().sync();
+        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
+            writer.sync();
         }
     }
 
     @Override
     public void close() throws IOException {
         primaryWriter.getValue().close();
-        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWriters) {
-            entry.getValue().close();
+        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
+            writer.close();
         }
     }
 
