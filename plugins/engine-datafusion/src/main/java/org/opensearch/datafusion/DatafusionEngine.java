@@ -242,7 +242,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
      * populates DF results and topDocs on the context.
      */
     private void consumeStreamAndSetResults(DatafusionContext context, long streamPointer) {
-        Map<String, Object[]> finalRes = new HashMap<>();
+        Map<String, List<Object>> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
         RecordBatchStream stream = null;
 
@@ -311,7 +311,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 if(streamPointer == null) {
                     throw new RuntimeException(error);
                 }
-                collect(context, executor, listener, streamPointer, finalRes, rowIdResult);
+                collect(context, executor, listener, streamPointer, finalResColumns, rowIdResult);
             });
 
 //            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
@@ -330,7 +330,7 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
         //return finalRes;
     }
 
-    private void collect(DatafusionContext context, Executor executor, ActionListener<Map<String, Object[]>> listener, Long streamPointer, Map<String, Object[]> finalRes, List<Long> rowIdResult) {
+    private void collect(DatafusionContext context, Executor executor, ActionListener<QueryResult> listener, Long streamPointer, Map<String, List<Object>> finalRes, List<Long> rowIdResult) {
         RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
         RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
         SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
@@ -340,20 +340,24 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
                 for (Field field : root.getSchema().getFields()) {
                     String fieldName = field.getName();
                     FieldVector fieldVector = root.getVector(fieldName);
-                    Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                    List<Object> fieldValues = new ArrayList<>(fieldVector.getValueCount());
                     if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
                         FieldVector rowIdVector = root.getVector(fieldName);
                         for(int i=0; i<fieldVector.getValueCount(); i++) {
                             rowIdResult.add((long) rowIdVector.getObject(i));
-                            fieldValues[i] = fieldVector.getObject(i);
+                            fieldValues.add(fieldVector.getObject(i));
                         }
                     }
                     else {
                         for (int i = 0; i < fieldVector.getValueCount(); i++) {
-                            fieldValues[i] = fieldVector.getObject(i);
+                            fieldValues.add(fieldVector.getObject(i));
                         }
                     }
-                    finalRes.put(fieldName, fieldValues);
+                    if (finalRes.containsKey(fieldName)) {
+                        finalRes.get(fieldName).addAll(fieldValues);
+                    } else {
+                        finalRes.put(fieldName, fieldValues);
+                    }
                 }
             }
         };
@@ -595,8 +599,13 @@ public class DatafusionEngine extends SearchExecEngine<DatafusionContext, Datafu
      */
     public void executeQueryPhaseWithStreamPointer(DatafusionContext context, long streamPointer, Executor executor, ActionListener<Map<String, Object[]>> listener) {
         logger.info("[INDEXED-DEBUG] executeQueryPhaseWithStreamPointer: thread={}, streamPtr={}", Thread.currentThread().getName(), streamPointer);
-        Map<String, Object[]> finalRes = new HashMap<>();
+        Map<String, List<Object>> finalRes = new HashMap<>();
         List<Long> rowIdResult = new ArrayList<>();
-        collect(context, executor, listener, streamPointer, finalRes, rowIdResult);
+        collect(context, executor, ActionListener.map(listener, qr -> {
+            // Convert QueryResult columns to Object[] map for the caller
+            Map<String, Object[]> result = new HashMap<>();
+            qr.getColumns().forEach((k, v) -> result.put(k, v.toArray()));
+            return result;
+        }), streamPointer, finalRes, rowIdResult);
     }
 }

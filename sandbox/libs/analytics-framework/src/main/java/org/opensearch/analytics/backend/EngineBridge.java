@@ -54,4 +54,17 @@ public interface EngineBridge<Fragment, Stream extends EngineResultStream, Logic
      * @return an opaque handle to the native result stream
      */
     Stream execute(Fragment fragment);
+
+    /**
+     * Wraps an externally-obtained native stream pointer into a consumable
+     * result stream. Used by the indexed query path where the stream is
+     * produced by the Lucene+Parquet indexed table provider rather than
+     * the normal substrait execution path.
+     *
+     * @param streamPointer native memory pointer to the result stream
+     * @return a consumable result stream
+     */
+    default Stream consumeStream(long streamPointer) {
+        throw new UnsupportedOperationException("consumeStream not supported by this bridge");
+    }
 }

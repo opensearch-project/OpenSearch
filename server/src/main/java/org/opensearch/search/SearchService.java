@@ -166,6 +166,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1170,7 +1171,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 public void onResponse(Map<String, Object[]> result) {
                                     logger.info("[INDEXED-DEBUG] executeQueryPhaseWithStreamPointer.onResponse: thread={}", Thread.currentThread().getName());
                                     try {
-                                        finalContext.setDFResults(result);
+                                        // Convert Map<String, Object[]> to QueryResult
+                                        Map<String, List<Object>> columns = new HashMap<>();
+                                        result.forEach((k, v) -> columns.put(k, Arrays.asList(v)));
+                                        finalContext.setDFResults((QueryResult) () -> columns);
                                         listener.onResponse(executeQueryPhase(
                                             finalContext, readerContext, request, isStreamSearch, listener));
                                     } catch (Exception e) {
