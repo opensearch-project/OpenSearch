@@ -11,10 +11,15 @@ package org.opensearch.parquet.vsr;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.bridge.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
+import org.opensearch.parquet.fields.ArrowFieldRegistry;
+import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.writer.FieldValuePair;
+import org.opensearch.parquet.writer.ParquetDocumentInput;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,6 +56,25 @@ public class VSRManager implements AutoCloseable {
 
     public ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
+    }
+
+    /**
+     * Adds a document to the active VSR, rotating if necessary.
+     * Transfers collected fields from the document input into the active VSR
+     * using the ArrowFieldRegistry to resolve typed vector writes.
+     */
+    public void addDocument(ParquetDocumentInput doc) throws IOException {
+        maybeRotateActiveVSR();
+        ManagedVSR activeVSR = managedVSR.get();
+        for (FieldValuePair pair : doc.getFinalInput()) {
+            MappedFieldType fieldType = pair.getFieldType();
+            ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
+            if (parquetField == null) {
+                continue;
+            }
+            parquetField.createField(fieldType, activeVSR, pair.getValue());
+        }
+        activeVSR.setRowCount(activeVSR.getRowCount() + 1);
     }
 
     /**
@@ -102,6 +126,13 @@ public class VSRManager implements AutoCloseable {
         managedVSR.set(null);
         logger.debug("Flush completed for {} with metadata: {}", fileName, metadata);
         return metadata;
+    }
+
+    /**
+     * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
+     */
+    public void sync() throws IOException {
+        writer.flush();
     }
 
     @Override

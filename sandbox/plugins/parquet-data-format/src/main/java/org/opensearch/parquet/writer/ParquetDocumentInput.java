@@ -10,20 +10,14 @@ package org.opensearch.parquet.writer;
 
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.parquet.fields.ArrowFieldRegistry;
-import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.parquet.vsr.ManagedVSR;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Document input for the Parquet data format.
  *
- * <p>Collects fields incrementally as {@link FieldValuePair} objects,
- * decoupled from ManagedVSR. Fields are transferred to a VSR only
- * when {@link #transferFieldsToVSR(ManagedVSR)} is called.
+ * <p>Collects fields incrementally as {@link FieldValuePair} objects.
  */
 public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
 
@@ -45,25 +39,12 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         return collectedFields;
     }
 
-    /**
-     * Transfers collected fields into the given ManagedVSR using the ArrowFieldRegistry
-     * to resolve typed vector writes.
-     */
-    public void transferFieldsToVSR(ManagedVSR managedVSR) throws IOException {
-        for (FieldValuePair pair : collectedFields) {
-            MappedFieldType fieldType = pair.getFieldType();
-            if (fieldType == null) {
-                continue;
-            }
-            ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
-            if (parquetField == null) {
-                continue;
-            }
-            parquetField.createField(fieldType, managedVSR, pair.getValue());
-        }
-        managedVSR.setRowCount(managedVSR.getRowCount() + 1);
-    }
-
     @Override
-    public void close() {}
+    public void close() {
+        collectedFields.clear();
+        rowId = -1;
+    }
+    public long getRowId() {
+        return rowId;
+    }
 }

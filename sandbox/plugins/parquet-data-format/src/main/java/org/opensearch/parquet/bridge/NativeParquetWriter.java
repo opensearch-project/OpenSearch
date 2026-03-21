@@ -15,6 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Type-safe handle for native Parquet writer with lifecycle management.
  * Delegates to {@link RustBridge} for actual native calls and handles error checking.
+ *
+ * <p>Expected lifecycle: {@code createWriter → write (1+) → close (finalizes Parquet) → flush (syncs to disk)}
  */
 public class NativeParquetWriter implements Closeable {
 
@@ -31,16 +33,12 @@ public class NativeParquetWriter implements Closeable {
     }
 
     public void write(long arrayAddress, long schemaAddress) throws IOException {
+        if (writerClosed.get()) {
+            throw new IOException("Cannot write to closed Parquet writer: " + filePath);
+        }
         int result = RustBridge.write(filePath, arrayAddress, schemaAddress);
         if (result != 0) {
             throw new IOException("Failed to write data to Parquet file: " + filePath);
-        }
-    }
-
-    public void flush() throws IOException {
-        int result = RustBridge.flushToDisk(filePath);
-        if (result != 0) {
-            throw new IOException("Failed to flush Parquet file to disk: " + filePath);
         }
     }
 
@@ -51,11 +49,22 @@ public class NativeParquetWriter implements Closeable {
         }
     }
 
+    /**
+     * Syncs the Parquet file to disk. Must be called after {@link #close()}.
+     * If close has not been called yet, it will be called first.
+     */
+    public void flush() throws IOException {
+        if (!writerClosed.get()) {
+            close();
+        }
+        int result = RustBridge.flushToDisk(filePath);
+        if (result != 0) {
+            throw new IOException("Failed to flush Parquet file to disk: " + filePath);
+        }
+    }
+
     public ParquetFileMetadata getMetadata() {
         return metadata;
     }
 
-    public String getFilePath() {
-        return filePath;
-    }
 }

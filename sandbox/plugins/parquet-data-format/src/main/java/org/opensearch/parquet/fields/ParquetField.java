@@ -34,6 +34,8 @@ public abstract class ParquetField {
         Objects.requireNonNull(managedVSR, "ManagedVSR cannot be null");
         if (managedVSR.getVector(fieldType.name()) != null) {
             addToGroup(fieldType, managedVSR, parseValue);
+        } else {
+            throw new IllegalArgumentException("Vector not found for field: " + fieldType.name());
         }
     }
 

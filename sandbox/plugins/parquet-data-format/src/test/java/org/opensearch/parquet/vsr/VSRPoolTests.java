@@ -1,0 +1,128 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.parquet.vsr;
+
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.io.IOException;
+import java.util.List;
+
+public class VSRPoolTests extends OpenSearchTestCase {
+
+    private ArrowBufferPool bufferPool;
+    private Schema schema;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        bufferPool = new ArrowBufferPool();
+        schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        bufferPool.close();
+        super.tearDown();
+    }
+
+    public void testInitialStateHasActiveVSR() {
+        VSRPool pool = new VSRPool("pool-1", schema, bufferPool);
+        assertNotNull(pool.getActiveVSR());
+        assertEquals(VSRState.ACTIVE, pool.getActiveVSR().getState());
+        assertNull(pool.getFrozenVSR());
+        freezeActiveAndClose(pool);
+    }
+
+    public void testNoRotationBelowThreshold() throws IOException {
+        VSRPool pool = new VSRPool("pool-2", schema, bufferPool);
+        assertFalse(pool.maybeRotateActiveVSR());
+        freezeActiveAndClose(pool);
+    }
+
+    public void testRotationAtThreshold() throws IOException {
+        VSRPool pool = new VSRPool("pool-3", schema, bufferPool);
+        ManagedVSR original = pool.getActiveVSR();
+        original.setRowCount(50000);
+        assertTrue(pool.maybeRotateActiveVSR());
+
+        assertNotNull(pool.getFrozenVSR());
+        assertEquals(VSRState.FROZEN, pool.getFrozenVSR().getState());
+        assertNotNull(pool.getActiveVSR());
+        assertNotSame(original, pool.getActiveVSR());
+        assertEquals(VSRState.ACTIVE, pool.getActiveVSR().getState());
+
+        // cleanup frozen, then freeze active, then close
+        pool.completeVSR(pool.getFrozenVSR());
+        pool.unsetFrozenVSR();
+        freezeActiveAndClose(pool);
+    }
+
+    public void testRotationFailsWhenFrozenSlotOccupied() throws IOException {
+        VSRPool pool = new VSRPool("pool-4", schema, bufferPool);
+        pool.getActiveVSR().setRowCount(50000);
+        pool.maybeRotateActiveVSR();
+
+        pool.getActiveVSR().setRowCount(50000);
+        expectThrows(IOException.class, pool::maybeRotateActiveVSR);
+
+        pool.completeVSR(pool.getFrozenVSR());
+        pool.unsetFrozenVSR();
+        freezeActiveAndClose(pool);
+    }
+
+    public void testCompleteAndUnsetFrozenVSR() throws IOException {
+        VSRPool pool = new VSRPool("pool-5", schema, bufferPool);
+        pool.getActiveVSR().setRowCount(50000);
+        pool.maybeRotateActiveVSR();
+
+        ManagedVSR frozen = pool.getFrozenVSR();
+        assertNotNull(frozen);
+        pool.completeVSR(frozen);
+        assertEquals(VSRState.CLOSED, frozen.getState());
+        pool.unsetFrozenVSR();
+        assertNull(pool.getFrozenVSR());
+        freezeActiveAndClose(pool);
+    }
+
+    public void testUnsetFrozenVSRThrowsWhenNoneSet() {
+        VSRPool pool = new VSRPool("pool-6", schema, bufferPool);
+        expectThrows(IOException.class, pool::unsetFrozenVSR);
+        freezeActiveAndClose(pool);
+    }
+
+    public void testUnsetFrozenVSRThrowsWhenNotClosed() throws IOException {
+        VSRPool pool = new VSRPool("pool-7", schema, bufferPool);
+        pool.getActiveVSR().setRowCount(50000);
+        pool.maybeRotateActiveVSR();
+
+        // frozen VSR is in FROZEN state, not CLOSED
+        expectThrows(IOException.class, pool::unsetFrozenVSR);
+
+        pool.completeVSR(pool.getFrozenVSR());
+        pool.unsetFrozenVSR();
+        freezeActiveAndClose(pool);
+    }
+
+    /**
+     * Helper: freezes the active VSR then closes the pool.
+     * Required because VSRPool.close() cannot close an ACTIVE VSR.
+     */
+    private void freezeActiveAndClose(VSRPool pool) {
+        ManagedVSR active = pool.getActiveVSR();
+        if (active != null && active.getState() == VSRState.ACTIVE) {
+            active.moveToFrozen();
+        }
+        pool.close();
+    }
+}

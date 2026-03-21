@@ -17,7 +17,6 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
-import org.opensearch.parquet.vsr.ManagedVSR;
 import org.opensearch.parquet.vsr.VSRManager;
 
 import java.io.IOException;
@@ -48,9 +47,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
     @Override
     public WriteResult addDoc(ParquetDocumentInput d) throws IOException {
-        vsrManager.maybeRotateActiveVSR();
-        ManagedVSR activeManagedVSR = vsrManager.getActiveManagedVSR();
-        d.transferFieldsToVSR(activeManagedVSR);
+        vsrManager.addDocument(d);
         return new WriteResult.Success(1L, 1L, 1L);
     }
 
@@ -71,14 +68,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public void sync() throws IOException {}
+    public void sync() throws IOException {
+        vsrManager.sync();
+    }
 
     @Override
     public void close() throws IOException {
         vsrManager.close();
     }
 
-    public VSRManager getVSRManager() {
-        return vsrManager;
-    }
 }
