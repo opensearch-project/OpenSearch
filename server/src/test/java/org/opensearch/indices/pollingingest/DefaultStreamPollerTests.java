@@ -1020,6 +1020,46 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         warmupPoller.close();
     }
 
+    public void testUpdateWarmupConfigDisableWithRunningPoller() throws InterruptedException, TimeoutException {
+        // Create a mock consumer that always reports high lag so warmup never completes on its own
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+        when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L)
+        );
+
+        // Start the poller
+        warmupPoller.start();
+        assertFalse(warmupPoller.isWarmupComplete());
+
+        // Dynamically disable warmup - updateWarmupStatus will handle completion on next poll loop
+        warmupPoller.updateWarmupConfig(new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L));
+
+        // Wait for warmup to complete via the poll loop
+        boolean completed = warmupPoller.awaitWarmupComplete(5000);
+        assertTrue("Warmup should complete after being dynamically disabled", completed);
+
+        warmupPoller.close();
+    }
+
     public void testUpdateWarmupConfigThresholdWhileInProgress() {
         // Create a poller with warmup enabled and a high threshold
         IngestionSource.WarmupConfig initialConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L);
