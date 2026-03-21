@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
@@ -24,6 +25,7 @@ import org.opensearch.plugins.spi.vectorized.DataFormat;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 public class DataFusionAnalyticsBackend
     implements AnalyticsBackEndPlugin, SearchAnalyticsBackEndPlugin, org.opensearch.datafusion.DataFusionPlugin.ParentAware {
@@ -57,7 +59,17 @@ public class DataFusionAnalyticsBackend
 
     @Override
     public SqlOperatorTable operatorTable() {
-        return null;
+        return new DataFusionOperatorTable();
+    }
+
+    @Override
+    public Set<Class<? extends RelNode>> supportedOperators() {
+        return Set.of(
+            org.apache.calcite.rel.logical.LogicalTableScan.class,
+            org.apache.calcite.rel.logical.LogicalFilter.class,
+            org.apache.calcite.rel.logical.LogicalAggregate.class,
+            org.apache.calcite.rel.logical.LogicalProject.class
+        );
     }
 
     @Override

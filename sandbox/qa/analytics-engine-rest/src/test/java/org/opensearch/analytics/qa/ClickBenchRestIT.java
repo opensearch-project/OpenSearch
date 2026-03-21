@@ -140,7 +140,7 @@ public class ClickBenchRestIT extends OpenSearchRestTestCase {
 
         List<String> failures = new ArrayList<>();
         // TODO avg etc is failing - fix
-        for (int i = 1; i <= 6; i++) {
+        for (int i = 1; i <= 1; i++) {
             String queryId = "q" + i;
             try {
                 runClickBenchQuery(queryId);

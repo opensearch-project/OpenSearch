@@ -8,10 +8,13 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
+
+import java.util.Set;
 
 
 /**
@@ -30,6 +33,21 @@ public interface AnalyticsBackEndPlugin {
 
     /** Whether this backend supports the SearchExecEngine path via CompositeEngine. */
     default boolean supportsSearchExecEngine() {
+        return false;
+    }
+
+    /** Returns the set of RelNode operator classes this backend supports. */
+    default Set<Class<? extends RelNode>> supportedOperators() {
+        return Set.of(
+            org.apache.calcite.rel.logical.LogicalTableScan.class,
+            org.apache.calcite.rel.logical.LogicalFilter.class,
+            org.apache.calcite.rel.logical.LogicalAggregate.class,
+            org.apache.calcite.rel.logical.LogicalProject.class
+        );
+    }
+
+    /** Returns true if this backend can accept and execute the given opaque predicate payload. */
+    default boolean canAcceptUnresolvedPredicate(byte[] payload) {
         return false;
     }
 }

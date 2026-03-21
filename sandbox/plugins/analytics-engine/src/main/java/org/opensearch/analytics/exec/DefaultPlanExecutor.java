@@ -8,9 +8,13 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
@@ -22,6 +26,11 @@ import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultBatchIterator;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.plan.DefaultQueryPlanner;
+import org.opensearch.analytics.plan.FieldCapabilityResolver;
+import org.opensearch.analytics.plan.QueryPlanningException;
+import org.opensearch.analytics.plan.ResolvedPlan;
+import org.opensearch.analytics.plan.registry.BackendCapabilityRegistry;
 import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -30,23 +39,20 @@ import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.SearchExecEngine;
-import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
-import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * {@link QueryPlanExecutor} default implementation.
@@ -57,6 +63,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     private final Map<String, AnalyticsBackEndPlugin> backEnds;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
+    private final DefaultQueryPlanner queryPlanner;
 
     /**
      * Creates a plan executor with the given back-end plugins and services.
@@ -73,23 +80,71 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         IndicesService indicesService,
         ClusterService clusterService
     ) {
+        this.indicesService = indicesService;
+        this.clusterService = clusterService;
+
         this.backEnds = new LinkedHashMap<>();
         for (AnalyticsBackEndPlugin plugin : plugins) {
             this.backEnds.put(plugin.name(), plugin);
         }
-        this.indicesService = indicesService;
-        this.clusterService = clusterService;
+
+        // Build BackendCapabilityRegistry from plugins
+        BackendCapabilityRegistry registry = new BackendCapabilityRegistry();
+        for (AnalyticsBackEndPlugin plugin : plugins) {
+            Set<Class<? extends RelNode>> ops = plugin.supportedOperators();
+            Set<String> fns = extractFunctionNames(plugin);
+            registry.register(plugin.name(), ops, fns, plugin);
+        }
+
+        // Build cluster for HepPlanner (used by DefaultQueryPlanner internally)
+        RexBuilder rexBuilder = new RexBuilder(
+            new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        FieldCapabilityResolver fieldCapabilityResolver =
+            new FieldCapabilityResolver(indicesService, clusterService);
+
+        this.queryPlanner = new DefaultQueryPlanner(registry, cluster, fieldCapabilityResolver);
+    }
+
+    private static Set<String> extractFunctionNames(AnalyticsBackEndPlugin plugin) {
+        if (plugin.operatorTable() == null) return Set.of();
+        return plugin.operatorTable().getOperatorList().stream()
+            .map(op -> op.getName().toUpperCase(Locale.ROOT))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        AnalyticsBackEndPlugin plugin = selectBackEnd();
-        int fieldCount = logicalFragment.getRowType().getFieldCount();
-        logger.info("[DefaultPlanExecutor] Executing fragment with {} fields via back-end [{}]",
-            fieldCount, plugin.name());
-
+        // Resolve shard count from index metadata
         String tableName = extractTableName(logicalFragment);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(tableName);
+        if (indexMetadata == null) {
+            throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
+        }
+        int shardCount = indexMetadata.getNumberOfShards();
+
+        // Planning — throws QueryPlanningException (propagates unwrapped per Req 6.2, 8.4)
+        ResolvedPlan resolved = queryPlanner.plan(logicalFragment, shardCount);
+
+        // Safety net (Req 6.5)
+        if ("unresolved".equals(resolved.getBackendName())) {
+            throw new IllegalStateException(
+                "Planning did not resolve backend assignment for plan root");
+        }
+
+        AnalyticsBackEndPlugin plugin = backEnds.get(resolved.getBackendName());
+        if (plugin == null) {
+            throw new IllegalStateException(
+                "No plugin registered for backend [" + resolved.getBackendName() + "]");
+        }
+
+        int fieldCount = resolved.getRoot().getRowType().getFieldCount();
+        logger.info("[DefaultPlanExecutor] Final plan before execution (backend={}, fields={}):\n{}",
+            plugin.name(), fieldCount, resolved.getRoot().explain());
+
         List<ShardId> shardIds = resolveShardIds(tableName);
         if (shardIds.isEmpty()) {
             throw new IllegalStateException("No shards found for index [" + tableName + "]");
@@ -106,7 +161,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
                 (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(engine, snapshot.getRef());
 
-            byte[] converted = bridge.convertFragment(logicalFragment);
+            byte[] converted = bridge.convertFragment(resolved.getRoot());
 
             // Check if indexed query path is enabled — route through Lucene+Parquet indexed table
             // TODO : wire DF + Lucene - this is just to validate that once wired , query in backend will work
@@ -134,6 +189,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             logger.info("[DefaultPlanExecutor] Execution completed via back-end [{}], {} rows",
                 plugin.name(), rows.size());
             return rows;
+        } catch (QueryPlanningException e) {
+            throw e; // propagate unwrapped per Req 8.4
         } catch (Exception e) {
             logger.error("[DefaultPlanExecutor] Execution failed via back-end [{}]: {}",
                 plugin.name(), e.getMessage(), e);
@@ -199,9 +256,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
      */
     IndexShard getIndexShard(ShardId shardId) {
         IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService == null) {
-            return null;
-        }
+        if (indexService == null) return null;
         return indexService.getShardOrNull(shardId.id());
     }
 
@@ -250,9 +305,14 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
                 partitions, bitsetMode, true,
                 new ActionListener<Long>() {
                     @Override
-                    public void onResponse(Long streamPtr) { streamFuture.complete(streamPtr); }
+                    public void onResponse(Long streamPtr) {
+                        streamFuture.complete(streamPtr);
+                    }
+
                     @Override
-                    public void onFailure(Exception e) { streamFuture.completeExceptionally(e); }
+                    public void onFailure(Exception e) {
+                        streamFuture.completeExceptionally(e);
+                    }
                 }
             );
             long streamPtr = streamFuture.join();
@@ -284,46 +344,6 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         } catch (Exception e) {
             throw new RuntimeException("Indexed query execution failed: " + e.getMessage(), e);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Object[]> executeViaSearchExecEngine(
-        CompositeEngine compositeEngine,
-        RelNode logicalFragment
-    ) throws Exception {
-        DataFormat format = DataFormat.PARQUET;
-
-        var searchEngine = (org.opensearch.index.engine.exec.SearchExecEngine) compositeEngine.getSearchExecBackendEngine(format);
-        // TODO: get composite reader from compositeEngine directly (compositeEngine owns the snapshot)
-        Object reader = compositeEngine.getReader(format);
-        Object plan = searchEngine.convertFragment(logicalFragment);
-        var context = searchEngine.createContext(reader, null, null, null);
-        Iterator<?> result = searchEngine.executePlan(plan, context);
-
-        // Read results — executePlan returns Iterator with a single EngineResultStream
-        List<Object[]> rows = new ArrayList<>();
-        while (result.hasNext()) {
-            Object item = result.next();
-            if (item instanceof EngineResultStream) {
-                try (EngineResultStream resultStream = (EngineResultStream) item) {
-                    EngineResultBatchIterator batchIterator = resultStream.iterator();
-                    while (batchIterator.hasNext()) {
-                        EngineResultBatch batch = batchIterator.next();
-                        List<String> fieldNames = batch.getFieldNames();
-                        for (int row = 0; row < batch.getRowCount(); row++) {
-                            Object[] rowValues = new Object[fieldNames.size()];
-                            for (int col = 0; col < fieldNames.size(); col++) {
-                                rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
-                            }
-                            rows.add(rowValues);
-                        }
-                    }
-                }
-            }
-        }
-
-        logger.info("[DefaultPlanExecutor] SearchExecEngine completed, {} rows", rows.size());
-        return rows;
     }
 
     /**
@@ -363,8 +383,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     /**
      * Converts a RexCall to a Lucene query.
      * Supports: field = 'value' -> TermQuery
-     *           field != 'value' -> BooleanQuery(MatchAll, NOT TermQuery)
-     *           field like '%value%' -> WildcardQuery
+     * field != 'value' -> BooleanQuery(MatchAll, NOT TermQuery)
+     * field like '%value%' -> WildcardQuery
      */
     private org.apache.lucene.search.Query rexCallToLuceneQuery(
         RexCall call,
