@@ -68,7 +68,6 @@ import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -3338,19 +3337,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 disableTranslogRetention ? new ByteSizeValue(-1) : indexSettings.getTranslogRetentionSize(),
                 indexSettings.getSoftDeleteRetentionOperations()
             );
-        }
-
-        // Update warmup config if this is an ingestion engine
-        Indexer indexer = getIndexerOrNull();
-        if (indexer instanceof EngineBackedIndexer) {
-            Engine engine = ((EngineBackedIndexer) indexer).getEngine();
-            if (engine instanceof IngestionEngine) {
-                IngestionSource.WarmupConfig newConfig = new IngestionSource.WarmupConfig(
-                    indexSettings.getWarmupTimeout(),
-                    indexSettings.getWarmupLagThreshold()
-                );
-                ((IngestionEngine) engine).updateWarmupConfig(newConfig);
-            }
         }
     }
 

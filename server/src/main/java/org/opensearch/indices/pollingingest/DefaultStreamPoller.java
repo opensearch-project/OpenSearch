@@ -66,7 +66,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private volatile IngestionSource.WarmupConfig warmupConfig;
     private volatile boolean warmupComplete = false;
     private volatile long warmupStartTime = 0;
-    private volatile CountDownLatch warmupLatch = new CountDownLatch(1);
+    private final CountDownLatch warmupLatch = new CountDownLatch(1);
 
     @Nullable
     private IngestionShardConsumer consumer;
@@ -237,7 +237,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 updatePointerBasedLagIfNeeded();
 
                 // Check warmup status if not yet complete
-                if (!warmupComplete && warmupConfig.isEnabled()) {
+                if (!warmupComplete) {
                     updateWarmupStatus();
                 }
 
@@ -433,19 +433,11 @@ public class DefaultStreamPoller implements StreamPoller {
     /**
      * Updates the warmup configuration dynamically.
      * Called when index settings are changed at runtime.
+     * The updated config takes effect on the next polling loop iteration via updateWarmupStatus().
      */
     @Override
     public void updateWarmupConfig(IngestionSource.WarmupConfig newConfig) {
-        IngestionSource.WarmupConfig oldConfig = this.warmupConfig;
         this.warmupConfig = newConfig;
-
-        // If warmup was enabled and is now disabled, mark as complete
-        if (oldConfig.isEnabled() && !newConfig.isEnabled() && !warmupComplete) {
-            warmupComplete = true;
-            warmupLatch.countDown();
-            logger.info("Warmup disabled for index {} shard {} via dynamic settings update", indexName, shardId);
-        }
-
         logger.info(
             "Warmup config updated for index {} shard {}: timeout={}, lagThreshold={}",
             indexName,
@@ -465,11 +457,16 @@ public class DefaultStreamPoller implements StreamPoller {
      * is called.
      */
     private void updateWarmupStatus() {
-        // Skip warmup if poller is paused
-        if (paused) {
+        // Skip warmup if poller is paused or warmup is disabled
+        if (paused || !warmupConfig.isEnabled()) {
             warmupComplete = true;
             warmupLatch.countDown();
-            logger.info("Warmup skipped for index {} shard {} - poller is paused", indexName, shardId);
+            logger.info(
+                "Warmup skipped for index {} shard {} - {}",
+                indexName,
+                shardId,
+                paused ? "poller is paused" : "warmup is disabled"
+            );
             return;
         }
 

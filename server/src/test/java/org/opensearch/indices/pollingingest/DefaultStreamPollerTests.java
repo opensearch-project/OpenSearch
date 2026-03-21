@@ -986,7 +986,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
     // ==================== Dynamic Warmup Config Update Tests ====================
 
-    public void testUpdateWarmupConfigDisableWhileInProgress() throws InterruptedException {
+    public void testUpdateWarmupConfigDisableWhileInProgress() throws Exception {
         // Create a poller with warmup enabled
         IngestionSource.WarmupConfig enabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L);
         DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
@@ -1014,7 +1014,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         IngestionSource.WarmupConfig disabledConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
         warmupPoller.updateWarmupConfig(disabledConfig);
 
-        // Warmup should now be complete since we disabled it
+        // isWarmupComplete() checks warmupConfig.isEnabled(), so disabling makes it return true immediately
         assertTrue(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
