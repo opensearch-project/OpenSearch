@@ -29,6 +29,7 @@ testClusters.integTest {
     plugin ':sandbox:plugins:test-ppl-frontend'
     plugin ':plugins:engine-datafusion'
     plugin ':sandbox:plugins:analytics-backend-datafusion'
+    plugin ':modules:parquet-data-format'
 
     // Arrow/Flight JVM flags for DataFusion native library
     jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'

@@ -165,14 +165,15 @@ public class QueryPhase {
                 );
         }
 
-        if (searchContext.getDFResults() != null) {
-            SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
-        } else if(searchContext.request().source().queryPlanIR() == null) {
+        if(searchContext.request().source().queryPlanIR() == null && !"datafusion".equalsIgnoreCase(searchContext.request().source().engine())) {
+            LOGGER.info("QueryPhase: taking LUCENE path, searcher={}", searchContext.searcher());
             boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
-             if (rescore) { // only if we do a regular search
-             rescoreProcessor.process(searchContext);
-             }
-             suggestProcessor.process(searchContext);
+            if (rescore) { // only if we do a regular search
+                rescoreProcessor.process(searchContext);
+            }
+            suggestProcessor.process(searchContext);
+        } else {
+            SearchEngineResultConversionUtils.convertDFResultGeneric(searchContext);
         }
 
         aggregationProcessor.postProcess(searchContext);
@@ -208,6 +209,7 @@ public class QueryPhase {
     static boolean executeInternal(SearchContext searchContext, QueryPhaseSearcher queryPhaseSearcher) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
+        LOGGER.info("executeInternal: reader={}, numDocs={}, maxDoc={}", reader.getClass().getName(), reader.numDocs(), reader.maxDoc());
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.searchTimedOut(false);
         try {

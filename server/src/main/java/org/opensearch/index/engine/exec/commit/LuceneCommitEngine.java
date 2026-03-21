@@ -62,11 +62,16 @@ public class LuceneCommitEngine implements Committer {
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
         indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        indexWriterConfig.setParentField(null); // Don't require parent field — existing indexes may not have one
         this.store = store;
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         if (primaryMode) {
             this.indexWriter = new IndexWriter(store.directory(), indexWriterConfig);
         }
+    }
+
+    public IndexWriter getIndexWriter() {
+        return indexWriter;
     }
 
     @Override

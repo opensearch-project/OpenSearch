@@ -111,9 +111,11 @@ impl AbsoluteRowIdOptimizer {
         let (new_schema, new_projections) =
             self.build_updated_file_source_schema(datasource, data_source_exec_schema.clone());
 
+        // Build a new TableSchema with partition columns from the original source
         let table_partition_cols = datasource.table_partition_cols().clone();
         let new_table_schema = TableSchema::new(new_schema.clone(), table_partition_cols);
 
+        // Create a new ParquetSource with the updated schema
         use datafusion::datasource::physical_plan::ParquetSource;
         let new_file_source = Arc::new(ParquetSource::new(new_table_schema));
 
@@ -121,7 +123,6 @@ impl AbsoluteRowIdOptimizer {
             .with_source(new_file_source)
             .with_projection_indices(Some(new_projections))
             .expect("Failed to set projection indices")
-            .with_statistics(datasource.statistics().add_column_statistics(ColumnStatistics::new_unknown()))
             .build();
 
         let new_datasource = DataSourceExec::from_data_source(file_scan_config);

@@ -14,6 +14,9 @@ crate-type = ["cdylib"]
 datafusion = { workspace = true }
 datafusion-expr = { workspace = true }
 datafusion-datasource = { workspace = true }
+datafusion-datasource-parquet = { workspace = true }
+datafusion-common = { workspace = true }
+datafusion-execution = { workspace = true }
 arrow-json = { workspace = true }
 arrow = { workspace = true }
 #arrow = "55.2.0"
@@ -50,6 +53,7 @@ log ={ workspace = true }
 
 # Shared OpenSearch utilities
 vectorized-exec-spi = { path = "../../../libs/vectorized-exec-spi/rust" }
+
 # Parquet support
 parquet = { workspace = true }
 
@@ -72,6 +76,7 @@ tempfile ={ workspace = true }
 chrono = { workspace = true }
 
 async-trait = { workspace = true }
+bytes = "1.5"
 itertools = { workspace = true }
 rstest = { workspace = true }
 regex = { workspace = true }

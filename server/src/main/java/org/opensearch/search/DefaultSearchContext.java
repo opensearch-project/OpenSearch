@@ -62,6 +62,7 @@ import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineSearcher;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -257,7 +258,10 @@ final class DefaultSearchContext extends SearchContext {
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
         this.clusterService = clusterService;
-        this.engineSearcher = (Engine.Searcher) indexShard.getEngine().acquireSearcher("search");
+        EngineSearcher<?,?> rawSearcher = readerContext.acquireSearcher("search");
+        this.engineSearcher = rawSearcher instanceof Engine.Searcher
+            ? (Engine.Searcher) rawSearcher
+            : (Engine.Searcher) indexShard.getEngine().acquireSearcher("search");
         this.concurrentSearchMode = evaluateConcurrentSearchMode(executor);
         this.searcher = new ContextIndexSearcher(
             engineSearcher.getIndexReader(),

@@ -39,6 +39,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -125,6 +126,7 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
@@ -235,6 +237,7 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -2477,13 +2480,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public EngineSearcherSupplier<?> acquireSearcherSupplier(Engine.SearcherScope scope) {
+        return acquireSearcherSupplier(scope, false);
+    }
+
+    public EngineSearcherSupplier<?> acquireSearcherSupplier(Engine.SearcherScope scope, boolean forceLucene) {
         readAllowed();
         markSearcherAccessed();
         final Engine engine = getEngine();
-        if(currentCompositeEngineReference.get() != null ) {
+        if(!forceLucene && currentCompositeEngineReference.get() != null ) {
             return currentCompositeEngineReference.get().getPrimaryReadEngine().acquireSearcherSupplier(null, scope);
         }
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
+
+//        // For forceLucene, skip reader wrappers (DerivedSource etc.) to avoid per-term overhead
+//        return forceLucene ? engine.acquireSearcherSupplier(Function.identity(), scope)
+//            : engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -3215,6 +3226,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER
                 );
                 currentCompositeEngineReference.set(compositeEngine);
+                // Reinitialize InternalEngine's reader manager with LuceneCommitEngine's IndexWriter
+                IndexWriter luceneWriter = compositeEngine.getLuceneIndexWriter();
+                if (luceneWriter != null && newEngine instanceof InternalEngine) {
+                    ((InternalEngine) newEngine).reinitReaderManager(luceneWriter);
+                }
             }
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);

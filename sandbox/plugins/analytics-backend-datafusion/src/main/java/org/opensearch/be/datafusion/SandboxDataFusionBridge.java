@@ -215,6 +215,14 @@ public class SandboxDataFusionBridge implements EngineBridge<byte[], SandboxData
         return new ResultStream(streamPtr, runtimePtr, allocator);
     }
 
+    /**
+     * Wraps an externally-obtained stream pointer into a consumable ResultStream.
+     */
+    @Override
+    public ResultStream consumeStream(long streamPtr) {
+        return new ResultStream(streamPtr, runtimePtr, new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE));
+    }
+
     @Override
     public void close() {
         reader.close();

@@ -141,6 +141,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SEARCH_PIPELINE = new ParseField("search_pipeline");
     public static final ParseField VERBOSE_SEARCH_PIPELINE = new ParseField("verbose_pipeline");
     public static final ParseField QUERY_PLAN_IR = new ParseField("query_plan_ir");
+    public static final ParseField ENGINE_FIELD = new ParseField("engine");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -235,6 +236,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private byte[] queryPlanIR;
 
+    private String engine;
+
     /**
      * Constructs a new search source builder.
      */
@@ -317,6 +320,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             BytesReference bytesRef = in.readOptionalBytesReference();
             queryPlanIR = bytesRef != null ? BytesReference.toBytes(bytesRef) : null;
+            engine = in.readOptionalString();
         }
     }
 
@@ -406,6 +410,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalBytesReference(queryPlanIR != null ? new BytesArray(queryPlanIR) : null);
+            out.writeOptionalString(engine);
         }
     }
 
@@ -1199,6 +1204,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return queryPlanIR;
     }
 
+    public SearchSourceBuilder engine(String engine) {
+        this.engine = engine;
+        return this;
+    }
+
+    public String engine() {
+        return engine;
+    }
+
     /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
@@ -1299,6 +1313,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.searchPipeline = searchPipeline;
         rewrittenBuilder.verbosePipeline = verbosePipeline;
         rewrittenBuilder.queryPlanIR = queryPlanIR;
+        rewrittenBuilder.engine = engine;
         return rewrittenBuilder;
     }
 
@@ -1372,6 +1387,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     verbosePipeline = parser.booleanValue();
                 } else if (QUERY_PLAN_IR.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryPlanIR = parser.binaryValue();
+                } else if (ENGINE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    engine = parser.text();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -1713,6 +1730,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             builder.field(QUERY_PLAN_IR.getPreferredName(), queryPlanIR);
         }
 
+        if (engine != null) {
+            builder.field(ENGINE_FIELD.getPreferredName(), engine);
+        }
+
         return builder;
     }
 
@@ -1993,7 +2014,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             derivedFields,
             searchPipeline,
             verbosePipeline,
-            Arrays.hashCode(queryPlanIR)
+            Arrays.hashCode(queryPlanIR),
+            engine
         );
     }
 
@@ -2041,7 +2063,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(derivedFields, other.derivedFields)
             && Objects.equals(searchPipeline, other.searchPipeline)
             && Objects.equals(verbosePipeline, other.verbosePipeline)
-            && Arrays.equals(queryPlanIR, other.queryPlanIR);
+            && Arrays.equals(queryPlanIR, other.queryPlanIR)
+            && Objects.equals(engine, other.engine);
     }
 
     @Override

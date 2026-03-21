@@ -872,7 +872,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 SearchService.CLUSTER_SEARCH_QUERY_PLAN_EXPLAIN_SETTING,
                 SearchService.NATIVE_CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE,
-                SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING
+                SearchService.NATIVE_CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING,
+
+                // Indexed query settings (Lucene+DataFusion)
+                SearchService.INDEXED_QUERY_ENABLED_SETTING,
+                SearchService.INDEXED_QUERY_FIELD_SETTING,
+                SearchService.INDEXED_QUERY_TERM_SETTING,
+                SearchService.INDEXED_QUERY_TYPE_SETTING,
+                SearchService.INDEXED_QUERY_PARTITIONS_SETTING,
+                SearchService.INDEXED_QUERY_BITSET_MODE_SETTING
             )
         )
     );

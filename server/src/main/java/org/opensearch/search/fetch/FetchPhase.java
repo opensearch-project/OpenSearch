@@ -149,7 +149,7 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
         }
 
-        if (context.request().source().queryPlanIR() != null) {
+        if (context.request().source().queryPlanIR() != null || "datafusion".equalsIgnoreCase(context.request().source().engine())) {
             executeNativeFetchPhase(context);
             return;
         }

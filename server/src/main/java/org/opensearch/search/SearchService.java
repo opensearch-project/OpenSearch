@@ -166,6 +166,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -465,6 +466,56 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
+    // These are dynamic cluster settings that control the Lucene query used
+    // for index-accelerated parquet reads when engine="indexed".
+    // Update at runtime: PUT _cluster/settings { "transient": { "search.indexed_query.enabled": true } }
+
+    public static final Setting<Boolean> INDEXED_QUERY_ENABLED_SETTING = Setting.boolSetting(
+        "search.indexed_query.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<String> INDEXED_QUERY_FIELD_SETTING = Setting.simpleString(
+        "search.indexed_query.field",
+        "url",
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<String> INDEXED_QUERY_TERM_SETTING = Setting.simpleString(
+        "search.indexed_query.term",
+        "google",
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<String> INDEXED_QUERY_TYPE_SETTING = Setting.simpleString(
+        "search.indexed_query.type",
+        "term",
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Integer> INDEXED_QUERY_PARTITIONS_SETTING = Setting.intSetting(
+        "search.indexed_query.partitions",
+        1,
+        1,
+        64,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    public static final Setting<Integer> INDEXED_QUERY_BITSET_MODE_SETTING = Setting.intSetting(
+        "search.indexed_query.bitset_mode",
+        0,
+        0,
+        1,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
     private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
@@ -502,6 +553,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenPitContext;
 
     private volatile boolean allowDerivedField;
+
+    // Indexed query dynamic settings (Lucene+DataFusion)
+    private volatile boolean indexedQueryEnabled;
+    private volatile String indexedQueryField;
+    private volatile String indexedQueryTerm;
+    private volatile String indexedQueryType;
+    private volatile int indexedQueryPartitions;
+    private volatile int indexedQueryBitsetMode;
 
     private final Cancellable keepAliveReaper;
 
@@ -593,6 +652,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         allowDerivedField = CLUSTER_ALLOW_DERIVED_FIELD_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ALLOW_DERIVED_FIELD_SETTING, this::setAllowDerivedField);
 
+        // Indexed query dynamic settings
+        indexedQueryEnabled = INDEXED_QUERY_ENABLED_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_ENABLED_SETTING, this::setIndexedQueryEnabled);
+        indexedQueryField = INDEXED_QUERY_FIELD_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_FIELD_SETTING, this::setIndexedQueryField);
+        indexedQueryTerm = INDEXED_QUERY_TERM_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_TERM_SETTING, this::setIndexedQueryTerm);
+        indexedQueryType = INDEXED_QUERY_TYPE_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_TYPE_SETTING, this::setIndexedQueryType);
+        indexedQueryPartitions = INDEXED_QUERY_PARTITIONS_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_PARTITIONS_SETTING, this::setIndexedQueryPartitions);
+        indexedQueryBitsetMode = INDEXED_QUERY_BITSET_MODE_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(INDEXED_QUERY_BITSET_MODE_SETTING, this::setIndexedQueryBitsetMode);
+
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
 
         this.pluginProfilers = pluginProfilers;
@@ -670,6 +743,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setAllowDerivedField(boolean allowDerivedField) {
         this.allowDerivedField = allowDerivedField;
+    }
+
+    private void setIndexedQueryEnabled(boolean enabled) {
+        this.indexedQueryEnabled = enabled;
+    }
+
+    private void setIndexedQueryField(String field) {
+        this.indexedQueryField = field;
+    }
+
+    private void setIndexedQueryTerm(String term) {
+        this.indexedQueryTerm = term;
+    }
+
+    private void setIndexedQueryType(String type) {
+        this.indexedQueryType = type;
+    }
+
+    private void setIndexedQueryPartitions(int partitions) {
+        this.indexedQueryPartitions = partitions;
+    }
+
+    private void setIndexedQueryBitsetMode(int mode) {
+        this.indexedQueryBitsetMode = mode;
     }
 
     private void setMaxOpenPitContext(int maxOpenPitContext) {
@@ -835,10 +932,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return;
                     }
                 }
-                boolean isNativeQuery = orig.source() != null && orig.source().queryPlanIR() != null;
+                boolean isNativeQuery = orig.source() != null
+                    && (orig.source().queryPlanIR() != null || "datafusion".equalsIgnoreCase(orig.source().engine()));
+                // When indexed_query.enabled is true, all native queries go through the indexed path
+                // (Lucene index + DataFusion parquet). No need for engine="indexed" in the request.
+                boolean isIndexedQuery = indexedQueryEnabled && isNativeQuery;
 
                 // Execute
-                if (isNativeQuery) {
+                if (isIndexedQuery) {
+                    // Lucene+DataFusion indexed query path — mirrors executeNativeQueryPhaseAsync
+                    getExecutor(executorName, shard).execute(new ActionRunnable<SearchPhaseResult>(listener) {
+                        @Override
+                        protected void doRun() throws Exception {
+                            executeIndexedQueryPhase(orig, task, getExecutor(Names.STREAM_SEARCH, shard), keepStatesInContext, isStreamSearch, listener);
+                        }
+                    });
+                } else if (isNativeQuery && !"lucene".equalsIgnoreCase(orig.source() != null ? orig.source().engine() : null)) {
                     getExecutor(executorName, shard).execute(new ActionRunnable<SearchPhaseResult>(listener) {
                         @Override
                         protected void doRun() throws Exception {
@@ -899,7 +1008,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.queryResult().from(context.from());
             context.queryResult().size(context.size());
             byte[] substraitQuery = request.source().queryPlanIR();
-            if (substraitQuery != null) {
+            boolean useNativeEngine = substraitQuery != null || "datafusion".equalsIgnoreCase(request.source().engine());
+            if (useNativeEngine && !"lucene".equalsIgnoreCase(request.source().engine()) && !"indexed".equalsIgnoreCase(request.source().engine())) {
                 // setDFResults in context
                 // TODO : remove instanceof checks
                 SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
@@ -959,6 +1069,166 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             result = context.queryResult();
         }
         return result;
+    }
+
+    /**
+     * Execute an indexed query that uses Lucene indexes to accelerate DataFusion parquet reads.
+     * Mirrors executeNativeQueryPhaseAsync — same async pattern, same response path.
+     * Only the request side differs: stream comes from Lucene index + parquet instead of substrait.
+     */
+    private void executeIndexedQueryPhase(
+        ShardSearchRequest request,
+        SearchShardTask task,
+        Executor executor,
+        boolean keepStatesInContext,
+        boolean isStreamSearch,
+        ActionListener<SearchPhaseResult> listener
+    ) {
+        logger.info("[INDEXED-DEBUG] executeIndexedQueryPhase START: thread={}", Thread.currentThread().getName());
+        final ReaderContext readerContext;
+        try {
+            readerContext = createOrGetReaderContext(request, keepStatesInContext);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        Indexer indexer = readerContext.indexShard().getIndexer();
+
+        Releasable readerContextRelease = null;
+        SearchContext context = null;
+
+        try {
+            readerContextRelease = readerContext.markAsUsed(getKeepAlive(request));
+            context = createContext(readerContext, request, task, true, isStreamSearch, indexer);
+
+            final Releasable finalRelease = readerContextRelease;
+            context.queryResult().from(context.from());
+            context.queryResult().size(context.size());
+            final SearchContext finalContext = context;
+
+            // Prevent cleanup in this try-catch, will be handled in callback
+            context = null;
+
+            if (!(indexer instanceof CompositeEngine)) {
+                throw new IllegalStateException("Indexed query requires a CompositeEngine indexer");
+            }
+            CompositeEngine compositeEngine = (CompositeEngine) indexer;
+            SearchExecEngine searchExecEngine = compositeEngine.getPrimaryReadEngine();
+
+            // Get the Lucene DirectoryReader via NRT from the IndexWriter.
+            // NRT reader sees the latest committed + uncommitted segments with writer_generation attributes
+            // needed for parquet file mapping.
+            org.apache.lucene.index.IndexWriter luceneWriter = compositeEngine.getLuceneIndexWriter();
+            if (luceneWriter == null) {
+                throw new IllegalStateException("Indexed query requires a Lucene IndexWriter");
+            }
+            org.apache.lucene.index.DirectoryReader luceneReader =
+                org.apache.lucene.index.DirectoryReader.open(luceneWriter);
+
+            // Build the Lucene query from dynamic cluster settings
+            // TODO : should come from search request via planner
+            String field = indexedQueryField;
+            String term = indexedQueryTerm;
+            String qType = indexedQueryType;
+
+            org.apache.lucene.search.Query luceneQuery;
+            if ("wildcard".equalsIgnoreCase(qType)) {
+                luceneQuery = new org.apache.lucene.search.WildcardQuery(
+                    new org.apache.lucene.index.Term(field, "*" + term.toLowerCase() + "*")
+                );
+            } else {
+                luceneQuery = new org.apache.lucene.search.TermQuery(
+                    new org.apache.lucene.index.Term(field, term)
+                );
+            }
+
+            logger.info("Executing indexed query: field={}, term={}, type={}, segments={}",
+                field, term, qType, luceneReader.leaves().size());
+
+            // Step 1: Get stream pointer from indexed query with substrait plan
+            String indexName = request.shardId().getIndexName();
+            byte[] substraitBytes = request.source() != null ? request.source().queryPlanIR() : null;
+
+            searchExecEngine.executeIndexedQuery(
+                luceneReader,
+                luceneQuery,
+                indexName,
+                substraitBytes,
+                indexedQueryPartitions,
+                indexedQueryBitsetMode,
+                false, // TODO: use dynamic setting for explain
+                new ActionListener<Long>() {
+                    @Override
+                    public void onResponse(Long streamPtr) {
+                        logger.info("[INDEXED-DEBUG] executeIndexedQuery.onResponse: thread={}, streamPtr={}", Thread.currentThread().getName(), streamPtr);
+                        // Step 2: Consume stream through same path as executeNativeQueryPhaseAsync
+                        searchExecEngine.executeQueryPhaseWithStreamPointer(
+                            finalContext, streamPtr, executor,
+                            new ActionListener<Map<String, Object[]>>() {
+                                @Override
+                                public void onResponse(Map<String, Object[]> result) {
+                                    logger.info("[INDEXED-DEBUG] executeQueryPhaseWithStreamPointer.onResponse: thread={}", Thread.currentThread().getName());
+                                    try {
+                                        // Convert Map<String, Object[]> to QueryResult
+                                        Map<String, List<Object>> columns = new HashMap<>();
+                                        result.forEach((k, v) -> columns.put(k, Arrays.asList(v)));
+                                        finalContext.setDFResults((QueryResult) () -> columns);
+                                        listener.onResponse(executeQueryPhase(
+                                            finalContext, readerContext, request, isStreamSearch, listener));
+                                    } catch (Exception e) {
+                                        handleFailure(e);
+                                    } finally {
+                                        try { luceneReader.close(); } catch (Exception ex) { logger.error("Error closing lucene reader", ex); }
+                                        finalContext.close();
+                                        finalRelease.close();
+                                        taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId());
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    handleFailure(e);
+                                }
+
+                                private void handleFailure(Exception e) {
+                                    logger.error("Indexed query phase failed", e);
+                                    try { luceneReader.close(); } catch (Exception ex) { logger.error("Error closing lucene searcher", ex); }
+                                    try { finalContext.close(); } catch (Exception ex) { logger.error("Error closing context", ex); }
+                                    try { finalRelease.close(); } catch (Exception ex) { logger.error("Error closing release", ex); }
+                                    processFailure(readerContext, e);
+                                    listener.onFailure(e);
+                                    try { taskResourceTrackingService.writeTaskResourceUsage(task, clusterService.localNode().getId()); } catch (Exception ex) { logger.error("Error writing task resource usage", ex); }
+                                }
+                            }
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("Indexed query execution failed", e);
+                        try { luceneReader.close(); } catch (Exception ex) { logger.error("Error closing lucene searcher", ex); }
+                        try { finalContext.close(); } catch (Exception ex) { logger.error("Error closing context", ex); }
+                        try { finalRelease.close(); } catch (Exception ex) { logger.error("Error closing release", ex); }
+                        processFailure(readerContext, e);
+                        listener.onFailure(e);
+                    }
+                }
+            );
+
+        } catch (Exception e) {
+            if (context != null) { try { context.close(); } catch (Exception ex) { logger.error("Error closing context", ex); } }
+            if (readerContextRelease != null) { try { readerContextRelease.close(); } catch (Exception ex) { logger.error("Error closing release", ex); } }
+            Exception exception = e;
+            if (exception instanceof ExecutionException) {
+                exception = (exception.getCause() == null || exception.getCause() instanceof Exception)
+                    ? (Exception) exception.getCause()
+                    : new OpenSearchException(exception.getCause());
+            }
+            processFailure(readerContext, exception);
+            listener.onFailure(exception);
+        }
     }
 
     private void executeNativeQueryPhaseAsync(
@@ -1306,7 +1576,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard shard = indexService.getShard(request.shardId().id());
         // TODO acquire search supplier
-        EngineSearcherSupplier<?> reader = shard.acquireSearcherSupplier();
+        boolean forceLucene = request.source() != null
+            && "lucene".equalsIgnoreCase(request.source().engine());
+        EngineSearcherSupplier<?> reader = shard.acquireSearcherSupplier(Engine.SearcherScope.EXTERNAL, forceLucene);
         return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
@@ -1495,7 +1767,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             OriginalIndices.NONE
         );
         @SuppressWarnings("unchecked")
-        SearchExecEngine searchExecEngine = indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null;
+        String engineParam = request.source() != null ? request.source().engine() : null;
+        SearchExecEngine searchExecEngine = "lucene".equalsIgnoreCase(engineParam) ? null
+            : (indexer instanceof CompositeEngine ? ((CompositeEngine) indexer).getPrimaryReadEngine() : null);
         SearchContext context = searchExecEngine == null ? originalContext : searchExecEngine.createContext(readerContext, request, shardTarget, task, bigArrays, originalContext, clusterService);
         try {
             if (request.scroll() != null) {

@@ -56,4 +56,51 @@ public abstract class SearchExecEngine<C extends SearchContext, S extends Engine
      * Fetch Segment Stats
      */
     public abstract Map<String, FileStats> fetchSegmentStats() throws IOException;
+
+    /**
+     * Execute an indexed query using Lucene indexes to accelerate reads.
+     * Default implementation throws UnsupportedOperationException.
+     *
+     * @param luceneReader  The Lucene DirectoryReader for this shard
+     * @param query         The Lucene query to execute
+     * @param numPartitions Number of execution partitions
+     * @param bitsetMode    0 = AND (intersect), 1 = OR (union)
+     * @param listener      ActionListener to receive the stream pointer
+     */
+    public void executeIndexedQuery(
+        org.apache.lucene.index.DirectoryReader luceneReader,
+        org.apache.lucene.search.Query query,
+        int numPartitions,
+        int bitsetMode,
+        ActionListener<Long> listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException("Indexed queries not supported by this engine"));
+    }
+
+    /**
+     * Execute an indexed query with substrait plan using Lucene indexes to accelerate reads.
+     * Default implementation delegates to the basic executeIndexedQuery (ignoring substrait).
+     */
+    public void executeIndexedQuery(
+        org.apache.lucene.index.DirectoryReader luceneReader,
+        org.apache.lucene.search.Query query,
+        String tableName,
+        byte[] substraitBytes,
+        int numPartitions,
+        int bitsetMode,
+        boolean isQueryPlanExplainEnabled,
+        ActionListener<Long> listener
+    ) {
+        // Default: fall back to basic version (no substrait)
+        executeIndexedQuery(luceneReader, query, numPartitions, bitsetMode, listener);
+    }
+
+    /**
+     * Execute the query phase using a pre-obtained stream pointer (e.g. from an indexed query).
+     * Consumes the stream and populates results on the context using the same async path as executeQueryPhaseAsync.
+     * Default implementation throws UnsupportedOperationException.
+     */
+    public void executeQueryPhaseWithStreamPointer(C context, long streamPointer, Executor executor, ActionListener<Map<String, Object[]>> listener) {
+        listener.onFailure(new UnsupportedOperationException("executeQueryPhaseWithStreamPointer not supported by this engine"));
+    }
 }

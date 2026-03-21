@@ -9,7 +9,13 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.EngineBridge;
@@ -20,13 +26,17 @@ import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.exec.IndexFilterProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.search.SearchService;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -34,6 +44,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * {@link QueryPlanExecutor} default implementation.
@@ -88,22 +101,19 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
         CompositeEngine engine = (CompositeEngine) indexShard.getIndexer();
 
-//        // Prefer SearchExecEngine path if supported
-//        if (plugin.supportsSearchExecEngine() && engine.getSearchBackendFactory() != null) {
-//            logger.info("[DefaultPlanExecutor] Using SearchExecEngine path for back-end [{}]", plugin.name());
-//            try {
-//                return executeViaSearchExecEngine(engine, logicalFragment);
-//            } catch (Exception e) {
-//                throw new RuntimeException("SearchExecEngine execution failed for [" + plugin.name() + "]", e);
-//            }
-//        }
-
         // Bridge path
         try (CompositeEngine.ReleasableRef<CatalogSnapshot> snapshot = engine.acquireSnapshot()) {
             EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
                 (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(engine, snapshot.getRef());
 
             byte[] converted = bridge.convertFragment(logicalFragment);
+
+            // Check if indexed query path is enabled — route through Lucene+Parquet indexed table
+            // TODO : wire DF + Lucene - this is just to validate that once wired , query in backend will work
+            if (clusterService.getClusterSettings().get(SearchService.INDEXED_QUERY_ENABLED_SETTING)) {
+                logger.info("[DefaultPlanExecutor] Indexed query enabled, routing through Lucene+Parquet indexed table");
+                return executeViaIndexedQuery(engine, tableName, converted, logicalFragment);
+            }
 
             List<Object[]> rows = new ArrayList<>();
             try (EngineResultStream resultStream = bridge.execute(converted)) {
@@ -205,6 +215,78 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
      * @throws IllegalStateException if no back-end plugins are registered
      */
     @SuppressWarnings("unchecked")
+    private List<Object[]> executeViaIndexedQuery(
+        CompositeEngine compositeEngine,
+        String tableName,
+        byte[] substraitBytes,
+        RelNode logicalFragment
+    ) {
+        try {
+            org.apache.lucene.index.IndexWriter luceneWriter = compositeEngine.getLuceneIndexWriter();
+            if (luceneWriter == null) {
+                throw new IllegalStateException("Indexed query requires a Lucene IndexWriter");
+            }
+            org.apache.lucene.index.DirectoryReader luceneReader =
+                org.apache.lucene.index.DirectoryReader.open(luceneWriter);
+
+            int partitions = clusterService.getClusterSettings().get(SearchService.INDEXED_QUERY_PARTITIONS_SETTING);
+            int bitsetMode = clusterService.getClusterSettings().get(SearchService.INDEXED_QUERY_BITSET_MODE_SETTING);
+
+            // Extract Lucene query from the logical plan's filter predicates.
+            // e.g. `where URL = 'google'` -> TermQuery(URL, google)
+            //       `where URL like '%google%'` -> WildcardQuery(URL, *google*)
+            // Falls back to MatchAllDocsQuery if no filter is present.
+            org.apache.lucene.search.Query luceneQuery = buildLuceneQueryFromPlan(logicalFragment);
+
+            logger.info("[DefaultPlanExecutor] Indexed query: luceneQuery={}, segments={}",
+                luceneQuery, luceneReader.leaves().size());
+
+            @SuppressWarnings("rawtypes")
+            SearchExecEngine searchExecEngine = compositeEngine.getPrimaryReadEngine();
+
+            CompletableFuture<Long> streamFuture = new CompletableFuture<>();
+            searchExecEngine.executeIndexedQuery(
+                luceneReader, luceneQuery, tableName, substraitBytes,
+                partitions, bitsetMode, true,
+                new ActionListener<Long>() {
+                    @Override
+                    public void onResponse(Long streamPtr) { streamFuture.complete(streamPtr); }
+                    @Override
+                    public void onFailure(Exception e) { streamFuture.completeExceptionally(e); }
+                }
+            );
+            long streamPtr = streamFuture.join();
+
+            // Consume the stream using the bridge's consumeStream (wraps the native pointer)
+            AnalyticsBackEndPlugin bePlugin = selectBackEnd();
+            try (CompositeEngine.ReleasableRef<CatalogSnapshot> snapshot = compositeEngine.acquireSnapshot()) {
+                EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
+                    (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) bePlugin.bridge(compositeEngine, snapshot.getRef());
+                List<Object[]> rows = new ArrayList<>();
+                try (EngineResultStream resultStream = bridge.consumeStream(streamPtr)) {
+                    EngineResultBatchIterator batchIterator = resultStream.iterator();
+                    while (batchIterator.hasNext()) {
+                        EngineResultBatch batch = batchIterator.next();
+                        List<String> fieldNames = batch.getFieldNames();
+                        for (int row = 0; row < batch.getRowCount(); row++) {
+                            Object[] rowValues = new Object[fieldNames.size()];
+                            for (int col = 0; col < fieldNames.size(); col++) {
+                                rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
+                            }
+                            rows.add(rowValues);
+                        }
+                    }
+                }
+                luceneReader.close();
+                logger.info("[DefaultPlanExecutor] Indexed query completed, {} rows", rows.size());
+                return rows;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Indexed query execution failed: " + e.getMessage(), e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
     private List<Object[]> executeViaSearchExecEngine(
         CompositeEngine compositeEngine,
         RelNode logicalFragment
@@ -242,6 +324,141 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
         logger.info("[DefaultPlanExecutor] SearchExecEngine completed, {} rows", rows.size());
         return rows;
+    }
+
+    /**
+     * Extracts a Lucene query from the RelNode plan tree by finding Filter nodes
+     * and converting simple equality/like predicates to TermQuery/WildcardQuery.
+     * Falls back to MatchAllDocsQuery when no extractable filter is found.
+     */
+    private org.apache.lucene.search.Query buildLuceneQueryFromPlan(RelNode node) {
+        // Walk the tree to find a Filter
+        Filter filter = findFilter(node);
+        if (filter != null) {
+            RexNode condition = filter.getCondition();
+            if (condition instanceof RexCall) {
+                RexCall call = (RexCall) condition;
+                org.apache.lucene.search.Query q = rexCallToLuceneQuery(call, filter.getInput().getRowType());
+                if (q != null) {
+                    logger.info("[DefaultPlanExecutor] Extracted Lucene query from plan filter: {}", q);
+                    return q;
+                }
+            }
+        }
+        logger.info("[DefaultPlanExecutor] No filter in plan, using MatchAllDocsQuery");
+        return new org.apache.lucene.search.MatchAllDocsQuery();
+    }
+
+    private Filter findFilter(RelNode node) {
+        if (node instanceof Filter) {
+            return (Filter) node;
+        }
+        for (RelNode input : node.getInputs()) {
+            Filter f = findFilter(input);
+            if (f != null) return f;
+        }
+        return null;
+    }
+
+    /**
+     * Converts a RexCall to a Lucene query.
+     * Supports: field = 'value' -> TermQuery
+     *           field != 'value' -> BooleanQuery(MatchAll, NOT TermQuery)
+     *           field like '%value%' -> WildcardQuery
+     */
+    private org.apache.lucene.search.Query rexCallToLuceneQuery(
+        RexCall call,
+        org.apache.calcite.rel.type.RelDataType rowType
+    ) {
+        SqlKind kind = call.getKind();
+        List<RexNode> operands = call.getOperands();
+
+        if ((kind == SqlKind.EQUALS || kind == SqlKind.NOT_EQUALS) && operands.size() == 2) {
+            String fieldName = extractFieldName(operands.get(0), rowType);
+            String value = extractLiteral(operands.get(1));
+            if (fieldName == null) {
+                fieldName = extractFieldName(operands.get(1), rowType);
+                value = extractLiteral(operands.get(0));
+            }
+            // Only build Lucene term queries for string-typed fields (keyword/text).
+            // Numeric fields aren't indexed as keyword terms in Lucene.
+            if (fieldName != null && value != null && isStringField(operands, rowType)) {
+                var termQuery = new org.apache.lucene.search.TermQuery(
+                    new org.apache.lucene.index.Term(fieldName, value));
+                if (kind == SqlKind.EQUALS) {
+                    return termQuery;
+                }
+                var bq = new org.apache.lucene.search.BooleanQuery.Builder();
+                bq.add(new org.apache.lucene.search.MatchAllDocsQuery(), org.apache.lucene.search.BooleanClause.Occur.MUST);
+                bq.add(termQuery, org.apache.lucene.search.BooleanClause.Occur.MUST_NOT);
+                return bq.build();
+            }
+        }
+
+        if (kind == SqlKind.LIKE && operands.size() == 2) {
+            String fieldName = extractFieldName(operands.get(0), rowType);
+            String pattern = extractLiteral(operands.get(1));
+            if (fieldName != null && pattern != null) {
+                String lucenePattern = pattern.replace('%', '*').replace('_', '?');
+                return new org.apache.lucene.search.WildcardQuery(
+                    new org.apache.lucene.index.Term(fieldName, lucenePattern));
+            }
+        }
+
+        if (kind == SqlKind.AND) {
+            var bq = new org.apache.lucene.search.BooleanQuery.Builder();
+            boolean hasClause = false;
+            for (RexNode operand : operands) {
+                if (operand instanceof RexCall) {
+                    var sub = rexCallToLuceneQuery((RexCall) operand, rowType);
+                    if (sub != null) {
+                        bq.add(sub, org.apache.lucene.search.BooleanClause.Occur.MUST);
+                        hasClause = true;
+                    }
+                }
+            }
+            return hasClause ? bq.build() : null;
+        }
+
+        return null;
+    }
+
+    private boolean isStringField(List<RexNode> operands, org.apache.calcite.rel.type.RelDataType rowType) {
+        for (RexNode op : operands) {
+            if (op instanceof RexInputRef) {
+                var sqlType = rowType.getFieldList().get(((RexInputRef) op).getIndex()).getType().getSqlTypeName();
+                return sqlType == org.apache.calcite.sql.type.SqlTypeName.VARCHAR
+                    || sqlType == org.apache.calcite.sql.type.SqlTypeName.CHAR;
+            }
+        }
+        return false;
+    }
+
+    private String extractFieldName(RexNode node, org.apache.calcite.rel.type.RelDataType rowType) {
+        if (node instanceof RexInputRef) {
+            int idx = ((RexInputRef) node).getIndex();
+            return rowType.getFieldList().get(idx).getName();
+        }
+        return null;
+    }
+
+    private String extractLiteral(RexNode node) {
+        if (node instanceof RexLiteral) {
+            RexLiteral lit = (RexLiteral) node;
+            Comparable<?> val = lit.getValue();
+            if (val == null) return null;
+            // NlsString (charset-prefixed string) — extract the raw value
+            String className = val.getClass().getSimpleName();
+            if ("NlsString".equals(className)) {
+                try {
+                    return (String) val.getClass().getMethod("getValue").invoke(val);
+                } catch (Exception e) {
+                    return val.toString();
+                }
+            }
+            return val.toString();
+        }
+        return null;
     }
 
     private AnalyticsBackEndPlugin selectBackEnd() {
