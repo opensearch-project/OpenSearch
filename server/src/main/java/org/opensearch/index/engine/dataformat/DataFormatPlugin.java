@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
@@ -36,13 +37,14 @@ public interface DataFormatPlugin {
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
      * @param indexSettings the index settings
-     * @param <T> the data format type
-     * @param <P> the document input type
+     * @param writerPool the writer pool for managing writer instances, or {@code null} if the engine
+     *                    does not require external writer pool management (e.g., individual format engines)
      * @return the indexing execution engine instance
      */
-    <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+    IndexingExecutionEngine<?, ?> indexingEngine(
         MapperService mapperService,
         ShardPath shardPath,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        @Nullable DataformatAwareLockableWriterPool<?> writerPool
     );
 }

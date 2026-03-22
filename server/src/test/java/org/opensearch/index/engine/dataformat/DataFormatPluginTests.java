@@ -65,11 +65,14 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             .build();
-        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = plugin.indexingEngine(
-            mock(MapperService.class),
-            new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
-            new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)
-        );
+        @SuppressWarnings("unchecked")
+        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = (IndexingExecutionEngine<DataFormat, MockDocumentInput>) plugin
+            .indexingEngine(
+                mock(MapperService.class),
+                new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
+                new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
+                null
+            );
         assertEquals(format, engine.getDataFormat());
 
         // 2. Create a writer and write documents
@@ -225,7 +228,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1, input.existingSegments().size());
     }
 
-    static class MockDataFormat implements DataFormat {
+    static class MockDataFormat extends DataFormat {
         @Override
         public String name() {
             return "mock-columnar";
@@ -403,13 +406,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
+        public IndexingExecutionEngine<?, ?> indexingEngine(
             MapperService mapperService,
             ShardPath shardPath,
-            IndexSettings indexSettings
+            IndexSettings indexSettings,
+            DataformatAwareLockableWriterPool<?> writerPool
         ) {
-            return (IndexingExecutionEngine<T, P>) new MockIndexingExecutionEngine(dataFormat);
+            return new MockIndexingExecutionEngine(dataFormat);
         }
     }
 
