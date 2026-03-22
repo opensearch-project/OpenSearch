@@ -35,7 +35,7 @@ setup:
 
  # try shrink without making it read only
   - do:
-      catch: /action_request_validation_exception/
+      catch: /illegal_argument_exception/
       indices.shrink:
         index: source
         target: "new_shrunken_index"
@@ -107,7 +107,7 @@ setup:
 
   # set `index.blocks.read_only` to `true` for target index
   - do:
-      catch: /action_request_validation_exception/
+      catch: /illegal_argument_exception/
       indices.shrink:
         index: "source"
         target: "new_shrunken_index"
@@ -121,7 +121,7 @@ setup:
 
   # set `index.blocks.metadata` to `true` for target index
   - do:
-      catch: /action_request_validation_exception/
+      catch: /illegal_argument_exception/
       indices.shrink:
         index: "source"
         target: "new_shrunken_index"
