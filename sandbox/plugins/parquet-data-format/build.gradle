@@ -32,6 +32,10 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
 }
 
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
 // --- Rust native library build tasks ---
 
 def rustDir = file("${projectDir}/src/main/rust")

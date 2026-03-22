@@ -27,7 +27,7 @@ public abstract class ParquetField {
     protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
-     * Creates and processes a field entry. Skips if vector not present in VSR.
+     * Creates and processes a field entry. Throws if vector not present in VSR.
      */
     public final void createField(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
         Objects.requireNonNull(fieldType, "MappedFieldType cannot be null");

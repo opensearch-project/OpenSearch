@@ -38,6 +38,7 @@ public class MetadataFieldPlugin implements ParquetFieldPlugin {
         fieldMap.put(IgnoredFieldMapper.CONTENT_TYPE, new IgnoredParquetField());
         fieldMap.put(IdFieldMapper.CONTENT_TYPE, new IdParquetField());
         fieldMap.put(SeqNoFieldMapper.CONTENT_TYPE, new LongParquetField());
+        fieldMap.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField());
         fieldMap.put(VersionFieldMapper.CONTENT_TYPE, new LongParquetField());
         return fieldMap;
     }

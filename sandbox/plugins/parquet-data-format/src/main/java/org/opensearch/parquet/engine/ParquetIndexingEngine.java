@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * </ul>
  *
  * <p>Node-level {@link Settings} are passed through to each {@link ParquetWriter} at creation
- * time, where writer-specific settings (e.g., {@code index.parquet.max_rows_per_vsr}) are
+ * time, where writer-specific settings (e.g., {@code parquet.max_rows_per_vsr}) are
  * extracted and applied.
  */
 public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput>, Closeable {
@@ -60,7 +60,6 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ShardPath shardPath;
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
-    private final IndexSettings indexSettings;
     private final Settings settings;
 
     public ParquetIndexingEngine(
@@ -74,7 +73,6 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
-        this.indexSettings = indexSettings;
         this.settings = settings;
     }
 

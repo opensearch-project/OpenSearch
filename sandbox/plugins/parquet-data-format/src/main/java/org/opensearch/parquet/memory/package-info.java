@@ -10,7 +10,7 @@
  * Arrow memory management for the Parquet plugin.
  *
  * <p>This package provides a managed wrapper around Apache Arrow's {@code RootAllocator},
- * with allocation limits derived from the {@code index.parquet.max_native_allocation} setting.
+ * with allocation limits derived from the {@code parquet.max_native_allocation} setting.
  * The pool computes the maximum allocation as a percentage of available non-heap system memory
  * and provides child allocators for individual VSR instances.
  *

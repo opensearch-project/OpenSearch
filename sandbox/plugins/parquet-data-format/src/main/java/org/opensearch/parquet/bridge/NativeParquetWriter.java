@@ -51,7 +51,7 @@ public class NativeParquetWriter implements Closeable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (writerClosed.compareAndSet(false, true)) {
             metadata = RustBridge.closeWriter(filePath);
         }

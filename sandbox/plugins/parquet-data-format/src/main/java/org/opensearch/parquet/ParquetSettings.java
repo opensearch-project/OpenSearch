@@ -34,13 +34,13 @@ public final class ParquetSettings {
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
-        "index.parquet.max_native_allocation",
+        "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_ROWS_PER_VSR = Setting.intSetting(
-        "index.parquet.max_rows_per_vsr",
+        "parquet.max_rows_per_vsr",
         DEFAULT_MAX_ROWS_PER_VSR,
         1,
         Setting.Property.NodeScope

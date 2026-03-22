@@ -112,6 +112,9 @@ public class VSRPool implements AutoCloseable {
         Exception firstException = null;
         if (active != null) {
             try {
+                if (active.getState() == VSRState.ACTIVE) {
+                    active.moveToFrozen();
+                }
                 active.close();
                 activeVSR.set(null);
             } catch (Exception e) {

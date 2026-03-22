@@ -49,6 +49,7 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         collectedFields.clear();
         rowId = -1;
     }
+
     public long getRowId() {
         return rowId;
     }

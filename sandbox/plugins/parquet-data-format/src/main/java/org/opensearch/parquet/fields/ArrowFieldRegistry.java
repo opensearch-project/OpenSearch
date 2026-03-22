@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet.fields;
 
-import org.opensearch.index.mapper.SeqNoFieldMapper;
-import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 import org.opensearch.parquet.fields.plugins.CoreDataFieldPlugin;
 import org.opensearch.parquet.fields.plugins.MetadataFieldPlugin;
 import org.opensearch.parquet.fields.plugins.ParquetFieldPlugin;
@@ -32,7 +30,7 @@ public final class ArrowFieldRegistry {
 
     private ArrowFieldRegistry() {}
 
-    public static synchronized void initialize() {
+    private static void initialize() {
         registerPlugin(new CoreDataFieldPlugin(), "CoreDataFields");
         registerPlugin(new MetadataFieldPlugin(), "MetadataFields");
     }
@@ -58,7 +56,6 @@ public final class ArrowFieldRegistry {
             }
             FIELD_REGISTRY.put(fieldType, parquetField);
         }
-        FIELD_REGISTRY.put(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField());
     }
 
     public static ParquetField getParquetField(String fieldType) {

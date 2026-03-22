@@ -25,7 +25,7 @@ import java.io.Closeable;
  *
  * <p>Wraps an Apache Arrow {@link RootAllocator} whose maximum allocation is computed as a
  * percentage of available non-heap system memory (total physical memory minus JVM max heap),
- * controlled by the {@code index.parquet.max_native_allocation} setting (default {@code "10%"}).
+ * controlled by the {@code parquet.max_native_allocation} setting (default {@code "10%"}).
  *
  * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
  * each limited to 1/10th of the root allocation, providing memory isolation between batches.

@@ -51,7 +51,8 @@ import java.util.function.Supplier;
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
     private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
-    private Settings settings;
+    // Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents()
+    private Settings settings = Settings.EMPTY;
 
     @Override
     public Collection<Object> createComponents(

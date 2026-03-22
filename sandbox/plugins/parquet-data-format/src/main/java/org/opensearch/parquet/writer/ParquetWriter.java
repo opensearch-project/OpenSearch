@@ -8,8 +8,6 @@
 
 package org.opensearch.parquet.writer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -33,15 +31,13 @@ import org.apache.arrow.vector.types.pojo.Schema;
  * Documents are accepted via {@link #addDoc(ParquetDocumentInput)}, batched in Arrow vectors
  * by the {@link VSRManager}, and flushed to a Parquet file via the native Rust writer.
  *
- * <p>Writer-level settings (e.g., {@code index.parquet.max_rows_per_vsr}) are extracted from
+ * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
  * the {@link Settings} passed at construction time and propagated to the VSR layer.
  *
  * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
  * generation, and row count for downstream commit tracking.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
-
-    private static final Logger logger = LogManager.getLogger(ParquetWriter.class);
 
     private final String file;
     private final long writerGeneration;

@@ -34,6 +34,9 @@ public final class ArrowSchemaBuilder {
      */
     public static Schema getSchema(MapperService mapperService) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
+        if (mapperService.documentMapper() == null) {
+            throw new IllegalStateException("DocumentMapper is not initialized");
+        }
         List<Field> fields = new ArrayList<>();
         for (Mapper mapper : mapperService.documentMapper().mappers()) {
             if (isUnsupportedMetadataField(mapper)) {
@@ -47,9 +50,6 @@ public final class ArrowSchemaBuilder {
         // Add row ID field (long)
         LongParquetField longField = new LongParquetField();
         fields.add(new Field("_row_id", longField.getFieldType(), null));
-        if (fields.isEmpty()) {
-            throw new IllegalStateException("No valid fields found in mapper service");
-        }
         return new Schema(fields);
     }
 

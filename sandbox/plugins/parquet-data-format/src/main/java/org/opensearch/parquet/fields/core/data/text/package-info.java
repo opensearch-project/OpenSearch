@@ -14,7 +14,7 @@
  * <ul>
  *   <li>{@link org.opensearch.parquet.fields.core.data.text.TextParquetField} — Full-text fields.</li>
  *   <li>{@link org.opensearch.parquet.fields.core.data.text.KeywordParquetField} — Keyword (exact match) fields.</li>
- *   <li>{@link org.opensearch.parquet.fields.core.data.text.IpParquetField} — IP address fields stored as UTF-8 strings.</li>
+ *   <li>{@link org.opensearch.parquet.fields.core.data.text.IpParquetField} — IP address fields stored as binary-encoded addresses.</li>
  * </ul>
  */
 package org.opensearch.parquet.fields.core.data.text;

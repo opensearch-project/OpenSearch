@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.vsr;
 
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,7 +86,12 @@ public class VSRManager implements AutoCloseable {
             }
             parquetField.createField(fieldType, activeVSR, pair.getValue());
         }
-        activeVSR.setRowCount(activeVSR.getRowCount() + 1);
+        int rowIndex = activeVSR.getRowCount();
+        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("_row_id");
+        if (rowIdVector != null) {
+            rowIdVector.setSafe(rowIndex, doc.getRowId());
+        }
+        activeVSR.setRowCount(rowIndex + 1);
     }
 
     /**

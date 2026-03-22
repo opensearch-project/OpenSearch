@@ -22,7 +22,7 @@ public class BinaryParquetField extends ParquetField {
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
-        ((VarBinaryVector) managedVSR.getVector(mappedFieldType.name())).set(managedVSR.getRowCount(), (byte[]) parseValue);
+        ((VarBinaryVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (byte[]) parseValue);
     }
 
     @Override
