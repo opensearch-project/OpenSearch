@@ -2,8 +2,8 @@
 "Field caps with disable_objects returns leaf fields":
 
   - skip:
-      version: " - 3.4.99"
-      reason: "disable_objects was introduced in 3.5.0"
+      version: " - 3.5.99"
+      reason: "Bug fixed in 3.6"
 
   - do:
       indices.create:
@@ -46,8 +46,8 @@
 "Field caps with disable_objects does not corrupt field names after second document indexed":
 
   - skip:
-      version: " - 3.4.99"
-      reason: "disable_objects was introduced in 3.5.0"
+      version: " - 3.5.99"
+      reason: "Bug fixed in 3.6"
 
   - do:
       indices.create:
