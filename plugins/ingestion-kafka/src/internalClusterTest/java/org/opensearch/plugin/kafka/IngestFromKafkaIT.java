@@ -1376,11 +1376,9 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         });
 
         // Step 5: Validate all 10 documents are searchable after warmup
-        assertBusy(() -> {
-            client(nodeA).admin().indices().prepareRefresh(indexName).get();
-            long docCount = client(nodeA).prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
-            assertEquals("All 10 documents should be searchable after warmup completes", 10L, docCount);
-        });
+        client(nodeA).admin().indices().prepareRefresh(indexName).get();
+        long docCount = client(nodeA).prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
+        assertEquals("All 10 documents should be searchable immediately after warmup completes", 10L, docCount);
 
         // Step 6: Verify stats
         PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]

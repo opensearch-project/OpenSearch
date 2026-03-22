@@ -1060,8 +1060,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         warmupPoller.close();
     }
 
-    public void testUpdateWarmupConfigThresholdWhileInProgress() {
-        // Create a poller with warmup enabled and a high threshold
+    public void testUpdateWarmupConfigThresholdAndTimeoutWhileInProgress() {
+        // Create a poller with warmup enabled
         IngestionSource.WarmupConfig initialConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L);
         DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
             new FakeIngestionSource.FakeIngestionShardPointer(0),
@@ -1084,11 +1084,11 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Warmup should not be complete yet
         assertFalse(warmupPoller.isWarmupComplete());
 
-        // Update threshold to a different value while warmup is in progress
-        IngestionSource.WarmupConfig updatedConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 50L);
+        // Update both threshold and timeout while warmup is in progress
+        IngestionSource.WarmupConfig updatedConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 50L);
         warmupPoller.updateWarmupConfig(updatedConfig);
 
-        // Warmup should still not be complete (we just changed threshold, not disabled it)
+        // Warmup should still not be complete (we just changed config values, not disabled it)
         assertFalse(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
@@ -1124,40 +1124,6 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // Warmup should still be complete (not re-triggered)
         assertTrue(warmupPoller.isWarmupComplete());
-
-        warmupPoller.close();
-    }
-
-    public void testUpdateWarmupConfigTimeoutWhileInProgress() {
-        // Create a poller with warmup enabled with a short timeout
-        IngestionSource.WarmupConfig initialConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueSeconds(30), 100L);
-        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
-            new FakeIngestionSource.FakeIngestionShardPointer(0),
-            fakeConsumerFactory,
-            "",
-            0,
-            partitionedBlockingQueueContainer,
-            StreamPoller.ResetState.NONE,
-            "",
-            errorStrategy,
-            StreamPoller.State.NONE,
-            1000,
-            1000,
-            10000,
-            indexSettings,
-            new DefaultIngestionMessageMapper(),
-            initialConfig
-        );
-
-        // Warmup should not be complete yet
-        assertFalse(warmupPoller.isWarmupComplete());
-
-        // Update timeout to a longer value while warmup is in progress
-        IngestionSource.WarmupConfig updatedConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L);
-        warmupPoller.updateWarmupConfig(updatedConfig);
-
-        // Warmup should still not be complete (we just changed timeout)
-        assertFalse(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
     }
