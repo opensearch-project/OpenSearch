@@ -14,7 +14,6 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.protobufs.InnerHitsResult;
@@ -261,15 +260,30 @@ public class SearchHitProtoUtils {
             // boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
             boolean includeMatchedQueriesScore = false;
 
+            org.opensearch.protobufs.HitMatchedQueries.Builder matchedQueriesBuilder = org.opensearch.protobufs.HitMatchedQueries
+                .newBuilder();
             if (includeMatchedQueriesScore) {
-                // TODO map type is missing in spec
-                // for (Map.Entry<String, Float> entry : matchedQueries.entrySet()) {
-                // hitBuilder.putMatchedqueires(entry.getKey(), entry.getValue());
+                // TODO: uncomment when have a way to pass the param to the converter
+                // Map<String, Float> matchedQueriesWithScores = hit.getMatchedQueriesAndScores();
+                // org.opensearch.protobufs.DoubleMap.Builder doubleMapBuilder = org.opensearch.protobufs.DoubleMap.newBuilder();
+                // for (Map.Entry<String, Float> entry : matchedQueriesWithScores.entrySet()) {
+                // doubleMapBuilder.putDoubleMap(entry.getKey(), entry.getValue().doubleValue());
+                // }
+                // matchedQueriesBuilder.setScores(doubleMapBuilder.build());
             } else {
+                org.opensearch.protobufs.StringArray.Builder namesBuilder = org.opensearch.protobufs.StringArray.newBuilder();
+                for (String matchedFilter : hit.getMatchedQueries()) {
+                    namesBuilder.addStringArray(matchedFilter);
+                }
+                matchedQueriesBuilder.setNames(namesBuilder.build());
+
+                // Populate deprecated matched_queries field for backward compatibility with old clients
                 for (String matchedFilter : hit.getMatchedQueries()) {
                     hitBuilder.addMatchedQueries(matchedFilter);
                 }
             }
+
+            hitBuilder.setMatchedQueries2(matchedQueriesBuilder.build());
         }
     }
 

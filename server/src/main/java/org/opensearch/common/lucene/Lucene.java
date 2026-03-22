@@ -84,6 +84,7 @@ import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.lucene.index.DerivedSourceLeafReader;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.core.common.Strings;
@@ -112,7 +113,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene103";
+    public static final String LATEST_CODEC = "Lucene104";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
     public static final String PARENT_FIELD = "__nested_parent";
@@ -951,11 +952,35 @@ public class Lucene {
                     }
 
                     assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                    if (isDerivedSourceEnabled(leaf)) {
+                        return new LeafReaderWithLiveDocs(leaf, hardLiveDocs, numDocs);
+                    } else {
+                        return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+                    }
                 }
 
                 private boolean isContextAwareEnabled(SegmentReader reader) {
                     return reader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME) != null;
+                }
+
+                /**
+                 * A FilterCodecReader can never accept a DerivedSourceLeafReader as a delegate as it is IndexReader.
+                 * DerivedSourceLeafReader can be wrapped up by only FilterLeafReader.
+                 * @param reader the underlying leafReader.
+                 *
+                 * @return whether derived source is enabled or not.
+                 */
+                public boolean isDerivedSourceEnabled(LeafReader reader) {
+                    if (reader instanceof SegmentReader) {
+                        return false;
+                    } else if (reader instanceof DerivedSourceLeafReader) {
+                        return true;
+                    } else if (reader instanceof FilterLeafReader) {
+                        FilterLeafReader filterLeafReader = (FilterLeafReader) reader;
+                        return isDerivedSourceEnabled(filterLeafReader.getDelegate());
+                    }
+
+                    return false;
                 }
             });
         }

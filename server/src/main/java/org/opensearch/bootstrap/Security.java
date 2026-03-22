@@ -129,7 +129,9 @@ import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
  */
 @SuppressWarnings("removal")
 final class Security {
-    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile("^(.+)-\\d+\\.\\d+[^-]*.*?[-]?([^-]+)?\\.jar$");
+    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile(
+        "^(.+)-\\d+\\.\\d+[^-]*.*?[-]?((?:linux-|windows-|osx-)?[^-]+)?\\.jar$"
+    );
 
     /** no instantiation */
     private Security() {}

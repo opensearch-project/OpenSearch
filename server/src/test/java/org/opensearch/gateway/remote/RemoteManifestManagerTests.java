@@ -13,6 +13,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.EncryptedBlobContainer;
+import org.opensearch.common.crypto.CryptoHandler;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -37,6 +39,7 @@ import static org.opensearch.gateway.remote.RemoteClusterStateUtils.DELIMITER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteManifestManagerTests extends OpenSearchTestCase {
@@ -114,6 +117,34 @@ public class RemoteManifestManagerTests extends OpenSearchTestCase {
             )
         );
         assertEquals(e.getMessage(), "Error while fetching latest manifest file for remote cluster state");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRemoteManifestManagerUsesListBlobsByPrefixInSortedOrder() throws IOException {
+        final ClusterState clusterState = RemoteClusterStateServiceTests.generateClusterStateWithOneIndex()
+            .nodes(RemoteClusterStateServiceTests.nodesWithLocalNodeClusterManager())
+            .build();
+
+        BlobContainer mockBlobContainer = mock(BlobContainer.class);
+        CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);
+        EncryptedBlobContainer<Object, Object> encryptedBlobContainer = new EncryptedBlobContainer<>(mockBlobContainer, cryptoHandler);
+
+        final BlobPath blobPath = mock(BlobPath.class);
+        when((blobStoreRepository.basePath())).thenReturn(blobPath);
+        when(blobPath.add(anyString())).thenReturn(blobPath);
+        when(blobPath.buildAsString()).thenReturn("/blob/path/");
+        when(mockBlobContainer.path()).thenReturn(blobPath);
+        when(blobStore.blobContainer(any())).thenReturn(encryptedBlobContainer);
+
+        when(mockBlobContainer.listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC))
+            .thenReturn(java.util.Collections.emptyList());
+
+        remoteManifestManager.getLatestClusterMetadataManifest(
+            clusterState.getClusterName().value(),
+            clusterState.metadata().clusterUUID()
+        );
+
+        verify(mockBlobContainer).listBlobsByPrefixInSortedOrder("manifest" + DELIMITER, 1, BlobContainer.BlobNameSortOrder.LEXICOGRAPHIC);
     }
 
     private BlobContainer mockBlobStoreObjects() {

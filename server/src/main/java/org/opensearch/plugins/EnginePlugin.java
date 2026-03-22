@@ -33,6 +33,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -85,6 +86,21 @@ public interface EnginePlugin {
      * {@link IndexSettings} will be used.
      */
     default Optional<CodecServiceFactory> getCustomCodecServiceFactory(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * Apache Lucene uses service loader to discover available {@link org.apache.lucene.codecs.Codec},
+     * however sometimes custom {@link org.apache.lucene.codecs.Codec} implementations do require
+     * complex instantiation logic and could not be registered through service loader. The
+     * {@link AdditionalCodecs} is designated as a mechanism to contribute additional
+     * {@link org.apache.lucene.codecs.Codec} that require non-trivial instantiation
+     * logic.
+     *
+     * All registered {@code CodecRegistry} will be pushed down to default {@code CodecService} as
+     * well as custom {@code CodecServiceFactory} through {@code CodecServiceConfig}.
+     */
+    default Optional<AdditionalCodecs> getAdditionalCodecs(IndexSettings indexSettings) {
         return Optional.empty();
     }
 

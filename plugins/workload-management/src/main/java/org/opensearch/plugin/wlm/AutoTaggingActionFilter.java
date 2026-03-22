@@ -11,6 +11,7 @@ package org.opensearch.plugin.wlm;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
 import org.opensearch.action.support.ActionRequestMetadata;
@@ -19,6 +20,7 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.plugin.wlm.rule.attribute_extractor.IndicesExtractor;
 import org.opensearch.plugin.wlm.spi.AttributeExtractorExtension;
 import org.opensearch.rule.InMemoryRuleProcessingService;
+import org.opensearch.rule.RuleAttribute;
 import org.opensearch.rule.attribute_extractor.AttributeExtractor;
 import org.opensearch.rule.autotagging.Attribute;
 import org.opensearch.rule.autotagging.FeatureType;
@@ -28,6 +30,7 @@ import org.opensearch.wlm.WlmMode;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -80,14 +83,39 @@ public class AutoTaggingActionFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
-        final boolean isValidRequest = request instanceof SearchRequest;
+        final boolean isSearchRequest = request instanceof SearchRequest;
+        final boolean isSearchScrollRequest = request instanceof SearchScrollRequest;
+        final boolean isValidRequest = isSearchRequest || isSearchScrollRequest;
 
         if (!isValidRequest || wlmClusterSettingValuesProvider.getWlmMode() == WlmMode.DISABLED) {
             chain.proceed(task, action, request, listener);
             return;
         }
         List<AttributeExtractor<String>> attributeExtractors = new ArrayList<>();
-        attributeExtractors.add(new IndicesExtractor((IndicesRequest) request));
+        if (isSearchRequest) {
+            attributeExtractors.add(new IndicesExtractor((IndicesRequest) request));
+        } else {
+            // Scroll: recover the original user-provided indices from ParsedScrollId
+            final String[] originalIndices = ((SearchScrollRequest) request).originalIndicesOrEmpty();
+            if (originalIndices.length > 0) {
+                attributeExtractors.add(new AttributeExtractor<>() {
+                    @Override
+                    public Attribute getAttribute() {
+                        return RuleAttribute.INDEX_PATTERN;
+                    }
+
+                    @Override
+                    public Iterable<String> extract() {
+                        return Arrays.asList(originalIndices);
+                    }
+
+                    @Override
+                    public LogicalOperator getLogicalOperator() {
+                        return LogicalOperator.AND;
+                    }
+                });
+            }
+        }
 
         if (featureType.getAllowedAttributesRegistry().containsKey(PRINCIPAL_ATTRIBUTE_NAME)) {
             Attribute attribute = featureType.getAllowedAttributesRegistry().get(PRINCIPAL_ATTRIBUTE_NAME);

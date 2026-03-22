@@ -35,6 +35,7 @@ import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
+import org.opensearch.search.aggregations.metrics.Min;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -205,6 +206,105 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
                     break;
                 case "value3":
                     assertEquals(expectedMaxMsg, 23.0, maxAgg.getValue(), 0.001);
+                    break;
+            }
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingAggregationWithMinSubAgg() {
+        TermsAggregationBuilder termsAgg = AggregationBuilders.terms("field1_terms")
+            .field("field1")
+            .subAggregation(AggregationBuilders.min("field2_min").field("field2"));
+        SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+        searchRequest.source().query(QueryBuilders.matchAllQuery()).aggregation(termsAgg).size(0);
+
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
+
+        // Verify successful response
+        assertNotNull("Response should not be null for successful streaming aggregation", response);
+        assertNotNull("Response hits should not be null", response.getHits());
+        assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
+
+        // Validate aggregation results must be present
+        assertNotNull("Aggregations should not be null", response.getAggregations());
+        StringTerms termsResult = response.getAggregations().get("field1_terms");
+        assertNotNull("Terms aggregation should be present", termsResult);
+
+        // Should have 3 buckets: value1, value2, value3
+        assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
+
+        // Each bucket should have 30 documents
+        for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
+            assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
+            assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
+
+            // Check min sub-aggregation
+            Min minAgg = bucket.getAggregations().get("field2_min");
+            assertNotNull("Min sub-aggregation should be present", minAgg);
+
+            // Expected min values: value1=1, value2=2, value3=3 (from segment 1)
+            String expectedMinMsg = "Min value for " + bucket.getKeyAsString();
+            switch (bucket.getKeyAsString()) {
+                case "value1":
+                    assertEquals(expectedMinMsg, 1.0, minAgg.getValue(), 0.001);
+                    break;
+                case "value2":
+                    assertEquals(expectedMinMsg, 2.0, minAgg.getValue(), 0.001);
+                    break;
+                case "value3":
+                    assertEquals(expectedMinMsg, 3.0, minAgg.getValue(), 0.001);
+                    break;
+            }
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingAggregationWithSumSubAgg() {
+        TermsAggregationBuilder termsAgg = AggregationBuilders.terms("field1_terms")
+            .field("field1")
+            .subAggregation(AggregationBuilders.sum("field2_sum").field("field2"));
+        SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+        searchRequest.source().query(QueryBuilders.matchAllQuery()).aggregation(termsAgg).size(0);
+
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
+
+        // Verify successful response
+        assertNotNull("Response should not be null for successful streaming aggregation", response);
+        assertNotNull("Response hits should not be null", response.getHits());
+        assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
+
+        // Validate aggregation results must be present
+        assertNotNull("Aggregations should not be null", response.getAggregations());
+        StringTerms termsResult = response.getAggregations().get("field1_terms");
+        assertNotNull("Terms aggregation should be present", termsResult);
+
+        // Should have 3 buckets: value1, value2, value3
+        assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
+
+        // Each bucket should have 30 documents
+        for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
+            assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
+            assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
+
+            // Check sum sub-aggregation
+            org.opensearch.search.aggregations.metrics.Sum sumAgg = bucket.getAggregations().get("field2_sum");
+            assertNotNull("Sum sub-aggregation should be present", sumAgg);
+
+            // Expected sum values: value1=330, value2=360, value3=390
+            // value1: 10*1 + 10*11 + 10*21 = 10 + 110 + 210 = 330
+            // value2: 10*2 + 10*12 + 10*22 = 20 + 120 + 220 = 360
+            // value3: 10*3 + 10*13 + 10*23 = 30 + 130 + 230 = 390
+            String expectedSumMsg = "Sum value for " + bucket.getKeyAsString();
+            switch (bucket.getKeyAsString()) {
+                case "value1":
+                    assertEquals(expectedSumMsg, 330.0, sumAgg.getValue(), 0.001);
+                    break;
+                case "value2":
+                    assertEquals(expectedSumMsg, 360.0, sumAgg.getValue(), 0.001);
+                    break;
+                case "value3":
+                    assertEquals(expectedSumMsg, 390.0, sumAgg.getValue(), 0.001);
                     break;
             }
         }

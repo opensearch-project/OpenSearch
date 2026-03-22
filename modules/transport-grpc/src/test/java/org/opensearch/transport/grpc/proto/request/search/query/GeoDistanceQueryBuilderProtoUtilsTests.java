@@ -141,7 +141,7 @@ public class GeoDistanceQueryBuilderProtoUtilsTests extends OpenSearchTestCase {
             .addDoubleArray(40.7)  // lat
             .build();
 
-        GeoLocation geoLocation = GeoLocation.newBuilder().setDoubleArray(doubleArray).build();
+        GeoLocation geoLocation = GeoLocation.newBuilder().setCoords(doubleArray).build();
 
         GeoDistanceQuery geoDistanceQuery = GeoDistanceQuery.newBuilder()
             .setXName("location")

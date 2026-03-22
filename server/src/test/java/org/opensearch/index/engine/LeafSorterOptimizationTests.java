@@ -28,6 +28,7 @@ import org.opensearch.index.translog.TranslogConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -58,7 +59,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
-                .codecService(new CodecService(null, defaultSettings, logger))
+                .codecService(new CodecService(null, defaultSettings, logger, List.of()))
                 .eventListener(new Engine.EventListener() {
                 })
                 .translogConfig(new TranslogConfig(shardId, translogPath, defaultSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
@@ -116,7 +117,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
-                .codecService(new CodecService(null, defaultSettings, logger))
+                .codecService(new CodecService(null, defaultSettings, logger, List.of()))
                 .eventListener(new Engine.EventListener() {
                 })
                 .translogConfig(new TranslogConfig(shardId, translogPath, defaultSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
@@ -178,7 +179,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
-                .codecService(new CodecService(null, defaultSettings, logger))
+                .codecService(new CodecService(null, defaultSettings, logger, List.of()))
                 .eventListener(new Engine.EventListener() {
                 })
                 .translogConfig(new TranslogConfig(shardId, translogPath, defaultSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))
@@ -255,7 +256,7 @@ public class LeafSorterOptimizationTests extends EngineTestCase {
                 .mergePolicy(newMergePolicy())
                 .analyzer(newIndexWriterConfig().getAnalyzer())
                 .similarity(newIndexWriterConfig().getSimilarity())
-                .codecService(new CodecService(null, defaultSettings, logger))
+                .codecService(new CodecService(null, defaultSettings, logger, List.of()))
                 .eventListener(new Engine.EventListener() {
                 })
                 .translogConfig(new TranslogConfig(shardId, translogPath, defaultSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false))

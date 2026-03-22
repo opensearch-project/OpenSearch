@@ -9,7 +9,7 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.Version;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -22,7 +22,7 @@ import java.util.Objects;
 /**
  * Stats for pull-based ingestion
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class PollingIngestStats implements Writeable, ToXContentFragment {
     private final MessageProcessorStats messageProcessorStats;
     private final ConsumerStats consumerStats;
@@ -138,7 +138,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     /**
      * Stats for message processor
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public record MessageProcessorStats(long totalProcessedCount, long totalInvalidMessageCount, long totalVersionConflictsCount,
         long totalFailedCount, long totalFailuresDroppedCount, long totalProcessorThreadInterruptCount) {
     }
@@ -148,7 +148,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      *
      * totalDuplicateMessageSkippedCount has been deprecated as of version 3.4  and will be removed in a future version.
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public record ConsumerStats(long totalPolledCount, long lagInMillis, long totalConsumerErrorCount, long totalPollerMessageFailureCount,
         long totalPollerMessageDroppedCount, long totalDuplicateMessageSkippedCount, long pointerBasedLag) {
     }
@@ -156,7 +156,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     /**
      * Builder for {@link PollingIngestStats}
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     public static class Builder {
         private long totalProcessedCount;
         private long totalInvalidMessageCount;

@@ -61,6 +61,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.search.streaming.FlushModeResolver;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -104,6 +105,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
+                IndexMetadata.INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING,
                 IndexMetadata.INDEX_READ_ONLY_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_SETTING,
                 IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
@@ -116,6 +118,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_HIDDEN_SETTING,
                 IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING,
+                IndexMetadata.INDEX_BULK_ADAPTIVE_SHARD_SELECTION_ENABLED,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -171,6 +174,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_SCROLL,
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
+                FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
@@ -287,6 +291,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_ALL_ACTIVE_INGESTION_SETTING,
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
+                IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,

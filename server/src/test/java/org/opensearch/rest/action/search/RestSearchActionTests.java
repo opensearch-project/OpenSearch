@@ -143,11 +143,20 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 
-    public void testCanUseStreamSearchWithMultipleAggregations() {
+    public void testCanUseStreamSearchWithMultipleTermsAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(AggregationBuilders.terms("terms1").field("category"));
+        source.aggregation(AggregationBuilders.terms("terms2").field("brand"));
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndNonTermsTopLevel() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
-        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        source.aggregation(AggregationBuilders.sum("test_sum").field("price"));
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
@@ -155,7 +164,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
     public void testCanUseStreamSearchWithSingleNonTermsAggregation() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
-        source.aggregation(AggregationBuilders.avg("test_avg").field("price"));
+        source.aggregation(AggregationBuilders.sum("test_sum").field("price"));
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
     }
@@ -166,5 +175,78 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         source.aggregation(AggregationBuilders.histogram("test_histogram").field("timestamp").interval(1000));
         searchRequest.source(source);
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndSupportedSubAggregations() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("test_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
+                .subAggregation(AggregationBuilders.max("max_price").field("price"))
+                .subAggregation(AggregationBuilders.min("min_price").field("price"))
+                .subAggregation(AggregationBuilders.cardinality("unique_brands").field("brand"))
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndNestedTermsSubAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("category_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.terms("brand_terms").field("brand"))
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTermsAndUnsupportedSubAggregation() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("test_terms")
+                .field("category")
+                .subAggregation(AggregationBuilders.histogram("price_hist").field("price").interval(10))
+        );
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithThreeLevelTermsNesting() {
+        // 3-level terms nesting should be rejected (max 2 levels supported)
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("level1_terms")
+                .field("category")
+                .subAggregation(
+                    AggregationBuilders.terms("level2_terms")
+                        .field("brand")
+                        .subAggregation(AggregationBuilders.terms("level3_terms").field("model"))
+                )
+        );
+        searchRequest.source(source);
+        assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
+    }
+
+    public void testCanUseStreamSearchWithTwoLevelTermsAndMetricLeaf() {
+        // 2-level terms with metric leaf should be accepted
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.aggregation(
+            AggregationBuilders.terms("level1_terms")
+                .field("category")
+                .subAggregation(
+                    AggregationBuilders.terms("level2_terms")
+                        .field("brand")
+                        .subAggregation(AggregationBuilders.sum("sum_price").field("price"))
+                )
+        );
+        searchRequest.source(source);
+        assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
     }
 }

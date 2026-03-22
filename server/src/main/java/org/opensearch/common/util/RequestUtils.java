@@ -25,4 +25,25 @@ public final class RequestUtils {
     public static String generateID() {
         return UUIDs.base64UUID();
     }
+
+    /**
+     * Validate whether X-Request-id is valid or not.
+     */
+    public static void validateRequestId(String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            throw new IllegalArgumentException("X-Request-Id should not be null or empty");
+        }
+
+        if (requestId.length() != 32) {
+            throw new IllegalArgumentException("Invalid X-Request-Id passed. Should be 32 hexadecimal characters: " + requestId);
+        }
+
+        for (int i = 0; i < requestId.length(); i++) {
+            char c = requestId.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                throw new IllegalArgumentException("Invalid X-Request-Id passed: " + requestId);
+            }
+        }
+    }
+
 }

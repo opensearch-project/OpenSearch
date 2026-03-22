@@ -8,28 +8,20 @@
 
 package org.opensearch.http.reactor.netty4;
 
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.XContentHttpChunk;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.http.HttpServerTransport;
-import org.opensearch.rest.RestChannel;
-import org.opensearch.rest.RestHandler;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
-import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.transport.reactor.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
@@ -37,11 +29,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.netty.handler.codec.http.DefaultHttpRequest;
@@ -50,24 +39,13 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
-import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the {@link ReactorNetty4HttpServerTransport} class with streaming support.
  */
-public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTestCase {
-    private static final Function<String, ToXContent> XCONTENT_CONVERTER = str -> new ToXContent() {
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            return builder.startObject().field("doc", str).endObject();
-        }
-    };
-
+public class ReactorNetty4HttpServerTransportStreamingTests extends AbstractReactorNetty4HttpServerTransportStreamingTests {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
@@ -97,7 +75,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
         final String url = "/stream/";
 
         final ToXContent[] chunks = newChunks(responseString);
-        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(url, responseString);
+        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(threadPool, url, responseString);
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
@@ -115,7 +93,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (ReactorHttpClient client = ReactorHttpClient.create(false)) {
+            try (ReactorHttpClient client = ReactorHttpClient.create(false, Settings.EMPTY)) {
                 HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
                 final FullHttpResponse response = client.stream(remoteAddress.address(), request, Arrays.stream(chunks));
                 try {
@@ -141,7 +119,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
         final String url = "/stream/";
 
         final ToXContent[] chunks = newChunks(responseString);
-        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(url, responseString);
+        final HttpServerTransport.Dispatcher dispatcher = createStreamingDispatcher(threadPool, url, responseString);
 
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
@@ -155,7 +133,7 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
                 new SharedGroupFactory(Settings.EMPTY),
                 NoopTracer.INSTANCE
             );
-            ReactorHttpClient client = ReactorHttpClient.create(false)
+            ReactorHttpClient client = ReactorHttpClient.create(false, Settings.EMPTY)
         ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
@@ -173,57 +151,5 @@ public class ReactorNetty4HttpServerTransportStreamingTests extends OpenSearchTe
             assertThat(transport.stats().getServerOpen(), equalTo(0L));
             assertThat(transport.stats().getTotalOpen(), equalTo(numRequests));
         }
-    }
-
-    private HttpServerTransport.Dispatcher createStreamingDispatcher(String url, String responseString) {
-        return dispatcherBuilderWithDefaults().withDispatchHandler((uri, rawPath, method, params) -> Optional.of(new RestHandler() {
-            @Override
-            public boolean supportsStreaming() {
-                return true;
-            }
-
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                logger.error("--> Unexpected request [{}]", request.uri());
-                throw new AssertionError();
-            }
-        })).withDispatchRequest((request, channel, threadContext) -> {
-            if (url.equals(request.uri())) {
-                assertThat(channel, instanceOf(StreamingRestChannel.class));
-                final StreamingRestChannel streamingChannel = (StreamingRestChannel) channel;
-
-                // Await at most 5 seconds till channel is ready for writing the response stream, fail otherwise
-                final Mono<?> ready = Mono.fromRunnable(() -> {
-                    while (!streamingChannel.isWritable()) {
-                        Thread.onSpinWait();
-                    }
-                }).timeout(Duration.ofSeconds(5));
-
-                threadPool.executor(ThreadPool.Names.WRITE).execute(() -> Flux.concat(Flux.fromArray(newChunks(responseString)).map(e -> {
-                    try (XContentBuilder builder = channel.newBuilder(XContentType.JSON, true)) {
-                        return XContentHttpChunk.from(e.toXContent(builder, ToXContent.EMPTY_PARAMS));
-                    } catch (final IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }), Mono.just(XContentHttpChunk.last())).delaySubscription(ready).subscribe(streamingChannel::sendChunk, null, () -> {
-                    if (channel.bytesOutput() instanceof Releasable) {
-                        ((Releasable) channel.bytesOutput()).close();
-                    }
-                }));
-            } else {
-                logger.error("--> Unexpected successful uri [{}]", request.uri());
-                throw new AssertionError();
-            }
-        }).build();
-    }
-
-    private static ToXContent[] newChunks(final String responseString) {
-        final ToXContent[] chunks = new ToXContent[responseString.length() / 16];
-
-        for (int chunk = 0; chunk < responseString.length(); chunk += 16) {
-            chunks[chunk / 16] = XCONTENT_CONVERTER.apply(responseString.substring(chunk, chunk + 16));
-        }
-
-        return chunks;
     }
 }

@@ -1,0 +1,64 @@
+setup:
+  - skip:
+      version: " - 3.5.99"
+      reason: "introduced in 3.6.0 "
+
+---
+"Test basic use":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              append_only.enabled: true
+              bulk.adaptive_shard_selection.enabled: true
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test"}}
+          {"f1": "v1", "f2": 42}
+          {"index": {"_index": "test"}}
+          {"f1": "v2", "f2": 47}
+
+  # Verify Document Count
+  - do:
+      search:
+        index: test
+        body: {
+          query: {
+            match_all: { }
+          }
+        }
+  - length:   { hits.hits: 2  }
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test", "_id": 1}}
+          {"f1": "v1", "f2": 42}
+
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: validation_exception }
+  - match: { items.0.index.error.reason: "Validation Failed: 1: Operation [INDEX] is not allowed with a custom document
+  id 1 as setting `index.append_only.enabled` is enabled for this index: test;" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test1
+        body:
+          settings:
+            index:
+              append_only.enabled: false
+              bulk.adaptive_shard_selection.enabled: true
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "index [test1] is not append-only index, bulk adaptive shard selection is enabled, which is
+   not supported. Please disable bulk adaptive shard selection or set index to append-only index." }

@@ -28,6 +28,7 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
+import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.LongTerms;
 import org.opensearch.search.aggregations.bucket.terms.StreamNumericTermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.StreamStringTermsAggregator;
@@ -35,7 +36,6 @@ import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Cardinality;
 import org.opensearch.search.aggregations.metrics.Max;
-import org.opensearch.search.aggregations.metrics.StreamCardinalityAggregator;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
@@ -47,6 +47,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
+import static org.opensearch.index.query.QueryBuilders.existsQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 
@@ -67,6 +68,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     static final int NUM_SHARDS = 3;
     static final int MIN_SEGMENTS_PER_SHARD = 3;
+    static final int MAX_BUCKET_COUNT = 100000;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -84,7 +86,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .prepareUpdateSettings()
             .setTransientSettings(
                 Settings.builder()
-                    .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
+                    .put("search.aggregations.streaming.max_estimated_bucket_count", MAX_BUCKET_COUNT)
                     .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                     .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
                     .build()
@@ -170,6 +172,88 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 indexShardSegments.getShards()[0].getSegments().size() >= MIN_SEGMENTS_PER_SHARD
             );
         });
+
+        // Create order_test index for string field sub-aggregation ordering tests
+        Settings orderIndexSettings = Settings.builder()
+            .put("index.number_of_shards", NUM_SHARDS)
+            .put("index.number_of_replicas", 0)
+            .put("index.search.concurrent_segment_search.mode", "none")
+            .put("index.merge.policy.max_merged_segment", "1kb")
+            .put("index.merge.policy.segments_per_tier", "20")
+            .put("index.merge.scheduler.max_thread_count", "1")
+            .build();
+
+        CreateIndexRequest orderIndexRequest = new CreateIndexRequest("order_test").settings(orderIndexSettings);
+        orderIndexRequest.mapping(
+            "{\"properties\":{\"category\":{\"type\":\"keyword\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
+            XContentType.JSON
+        );
+        client().admin().indices().create(orderIndexRequest).actionGet();
+        client().admin().cluster().prepareHealth("order_test").setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(30)).get();
+
+        for (int seg = 0; seg < 3; seg++) {
+            BulkRequest orderBulkRequest = new BulkRequest();
+            for (int i = 0; i < 10; i++) {
+                int uniqueUsers = (i + 1) * 2;
+                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
+                for (int j = 0; j < docsPerSegment; j++) {
+                    orderBulkRequest.add(
+                        new IndexRequest("order_test").source(
+                            XContentType.JSON,
+                            "category",
+                            "cat_" + i,
+                            "value",
+                            (i + 1) * 100,
+                            "user_id",
+                            "user_" + (i * 100 + seg * 100 + j)
+                        )
+                    );
+                }
+            }
+            BulkResponse orderBulkResponse = client().bulk(orderBulkRequest).actionGet();
+            assertFalse(orderBulkResponse.hasFailures());
+            client().admin().indices().flush(new FlushRequest("order_test").force(true)).actionGet();
+            client().admin().indices().refresh(new RefreshRequest("order_test")).actionGet();
+        }
+
+        // Create numeric_order_test index for numeric field sub-aggregation ordering tests
+        CreateIndexRequest numericOrderIndexRequest = new CreateIndexRequest("numeric_order_test").settings(orderIndexSettings);
+        numericOrderIndexRequest.mapping(
+            "{\"properties\":{\"category\":{\"type\":\"integer\"},\"value\":{\"type\":\"integer\"},\"user_id\":{\"type\":\"keyword\"}}}",
+            XContentType.JSON
+        );
+        client().admin().indices().create(numericOrderIndexRequest).actionGet();
+        client().admin()
+            .cluster()
+            .prepareHealth("numeric_order_test")
+            .setWaitForGreenStatus()
+            .setTimeout(TimeValue.timeValueSeconds(30))
+            .get();
+
+        for (int seg = 0; seg < 3; seg++) {
+            BulkRequest numericBulkRequest = new BulkRequest();
+            for (int i = 0; i < 10; i++) {
+                int uniqueUsers = (i + 1) * 2;
+                int docsPerSegment = uniqueUsers / 3 + (seg < uniqueUsers % 3 ? 1 : 0);
+                for (int j = 0; j < docsPerSegment; j++) {
+                    numericBulkRequest.add(
+                        new IndexRequest("numeric_order_test").source(
+                            XContentType.JSON,
+                            "category",
+                            i,
+                            "value",
+                            (i + 1) * 100,
+                            "user_id",
+                            "user_" + (i * 100 + seg * 100 + j)
+                        )
+                    );
+                }
+            }
+            BulkResponse numericBulkResponse = client().bulk(numericBulkRequest).actionGet();
+            assertFalse(numericBulkResponse.hasFailures());
+            client().admin().indices().flush(new FlushRequest("numeric_order_test").force(true)).actionGet();
+            client().admin().indices().refresh(new RefreshRequest("numeric_order_test")).actionGet();
+        }
     }
 
     @Override
@@ -188,11 +272,29 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         super.tearDown();
     }
 
+    private void assertAggregatorUsed(SearchResponse resp, Class<?> expectedAggregatorClass) {
+        assertNotNull("Profile response should be present", resp.getProfileResults());
+        boolean found = false;
+        for (var shardProfile : resp.getProfileResults().values()) {
+            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
+            for (var profileResult : aggProfileResults) {
+                if (expectedAggregatorClass.getSimpleName().equals(profileResult.getQueryName())) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        assertTrue("Expected to find " + expectedAggregatorClass.getSimpleName() + " in profile", found);
+    }
+
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingAggregationUsed() throws Exception {
         // This test validates streaming aggregation with 3 shards, each with at least 3 segments
+        // Use existsQuery to avoid match-all optimization that would disable streaming
         TermsAggregationBuilder agg = terms("agg1").field("field1").subAggregation(AggregationBuilders.max("agg2").field("field2"));
         ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
+            .setQuery(existsQuery("field1"))
             .addAggregation(agg)
             .setSize(0)
             .setRequestCache(false)
@@ -204,23 +306,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(90, resp.getHits().getTotalHits().value());
 
         // Validate that streaming aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingTerms = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && "streaming_terms".equals(debug.get("result_strategy"))) {
-                        foundStreamingTerms = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
-                        break;
-                    }
-                }
-            }
-            if (foundStreamingTerms) break;
-        }
-        assertTrue("Expected to find streaming_terms result_strategy in profile", foundStreamingTerms);
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -279,23 +365,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
         assertEquals(90, resp.getHits().getTotalHits().value());
 
         // Validate that streaming aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingNumeric = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamNumericTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && "stream_long_terms".equals(debug.get("result_strategy"))) {
-                        foundStreamingNumeric = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
-                        break;
-                    }
-                }
-            }
-            if (foundStreamingNumeric) break;
-        }
-        assertTrue("Expected to find stream_long_terms result_strategy in profile", foundStreamingNumeric);
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -390,32 +460,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             assertEquals(NUM_SHARDS, resp.getTotalShards());
             assertEquals(90, resp.getHits().getTotalHits().value());
 
-            // Validate that streaming aggregation was NOT used due to restrictive limits
-            assertNotNull("Profile response should be present", resp.getProfileResults());
-            boolean foundStreamingDisabled = false;
-            for (var shardProfile : resp.getProfileResults().values()) {
-                List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-                for (var profileResult : aggProfileResults) {
-                    if (StreamStringTermsAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                        var debug = profileResult.getDebugInfo();
-                        if (debug != null && debug.containsKey("streaming_enabled")) {
-                            // Should be false due to restrictive limits
-                            assertFalse(
-                                "streaming_enabled should be false with restrictive limits",
-                                (Boolean) debug.get("streaming_enabled")
-                            );
-                            foundStreamingDisabled = true;
-                            break;
-                        }
-                    }
-                }
-                if (foundStreamingDisabled) break;
-            }
-            if (!foundStreamingDisabled) {
-                logger.info("No streaming debug info found in profile - test still valid as results are correct");
-            }
+            assertAggregatorUsed(resp, GlobalOrdinalsStringTermsAggregator.class);
 
-            // Results should still be correct even without streaming
             StringTerms agg1 = (StringTerms) resp.getAggregations().asMap().get("agg1");
             List<StringTerms.Bucket> buckets = agg1.getBuckets();
             assertEquals(3, buckets.size());
@@ -429,104 +475,13 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 .prepareUpdateSettings()
                 .setTransientSettings(
                     Settings.builder()
-                        .put("search.aggregations.streaming.max_estimated_bucket_count", 1000)
+                        .put("search.aggregations.streaming.max_estimated_bucket_count", MAX_BUCKET_COUNT)
                         .put("search.aggregations.streaming.min_cardinality_ratio", 0.001)
                         .put("search.aggregations.streaming.min_estimated_bucket_count", 1)
                         .build()
                 )
                 .get();
         }
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityAggregationUsed() throws Exception {
-        // This test validates cardinality streaming aggregation with profile to verify streaming is used
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1"))
-            .setSize(0)
-            .setRequestCache(false)
-            .setProfile(true)
-            .execute();
-        SearchResponse resp = future.actionGet();
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
-
-        // Validate that streaming cardinality aggregation was actually used
-        assertNotNull("Profile response should be present", resp.getProfileResults());
-        boolean foundStreamingCardinality = false;
-        for (var shardProfile : resp.getProfileResults().values()) {
-            List<ProfileResult> aggProfileResults = shardProfile.getAggregationProfileResults().getProfileResults();
-            for (var profileResult : aggProfileResults) {
-                if (StreamCardinalityAggregator.class.getSimpleName().equals(profileResult.getQueryName())) {
-                    var debug = profileResult.getDebugInfo();
-                    if (debug != null && debug.containsKey("streaming_enabled")) {
-                        foundStreamingCardinality = true;
-                        assertTrue("streaming_enabled should be true", (Boolean) debug.get("streaming_enabled"));
-                        assertTrue("streaming_precision should be positive", ((Number) debug.get("streaming_precision")).intValue() > 0);
-                        break;
-                    }
-                }
-            }
-            if (foundStreamingCardinality) break;
-        }
-        assertTrue("Expected to find streaming cardinality in profile", foundStreamingCardinality);
-
-        // Also verify the result is correct
-        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
-        assertNotNull(cardinalityAgg);
-        // field1 has 3 unique values: value1, value2, value3
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityAggregation() throws Exception {
-        // Test cardinality of field1 which has 3 unique values (value1, value2, value3)
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_agg").field("field1").precisionThreshold(1000))
-            .setSize(0)
-            .setRequestCache(false)
-            .execute();
-        SearchResponse resp = future.actionGet();
-
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
-
-        Cardinality cardinalityAgg = resp.getAggregations().get("cardinality_agg");
-        assertNotNull("Cardinality aggregation should not be null", cardinalityAgg);
-        // field1 has 3 unique values: value1, value2, value3
-        // HyperLogLog is approximate, so we allow some tolerance
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() >= 2);
-        assertTrue("Expected cardinality around 3, got " + cardinalityAgg.getValue(), cardinalityAgg.getValue() <= 4);
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testStreamingCardinalityWithPrecisionThreshold() throws Exception {
-        // Test cardinality with different precision thresholds
-        ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
-            .addAggregation(AggregationBuilders.cardinality("cardinality_low").field("field1").precisionThreshold(10))
-            .addAggregation(AggregationBuilders.cardinality("cardinality_high").field("field1").precisionThreshold(1000))
-            .setSize(0)
-            .setRequestCache(false)
-            .execute();
-        SearchResponse resp = future.actionGet();
-
-        assertNotNull(resp);
-        assertEquals(NUM_SHARDS, resp.getTotalShards());
-        assertEquals(90, resp.getHits().getTotalHits().value());
-
-        Cardinality lowPrecision = resp.getAggregations().get("cardinality_low");
-        assertNotNull(lowPrecision);
-        assertEquals(3, lowPrecision.getValue(), 0.0);
-
-        Cardinality highPrecision = resp.getAggregations().get("cardinality_high");
-        assertNotNull(highPrecision);
-        assertEquals(3, highPrecision.getValue(), 0.0);
-
-        // Both should give the same result for small cardinality
-        assertEquals(lowPrecision.getValue(), highPrecision.getValue(), 0.0);
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
@@ -567,5 +522,222 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
                 cardinalitySubAgg.getValue() >= 2 && cardinalitySubAgg.getValue() <= 4
             );
         }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testOrderByMaxSubAggregationDescending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(3)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", false))
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        // Use existsQuery to avoid match-all optimization that would disable streaming
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
+
+        StringTerms termsAgg = resp.getAggregations().get("categories");
+        List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(3, buckets.size());
+        assertEquals("cat_9", buckets.get(0).getKeyAsString());
+        assertEquals(1000.0, ((Max) buckets.get(0).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals("cat_8", buckets.get(1).getKeyAsString());
+        assertEquals(900.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals("cat_7", buckets.get(2).getKeyAsString());
+        assertEquals(800.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testOrderByMaxSubAggregationAscending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(3)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", true))
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        // Use existsQuery to avoid match-all optimization that would disable streaming
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
+
+        StringTerms termsAgg = resp.getAggregations().get("categories");
+        List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(3, buckets.size());
+        assertEquals("cat_0", buckets.get(0).getKeyAsString());
+        assertEquals(100.0, ((Max) buckets.get(0).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals("cat_1", buckets.get(1).getKeyAsString());
+        assertEquals(200.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals("cat_2", buckets.get(2).getKeyAsString());
+        assertEquals(300.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testOrderByCardinalitySubAggregationDescending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(5)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("unique_users", false))
+            .subAggregation(AggregationBuilders.cardinality("unique_users").field("user_id"));
+
+        // Use existsQuery to avoid match-all optimization that would disable streaming
+        SearchResponse resp = client().prepareStreamSearch("order_test")
+            .setQuery(existsQuery("category"))
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamStringTermsAggregator.class);
+
+        StringTerms termsAgg = resp.getAggregations().get("categories");
+        List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(5, buckets.size());
+        assertEquals("cat_9", buckets.get(0).getKeyAsString());
+        assertEquals("cat_8", buckets.get(1).getKeyAsString());
+        assertEquals("cat_7", buckets.get(2).getKeyAsString());
+        assertEquals("cat_6", buckets.get(3).getKeyAsString());
+        assertEquals("cat_5", buckets.get(4).getKeyAsString());
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNoSortOrderWithSubAgg() throws Exception {
+        // Default order: by doc count DESC, then by key ASC
+        // Expected top 5: cat_9(20 docs), cat_8(18 docs), cat_7(16 docs), cat_6(14 docs), cat_5(12 docs)
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(5)
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        SearchResponse resp = client().prepareStreamSearch("order_test").addAggregation(agg).setSize(0).execute().actionGet();
+
+        StringTerms termsAgg = resp.getAggregations().get("categories");
+        List<StringTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(5, buckets.size());
+
+        // Verify ordered by doc count DESC
+        assertEquals("cat_9", buckets.get(0).getKeyAsString());
+        assertEquals(20, buckets.get(0).getDocCount());
+        assertEquals("cat_8", buckets.get(1).getKeyAsString());
+        assertEquals(18, buckets.get(1).getDocCount());
+        assertEquals("cat_7", buckets.get(2).getKeyAsString());
+        assertEquals(16, buckets.get(2).getDocCount());
+        assertEquals("cat_6", buckets.get(3).getKeyAsString());
+        assertEquals(14, buckets.get(3).getDocCount());
+        assertEquals("cat_5", buckets.get(4).getKeyAsString());
+        assertEquals(12, buckets.get(4).getDocCount());
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNumericOrderByMaxSubAggregationDescending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(3)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", false))
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
+
+        LongTerms termsAgg = resp.getAggregations().get("categories");
+        List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(3, buckets.size());
+        assertEquals(9L, buckets.get(0).getKeyAsNumber().longValue());
+        assertEquals(1000.0, ((Max) buckets.get(0).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals(8L, buckets.get(1).getKeyAsNumber().longValue());
+        assertEquals(900.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals(7L, buckets.get(2).getKeyAsNumber().longValue());
+        assertEquals(800.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNumericOrderByMaxSubAggregationAscending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(3)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("max_value", true))
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
+
+        LongTerms termsAgg = resp.getAggregations().get("categories");
+        List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(3, buckets.size());
+        assertEquals(0L, buckets.get(0).getKeyAsNumber().longValue());
+        assertEquals(100.0, ((Max) buckets.get(0).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals(1L, buckets.get(1).getKeyAsNumber().longValue());
+        assertEquals(200.0, ((Max) buckets.get(1).getAggregations().get("max_value")).getValue(), 0.001);
+        assertEquals(2L, buckets.get(2).getKeyAsNumber().longValue());
+        assertEquals(300.0, ((Max) buckets.get(2).getAggregations().get("max_value")).getValue(), 0.001);
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNumericOrderByCardinalitySubAggregationDescending() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(5)
+            .order(org.opensearch.search.aggregations.BucketOrder.aggregation("unique_users", false))
+            .subAggregation(AggregationBuilders.cardinality("unique_users").field("user_id"));
+
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test")
+            .addAggregation(agg)
+            .setSize(0)
+            .setProfile(true)
+            .execute()
+            .actionGet();
+
+        assertAggregatorUsed(resp, StreamNumericTermsAggregator.class);
+
+        LongTerms termsAgg = resp.getAggregations().get("categories");
+        List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(5, buckets.size());
+        assertEquals(9L, buckets.get(0).getKeyAsNumber().longValue());
+        assertEquals(8L, buckets.get(1).getKeyAsNumber().longValue());
+        assertEquals(7L, buckets.get(2).getKeyAsNumber().longValue());
+        assertEquals(6L, buckets.get(3).getKeyAsNumber().longValue());
+        assertEquals(5L, buckets.get(4).getKeyAsNumber().longValue());
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNumericNoSortOrderWithSubAgg() throws Exception {
+        TermsAggregationBuilder agg = terms("categories").field("category")
+            .size(5)
+            .subAggregation(AggregationBuilders.max("max_value").field("value"));
+
+        SearchResponse resp = client().prepareStreamSearch("numeric_order_test").addAggregation(agg).setSize(0).execute().actionGet();
+
+        LongTerms termsAgg = resp.getAggregations().get("categories");
+        List<LongTerms.Bucket> buckets = termsAgg.getBuckets();
+        assertEquals(5, buckets.size());
+
+        assertEquals(9L, buckets.get(0).getKeyAsNumber().longValue());
+        assertEquals(20, buckets.get(0).getDocCount());
+        assertEquals(8L, buckets.get(1).getKeyAsNumber().longValue());
+        assertEquals(18, buckets.get(1).getDocCount());
+        assertEquals(7L, buckets.get(2).getKeyAsNumber().longValue());
+        assertEquals(16, buckets.get(2).getDocCount());
+        assertEquals(6L, buckets.get(3).getKeyAsNumber().longValue());
+        assertEquals(14, buckets.get(3).getDocCount());
+        assertEquals(5L, buckets.get(4).getKeyAsNumber().longValue());
+        assertEquals(12, buckets.get(4).getDocCount());
     }
 }
