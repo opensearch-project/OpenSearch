@@ -17,6 +17,7 @@ use jni::objects::JLongArray;
 use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
 use jni::{JNIEnv, JavaVM};
 use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
 use arrow_array::{Array, RecordBatch, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::ffi::FFI_ArrowSchema;
@@ -106,6 +107,9 @@ static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
 
 // Global JavaVM reference
 static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
+
+// Global query counter for correlating logs
+static QUERY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 thread_local! {
     static THREAD_JNIENV: RefCell<Option<JNIEnv<'static>>> = RefCell::new(None);
@@ -657,7 +661,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
         let result = query_executor::execute_query_with_cross_rt_stream(
             table_path,
             files_meta,
-            table_name,
+            table_name.clone(),
             plan_bytes_vec,
             is_query_plan_explain_enabled,
             target_partitions,
@@ -667,6 +671,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
         match result {
             Ok(stream_ptr) => {
+                let query_id = QUERY_COUNTER.fetch_add(1, Ordering::Relaxed) + 1;
+                log_info!("[LiquidCache] query_id={} table={} stream started", query_id, table_name);
                 with_jni_env(|env| {
                     set_action_listener_ok_global(env, &listener_ref, stream_ptr);
                 });
@@ -936,6 +942,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
 ) {
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
     // Log Liquid Cache stats after stream is fully consumed
+    let query_id = QUERY_COUNTER.load(Ordering::Relaxed);
+    log_info!("[LiquidCache] query_id={} stream closed", query_id);
     liquid_cache::LiquidOnlyRuntime::log_stats_if_initialized();
 }
 
