@@ -14,7 +14,11 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import java.util.Set;
 
 /**
- * Parquet data format implementation.
+ * Data format descriptor for the Parquet format.
+ *
+ * <p>Declares the format name ({@code "parquet"}), priority, and supported field type
+ * capabilities. Registered with OpenSearch's data format framework via
+ * {@link org.opensearch.parquet.ParquetDataFormatPlugin#getDataFormat()}.
  */
 public class ParquetDataFormat implements DataFormat {
 

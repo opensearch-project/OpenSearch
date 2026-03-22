@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -23,6 +24,7 @@ import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 
+import java.io.Closeable;
 import java.util.Collections;
 
 import java.io.IOException;
@@ -33,9 +35,21 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Parquet-based indexing execution engine.
+ * Per-shard Parquet indexing execution engine.
+ *
+ * <p>Implements {@link IndexingExecutionEngine} to integrate with OpenSearch's data format
+ * framework. Each shard gets its own engine instance, which manages:
+ * <ul>
+ *   <li>A shared {@link ArrowBufferPool} for Arrow memory allocation across all writers.</li>
+ *   <li>Writer creation per writer generation, each producing a separate Parquet file.</li>
+ *   <li>Native memory usage reporting (Arrow allocations + Rust-side allocations).</li>
+ * </ul>
+ *
+ * <p>Node-level {@link Settings} are passed through to each {@link ParquetWriter} at creation
+ * time, where writer-specific settings (e.g., {@code index.parquet.max_rows_per_vsr}) are
+ * extracted and applied.
  */
-public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput> {
+public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput>, Closeable {
 
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
@@ -46,16 +60,22 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ShardPath shardPath;
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
+    private final IndexSettings indexSettings;
+    private final Settings settings;
 
     public ParquetIndexingEngine(
+        Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
-        Supplier<Schema> schemaSupplier
+        Supplier<Schema> schemaSupplier,
+        IndexSettings indexSettings
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
-        this.bufferPool = new ArrowBufferPool();
+        this.bufferPool = new ArrowBufferPool(settings);
+        this.indexSettings = indexSettings;
+        this.settings = settings;
     }
 
     @Override
@@ -65,7 +85,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat.name(),
             FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
         );
-        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool);
+        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool, settings);
     }
 
     @Override
@@ -104,5 +124,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public ParquetDocumentInput newDocumentInput() {
         return new ParquetDocumentInput();
+    }
+
+    @Override
+    public void close() throws IOException {
+        bufferPool.close();
     }
 }

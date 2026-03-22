@@ -17,10 +17,17 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 /**
- * JNI bridge to the native Rust Parquet writer implementation.
+ * JNI bridge to the native Rust Parquet writer library ({@code parquet_dataformat_jni}).
  *
- * <p>All native methods operate on Arrow C Data Interface pointers.
- * Writer lifecycle methods are package-private, accessible only via {@link NativeParquetWriter}.
+ * <p>Provides static native methods that operate on Arrow C Data Interface memory addresses.
+ * The native library is loaded from the classpath resource at
+ * {@code /native/{os}-{arch}/libparquet_dataformat_jni.{so|dylib|dll}}, falling back to
+ * {@link System#loadLibrary(String)} if the resource is not found.
+ *
+ * <p>Writer lifecycle methods ({@link #createWriter}, {@link #write}, {@link #closeWriter},
+ * {@link #flushToDisk}) are package-private and should only be called through
+ * {@link NativeParquetWriter}. Utility methods ({@link #initLogger}, {@link #getFileMetadata},
+ * {@link #getFilteredNativeBytesUsed}) are public.
  */
 public class RustBridge {
 

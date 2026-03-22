@@ -19,6 +19,7 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -38,7 +39,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        bufferPool = new ArrowBufferPool();
+        bufferPool = new ArrowBufferPool(Settings.EMPTY);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
@@ -53,7 +54,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testAddDocReturnsSuccess() throws Exception {
         String filePath = createTempDir().resolve("success.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);
@@ -67,7 +68,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testSingleDocumentFlush() throws Exception {
         String filePath = createTempDir().resolve("single.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 42);
@@ -82,7 +83,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testMultipleDocumentsFlush() throws Exception {
         String filePath = createTempDir().resolve("multi.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
@@ -101,13 +102,13 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocuments() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
         assertEquals(FileInfos.empty(), writer.flush());
     }
 
     public void testSyncAfterFlush() throws Exception {
         String filePath = createTempDir().resolve("sync.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);

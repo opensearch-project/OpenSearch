@@ -10,6 +10,7 @@ package org.opensearch.parquet.engine;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -130,7 +131,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             Path dataPath = tempDir.resolve(indexUUID).resolve("0");
             Files.createDirectories(dataPath.resolve("parquet"));
             ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-            return new ParquetIndexingEngine(new ParquetDataFormat(), shardPath, () -> schema);
+            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, null);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

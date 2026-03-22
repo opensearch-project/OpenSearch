@@ -13,10 +13,18 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Type-safe handle for native Parquet writer with lifecycle management.
- * Delegates to {@link RustBridge} for actual native calls and handles error checking.
+ * Type-safe handle for the native Rust Parquet writer with lifecycle management.
  *
- * <p>Expected lifecycle: {@code createWriter → write (1+) → close (finalizes Parquet) → flush (syncs to disk)}
+ * <p>Wraps the stateless JNI methods in {@link RustBridge} with a file-scoped lifecycle:
+ * <ol>
+ *   <li>{@code new NativeParquetWriter(filePath, schemaAddress)} — creates the native writer</li>
+ *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
+ *   <li>{@link #close()} — finalizes the Parquet file and captures metadata</li>
+ *   <li>{@link #flush()} — fsyncs the file to durable storage (calls close if needed)</li>
+ * </ol>
+ *
+ * <p>Thread safety: the {@code writerClosed} flag uses {@link java.util.concurrent.atomic.AtomicBoolean}
+ * to guard against double-close and write-after-close, but concurrent writes are not supported.
  */
 public class NativeParquetWriter implements Closeable {
 

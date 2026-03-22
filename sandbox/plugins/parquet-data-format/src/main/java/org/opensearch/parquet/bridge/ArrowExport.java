@@ -12,8 +12,15 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 
 /**
- * Container for Arrow C Data Interface exports.
- * Wraps ArrowArray and ArrowSchema with proper resource management.
+ * RAII container for Arrow C Data Interface exports.
+ *
+ * <p>Wraps an {@link ArrowArray} and {@link ArrowSchema} allocated via the Arrow C Data Interface,
+ * providing memory address accessors for JNI handoff and automatic resource cleanup on close.
+ * Used by {@link org.opensearch.parquet.vsr.ManagedVSR} to export data and schema to the native
+ * Parquet writer without copying.
+ *
+ * <p>Implements {@link AutoCloseable} to ensure native Arrow memory is released and freed
+ * even if an exception occurs during the write path.
  */
 public record ArrowExport(ArrowArray arrowArray, ArrowSchema arrowSchema) implements AutoCloseable {
 

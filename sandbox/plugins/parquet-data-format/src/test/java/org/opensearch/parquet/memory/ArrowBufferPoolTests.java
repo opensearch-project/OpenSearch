@@ -10,12 +10,13 @@ package org.opensearch.parquet.memory;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ArrowBufferPoolTests extends OpenSearchTestCase {
 
     public void testAllocatedBytesIncreasesOnAllocation() {
-        try (ArrowBufferPool pool = new ArrowBufferPool()) {
+        try (ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY)) {
             BufferAllocator child = pool.createChildAllocator("alloc-test");
             assertNotNull(child);
             assertEquals(0, pool.getTotalAllocatedBytes());
@@ -27,7 +28,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testMultipleChildAllocators() {
-        try (ArrowBufferPool pool = new ArrowBufferPool()) {
+        try (ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY)) {
             BufferAllocator c1 = pool.createChildAllocator("c1");
             BufferAllocator c2 = pool.createChildAllocator("c2");
             ArrowBuf b1 = c1.buffer(512);
@@ -41,7 +42,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testAllocatedBytesDecreasesAfterFree() {
-        try (ArrowBufferPool pool = new ArrowBufferPool()) {
+        try (ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY)) {
             BufferAllocator child = pool.createChildAllocator("free-test");
             ArrowBuf buf = child.buffer(1024);
             assertTrue(pool.getTotalAllocatedBytes() > 0);
@@ -52,7 +53,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testCloseWithOpenChildAllocatorThrows() {
-        ArrowBufferPool pool = new ArrowBufferPool();
+        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY);
         BufferAllocator child = pool.createChildAllocator("leaked-child");
         ArrowBuf buf = child.buffer(1024);
         // Closing pool with outstanding child allocations throws

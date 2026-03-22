@@ -19,9 +19,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Manages VectorSchemaRoot lifecycle with ACTIVE and FROZEN states.
- * Each ParquetWriter maintains a single ACTIVE VSR for writing
- * and a single FROZEN VSR for flush.
+ * Double-buffered pool managing one ACTIVE and one FROZEN {@link ManagedVSR} slot.
+ *
+ * <p>Handles row-count-based rotation: when the active VSR reaches the configured
+ * {@code maxRowsPerVSR} threshold, it is frozen and a new active VSR is created.
+ * The frozen slot must be drained (exported and closed) before the next rotation
+ * can occur; attempting to rotate with an occupied frozen slot throws {@link java.io.IOException}.
+ *
+ * <p>Each new VSR receives its own child allocator from the shared {@link ArrowBufferPool},
+ * ensuring memory isolation between batches.
  */
 public class VSRPool implements AutoCloseable {
 
@@ -35,14 +41,14 @@ public class VSRPool implements AutoCloseable {
     private final AtomicInteger vsrCounter;
     private final int maxRowsPerVSR;
 
-    public VSRPool(String poolId, Schema schema, ArrowBufferPool bufferPool) {
+    public VSRPool(String poolId, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR) {
         this.poolId = poolId;
         this.schema = schema;
         this.bufferPool = bufferPool;
         this.activeVSR = new AtomicReference<>();
         this.frozenVSR = new AtomicReference<>();
         this.vsrCounter = new AtomicInteger(0);
-        this.maxRowsPerVSR = 50000;
+        this.maxRowsPerVSR = maxRowsPerVSR;
         initializeActiveVSR();
     }
 

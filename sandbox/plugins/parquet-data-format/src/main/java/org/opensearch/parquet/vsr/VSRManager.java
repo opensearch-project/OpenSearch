@@ -25,10 +25,21 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Manages VectorSchemaRoot lifecycle with integrated memory management and native Parquet writing.
+ * Top-level orchestrator for the Arrow batching → Parquet file generation pipeline.
  *
- * <p>Orchestrates {@link ManagedVSR}, {@link VSRPool}, and {@link NativeParquetWriter}
- * for the complete Arrow batching → Parquet file generation pipeline.
+ * <p>Combines {@link VSRPool} (Arrow batch management) with {@link NativeParquetWriter}
+ * (native Rust Parquet writer) to provide a single entry point for document ingestion.
+ * Handles the complete flow:
+ * <ol>
+ *   <li>{@link #addDocument(ParquetDocumentInput)} — transfers document fields into the active
+ *       VSR's Arrow vectors, rotating the VSR if the row threshold is reached.</li>
+ *   <li>{@link #flush()} — freezes the active VSR, exports it to the native writer,
+ *       finalizes the Parquet file, and returns file metadata.</li>
+ *   <li>{@link #sync()} — fsyncs the Parquet file to durable storage after flush.</li>
+ * </ol>
+ *
+ * <p>Field values are resolved to their Arrow vector types via {@link ArrowFieldRegistry}
+ * during document transfer.
  */
 public class VSRManager implements AutoCloseable {
 
@@ -39,9 +50,9 @@ public class VSRManager implements AutoCloseable {
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
 
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool) {
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR) {
         this.fileName = fileName;
-        this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool);
+        this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.managedVSR.set(vsrPool.getActiveVSR());
         initializeWriter();
     }

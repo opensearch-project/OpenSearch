@@ -24,7 +24,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Managed wrapper around VectorSchemaRoot that handles ACTIVE/FROZEN/CLOSED lifecycle.
+ * Managed wrapper around an Apache Arrow {@link VectorSchemaRoot} with strict lifecycle enforcement.
+ *
+ * <p>Each instance follows the state machine: {@code ACTIVE → FROZEN → CLOSED}.
+ * <ul>
+ *   <li><strong>ACTIVE</strong> — Vectors are writable; row count can be incremented.</li>
+ *   <li><strong>FROZEN</strong> — Read-only; data can be exported to the native writer via
+ *       {@link #exportToArrow()} using the Arrow C Data Interface.</li>
+ *   <li><strong>CLOSED</strong> — All Arrow resources (vectors and child allocator) are released.</li>
+ * </ul>
+ *
+ * <p>State transitions are enforced: writing to a frozen VSR or closing an active VSR
+ * (without freezing first) throws {@link IllegalStateException}.
  */
 public class ManagedVSR implements AutoCloseable {
 

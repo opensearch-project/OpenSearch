@@ -8,6 +8,14 @@
 
 package org.opensearch.parquet;
 
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -19,13 +27,49 @@ import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Supplier;
 
 /**
- * Parquet data format plugin for OpenSearch.
+ * OpenSearch plugin providing the Parquet data format for indexing operations.
+ *
+ * <p>Implements {@link DataFormatPlugin} to register the Parquet format with OpenSearch's
+ * data format framework. On node startup, captures cluster settings via
+ * {@link #createComponents} and passes them to the per-shard
+ * {@link ParquetIndexingEngine} instances created in {@link #indexingEngine}.
+ *
+ * <p>Registers plugin settings defined in {@link ParquetSettings}.
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
     private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
+    private Settings settings;
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        this.settings = clusterService.getSettings();
+        return Collections.emptyList();
+    }
 
     @Override
     public DataFormat getDataFormat() {
@@ -40,9 +84,16 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
         IndexSettings indexSettings
     ) {
         return (IndexingExecutionEngine<T, P>) new ParquetIndexingEngine(
+            settings,
             dataFormat,
             shardPath,
-            () -> ArrowSchemaBuilder.getSchema(mapperService)
+            () -> ArrowSchemaBuilder.getSchema(mapperService),
+            indexSettings
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return ParquetSettings.getSettings();
     }
 }

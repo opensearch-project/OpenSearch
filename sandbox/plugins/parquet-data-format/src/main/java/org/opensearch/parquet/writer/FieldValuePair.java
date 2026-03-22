@@ -11,7 +11,15 @@ package org.opensearch.parquet.writer;
 import org.opensearch.index.mapper.MappedFieldType;
 
 /**
- * Represents a field-value pair collected during document input processing.
+ * Immutable pair of an OpenSearch {@link MappedFieldType} and its parsed value.
+ *
+ * <p>Represents a single field entry collected by {@link ParquetDocumentInput} during
+ * document indexing. The field type is used to resolve the corresponding Arrow vector
+ * type via {@link org.opensearch.parquet.fields.ArrowFieldRegistry}, and the value is
+ * written into that vector during document transfer to the VSR.
+ *
+ * <p>The field type must not be null (enforced by constructor); the value may be null
+ * for nullable fields.
  */
 public class FieldValuePair {
 

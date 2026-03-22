@@ -10,10 +10,12 @@ package org.opensearch.parquet.writer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -25,9 +27,17 @@ import java.nio.file.Path;
 import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
- * Parquet file writer that integrates with OpenSearch's Writer interface.
+ * Parquet file writer integrating OpenSearch's {@link Writer} interface with the VSR batching layer.
  *
- * <p>Uses VSRManager for Arrow-based batching and native Rust bridge for Parquet file generation.
+ * <p>Each instance corresponds to a single Parquet file for a given writer generation.
+ * Documents are accepted via {@link #addDoc(ParquetDocumentInput)}, batched in Arrow vectors
+ * by the {@link VSRManager}, and flushed to a Parquet file via the native Rust writer.
+ *
+ * <p>Writer-level settings (e.g., {@code index.parquet.max_rows_per_vsr}) are extracted from
+ * the {@link Settings} passed at construction time and propagated to the VSR layer.
+ *
+ * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
+ * generation, and row count for downstream commit tracking.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
@@ -38,11 +48,11 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
 
-    public ParquetWriter(String file, long writerGeneration, ParquetDataFormat dataFormat, Schema schema, ArrowBufferPool bufferPool) {
+    public ParquetWriter(String file, long writerGeneration, ParquetDataFormat dataFormat, Schema schema, ArrowBufferPool bufferPool, Settings settings) {
         this.file = file;
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
-        this.vsrManager = new VSRManager(file, schema, bufferPool);
+        this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings));
     }
 
     @Override

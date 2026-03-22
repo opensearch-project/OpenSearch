@@ -17,7 +17,12 @@ import java.util.List;
 /**
  * Document input for the Parquet data format.
  *
- * <p>Collects fields incrementally as {@link FieldValuePair} objects.
+ * <p>Implements {@link DocumentInput} to collect field-value pairs incrementally during
+ * document indexing. Fields are stored as {@link FieldValuePair} objects and later transferred
+ * to Arrow vectors by {@link org.opensearch.parquet.vsr.VSRManager#addDocument(ParquetDocumentInput)}.
+ *
+ * <p>Calling {@link #close()} clears all collected fields and resets the row ID,
+ * allowing the instance to be discarded cleanly after use.
  */
 public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>> {
 

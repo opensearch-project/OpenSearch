@@ -12,11 +12,23 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsProbe;
+import org.opensearch.parquet.ParquetSettings;
 
 import java.io.Closeable;
 
 /**
- * Manages Arrow BufferAllocator lifecycle with configurable allocation limits.
+ * Arrow memory allocator pool with configurable limits derived from node settings.
+ *
+ * <p>Wraps an Apache Arrow {@link RootAllocator} whose maximum allocation is computed as a
+ * percentage of available non-heap system memory (total physical memory minus JVM max heap),
+ * controlled by the {@code index.parquet.max_native_allocation} setting (default {@code "10%"}).
+ *
+ * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
+ * each limited to 1/10th of the root allocation, providing memory isolation between batches.
  */
 public class ArrowBufferPool implements Closeable {
 
@@ -25,11 +37,11 @@ public class ArrowBufferPool implements Closeable {
     private final RootAllocator rootAllocator;
     private final long maxChildAllocation;
 
-    public ArrowBufferPool() {
-        long maxAllocationInBytes = 10L * 1024 * 1024 * 1024;
-        logger.info("Max native memory allocation for ArrowBufferPool: {} bytes", maxAllocationInBytes);
+    public ArrowBufferPool(Settings settings) {
+        long maxAllocationInBytes = getMaxAllocationInBytes(settings);
+        logger.debug("Max native memory allocation for ArrowBufferPool: {} bytes", maxAllocationInBytes);
         this.rootAllocator = new RootAllocator(maxAllocationInBytes);
-        this.maxChildAllocation = 1024L * 1024 * 1024;
+        this.maxChildAllocation = maxAllocationInBytes / 10;
     }
 
     public BufferAllocator createChildAllocator(String name) {
@@ -43,5 +55,14 @@ public class ArrowBufferPool implements Closeable {
     @Override
     public void close() {
         rootAllocator.close();
+    }
+
+    private static long getMaxAllocationInBytes(Settings settings) {
+        long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize()
+            - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        RatioValue ratio = RatioValue.parseRatioValue(
+            ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings)
+        );
+        return (long) (totalAvailableMemory * ratio.getAsRatio());
     }
 }
