@@ -14,7 +14,7 @@ use arrow_array::Array;
 use std::sync::Arc;
 use tempfile::tempdir;
 
-use crate::NativeParquetWriter;
+use crate::writer::NativeParquetWriter;
 
 pub fn create_test_ffi_schema() -> (Arc<Schema>, i64) {
     let schema = Arc::new(Schema::new(vec![

@@ -7,7 +7,7 @@
  */
 
 use crate::test_utils::*;
-use crate::{NativeParquetWriter, WRITER_MANAGER, FILE_MANAGER};
+use crate::writer::{NativeParquetWriter, WRITER_MANAGER, FILE_MANAGER};
 
 #[test]
 fn test_create_writer_success() {

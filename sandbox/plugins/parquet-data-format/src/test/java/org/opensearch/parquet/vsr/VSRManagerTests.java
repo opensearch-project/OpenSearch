@@ -42,7 +42,13 @@ public class VSRManagerTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().put("node.name", "vsrmanager-test").build();
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME, 1, -1, "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME)
+            new FixedExecutorBuilder(
+                settings,
+                ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME,
+                1,
+                -1,
+                "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME
+            )
         );
     }
 

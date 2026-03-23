@@ -7,7 +7,7 @@
  */
 
 use parquet_dataformat_jni::test_utils::*;
-use parquet_dataformat_jni::NativeParquetWriter;
+use parquet_dataformat_jni::writer::NativeParquetWriter;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;

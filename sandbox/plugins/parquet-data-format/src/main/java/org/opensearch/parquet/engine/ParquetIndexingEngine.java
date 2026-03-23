@@ -129,7 +129,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         }
         for (String fileName : parquetFiles) {
             Path filePath = Path.of(fileName);
-            logger.info("Deleting parquet file: {}", filePath);
+            logger.debug("Deleting parquet file: {}", filePath);
             Files.deleteIfExists(filePath);
         }
     }
