@@ -84,17 +84,52 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
     @Override
     public void doReset() {
-        // super.doReset(); // Prevent clearing doc counts
+        // Keep parent counters intact.
         valueCount = 0;
         sortedDocValuesPerBatch = null;
     }
 
     @Override
     public void reset() {
-        // No-op to preserve state across streaming batches.
-        // We purposefully do NOT call super.reset() because that would:
-        // 1. Call doReset() (clearing bucket/doc counts)
-        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
+        // Preserve aggregation state across streaming batches.
+        this.leafCollectorCreated = false;
+        this.ordinalComparator = null;
+        this.tempBucket1 = null;
+        this.tempBucket2 = null;
+    }
+
+    private void ensureOrdinalComparator() {
+        if (ordinalComparator == null) {
+            if (isKeyOrder(order)) {
+                // For key-based ordering, compare ordinals directly (alphabetical order)
+                // Reverse comparison for descending order
+                boolean ascending = InternalOrder.isKeyAsc(order);
+                ordinalComparator = (leftOrd, rightOrd) -> {
+                    return ascending ? Long.compare(leftOrd, rightOrd) : Long.compare(rightOrd, leftOrd);
+                };
+            } else if (partiallyBuiltBucketComparator != null) {
+                // For sub-aggregation ordering, use bucket comparator
+                tempBucket1 = new StringTerms.Bucket(null, 0, null, false, 0, format) {
+                    @Override
+                    public int compareKey(StringTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                tempBucket2 = new StringTerms.Bucket(null, 0, null, false, 0, format) {
+                    @Override
+                    public int compareKey(StringTerms.Bucket other) {
+                        return Long.compare(this.bucketOrd, other.bucketOrd);
+                    }
+                };
+                ordinalComparator = (leftOrd, rightOrd) -> {
+                    tempBucket1.bucketOrd = leftOrd;
+                    tempBucket1.docCount = bucketDocCount(leftOrd);
+                    tempBucket2.bucketOrd = rightOrd;
+                    tempBucket2.docCount = bucketDocCount(rightOrd);
+                    return partiallyBuiltBucketComparator.compare(tempBucket1, tempBucket2);
+                };
+            }
+        }
     }
 
     @Override

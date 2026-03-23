@@ -48,7 +48,6 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
-        // Reduce immediately for fastest TTFB
         return Math.min(requestBatchedReduceSize, 1);
     }
 }

@@ -28,7 +28,6 @@ import java.util.List;
 
 /**
  * Streaming collector context for NO_SCORING mode.
- * Collects documents without scoring for fastest emission.
  */
 public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
@@ -37,13 +36,12 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
     private final CircuitBreaker circuitBreaker;
     private final SearchContext searchContext;
 
-    // Keep a handle to the active collector when using the Collector (non-manager) path
     private StreamingUnsortedCollector activeCollector;
 
     public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
-        this.circuitBreaker = null; // Will work but no protection
+        this.circuitBreaker = null;
     }
 
     public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, CircuitBreaker breaker) {
@@ -54,7 +52,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public Collector create(Collector in) throws IOException {
-        // For NO_SCORING mode, we don't need scoring
         this.activeCollector = new StreamingUnsortedCollector();
         return this.activeCollector;
     }
@@ -66,7 +63,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
-        // If a manager path ran, reduce() should already have populated topDocs. Only handle Collector path here.
         if (result.hasTopDocs()) {
             return;
         }
@@ -82,7 +78,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             return;
         }
 
-        // Fallback: no collector observed, provide empty topDocs to keep invariants
         ScoreDoc[] scoreDocs = new ScoreDoc[0];
         TotalHits totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
         TopDocs topDocs = new TopDocs(totalHits, scoreDocs);
@@ -132,7 +127,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
         @Override
         public ScoreMode scoreMode() {
-            return ScoreMode.COMPLETE_NO_SCORES; // No scoring needed for NO_SCORING mode
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
 
         @Override
@@ -174,14 +169,12 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             if (currentBatch.isEmpty()) return;
 
             try {
-                // Create partial result
                 QuerySearchResult partial = new QuerySearchResult();
                 TopDocs topDocs = new TopDocs(
                     new TotalHits(currentBatch.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
                     currentBatch.toArray(new ScoreDoc[0])
                 );
                 partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
-                partial.setPartial(!isFinal);
 
                 if (searchContext != null && searchContext.getStreamChannelListener() != null) {
                     searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);

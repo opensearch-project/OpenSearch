@@ -725,10 +725,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
     @Override
     public void reset() {
-        // No-op to preserve state across streaming batches.
-        // We purposefully do NOT call super.reset() because that would:
-        // 1. Call doReset() (clearing bucket/doc counts)
-        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
+        // Preserve aggregation state across streaming batches.
     }
 
     @Override

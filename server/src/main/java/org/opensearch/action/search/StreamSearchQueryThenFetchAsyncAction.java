@@ -28,8 +28,6 @@ import java.util.function.BiFunction;
  */
 public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchAsyncAction {
 
-    private final Logger logger;
-
     StreamSearchQueryThenFetchAsyncAction(
         Logger logger,
         SearchTransportService searchTransportService,
@@ -70,7 +68,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             searchRequestContext,
             tracer
         );
-        this.logger = logger;
     }
 
     @Override
@@ -87,10 +84,7 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnStreamResponse(SearchPhaseResult result) {
                 try {
-                    if (getLogger().isTraceEnabled()) {
-                        getLogger().trace("coordinator received partial from shard {}", shard);
-                    }
-                    onStreamResult(result, shardIt, () -> successfulStreamExecution());
+                    onStreamResult(result, shardIt, () -> {});
                 } finally {
                     executeNext(pendingExecutions, thread);
                 }
@@ -99,9 +93,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             protected void innerOnCompleteResponse(SearchPhaseResult result) {
                 try {
-                    if (getLogger().isTraceEnabled()) {
-                        getLogger().trace("coordinator received final for shard {}", shard);
-                    }
                     onShardResult(result, shardIt);
                 } finally {
                     executeNext(pendingExecutions, thread);
@@ -111,8 +102,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
             @Override
             public void onFailure(Exception t) {
                 try {
-                    // It only happens when onPhaseDone() is called and executePhaseOnShard() fails
-                    // hard with an exception.
                     if (totalOps.get() == expectedTotalOps) {
                         onPhaseFailure(phase, "The phase has failed", t);
                     } else {
@@ -131,29 +120,8 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
     protected void onStreamResult(SearchPhaseResult result, SearchShardIterator shardIt, Runnable next) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        if (getLogger().isTraceEnabled()) {
-            getLogger().trace("got streaming result from {}", result != null ? result.getSearchShardTarget() : null);
-        }
         this.setPhaseResourceUsages();
-        if (result.queryResult() != null) {
-            result.queryResult().setPartial(true);
-        }
         results.consumeResult(result, next);
-    }
-
-    @Override
-    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
-        // Trace final shard responses to diagnose coordinator sequencing.
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "COORDINATOR: received final shard result from shard={}, target={}, totalOps={}, expectedOps={}",
-                result.getShardIndex(),
-                result.getSearchShardTarget(),
-                totalOps.get(),
-                expectedTotalOps
-            );
-        }
-        super.onShardResult(result, shardIt);
     }
 
     @Override
@@ -167,7 +135,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
             try {
-                // All final shard results have been processed; partials are not reduced.
                 onPhaseDone();
             } catch (final Exception ex) {
                 onPhaseFailure(this, "The phase has failed", ex);
@@ -178,10 +145,6 @@ public class StreamSearchQueryThenFetchAsyncAction extends SearchQueryThenFetchA
                 new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
             );
         }
-    }
-
-    private void successfulStreamExecution() {
-        // No-op.
     }
 
 }

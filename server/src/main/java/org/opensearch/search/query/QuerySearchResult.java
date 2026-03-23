@@ -35,7 +35,6 @@ package org.opensearch.search.query;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.lucene.Lucene;
@@ -55,7 +54,6 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.opensearch.common.lucene.Lucene.readTopDocs;
 import static org.opensearch.common.lucene.Lucene.writeTopDocs;
@@ -168,10 +166,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
-     * Returns true if topDocs have been set on this result.
-     * This is a safe presence check that does not conflate "not set yet" with
-     * "consumed". Prefer this in places that only need to ensure a non-null
-     * TopDocs before serialization.
+     * Returns true if top docs are available.
      */
     public boolean hasTopDocs() {
         return topDocsAndMaxScore != null;
@@ -380,14 +375,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         nodeQueueSize = in.readInt();
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setRescoreDocIds(new RescoreDocIds(in));
-        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
-            partial = in.readBoolean();
-            if (in.readBoolean()) {
-                docIds = in.readList(StreamInput::readInt);
-            } else {
-                docIds = null;
-            }
-        }
     }
 
     @Override
@@ -410,10 +397,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        // Defensive safety net: ensure topDocsAndMaxScore is never null during serialization
+        // Ensure a non-null TopDocs payload on the wire.
         TopDocsAndMaxScore toWrite = topDocsAndMaxScore;
         if (toWrite == null) {
-            // Synthesize empty TopDocs on-the-fly for wire format validity; do not mutate state
             toWrite = new TopDocsAndMaxScore(
                 new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS),
                 Float.NaN
@@ -439,15 +425,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeInt(nodeQueueSize);
         out.writeOptionalWriteable(getShardSearchRequest());
         getRescoreDocIds().writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
-            out.writeBoolean(partial);
-            if (docIds != null) {
-                out.writeBoolean(true);
-                out.writeCollection(docIds, StreamOutput::writeInt);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
     }
 
     public TotalHits getTotalHits() {
@@ -456,37 +433,5 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public float getMaxScore() {
         return maxScore;
-    }
-
-    // Streaming search support
-    private List<Integer> docIds;
-    private boolean partial = false;
-
-    /**
-     * Set document IDs for streaming search results
-     */
-    public void setDocIds(List<Integer> docIds) {
-        this.docIds = docIds;
-    }
-
-    /**
-     * Get document IDs for streaming search results
-     */
-    public List<Integer> getDocIds() {
-        return docIds;
-    }
-
-    /**
-     * Set whether this is a partial result
-     */
-    public void setPartial(boolean partial) {
-        this.partial = partial;
-    }
-
-    /**
-     * Check if this is a partial result
-     */
-    public boolean isPartial() {
-        return partial;
     }
 }
