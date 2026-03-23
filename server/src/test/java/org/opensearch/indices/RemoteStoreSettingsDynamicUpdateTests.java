@@ -127,4 +127,30 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(-1, remoteStoreSettings.getMaxRemoteTranslogReaders());
     }
+
+    public void testUploadedSegmentsCleanupThreshold() {
+        // Test default value
+        assertEquals(10000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test override with valid value
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 5000).build()
+        );
+        assertEquals(5000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test disable with -1
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), -1).build()
+        );
+        assertEquals(-1, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test value below -1 should fail
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), -5).build()
+            )
+        );
+        assertEquals(-1, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+    }
 }
