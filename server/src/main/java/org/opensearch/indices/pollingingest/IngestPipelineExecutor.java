@@ -33,6 +33,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * synchronously by bridging IngestService's async callback API with CompletableFuture.
  * Also registers a dynamic settings listener to pick up runtime changes to {@code final_pipeline}.
  * Only {@code final_pipeline} is supported.
+ *
+ * <p>Unlike push-based indexing, pipeline execution in pull-based ingestion does not require the
+ * node to have the {@code ingest} role. Transformations are executed locally on the node hosting the
+ * shard, and requests are not forwarded to dedicated ingest nodes.
  */
 public class IngestPipelineExecutor {
 
