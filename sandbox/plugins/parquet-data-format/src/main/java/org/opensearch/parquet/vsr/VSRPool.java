@@ -92,20 +92,11 @@ public class VSRPool implements AutoCloseable {
         if (frozenVSR.get() != null) {
             throw new IOException("Cannot rotate VSR: frozen slot is occupied");
         }
-        synchronized (this) {
-            current = activeVSR.get();
-            if (current == null || !shouldRotateVSR(current)) {
-                return false;
-            }
-            if (frozenVSR.get() != null) {
-                throw new IOException("Cannot rotate VSR: frozen slot became occupied during rotation");
-            }
-            if (current.getRowCount() > 0) {
-                freezeVSR(current);
-            }
-            activeVSR.set(createNewVSR());
-            return true;
+        if (current.getRowCount() > 0) {
+            freezeVSR(current);
         }
+        activeVSR.set(createNewVSR());
+        return true;
     }
 
     /**

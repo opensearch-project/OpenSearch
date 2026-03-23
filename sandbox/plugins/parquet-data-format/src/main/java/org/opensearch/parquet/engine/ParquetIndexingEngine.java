@@ -23,6 +23,7 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -62,6 +63,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
     private final Settings settings;
+    private final ThreadPool threadPool;
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -71,19 +73,22 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param shardPath      the shard path for file storage
      * @param schemaSupplier supplier for the Arrow schema
      * @param indexSettings  the index-level settings
+     * @param threadPool     the thread pool for background native writes
      */
     public ParquetIndexingEngine(
         Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
         Supplier<Schema> schemaSupplier,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        ThreadPool threadPool
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
         this.settings = settings;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -93,7 +98,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat.name(),
             FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
         );
-        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool, settings);
+        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool, settings, threadPool);
     }
 
     @Override

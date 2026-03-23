@@ -12,6 +12,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -29,6 +30,8 @@ import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -50,9 +53,13 @@ import java.util.function.Supplier;
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
+    /** Thread pool name for background native Parquet writes during VSR rotation. */
+    public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
+
     private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
+    private ThreadPool threadPool;
 
     /** Creates a new ParquetDataFormatPlugin. */
     public ParquetDataFormatPlugin() {}
@@ -72,6 +79,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = clusterService.getSettings();
+        this.threadPool = threadPool;
         return Collections.emptyList();
     }
 
@@ -92,12 +100,26 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             dataFormat,
             shardPath,
             () -> ArrowSchemaBuilder.getSchema(mapperService),
-            indexSettings
+            indexSettings,
+            threadPool
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return ParquetSettings.getSettings();
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(
+            new FixedExecutorBuilder(
+                settings,
+                PARQUET_THREAD_POOL_NAME,
+                OpenSearchExecutors.allocatedProcessors(settings),
+                -1,
+                "thread_pool." + PARQUET_THREAD_POOL_NAME
+            )
+        );
     }
 }

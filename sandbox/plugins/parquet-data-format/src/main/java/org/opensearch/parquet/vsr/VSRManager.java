@@ -13,6 +13,7 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ArrowExport;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
@@ -21,8 +22,11 @@ import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -49,6 +53,8 @@ public class VSRManager implements AutoCloseable {
     private final AtomicReference<ManagedVSR> managedVSR = new AtomicReference<>();
     private final String fileName;
     private final VSRPool vsrPool;
+    private final ThreadPool threadPool;
+    private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
 
     /**
@@ -58,29 +64,14 @@ public class VSRManager implements AutoCloseable {
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
+     * @param threadPool the thread pool for background native writes
      */
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR) {
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
         this.fileName = fileName;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
+        this.threadPool = threadPool;
         this.managedVSR.set(vsrPool.getActiveVSR());
         initializeWriter();
-    }
-
-    private void initializeWriter() {
-        try (ArrowExport export = managedVSR.get().exportSchema()) {
-            writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Returns the currently active ManagedVSR.
-     *
-     * @return the active ManagedVSR
-     */
-    public ManagedVSR getActiveManagedVSR() {
-        return managedVSR.get();
     }
 
     /**
@@ -111,7 +102,8 @@ public class VSRManager implements AutoCloseable {
 
     /**
      * Handles VSR rotation after document addition if row threshold is reached.
-     * Writes frozen VSR data to Parquet via native bridge before creating new active VSR.
+     * Submits frozen VSR write to the background thread pool, allowing the new active VSR
+     * to accept writes immediately. Blocks if a previous background write is still in progress.
      */
     public void maybeRotateActiveVSR() throws IOException {
         boolean rotated = vsrPool.maybeRotateActiveVSR();
@@ -122,11 +114,19 @@ public class VSRManager implements AutoCloseable {
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
             logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
-            try (ArrowExport export = frozenVSR.exportToArrow()) {
-                writer.write(export.getArrayAddress(), export.getSchemaAddress());
-            }
-            vsrPool.completeVSR(frozenVSR);
-            vsrPool.unsetFrozenVSR();
+            pendingWrite = threadPool.executor(ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME).submit(() -> {
+                try (ArrowExport export = frozenVSR.exportToArrow()) {
+                    writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                vsrPool.completeVSR(frozenVSR);
+                try {
+                    vsrPool.unsetFrozenVSR();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
         ManagedVSR newVSR = vsrPool.getActiveVSR();
         if (newVSR == null) {
@@ -142,6 +142,7 @@ public class VSRManager implements AutoCloseable {
      * @return metadata about the written Parquet file, or null if no data to flush
      */
     public ParquetFileMetadata flush() throws IOException {
+        awaitPendingWrite();
         ManagedVSR currentVSR = managedVSR.get();
         if (currentVSR == null || currentVSR.getRowCount() == 0) {
             logger.debug("No data to flush for {}", fileName);
@@ -164,12 +165,14 @@ public class VSRManager implements AutoCloseable {
      * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
      */
     public void sync() throws IOException {
+        awaitPendingWrite();
         writer.flush();
     }
 
     @Override
     public void close() {
         try {
+            awaitPendingWrite();
             if (writer != null) {
                 writer.close();
             }
@@ -179,5 +182,38 @@ public class VSRManager implements AutoCloseable {
             logger.error("Error during close for {}: {}", fileName, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         }
+    }
+
+    private void initializeWriter() {
+        try (ArrowExport export = managedVSR.get().exportSchema()) {
+            writer = new NativeParquetWriter(fileName, export.getSchemaAddress());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Waits for any in-flight background write to complete.
+     * Propagates exceptions from the background write as IOException.
+     */
+    private void awaitPendingWrite() throws IOException {
+        if (pendingWrite == null) {
+            return;
+        }
+        try {
+            pendingWrite.get();
+        } catch (ExecutionException e) {
+            throw new IOException("Background VSR write failed for " + fileName, e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted waiting for background VSR write for " + fileName, e);
+        } finally {
+            pendingWrite = null;
+        }
+    }
+
+    // Visible for testing only
+    ManagedVSR getActiveManagedVSR() {
+        return managedVSR.get();
     }
 }

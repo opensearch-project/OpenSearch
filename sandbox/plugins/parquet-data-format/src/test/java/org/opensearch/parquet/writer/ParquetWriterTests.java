@@ -16,12 +16,15 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +38,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
     private Schema schema;
+    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
@@ -45,17 +49,23 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
         schema = buildSchema(List.of(idField, nameField, scoreField));
+        Settings settings = Settings.builder().put("node.name", "parquetwriter-test").build();
+        threadPool = new ThreadPool(
+            settings,
+            new FixedExecutorBuilder(settings, ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME, 1, -1, "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME)
+        );
     }
 
     @Override
     public void tearDown() throws Exception {
+        terminate(threadPool);
         bufferPool.close();
         super.tearDown();
     }
 
     public void testAddDocReturnsSuccess() throws Exception {
         String filePath = createTempDir().resolve("success.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY, threadPool);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);
@@ -69,7 +79,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testSingleDocumentFlush() throws Exception {
         String filePath = createTempDir().resolve("single.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY, threadPool);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 42);
@@ -84,7 +94,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testMultipleDocumentsFlush() throws Exception {
         String filePath = createTempDir().resolve("multi.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY, threadPool);
 
         for (int i = 0; i < 10; i++) {
             ParquetDocumentInput doc = new ParquetDocumentInput();
@@ -103,13 +113,13 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocuments() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY, threadPool);
         assertEquals(FileInfos.empty(), writer.flush());
     }
 
     public void testSyncAfterFlush() throws Exception {
         String filePath = createTempDir().resolve("sync.parquet").toString();
-        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY);
+        ParquetWriter writer = new ParquetWriter(filePath, 1L, new ParquetDataFormat(), schema, bufferPool, Settings.EMPTY, threadPool);
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
         doc.addField(idField, 1);

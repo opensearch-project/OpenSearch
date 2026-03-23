@@ -18,11 +18,14 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.FixedExecutorBuilder;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +41,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     private Schema schema;
     private Path tempDir;
     private ParquetIndexingEngine engine;
+    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
@@ -48,7 +52,18 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
         schema = buildSchema(List.of(idField, nameField, scoreField));
         tempDir = createTempDir();
+        Settings settings = Settings.builder().put("node.name", "parquetengine-test").build();
+        threadPool = new ThreadPool(
+            settings,
+            new FixedExecutorBuilder(settings, ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME, 1, -1, "thread_pool." + ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME)
+        );
         engine = createEngine();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        terminate(threadPool);
+        super.tearDown();
     }
 
     public void testCreateWriterAndFlush() throws Exception {
@@ -130,7 +145,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             Path dataPath = tempDir.resolve(indexUUID).resolve("0");
             Files.createDirectories(dataPath.resolve("parquet"));
             ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, null);
+            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, null, threadPool);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

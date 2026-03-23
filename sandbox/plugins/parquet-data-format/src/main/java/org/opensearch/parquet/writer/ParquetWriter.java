@@ -19,6 +19,7 @@ import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.vsr.VSRManager;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -52,6 +53,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param settings node settings for writer configuration
+     * @param threadPool the thread pool for background native writes
      */
     public ParquetWriter(
         String file,
@@ -59,12 +61,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ParquetDataFormat dataFormat,
         Schema schema,
         ArrowBufferPool bufferPool,
-        Settings settings
+        Settings settings,
+        ThreadPool threadPool
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
-        this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings));
+        this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings), threadPool);
     }
 
     @Override
