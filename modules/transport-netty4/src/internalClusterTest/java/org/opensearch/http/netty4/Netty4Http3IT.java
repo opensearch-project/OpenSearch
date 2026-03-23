@@ -76,6 +76,9 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
     public void testThatNettyHttpServerSupportsHttp2OrHttp3Get() throws Exception {
         assumeThat("HTTP/3 is not available on this arch/platform", Http3Utils.isHttp3Available(), is(true));
 
+        ensureGreen();
+        ensureFullyConnectedCluster();
+
         String[] requests = new String[] { "/", "/_nodes/stats", "/", "/_cluster/state", "/" };
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
@@ -83,8 +86,8 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
 
         @SuppressWarnings("unchecked")
         final Tuple<Netty4HttpClient, String> client = randomFrom(
-            Tuple.tuple(Netty4HttpClient.http3(), "h2="),
-            Tuple.tuple(Netty4HttpClient.https(), "h3=")
+            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), "h2="),
+            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), "h3=")
         );
 
         try (Netty4HttpClient nettyHttpClient = client.v1()) {
@@ -107,6 +110,9 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
     public void testThatNettyHttpServerSupportsHttp2OrHttp3Post() throws Exception {
         assumeThat("HTTP/3 is not available on this arch/platform", Http3Utils.isHttp3Available(), is(true));
 
+        ensureGreen();
+        ensureFullyConnectedCluster();
+
         final List<Tuple<String, CharSequence>> requests = List.of(Tuple.tuple("/_search", "{\"query\":{ \"match_all\":{}}}"));
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
@@ -114,8 +120,8 @@ public class Netty4Http3IT extends OpenSearchNetty4IntegTestCase {
 
         @SuppressWarnings("unchecked")
         final Tuple<Netty4HttpClient, String> client = randomFrom(
-            Tuple.tuple(Netty4HttpClient.http3(), "h2="),
-            Tuple.tuple(Netty4HttpClient.https(), "h3=")
+            Tuple.tuple(Netty4HttpClient.http3().withLogger(logger), "h2="),
+            Tuple.tuple(Netty4HttpClient.https().withLogger(logger), "h3=")
         );
 
         try (Netty4HttpClient nettyHttpClient = client.v1()) {
