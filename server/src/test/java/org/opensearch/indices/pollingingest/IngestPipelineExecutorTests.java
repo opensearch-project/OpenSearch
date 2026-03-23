@@ -46,34 +46,6 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         expectThrows(NullPointerException.class, () -> new IngestPipelineExecutor(ingestService, null, (String) null));
     }
 
-    // --- Pipeline resolution tests ---
-
-    public void testHasPipelines_NoPipelineConfigured() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", (String) null);
-        assertFalse(executor.hasPipelines());
-    }
-
-    public void testHasPipelines_PipelineConfigured() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "my-pipeline");
-        assertTrue(executor.hasPipelines());
-    }
-
-    public void testUpdateFinalPipeline_SetsPipeline() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", (String) null);
-        assertFalse(executor.hasPipelines());
-
-        executor.updateFinalPipeline("new-pipeline");
-        assertTrue(executor.hasPipelines());
-    }
-
-    public void testUpdateFinalPipeline_NoopClearsPipeline() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "my-pipeline");
-        assertTrue(executor.hasPipelines());
-
-        executor.updateFinalPipeline("_none");
-        assertFalse(executor.hasPipelines());
-    }
-
     // --- Execution: no pipeline configured ---
 
     public void testExecutePipelines_NoPipeline_ReturnsSourceUnchanged() throws Exception {
@@ -141,7 +113,8 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         source.put("name", "alice");
 
         Exception e = expectThrows(RuntimeException.class, () -> executor.executePipelines("1", source));
-        assertTrue(e.getMessage().contains("processor failed"));
+        assertTrue(e.getMessage().contains("Ingest pipeline execution failed"));
+        assertTrue(e.getCause().getMessage().contains("processor failed"));
     }
 
     public void testExecutePipelines_CompletionException() {

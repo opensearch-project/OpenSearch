@@ -19,6 +19,7 @@ import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.ingest.PipelineConfiguration;
 import org.opensearch.ingest.common.IngestCommonModulePlugin;
 import org.opensearch.painless.PainlessModulePlugin;
@@ -90,7 +91,12 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
 
         createIndexWithPipeline("drop_pipeline", 1, 0);
 
-        Thread.sleep(5000);
+        // Wait until both messages are processed, then verify none were indexed (all dropped)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() >= 2;
+        });
         refresh(indexName);
         SearchResponse response = client().prepareSearch(indexName).get();
         assertThat(response.getHits().getTotalHits().value(), is(0L));
@@ -178,8 +184,12 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
         createIndexWithPipeline("mutate_id_pipeline", 1, 0);
 
         // With DROP error strategy, the message should eventually be dropped after retries
-        // Verify no document is indexed (pipeline fails, message dropped)
-        Thread.sleep(10000);
+        // Wait until the message is processed (and dropped due to failure)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalFailuresDroppedCount() >= 1;
+        });
         refresh(indexName);
         SearchResponse response = client().prepareSearch(indexName).get();
         assertThat(response.getHits().getTotalHits().value(), is(0L));
@@ -838,7 +848,12 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
 
         createFieldMappingIndexWithPipeline("drop_all_pipeline", "user_id", null, null, null, null);
 
-        Thread.sleep(5000);
+        // Wait until both messages are processed, then verify none were indexed (all dropped)
+        waitForState(() -> {
+            PollingIngestStats stats = client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+                .getPollingIngestStats();
+            return stats != null && stats.getMessageProcessorStats().totalProcessedCount() >= 2;
+        });
         refresh(indexName);
         SearchResponse response = client().prepareSearch(indexName).get();
         assertThat(response.getHits().getTotalHits().value(), is(0L));

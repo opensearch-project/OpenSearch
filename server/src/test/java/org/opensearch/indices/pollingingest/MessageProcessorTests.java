@@ -451,7 +451,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
                 MessageProcessorRunnable.MessageProcessorMetrics.create()
             )
         );
-        assertTrue(e.getCause().getMessage().contains("Pipeline processor failed"));
+        assertTrue(e.getCause().getMessage().contains("Ingest pipeline execution failed"));
     }
 
     public void testPipelineNotCalledForDeleteOperations() throws Exception {

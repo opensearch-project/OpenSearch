@@ -24,7 +24,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles ingest pipeline resolution and execution for pull-based ingestion.
@@ -90,13 +89,6 @@ public class IngestPipelineExecutor {
     }
 
     /**
-     * Returns true if any pipelines are configured for this index.
-     */
-    public boolean hasPipelines() {
-        return resolvedFinalPipeline != null;
-    }
-
-    /**
      * Executes final_pipeline on the source map synchronously using CompletableFuture to bridge
      * IngestService's async callback API.
      *
@@ -106,7 +98,8 @@ public class IngestPipelineExecutor {
      * @throws Exception if pipeline execution fails
      */
     public Map<String, Object> executePipelines(String id, Map<String, Object> sourceMap) throws Exception {
-        if (!hasPipelines()) {
+        final String finalPipeline = resolvedFinalPipeline;
+        if (finalPipeline == null) {
             return sourceMap;
         }
 
@@ -115,25 +108,30 @@ public class IngestPipelineExecutor {
         indexRequest.id(id);
         indexRequest.source(sourceMap);
 
-        // No support for default_pipeline - https://github.com/opensearch-project/OpenSearch/issues/20677
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
-        indexRequest.setFinalPipeline(resolvedFinalPipeline != null ? resolvedFinalPipeline : IngestService.NOOP_PIPELINE_NAME);
+        indexRequest.setFinalPipeline(finalPipeline);
         indexRequest.isPipelineResolved(true);
 
         final String originalId = id;
         final String originalRouting = indexRequest.routing();
 
         CompletableFuture<Void> future = new CompletableFuture<>();
-        AtomicReference<Exception> failureRef = new AtomicReference<>();
         AtomicBoolean dropped = new AtomicBoolean(false);
 
-        ingestService.executeBulkRequest(1, Collections.singletonList(indexRequest), (slot, e) -> failureRef.set(e), (thread, e) -> {
-            if (e != null) {
-                future.completeExceptionally(e);
-            } else {
-                future.complete(null);
-            }
-        }, slot -> dropped.set(true), ThreadPool.Names.WRITE);
+        ingestService.executeBulkRequest(
+            1,
+            Collections.singletonList(indexRequest),
+            (slot, e) -> future.completeExceptionally(e),
+            (thread, e) -> {
+                if (e != null) {
+                    future.completeExceptionally(e);
+                } else {
+                    future.complete(null);
+                }
+            },
+            slot -> dropped.set(true),
+            ThreadPool.Names.WRITE
+        );
 
         // Block until pipeline execution completes (with timeout)
         try {
@@ -145,10 +143,6 @@ public class IngestPipelineExecutor {
             throw new RuntimeException("Ingest pipeline execution was interrupted", e);
         } catch (ExecutionException e) {
             throw new RuntimeException("Ingest pipeline execution failed", e.getCause());
-        }
-
-        if (failureRef.get() != null) {
-            throw failureRef.get();
         }
 
         if (dropped.get()) {
