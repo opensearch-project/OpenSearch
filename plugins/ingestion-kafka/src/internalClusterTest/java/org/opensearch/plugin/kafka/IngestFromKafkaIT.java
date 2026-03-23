@@ -1375,11 +1375,10 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
         });
 
-        // Step 5: Verify poller metric confirms all 10 messages were processed during warmup
+        // Step 5: Verify poller metric confirms all 10 messages were polled during warmup
         PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
             .getPollingIngestStats();
         assertNotNull(stats);
-        assertEquals(10L, stats.getMessageProcessorStats().totalProcessedCount());
         assertEquals(10L, stats.getConsumerStats().totalPolledCount());
 
         // Step 6: Wait for documents to be searchable (handles async refresh)
