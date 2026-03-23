@@ -984,6 +984,43 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         warmupPoller.close();
     }
 
+    public void testWarmupSkippedWhenPollerStartsInPausedState() throws InterruptedException, TimeoutException {
+        // Create a poller with warmup enabled but starting in PAUSED state
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+        when(mockConsumer.getPointerBasedLag(any())).thenReturn(1000L);
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        DefaultStreamPoller warmupPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.PAUSED,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L)
+        );
+
+        // Start the poller - it will be paused, so warmup should be skipped
+        warmupPoller.start();
+
+        // Warmup should complete because poller is paused (updateWarmupStatus handles this)
+        boolean completed = warmupPoller.awaitWarmupComplete(5000);
+        assertTrue("Warmup should be skipped when poller is paused", completed);
+        assertTrue(warmupPoller.isWarmupComplete());
+
+        warmupPoller.close();
+    }
+
     // ==================== Dynamic Warmup Config Update Tests ====================
 
     public void testUpdateWarmupConfigDisableWhileInProgress() throws Exception {
