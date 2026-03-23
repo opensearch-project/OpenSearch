@@ -126,8 +126,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             String indexName = engine.config().getIndexSettings().getIndex().getName();
             this.engine = engine;
             this.index = indexName;
-            this.pipelineExecutor = new IngestPipelineExecutor(ingestService, indexName);
-            this.pipelineExecutor.resolvePipelineNames(engine.config().getIndexSettings());
+            this.pipelineExecutor = new IngestPipelineExecutor(ingestService, indexName, engine.config().getIndexSettings());
         }
 
         /**

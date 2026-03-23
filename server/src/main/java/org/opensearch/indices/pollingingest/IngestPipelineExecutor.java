@@ -29,8 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Handles ingest pipeline resolution and execution for pull-based ingestion.
  *
- * <p>Resolves configured pipelines from index settings (lazy, cached) and executes them
+ * <p>Resolves configured pipelines from index settings at initialization and executes them
  * synchronously by bridging IngestService's async callback API with CompletableFuture.
+ * Also registers a dynamic settings listener to pick up runtime changes to {@code final_pipeline}.
  * Only {@code final_pipeline} is supported.
  */
 public class IngestPipelineExecutor {
@@ -42,25 +43,26 @@ public class IngestPipelineExecutor {
 
     private final IngestService ingestService;
     private final String index;
-
-    // Cached pipeline names — resolved lazily on the first document
     private volatile String resolvedFinalPipeline;
-    private volatile boolean pipelinesResolved = false;
 
     /**
      * Creates an IngestPipelineExecutor for the given index.
+     * Resolves the final pipeline from index settings and registers a dynamic settings listener.
      *
      * @param ingestService the ingest service for pipeline execution
      * @param index the index name
+     * @param indexSettings the index settings to resolve a pipeline from and register listener on
      */
-    public IngestPipelineExecutor(IngestService ingestService, String index) {
+    public IngestPipelineExecutor(IngestService ingestService, String index, IndexSettings indexSettings) {
         this.ingestService = Objects.requireNonNull(ingestService);
         this.index = Objects.requireNonNull(index);
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexSettings.FINAL_PIPELINE, this::updateFinalPipeline);
+        updateFinalPipeline(IndexSettings.FINAL_PIPELINE.get(indexSettings.getSettings()));
     }
 
     /**
      * Visible for testing. Creates an executor with a pre-resolved pipeline name,
-     * bypassing lazy resolution from index settings.
+     * bypassing resolution from index settings.
      *
      * @param ingestService the ingest service
      * @param index the index name
@@ -70,23 +72,6 @@ public class IngestPipelineExecutor {
         this.ingestService = Objects.requireNonNull(ingestService);
         this.index = Objects.requireNonNull(index);
         this.resolvedFinalPipeline = finalPipeline;
-        this.pipelinesResolved = true;
-    }
-
-    /**
-     * Resolves pipeline names from index settings. Called lazily on first document and cached.
-     * Also registers a dynamic settings listener for final_pipeline updates.
-     */
-    void resolvePipelineNames(IndexSettings indexSettings) {
-        if (pipelinesResolved) {
-            return;
-        }
-        updateFinalPipeline(IndexSettings.FINAL_PIPELINE.get(indexSettings.getSettings()));
-
-        // Register dynamic settings listener for final_pipeline updates
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexSettings.FINAL_PIPELINE, this::updateFinalPipeline);
-
-        pipelinesResolved = true;
     }
 
     /**

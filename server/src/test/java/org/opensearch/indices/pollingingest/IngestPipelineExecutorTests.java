@@ -39,17 +39,17 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
     // --- Construction tests ---
 
     public void testConstructorRequiresNonNullIngestService() {
-        expectThrows(NullPointerException.class, () -> new IngestPipelineExecutor(null, "test_index"));
+        expectThrows(NullPointerException.class, () -> new IngestPipelineExecutor(null, "test_index", (String) null));
     }
 
     public void testConstructorRequiresNonNullIndex() {
-        expectThrows(NullPointerException.class, () -> new IngestPipelineExecutor(ingestService, null));
+        expectThrows(NullPointerException.class, () -> new IngestPipelineExecutor(ingestService, null, (String) null));
     }
 
     // --- Pipeline resolution tests ---
 
     public void testHasPipelines_NoPipelineConfigured() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", null);
+        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", (String) null);
         assertFalse(executor.hasPipelines());
     }
 
@@ -59,7 +59,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
     }
 
     public void testUpdateFinalPipeline_SetsPipeline() {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", null);
+        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", (String) null);
         assertFalse(executor.hasPipelines());
 
         executor.updateFinalPipeline("new-pipeline");
@@ -77,7 +77,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
     // --- Execution: no pipeline configured ---
 
     public void testExecutePipelines_NoPipeline_ReturnsSourceUnchanged() throws Exception {
-        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", null);
+        IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", (String) null);
 
         Map<String, Object> source = new HashMap<>();
         source.put("name", "alice");

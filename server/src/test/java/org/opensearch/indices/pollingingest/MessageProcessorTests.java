@@ -64,7 +64,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         processor = new MessageProcessorRunnable.MessageProcessor(
             ingestionEngine,
             "index",
-            new IngestPipelineExecutor(mock(IngestService.class), "index", null)
+            new IngestPipelineExecutor(mock(IngestService.class), "index", (String) null)
         );
     }
 
