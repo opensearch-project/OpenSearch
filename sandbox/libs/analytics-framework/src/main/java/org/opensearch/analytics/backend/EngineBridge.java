@@ -8,29 +8,21 @@
 
 package org.opensearch.analytics.backend;
 
+import java.io.Closeable;
+
 /**
- * JNI boundary interface between the query planner (Java) and a native
- * execution engine (e.g., DataFusion/Rust).
+ * Per-query facade that bridges the backend-specific engines with the analytics engine.
+ * <p>
+ * A bridge is created per query with a reader bound to a catalog snapshot.
+ * It converts a logical plan to the engine's native format and executes it,
+ * managing the backend context internally.
  *
- * <p>The bridge has two responsibilities:
- * <ol>
- *   <li>{@link #convertFragment} — serialise a logical plan fragment into
- *       the engine's wire format (e.g., Substrait bytes).</li>
- *   <li>{@link #execute} — hand the serialised plan to the native engine
- *       and obtain an opaque handle to the result stream that lives
- *       entirely in native memory.</li>
- * </ol>
- *
- * <p>Arrow data never crosses the JNI boundary into the JVM heap.
- * Consumers read from the native stream via Arrow Flight or
- * direct native-memory access using the returned handle.
- *
- * @param <Fragment>     serialised plan type (e.g., {@code byte[]} for Substrait)
- * @param <Stream>       result stream handle
- * @param <LogicalPlan>> logical plan type (e.g., Calcite {@code RelNode})
+ * @param <Fragment>    serialised plan type (e.g., {@code byte[]} for Substrait)
+ * @param <Stream>      result stream type
+ * @param <LogicalPlan> logical plan type (e.g., Calcite {@code RelNode})
  * @opensearch.internal
  */
-public interface EngineBridge<Fragment, Stream, LogicalPlan> {
+public interface EngineBridge<Fragment, Stream, LogicalPlan> extends Closeable {
 
     /**
      * Converts a logical plan fragment into the native engine's serialised

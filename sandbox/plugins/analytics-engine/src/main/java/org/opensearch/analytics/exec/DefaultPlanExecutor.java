@@ -12,13 +12,13 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.backend.EngineBridge;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
@@ -31,9 +31,9 @@ import java.util.Set;
 /**
  * {@link QueryPlanExecutor} default implementation.
  * <p>
- * Acquires a {@link DataFormatAwareEngine.DataFormatAwareReader} on the latest catalog snapshot,
- * then routes plan fragments to the appropriate {@link SearchExecEngine} per data format.
- * The composite reader holds the snapshot reference alive for the duration of the search.
+ * Acquires a composite reader, creates a per-query {@link EngineBridge}
+ * bound to the reader, and delegates convert + execute to it.
+ * No backend-specific context is exposed to this class.
  */
 public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
@@ -54,32 +54,29 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     @SuppressWarnings("unchecked")
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        // TODO : wire this properly , this is just to give an idea of flow
         AnalyticsSearchBackendPlugin plugin = selectBackEnd();
         String tableName = extractTableName(logicalFragment);
-        DataFormatAwareEngine dataFormatAwareEngine = resolveCompositeEngine(tableName);
+        DataFormatAwareEngine engine = resolveCompositeEngine(tableName);
 
         List<DataFormat> formats = plugin.getSupportedFormats();
         DataFormat format = formats.get(0);
 
-        // Acquire composite reader — incRefs the latest catalog snapshot.
-        // Closing the reader decRefs the snapshot, allowing file cleanup.
-        try (DataFormatAwareEngine.DataFormatAwareReader dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
-            Object reader = dataFormatAwareReader.getReader(format);
-            SearchExecEngine searchEngine = dataFormatAwareEngine.getSearchExecEngine(format);
-            Object plan = searchEngine.convertFragment(logicalFragment);
-            var engineContext = searchEngine.createContext(reader, plan, null, null, null);
-            Object result = searchEngine.execute(engineContext);
-
-            // TODO: consume result stream into rows
-            logger.info("[DefaultPlanExecutor] Executed via [{}]", plugin.name());
-            return new ArrayList<>();
+        try (DataFormatAwareEngine.DataFormatAwareReader reader = engine.acquireReader()) {
+            EngineBridge bridge = plugin.bridge(format, reader.getReader(format), engine.getSearchExecEngine(format));
+            try {
+                Object plan = bridge.convertFragment(logicalFragment);
+                Object result = bridge.execute(plan);
+                // TODO: consume result stream into rows
+                logger.info("[DefaultPlanExecutor] Executed via [{}]", plugin.name());
+                return new ArrayList<>();
+            } finally {
+                bridge.close();
+            }
         } catch (Exception e) {
             throw new RuntimeException("Execution failed for [" + plugin.name() + "]", e);
         }
     }
 
-    // TODO: Placeholder logic
     static String extractTableName(RelNode node) {
         if (node instanceof TableScan) {
             List<String> qn = node.getTable().getQualifiedName();
@@ -92,7 +89,6 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         throw new IllegalArgumentException("No TableScan found in plan fragment");
     }
 
-    // TODO: Placeholder logic
     private DataFormatAwareEngine resolveCompositeEngine(String indexName) {
         IndexMetadata meta = clusterService.state().metadata().index(indexName);
         if (meta == null) throw new IllegalArgumentException("Index [" + indexName + "] not found");
@@ -107,7 +103,6 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         return ce;
     }
 
-    // TODO: Placeholder logic
     private AnalyticsSearchBackendPlugin selectBackEnd() {
         if (backEnds.isEmpty()) throw new IllegalStateException("No back-end plugins registered");
         return backEnds.values().iterator().next();

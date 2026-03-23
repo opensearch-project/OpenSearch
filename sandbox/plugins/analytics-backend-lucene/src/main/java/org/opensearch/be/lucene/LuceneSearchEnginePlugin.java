@@ -15,8 +15,10 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexFilterProvider;
+import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.engine.exec.SourceProvider;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +29,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchEnginePlugin implements AnalyticsSearchBackendPlugin {
+public class LuceneSearchEnginePlugin implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin {
 
     @Override
     public String name() {
@@ -35,8 +37,8 @@ public class LuceneSearchEnginePlugin implements AnalyticsSearchBackendPlugin {
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge() {
-        return null;
+    public EngineBridge<?, ?, ?> bridge(DataFormat dataFormat, Object reader, SearchExecEngine<?, ?, ?> engine) {
+        return null; // TODO : Lucene backend is index filter / source provider only , need to think about bridge
     }
 
     @Override

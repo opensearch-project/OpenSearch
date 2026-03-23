@@ -11,38 +11,44 @@ package org.opensearch.be.datafusion;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.backend.EngineBridge;
 
+import java.io.IOException;
+
 /**
- * DataFusion EngineBridge implementation.
- * Uses a byte[] representing serialized plan to execute.
- * // TODO : we need a stateful engine, not just a bridge, evaluate
- * // switch to SearchExecEngine
+ * Per-query bridge that wraps {@link DatafusionSearchExecEngine}.
+ * Bound to a reader at construction — hides the {@link DatafusionContext}
+ * from the analytics engine layer.
  */
-public class DataFusionBridge implements EngineBridge<byte[], Long, RelNode> {
-    // S=byte[] (Substrait), H=Long (stream pointer), L=RelNode (logical plan)
+public class DataFusionBridge implements EngineBridge<byte[], DatafusionResultStream, RelNode> {
 
-    /** Creates a new DataFusion bridge. */
-    public DataFusionBridge() {}
+    private final DatafusionSearchExecEngine engine;
+    private final DatafusionReader reader;
+    private DatafusionContext context;
 
-    /**
-     * Convert calcite fragment to an executable native fragment.
-     * Ex - substrait for Datafusion
-     *
-     * @param fragment the logical plan subtree to serialise
-     * @return substrait bytes
-     */
-    @Override
-    public byte[] convertFragment(RelNode fragment) {
-        return new byte[0];
+    public DataFusionBridge(DatafusionSearchExecEngine engine, DatafusionReader reader) {
+        this.engine = engine;
+        this.reader = reader;
     }
 
-    /**
-     * Execute query fragment
-     *
-     * @param fragment the serialised plan produced by {@link #convertFragment}
-     * @return RecordBatchStream pointer
-     */
     @Override
-    public Long execute(byte[] fragment) {
-        return 0L;
+    public byte[] convertFragment(RelNode fragment) {
+        return engine.convertFragment(fragment);
+    }
+
+    @Override
+    public DatafusionResultStream execute(byte[] plan) {
+        try {
+            context = engine.createContext(reader, plan, null, null, null);
+            return engine.execute(context);
+        } catch (IOException e) {
+            throw new RuntimeException("DataFusion execution failed", e);
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (context != null) {
+            context.close();
+            context = null;
+        }
     }
 }

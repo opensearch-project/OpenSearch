@@ -443,7 +443,12 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MockReaderManager readerManager = new MockReaderManager(format.name());
         readerManager.afterRefresh(true, snapshot);
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format, readerManager), Map.of(), Map.of(), Map.of());
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
+            Map.of(format, readerManager),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
         // setLatestSnapshot incRefs snapshot (refcount: 1 initial + 1 engine = 2)
         dataFormatAwareEngine.setLatestSnapshot(snapshot);
 
@@ -495,7 +500,12 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MockReaderManager readerManager = new MockReaderManager(format.name());
         readerManager.afterRefresh(true, snapshot1);
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format, readerManager), Map.of(), Map.of(), Map.of());
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
+            Map.of(format, readerManager),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
         dataFormatAwareEngine.setLatestSnapshot(snapshot1); // takes over construction ref, refcount: 1
 
         // Search acquires reader — refcount: 2
@@ -581,7 +591,12 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         rm1.afterRefresh(true, snapshot);
         rm2.afterRefresh(true, snapshot);
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format1, rm1, format2, rm2), Map.of(), Map.of(), Map.of());
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
+            Map.of(format1, rm1, format2, rm2),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
         dataFormatAwareEngine.setLatestSnapshot(snapshot);
 
         try (DataFormatAwareEngine.DataFormatAwareReader cr = dataFormatAwareEngine.acquireReader()) {

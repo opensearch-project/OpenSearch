@@ -264,7 +264,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
-        CheckedTriFunction<ShardPath, MapperService, IndexSettings, DataFormatAwareEngineFactory, IOException> compositeEngineFactorySupplier
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> compositeEngineFactorySupplier
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;

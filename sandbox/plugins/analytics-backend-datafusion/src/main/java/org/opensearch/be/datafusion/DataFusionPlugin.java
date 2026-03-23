@@ -26,6 +26,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -45,7 +46,7 @@ import java.util.function.Supplier;
  * per-shard {@link DatafusionSearchExecEngine} instances via the
  * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPlugin {
+public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -103,8 +104,8 @@ public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPl
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge() {
-        return null; // TODO decide between bridge and SearchExecEngine
+    public EngineBridge<?, ?, ?> bridge(DataFormat format, Object reader, SearchExecEngine<?, ?, ?> engine) throws IOException {
+        return new DataFusionBridge((DatafusionSearchExecEngine) engine, (DatafusionReader) reader);
     }
 
     @Override
