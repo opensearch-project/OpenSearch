@@ -1338,4 +1338,55 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && !docs.get("jkl").containsKey("expired");
         });
     }
+
+    public void testWarmupPhase() throws Exception {
+        // Step 1: Publish 10 messages before creating the index
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 2: Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with warmup enabled, lag_threshold=0, and long timeout
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.lag_threshold", 0)
+                .put("ingestion_source.warmup.timeout", "10m")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for poller to enter POLLING state (warmup complete)
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
+        });
+
+        // Step 5: Validate all 10 documents are searchable after warmup
+        // Refresh to make all docs visible, then assert directly (not waitForSearchableDocs)
+        // since all 10 docs should already be indexed during the warmup phase
+        client(nodeA).admin().indices().prepareRefresh(indexName).get();
+        long docCount = client(nodeA).prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
+        assertEquals("All 10 documents should be searchable immediately after warmup completes", 10L, docCount);
+
+        // Step 6: Verify stats
+        PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertEquals(10L, stats.getMessageProcessorStats().totalProcessedCount());
+        assertEquals(10L, stats.getConsumerStats().totalPolledCount());
+    }
 }
