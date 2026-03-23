@@ -1040,7 +1040,9 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            context.documentInput().addField(fieldType(), value);
+        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {

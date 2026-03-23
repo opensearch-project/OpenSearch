@@ -47,6 +47,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -313,5 +315,46 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             doc.add(new StoredField(FIELD_NAME, val ? "T" : "F"));
         }
         return doc;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanTrue() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", true)), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.TRUE.equals(e.getValue()))
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanFalse() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", false)), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.FALSE.equals(e.getValue()))
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanNullSkipped() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        assertTrue(capturingDocInput.getCapturedFields().stream().noneMatch(e -> e.getKey().name().equals("field")));
     }
 }

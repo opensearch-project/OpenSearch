@@ -474,10 +474,14 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         if (range == null) {
             return;
         }
-        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            context.documentInput().addField(fieldType(), range);
+        } else {
+            context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
-        if (hasDocValues == false && (index || store)) {
-            createFieldNamesField(context);
+            if (hasDocValues == false && (index || store)) {
+                createFieldNamesField(context);
+            }
         }
     }
 

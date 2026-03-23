@@ -42,6 +42,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.tests.analysis.Token;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -218,5 +220,46 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     private ParseContext.Document parseDocument(DocumentMapper mapper, SourceToParse request) {
         return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+    }
+
+    private DocumentMapper createIndexWithTokenCountFieldPluggableDataFormat() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        return createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("test");
+            {
+                b.field("type", "text");
+                b.startObject("fields");
+                {
+                    b.startObject("tc");
+                    {
+                        b.field("type", "token_count");
+                        b.field("analyzer", "standard");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTokenCountValue() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(createDocument("three tokens string"), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc") && e.getValue().equals(3));
+        assertTrue("Expected token count of 3 for field test.tc", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTokenCountNullSkipped() throws Exception {
+        DocumentMapper mapper = createIndexWithTokenCountFieldPluggableDataFormat();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(createDocument(null), docInput);
+
+        boolean hasTokenCountField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("test.tc"));
+        assertFalse("Expected no token count field for null value", hasTokenCountField);
     }
 }

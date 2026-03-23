@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Spliterators;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 /**
@@ -217,6 +218,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected DerivedFieldGenerator derivedFieldGenerator;
+    private final AtomicBoolean isPluggableDataFormatFeatureEnabled = new AtomicBoolean(false);
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -366,9 +368,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
         if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
             for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                if (isPluggableDataFormatFeatureEnabled(context)) {
+                    context.documentInput().addField(fieldNamesFieldType, fieldName);
+                } else {
+                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                }
             }
         }
+    }
+
+    protected final boolean isPluggableDataFormatFeatureEnabled(ParseContext parseContext) {
+        return isPluggableDataFormatEnabled(parseContext.indexSettings().getSettings());
     }
 
     @Override
