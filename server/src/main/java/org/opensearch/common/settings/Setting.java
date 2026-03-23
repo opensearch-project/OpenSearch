@@ -180,9 +180,10 @@ public class Setting<T> implements ToXContentObject {
         UnmodifiableOnRestore,
 
         /**
-         * Mark this dynamic setting as sensitive. Sensitive settings require security admin
-         * privileges to be updated dynamically. This property can only be applied to settings
-         * that also have {@link Property#Dynamic}.
+         * Marks a setting as sensitive. Can only be applied to dynamic settings.
+         * The Sensitive property has default enforcement but enables plugins to implement
+         * different policies for these settings. In practice the security plugin will
+         * require higher privileges for modifying sensitive settings.
          */
         Sensitive
     }
