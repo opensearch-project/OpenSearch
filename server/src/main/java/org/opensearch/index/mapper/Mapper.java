@@ -39,6 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -301,6 +302,17 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     protected static boolean hasIndexCreated(Settings settings) {
         return settings.hasValue(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+    }
+
+    /**
+     * Checks if the optimised index feature is enabled for the given settings.
+     * Requires both the {@link FeatureFlags#PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG} feature flag
+     *
+     * @param settings the index settings to check
+     * @return {@code true} if the pluggable dataformat feature flag and the optimised index setting are both enabled
+     */
+    public static boolean isOptimisedIndexEnabled(Settings settings) {
+        return FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG);
     }
 
     /**

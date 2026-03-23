@@ -51,8 +51,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.CharFilterFactory;
@@ -63,6 +68,7 @@ import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.termvectors.TermVectorsService;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -81,6 +87,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
 
@@ -581,5 +591,193 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             doc.add(new KeywordFieldMapper.KeywordField(FIELD_NAME, binaryValue, fieldType));
         }
         return doc;
+    }
+
+    /**
+     * Creates a mock ParseContext with the pluggable dataformat feature flag enabled.
+     * The mock returns a mock DocumentInput so that the feature-flag-ON code path
+     * can be exercised without a real indexing execution engine.
+     */
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        DocumentInput<Object> mockDocInput = mock(DocumentInput.class);
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+
+        return mockContext;
+    }
+
+    /**
+     * Builds a KeywordFieldMapper using the Builder for use in unit tests that
+     * call parseCreateField directly.
+     */
+    private KeywordFieldMapper buildKeywordMapper() {
+        return buildKeywordMapper(null, Integer.MAX_VALUE, null);
+    }
+
+    private KeywordFieldMapper buildKeywordMapper(String nullValue, int ignoreAbove, IndexAnalyzers indexAnalyzers) {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(FIELD_NAME, indexAnalyzers);
+        if (nullValue != null) {
+            builder.nullValue(nullValue);
+        }
+        builder.ignoreAbove(ignoreAbove);
+        return builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultKeyword() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper();
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_STRING);
+        when(xContentParser.textOrNull()).thenReturn("test_value");
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), "test_value");
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper();
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_NULL);
+
+        mapper.parseCreateField(mockContext);
+
+        DocumentInput<?> docInput = mockContext.documentInput();
+        verifyNoInteractions(docInput);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueConfigured() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper("default_val", Integer.MAX_VALUE, null);
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_NULL);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), "default_val");
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAbove() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper(null, 5, null);
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_STRING);
+        when(xContentParser.textOrNull()).thenReturn("opensearch");
+
+        mapper.parseCreateField(mockContext);
+
+        DocumentInput<?> docInput = mockContext.documentInput();
+        verifyNoInteractions(docInput);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAboveWithinLimit() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper(null, 5, null);
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_STRING);
+        when(xContentParser.textOrNull()).thenReturn("elk");
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), "elk");
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithNormalizer() throws IOException {
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            singletonMap("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+            singletonMap(
+                "lowercase",
+                new NamedAnalyzer(
+                    "lowercase",
+                    AnalyzerScope.INDEX,
+                    new CustomAnalyzer(
+                        TokenizerFactory.newFactory("lowercase", WhitespaceTokenizer::new),
+                        new CharFilterFactory[0],
+                        new TokenFilterFactory[] { new TokenFilterFactory() {
+                            @Override
+                            public String name() {
+                                return "lowercase";
+                            }
+
+                            @Override
+                            public TokenStream create(TokenStream tokenStream) {
+                                return new LowerCaseFilter(tokenStream);
+                            }
+                        } }
+                    )
+                )
+            )
+        );
+
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(FIELD_NAME, indexAnalyzers);
+        builder.normalizer("lowercase");
+        KeywordFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(false);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_STRING);
+        when(xContentParser.textOrNull()).thenReturn("AbC");
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), "abc");
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithExternalValue() throws IOException {
+        KeywordFieldMapper mapper = buildKeywordMapper();
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn("external_keyword");
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), "external_keyword");
+    }
+
+    public void testDefaultsDoNotUseDocumentInput() throws Exception {
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
+        DocumentMapper mapper = createDocumentMapper(mapping);
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(new BytesRef("1234"), fields[0].binaryValue());
+        assertEquals(new BytesRef("1234"), fields[1].binaryValue());
     }
 }

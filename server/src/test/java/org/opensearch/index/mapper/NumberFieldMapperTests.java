@@ -49,11 +49,17 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.opensearch.index.termvectors.TermVectorsService;
@@ -66,6 +72,9 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
@@ -738,5 +747,68 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         encoded = type.encodePoint(-100, false);
         decoded = IntPoint.decodeDimension(encoded, 0);
         assertEquals(-101, decoded);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        DocumentInput<Object> mockDocInput = mock(DocumentInput.class);
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+        return mockContext;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIntegerValue() throws IOException {
+        NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(FIELD_NAME, NumberType.INTEGER, false, false);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        NumberFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        org.opensearch.core.xcontent.XContentParser xContentParser = mock(org.opensearch.core.xcontent.XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(42);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), 42);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatLongValue() throws IOException {
+        NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(FIELD_NAME, NumberType.LONG, false, false);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        NumberFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        org.opensearch.core.xcontent.XContentParser xContentParser = mock(org.opensearch.core.xcontent.XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(123456789L);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), 123456789L);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDoubleValue() throws IOException {
+        NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(FIELD_NAME, NumberType.DOUBLE, false, false);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        NumberFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        org.opensearch.core.xcontent.XContentParser xContentParser = mock(org.opensearch.core.xcontent.XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(3.14);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), 3.14);
     }
 }

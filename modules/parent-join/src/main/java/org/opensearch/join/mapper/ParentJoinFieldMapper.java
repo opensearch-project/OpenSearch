@@ -430,10 +430,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         BytesRef binaryValue = new BytesRef(name);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType);
-        context.doc().add(field);
-        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
-        context.path().remove();
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            context.documentInput().addField(fieldType(), binaryValue);
+        } else {
+            Field field = new Field(fieldType().name(), binaryValue, fieldType);
+            context.doc().add(field);
+            context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+            context.path().remove();
+        }
     }
 
     @Override

@@ -2169,10 +2169,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            context.documentInput().addField(fieldType(), numericValue);
+        } else {
+            context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
 
-        if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            if (hasDocValues == false && (stored || indexed)) {
+                createFieldNamesField(context);
+            }
         }
     }
 

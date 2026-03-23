@@ -46,15 +46,25 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.termvectors.TermVectorsService;
 
 import java.io.IOException;
 import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -316,5 +326,49 @@ public class IpFieldMapperTests extends MapperTestCase {
             doc.add(new StoredField(FIELD_NAME, new BytesRef(InetAddressPoint.encode(address))));
         }
         return doc;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        DocumentInput<Object> mockDocInput = mock(DocumentInput.class);
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+        return mockContext;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIpValue() throws IOException {
+        IpFieldMapper.Builder builder = new IpFieldMapper.Builder(FIELD_NAME, false, Version.CURRENT);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IpFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        InetAddress address = InetAddresses.forString("192.168.1.1");
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(address);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), address);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIpNullSkipped() throws IOException {
+        IpFieldMapper.Builder builder = new IpFieldMapper.Builder(FIELD_NAME, false, Version.CURRENT);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IpFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(null);
+
+        mapper.parseCreateField(mockContext);
+
+        DocumentInput<?> docInput = mockContext.documentInput();
+        verifyNoInteractions(docInput);
     }
 }

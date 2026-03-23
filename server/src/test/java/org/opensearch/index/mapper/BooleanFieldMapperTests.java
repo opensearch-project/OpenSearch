@@ -46,13 +46,25 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -313,5 +325,65 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             doc.add(new StoredField(FIELD_NAME, val ? "T" : "F"));
         }
         return doc;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        DocumentInput<Object> mockDocInput = mock(DocumentInput.class);
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+        return mockContext;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanTrue() throws IOException {
+        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(FIELD_NAME);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        BooleanFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(true);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), true);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanFalse() throws IOException {
+        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(FIELD_NAME);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        BooleanFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(false);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), false);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanNullSkipped() throws IOException {
+        BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(FIELD_NAME);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        BooleanFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(false);
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_NULL);
+
+        mapper.parseCreateField(mockContext);
+
+        DocumentInput<?> docInput = mockContext.documentInput();
+        verifyNoInteractions(docInput);
     }
 }

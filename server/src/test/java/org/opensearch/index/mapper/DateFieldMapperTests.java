@@ -72,6 +72,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class DateFieldMapperTests extends MapperTestCase {
@@ -935,5 +936,68 @@ public class DateFieldMapperTests extends MapperTestCase {
             fieldsDisabled[1].numericValue().longValue()
         );
         assertEquals("Expected timestamp should match", expectedTimestamp, fieldsEnabled[0].numericValue().longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        org.opensearch.index.engine.dataformat.DocumentInput<Object> mockDocInput = mock(
+            org.opensearch.index.engine.dataformat.DocumentInput.class
+        );
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+        return mockContext;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDateValue() throws IOException {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
+            "field",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            false,
+            Version.CURRENT
+        );
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        DateFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(false);
+        org.opensearch.core.xcontent.XContentParser xContentParser = mock(org.opensearch.core.xcontent.XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(xContentParser.currentToken()).thenReturn(org.opensearch.core.xcontent.XContentParser.Token.VALUE_STRING);
+        when(xContentParser.textOrNull()).thenReturn("2025-02-18T06:00:00.000Z");
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), TEST_TIMESTAMP);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDateNullSkipped() throws IOException {
+        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
+            "field",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            false,
+            Version.CURRENT
+        );
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        DateFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(false);
+        org.opensearch.core.xcontent.XContentParser xContentParser = mock(org.opensearch.core.xcontent.XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(xContentParser.currentToken()).thenReturn(org.opensearch.core.xcontent.XContentParser.Token.VALUE_NULL);
+        when(xContentParser.textOrNull()).thenReturn(null);
+
+        mapper.parseCreateField(mockContext);
+
+        org.opensearch.index.engine.dataformat.DocumentInput<?> docInput = mockContext.documentInput();
+        org.mockito.Mockito.verifyNoInteractions(docInput);
     }
 }

@@ -812,15 +812,20 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         RawCollationKey key = collator.getRawCollationKey(value, null);
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
-            context.doc().add(field);
-        }
+        if (isPluggableDataFormatFeatureEnabled(context)) {
+            context.documentInput().addField(fieldType(), binaryValue);
+        } else {
 
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            createFieldNamesField(context);
+            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+                Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
+                context.doc().add(field);
+            }
+
+            if (fieldType().hasDocValues()) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+                createFieldNamesField(context);
+            }
         }
     }
 

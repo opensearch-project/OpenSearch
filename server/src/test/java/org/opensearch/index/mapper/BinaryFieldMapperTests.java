@@ -33,11 +33,18 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.compress.CompressorRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,6 +52,10 @@ import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
 
@@ -134,5 +145,51 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private ParseContext createMockParseContextWithDocumentInput() {
+        ParseContext mockContext = mock(ParseContext.class);
+        DocumentInput<Object> mockDocInput = mock(DocumentInput.class);
+        when(mockContext.documentInput()).thenReturn(mockDocInput);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        when(mockContext.indexSettings()).thenReturn(indexSettings);
+        return mockContext;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBinaryValue() throws IOException {
+        BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder("field", true);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        BinaryFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        byte[] testValue = new byte[] { 1, 2, 3 };
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(true);
+        when(mockContext.externalValue()).thenReturn(testValue);
+
+        mapper.parseCreateField(mockContext);
+
+        verify(mockContext.documentInput()).addField(mapper.fieldType(), testValue);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBinaryNullSkipped() throws IOException {
+        BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder("field", true);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        BinaryFieldMapper mapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(0)));
+
+        ParseContext mockContext = createMockParseContextWithDocumentInput();
+        when(mockContext.externalValueSet()).thenReturn(false);
+        XContentParser xContentParser = mock(XContentParser.class);
+        when(mockContext.parser()).thenReturn(xContentParser);
+        when(xContentParser.currentToken()).thenReturn(XContentParser.Token.VALUE_NULL);
+
+        mapper.parseCreateField(mockContext);
+
+        DocumentInput<?> docInput = mockContext.documentInput();
+        verifyNoInteractions(docInput);
     }
 }
