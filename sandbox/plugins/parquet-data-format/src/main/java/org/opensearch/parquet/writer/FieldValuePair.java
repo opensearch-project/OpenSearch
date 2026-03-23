@@ -26,6 +26,12 @@ public class FieldValuePair {
     private final MappedFieldType fieldType;
     private final Object value;
 
+    /**
+     * Creates a new FieldValuePair.
+     *
+     * @param fieldType the mapped field type
+     * @param value the parsed field value
+     */
     public FieldValuePair(MappedFieldType fieldType, Object value) {
         if (fieldType == null) {
             throw new IllegalArgumentException("fieldType cannot be null");
@@ -34,10 +40,20 @@ public class FieldValuePair {
         this.value = value;
     }
 
+    /**
+     * Returns the field type.
+     *
+     * @return the mapped field type
+     */
     public MappedFieldType getFieldType() {
         return fieldType;
     }
 
+    /**
+     * Returns the value.
+     *
+     * @return the parsed field value
+     */
     public Object getValue() {
         return value;
     }

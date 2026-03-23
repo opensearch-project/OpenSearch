@@ -10,6 +10,7 @@ package org.opensearch.parquet.writer;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -19,11 +20,11 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,7 +97,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
         FileInfos fileInfos = writer.flush();
         assertNotNull(fileInfos);
-        assertTrue(new File(filePath).exists());
+        assertTrue(Files.exists(Path.of(filePath)));
         assertEquals(10, RustBridge.getFileMetadata(filePath).numRows());
     }
 
@@ -119,7 +120,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
 
         writer.flush();
         writer.sync();
-        assertTrue(new File(filePath).exists());
+        assertTrue(Files.exists(Path.of(filePath)));
     }
 
     private Schema buildSchema(List<MappedFieldType> fieldTypes) {

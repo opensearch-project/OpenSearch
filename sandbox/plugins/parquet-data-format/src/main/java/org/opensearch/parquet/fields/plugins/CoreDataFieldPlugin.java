@@ -41,6 +41,9 @@ import java.util.Map;
  */
 public class CoreDataFieldPlugin implements ParquetFieldPlugin {
 
+    /** Creates a new CoreDataFieldPlugin. */
+    public CoreDataFieldPlugin() {}
+
     @Override
     public Map<String, ParquetField> getParquetFields() {
         final Map<String, ParquetField> fieldMap = new HashMap<>();

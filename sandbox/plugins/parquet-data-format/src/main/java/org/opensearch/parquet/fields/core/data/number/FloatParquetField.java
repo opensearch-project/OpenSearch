@@ -21,6 +21,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class FloatParquetField extends ParquetField {
 
+    /** Creates a new FloatParquetField. */
+    public FloatParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((Float4Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Float) parseValue);

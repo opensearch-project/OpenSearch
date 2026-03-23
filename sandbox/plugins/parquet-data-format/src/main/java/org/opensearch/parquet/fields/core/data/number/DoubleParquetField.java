@@ -21,6 +21,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class DoubleParquetField extends ParquetField {
 
+    /** Creates a new DoubleParquetField. */
+    public DoubleParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((Float8Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Double) parseValue);

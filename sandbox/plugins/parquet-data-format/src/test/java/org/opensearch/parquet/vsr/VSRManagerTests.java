@@ -13,12 +13,12 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.mapper.NumberFieldMapper;
-import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -100,7 +100,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         manager.flush();
         manager.sync();
-        assertTrue(new java.io.File(filePath).exists());
+        assertTrue(java.nio.file.Files.exists(java.nio.file.Path.of(filePath)));
     }
 
     public void testMaybeRotateNoOpBelowThreshold() throws Exception {

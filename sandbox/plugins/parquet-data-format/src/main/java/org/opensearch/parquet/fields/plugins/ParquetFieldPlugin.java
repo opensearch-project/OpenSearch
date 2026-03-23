@@ -18,6 +18,10 @@ import java.util.Map;
  */
 public interface ParquetFieldPlugin {
 
+    /**
+     * Returns the Parquet field implementations provided by this plugin.
+     * @return map of field type names to ParquetField implementations
+     */
     default Map<String, ParquetField> getParquetFields() {
         return Collections.emptyMap();
     }

@@ -20,6 +20,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class ByteParquetField extends ParquetField {
 
+    /** Creates a new ByteParquetField. */
+    public ByteParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((TinyIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Byte) parseValue);

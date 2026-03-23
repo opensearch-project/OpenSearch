@@ -21,13 +21,22 @@ import java.util.Objects;
  */
 public abstract class ParquetField {
 
+    /** Creates a new ParquetField. */
+    public ParquetField() {}
+
     /**
      * Writes the parsed field value into the appropriate vector in the managed VSR.
+     * @param fieldType the mapped field type
+     * @param managedVSR the managed vector schema root
+     * @param parseValue the parsed value to write
      */
     protected abstract void addToGroup(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue);
 
     /**
      * Creates and processes a field entry. Throws if vector not present in VSR.
+     * @param fieldType the mapped field type
+     * @param managedVSR the managed vector schema root
+     * @param parseValue the parsed value to write
      */
     public final void createField(MappedFieldType fieldType, ManagedVSR managedVSR, Object parseValue) {
         Objects.requireNonNull(fieldType, "MappedFieldType cannot be null");

@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.nativebridge.spi.PlatformHelper;
 
 import java.io.IOException;
@@ -37,6 +38,7 @@ public class RustBridge {
         loadNativeLibrary();
     }
 
+    @SuppressForbidden(reason = "Needs temp directory to extract native library from classpath at static init time")
     private static void loadNativeLibrary() {
         String platformDir = PlatformHelper.getPlatformDirectory();
         String libFileName = PlatformHelper.getPlatformLibraryName(LIB_NAME);
@@ -58,6 +60,7 @@ public class RustBridge {
         }
     }
 
+    /** Initializes the native Rust logger. */
     public static native void initLogger();
 
     // Writer lifecycle methods — package-private, controlled by NativeParquetWriter
@@ -70,8 +73,20 @@ public class RustBridge {
     static native int flushToDisk(String file);
 
     // Public utility methods
+    /**
+     * Returns metadata for the specified Parquet file.
+     *
+     * @param file the path to the Parquet file
+     * @return the file metadata
+     */
     public static native ParquetFileMetadata getFileMetadata(String file);
 
+    /**
+     * Returns the native memory bytes used by files matching the given path prefix.
+     *
+     * @param pathPrefix the path prefix to filter by
+     * @return the number of native bytes used
+     */
     public static native long getFilteredNativeBytesUsed(String pathPrefix);
 
     private RustBridge() {}

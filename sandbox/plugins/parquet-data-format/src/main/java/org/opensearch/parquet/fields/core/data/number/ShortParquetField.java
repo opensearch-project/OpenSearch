@@ -20,6 +20,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class ShortParquetField extends ParquetField {
 
+    /** Creates a new ShortParquetField. */
+    public ShortParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((SmallIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Short) parseValue);

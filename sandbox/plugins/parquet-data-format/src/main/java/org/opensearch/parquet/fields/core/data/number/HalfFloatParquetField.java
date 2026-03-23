@@ -21,6 +21,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class HalfFloatParquetField extends ParquetField {
 
+    /** Creates a new HalfFloatParquetField. */
+    public HalfFloatParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((Float2Vector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Short) parseValue);

@@ -27,7 +27,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -138,7 +137,9 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     }
 
     private String getExpectedParquetPath(long generation) {
-        return tempDir.resolve("test_index_uuid").resolve("0").resolve("parquet")
+        return tempDir.resolve("test_index_uuid")
+            .resolve("0")
+            .resolve("parquet")
             .resolve(ParquetIndexingEngine.FILE_NAME_PREFIX + "_" + generation + ParquetIndexingEngine.FILE_NAME_EXT)
             .toString();
     }

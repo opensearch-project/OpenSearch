@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.writer;
 
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
@@ -21,8 +22,6 @@ import org.opensearch.parquet.vsr.VSRManager;
 
 import java.io.IOException;
 import java.nio.file.Path;
-
-import org.apache.arrow.vector.types.pojo.Schema;
 
 /**
  * Parquet file writer integrating OpenSearch's {@link Writer} interface with the VSR batching layer.
@@ -44,7 +43,24 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
 
-    public ParquetWriter(String file, long writerGeneration, ParquetDataFormat dataFormat, Schema schema, ArrowBufferPool bufferPool, Settings settings) {
+    /**
+     * Creates a new ParquetWriter.
+     *
+     * @param file output Parquet file path
+     * @param writerGeneration generation number for this writer
+     * @param dataFormat the Parquet data format instance
+     * @param schema Arrow schema for vector creation
+     * @param bufferPool shared Arrow buffer pool
+     * @param settings node settings for writer configuration
+     */
+    public ParquetWriter(
+        String file,
+        long writerGeneration,
+        ParquetDataFormat dataFormat,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        Settings settings
+    ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;

@@ -20,6 +20,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class LongParquetField extends ParquetField {
 
+    /** Creates a new LongParquetField. */
+    public LongParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((BigIntVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (Long) parseValue);

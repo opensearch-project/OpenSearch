@@ -37,6 +37,11 @@ public class ArrowBufferPool implements Closeable {
     private final RootAllocator rootAllocator;
     private final long maxChildAllocation;
 
+    /**
+     * Creates a new ArrowBufferPool.
+     *
+     * @param settings node settings used to derive the maximum native allocation
+     */
     public ArrowBufferPool(Settings settings) {
         long maxAllocationInBytes = getMaxAllocationInBytes(settings);
         logger.debug("Max native memory allocation for ArrowBufferPool: {} bytes", maxAllocationInBytes);
@@ -44,10 +49,16 @@ public class ArrowBufferPool implements Closeable {
         this.maxChildAllocation = maxAllocationInBytes / 10;
     }
 
+    /**
+     * Creates a child allocator with the given name.
+     * @param name the allocator name
+     * @return a new child buffer allocator
+     */
     public BufferAllocator createChildAllocator(String name) {
         return rootAllocator.newChildAllocator(name, 0, maxChildAllocation);
     }
 
+    /** Returns the total bytes currently allocated by the root allocator. */
     public long getTotalAllocatedBytes() {
         return rootAllocator.getAllocatedMemory();
     }
@@ -58,11 +69,8 @@ public class ArrowBufferPool implements Closeable {
     }
 
     private static long getMaxAllocationInBytes(Settings settings) {
-        long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize()
-            - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        RatioValue ratio = RatioValue.parseRatioValue(
-            ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings)
-        );
+        long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        RatioValue ratio = RatioValue.parseRatioValue(ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings));
         return (long) (totalAvailableMemory * ratio.getAsRatio());
     }
 }

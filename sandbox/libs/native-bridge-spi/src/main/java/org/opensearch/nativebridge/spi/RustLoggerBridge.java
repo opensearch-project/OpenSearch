@@ -21,9 +21,15 @@ public class RustLoggerBridge {
 
     private static final Logger logger = LogManager.getLogger(RustLoggerBridge.class);
 
+    /**
+     * Log levels supported by the Rust-to-Java logging bridge.
+     */
     public enum LogLevel {
+        /** Debug level logging. */
         DEBUG,
+        /** Info level logging. */
         INFO,
+        /** Error level logging. */
         ERROR
     }
 

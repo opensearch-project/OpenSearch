@@ -21,6 +21,34 @@ package org.opensearch.parquet.bridge;
  */
 public record ParquetFileMetadata(int version, long numRows, String createdBy) {
 
+    /**
+     * Creates a new ParquetFileMetadata.
+     *
+     * @param version   the Parquet format version
+     * @param numRows   the total number of rows
+     * @param createdBy the creator string from the file footer
+     */
+    public ParquetFileMetadata {
+    }
+
+    /** Returns the Parquet format version. */
+    @Override
+    public int version() {
+        return version;
+    }
+
+    /** Returns the total number of rows. */
+    @Override
+    public long numRows() {
+        return numRows;
+    }
+
+    /** Returns the creator string from the file footer. */
+    @Override
+    public String createdBy() {
+        return createdBy;
+    }
+
     @Override
     public String toString() {
         return "ParquetFileMetadata{version=" + version + ", numRows=" + numRows + ", createdBy='" + createdBy + "'}";

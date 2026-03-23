@@ -29,6 +29,9 @@ import java.util.Map;
  */
 public class MetadataFieldPlugin implements ParquetFieldPlugin {
 
+    /** Creates a new MetadataFieldPlugin. */
+    public MetadataFieldPlugin() {}
+
     @Override
     public Map<String, ParquetField> getParquetFields() {
         final Map<String, ParquetField> fieldMap = new HashMap<>();

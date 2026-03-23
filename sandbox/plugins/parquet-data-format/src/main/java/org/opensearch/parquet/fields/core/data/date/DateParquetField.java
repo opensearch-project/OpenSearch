@@ -21,6 +21,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class DateParquetField extends ParquetField {
 
+    /** Creates a new DateParquetField. */
+    public DateParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((TimeStampMilliVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (long) parseValue);

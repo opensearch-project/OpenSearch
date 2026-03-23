@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
  */
 public class IgnoredParquetField extends ParquetField {
 
+    /** Creates a new IgnoredParquetField. */
+    public IgnoredParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((VarCharVector) managedVSR.getVector(mappedFieldType.name())).setSafe(

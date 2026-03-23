@@ -36,6 +36,18 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    'org.apache.commons.codec.binary.Hex',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory'
+  )
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1'
+  )
+}
+
 // --- Rust native library build tasks ---
 
 def rustDir = file("${projectDir}/src/main/rust")
@@ -100,6 +112,16 @@ tasks.register('runNativeUnitTests', Exec) {
 // Wire Rust build into Java build lifecycle
 compileJava.dependsOn copyNativeLib
 processResources.dependsOn copyNativeLib
+
+// Ensure precommit tasks that scan src/main/resources run after native lib is copied
+['filepermissions', 'forbiddenPatterns', 'spotlessJava', 'spotlessJavaCheck', 'spotlessMisc', 'spotlessMiscCheck'].each { taskName ->
+    tasks.named(taskName).configure {
+        dependsOn copyNativeLib
+    }
+}
+tasks.named('forbiddenPatterns').configure {
+    exclude '**/native/**'
+}
 
 clean {
   doFirst {

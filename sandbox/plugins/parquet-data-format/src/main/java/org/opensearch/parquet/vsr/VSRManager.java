@@ -51,6 +51,14 @@ public class VSRManager implements AutoCloseable {
     private final VSRPool vsrPool;
     private NativeParquetWriter writer;
 
+    /**
+     * Creates a new VSRManager.
+     *
+     * @param fileName output Parquet file path
+     * @param schema Arrow schema for vector creation
+     * @param bufferPool shared Arrow buffer pool
+     * @param maxRowsPerVSR row threshold triggering VSR rotation
+     */
     public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR) {
         this.fileName = fileName;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
@@ -66,6 +74,11 @@ public class VSRManager implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns the currently active ManagedVSR.
+     *
+     * @return the active ManagedVSR
+     */
     public ManagedVSR getActiveManagedVSR() {
         return managedVSR.get();
     }
@@ -74,6 +87,8 @@ public class VSRManager implements AutoCloseable {
      * Adds a document to the active VSR, rotating if necessary.
      * Transfers collected fields from the document input into the active VSR
      * using the ArrowFieldRegistry to resolve typed vector writes.
+     *
+     * @param doc the document input containing field-value pairs
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
         maybeRotateActiveVSR();
@@ -161,7 +176,7 @@ public class VSRManager implements AutoCloseable {
             vsrPool.close();
             managedVSR.set(null);
         } catch (Exception e) {
-            logger.error("Error during close for {}: {}", fileName, e.getMessage(), e);
+            logger.error("Error during close for {}: {}", fileName, e.getMessage());
             throw new RuntimeException("Failed to close VSRManager: " + e.getMessage(), e);
         }
     }

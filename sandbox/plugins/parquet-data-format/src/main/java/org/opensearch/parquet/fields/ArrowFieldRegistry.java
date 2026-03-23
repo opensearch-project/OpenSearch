@@ -51,17 +51,26 @@ public final class ArrowFieldRegistry {
             }
             if (FIELD_REGISTRY.containsKey(fieldType)) {
                 throw new IllegalArgumentException(
-                    String.format("Field type [%s] is already registered. Plugin [%s] cannot override it.", fieldType, pluginName)
+                    "Field type [" + fieldType + "] is already registered. Plugin [" + pluginName + "] cannot override it."
                 );
             }
             FIELD_REGISTRY.put(fieldType, parquetField);
         }
     }
 
+    /**
+     * Returns the ParquetField for the given field type.
+     * @param fieldType the field type name
+     * @return the registered ParquetField, or null if not found
+     */
     public static ParquetField getParquetField(String fieldType) {
         return FIELD_REGISTRY.get(fieldType);
     }
 
+    /**
+     * Returns an unmodifiable view of all registered fields.
+     * @return map of field type names to ParquetField implementations
+     */
     public static Map<String, ParquetField> getRegisteredFields() {
         return Collections.unmodifiableMap(FIELD_REGISTRY);
     }

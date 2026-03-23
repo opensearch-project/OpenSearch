@@ -24,6 +24,9 @@ import java.net.InetAddress;
  */
 public class IpParquetField extends ParquetField {
 
+    /** Creates a new IpParquetField. */
+    public IpParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         VarBinaryVector vector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());

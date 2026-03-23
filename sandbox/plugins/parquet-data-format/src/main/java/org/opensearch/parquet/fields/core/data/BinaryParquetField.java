@@ -20,6 +20,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class BinaryParquetField extends ParquetField {
 
+    /** Creates a new BinaryParquetField. */
+    public BinaryParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((VarBinaryVector) managedVSR.getVector(mappedFieldType.name())).setSafe(managedVSR.getRowCount(), (byte[]) parseValue);

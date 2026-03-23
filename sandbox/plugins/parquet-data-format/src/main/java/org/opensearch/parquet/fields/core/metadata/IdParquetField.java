@@ -21,6 +21,9 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class IdParquetField extends ParquetField {
 
+    /** Creates a new IdParquetField. */
+    public IdParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         VarBinaryVector vector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());

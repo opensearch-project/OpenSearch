@@ -22,6 +22,9 @@ import java.nio.charset.StandardCharsets;
  */
 public class KeywordParquetField extends ParquetField {
 
+    /** Creates a new KeywordParquetField. */
+    public KeywordParquetField() {}
+
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
         ((VarCharVector) managedVSR.getVector(mappedFieldType.name())).setSafe(

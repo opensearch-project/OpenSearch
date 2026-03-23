@@ -29,6 +29,9 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
     private long rowId = -1;
 
+    /** Creates a new ParquetDocumentInput. */
+    public ParquetDocumentInput() {}
+
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         collectedFields.add(new FieldValuePair(fieldType, value));
@@ -50,6 +53,11 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         rowId = -1;
     }
 
+    /**
+     * Returns the row ID assigned to this document.
+     *
+     * @return the row ID, or -1 if not set
+     */
     public long getRowId() {
         return rowId;
     }

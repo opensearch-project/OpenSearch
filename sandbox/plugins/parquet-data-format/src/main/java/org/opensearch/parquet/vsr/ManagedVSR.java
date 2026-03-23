@@ -47,6 +47,13 @@ public class ManagedVSR implements AutoCloseable {
     private VSRState state;
     private final Map<String, Field> fields = new HashMap<>();
 
+    /**
+     * Creates a new ManagedVSR.
+     *
+     * @param id unique identifier for this VSR
+     * @param schema Arrow schema defining the vector structure
+     * @param allocator buffer allocator for Arrow memory
+     */
     public ManagedVSR(String id, Schema schema, BufferAllocator allocator) {
         this.id = id;
         this.vsr = VectorSchemaRoot.create(schema, allocator);
@@ -57,10 +64,16 @@ public class ManagedVSR implements AutoCloseable {
         }
     }
 
+    /** Returns the current row count. */
     public int getRowCount() {
         return vsr.getRowCount();
     }
 
+    /**
+     * Sets the row count.
+     *
+     * @param rowCount the new row count
+     */
     public void setRowCount(int rowCount) {
         if (state != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot modify VSR in state: " + state);
@@ -68,6 +81,11 @@ public class ManagedVSR implements AutoCloseable {
         vsr.setRowCount(rowCount);
     }
 
+    /**
+     * Returns the vector for the given field name, or null if not found.
+     * @param fieldName the field name
+     * @return the field vector, or null
+     */
     public FieldVector getVector(String fieldName) {
         if (state != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot access vector in VSR state: " + state);
@@ -76,6 +94,7 @@ public class ManagedVSR implements AutoCloseable {
         return field != null ? vsr.getVector(field) : null;
     }
 
+    /** Transitions this VSR from ACTIVE to FROZEN state. */
     public void moveToFrozen() {
         if (state != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot freeze VSR " + id + ": expected ACTIVE but was " + state);
@@ -107,10 +126,20 @@ public class ManagedVSR implements AutoCloseable {
         return new ArrowExport(null, arrowSchema);
     }
 
+    /**
+     * Returns the current lifecycle state.
+     *
+     * @return the VSR state
+     */
     public VSRState getState() {
         return state;
     }
 
+    /**
+     * Returns the unique identifier.
+     *
+     * @return the VSR id
+     */
     public String getId() {
         return id;
     }
@@ -135,6 +164,6 @@ public class ManagedVSR implements AutoCloseable {
 
     @Override
     public String toString() {
-        return String.format("ManagedVSR{id='%s', state=%s, rows=%d}", id, state, getRowCount());
+        return "ManagedVSR{id='" + id + "', state=" + state + ", rows=" + getRowCount() + "}";
     }
 }

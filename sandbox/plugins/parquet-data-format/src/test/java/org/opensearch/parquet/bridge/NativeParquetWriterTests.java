@@ -23,9 +23,10 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -39,11 +40,13 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         super.setUp();
         RustBridge.initLogger();
         allocator = new RootAllocator();
-        schema = new Schema(List.of(
-            new Field("id", FieldType.nullable(new ArrowType.Int(32, true)), null),
-            new Field("name", FieldType.nullable(new ArrowType.Utf8()), null),
-            new Field("score", FieldType.nullable(new ArrowType.Int(64, true)), null)
-        ));
+        schema = new Schema(
+            List.of(
+                new Field("id", FieldType.nullable(new ArrowType.Int(32, true)), null),
+                new Field("name", FieldType.nullable(new ArrowType.Utf8()), null),
+                new Field("score", FieldType.nullable(new ArrowType.Int(64, true)), null)
+            )
+        );
     }
 
     @Override
@@ -58,11 +61,13 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         String filePath = createTempDir().resolve("full.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
-        try (ArrowExport export = exportData(
-            new int[] { 1, 2, 3 },
-            new String[] { "alice", "bob", "carol" },
-            new long[] { 100L, 200L, 300L }
-        )) {
+        try (
+            ArrowExport export = exportData(
+                new int[] { 1, 2, 3 },
+                new String[] { "alice", "bob", "carol" },
+                new long[] { 100L, 200L, 300L }
+            )
+        ) {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
@@ -71,33 +76,27 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         assertEquals(3, writer.getMetadata().numRows());
 
         writer.flush();
-        assertTrue("Parquet file should exist after flush", new File(filePath).exists());
+        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
     public void testMultipleBatchesThenCloseAndFlush() throws Exception {
         String filePath = createTempDir().resolve("multi-batch.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
-        try (ArrowExport batch1 = exportData(
-            new int[] { 1, 2 },
-            new String[] { "alice", "bob" },
-            new long[] { 10L, 20L }
-        )) {
+        try (ArrowExport batch1 = exportData(new int[] { 1, 2 }, new String[] { "alice", "bob" }, new long[] { 10L, 20L })) {
             writer.write(batch1.getArrayAddress(), batch1.getSchemaAddress());
         }
 
-        try (ArrowExport batch2 = exportData(
-            new int[] { 3, 4, 5 },
-            new String[] { "carol", "dave", "eve" },
-            new long[] { 30L, 40L, 50L }
-        )) {
+        try (
+            ArrowExport batch2 = exportData(new int[] { 3, 4, 5 }, new String[] { "carol", "dave", "eve" }, new long[] { 30L, 40L, 50L })
+        ) {
             writer.write(batch2.getArrayAddress(), batch2.getSchemaAddress());
         }
 
         writer.close();
         assertEquals(5, writer.getMetadata().numRows());
         writer.flush();
-        assertTrue("Parquet file should exist after flush", new File(filePath).exists());
+        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
     // --- Close without writes ---
@@ -125,11 +124,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         String filePath = createTempDir().resolve("auto-close.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
-        try (ArrowExport export = exportData(
-            new int[] { 1 },
-            new String[] { "alice" },
-            new long[] { 10L }
-        )) {
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
@@ -138,7 +133,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         writer.flush();
         assertNotNull(writer.getMetadata());
         assertEquals(1, writer.getMetadata().numRows());
-        assertTrue("Parquet file should exist after flush", new File(filePath).exists());
+        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
     public void testWriteAfterCloseThrows() throws Exception {
@@ -146,11 +141,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         NativeParquetWriter writer = createWriter(filePath);
         writer.close();
 
-        try (ArrowExport export = exportData(
-            new int[] { 1 },
-            new String[] { "alice" },
-            new long[] { 10L }
-        )) {
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
             expectThrows(IOException.class, () -> writer.write(export.getArrayAddress(), export.getSchemaAddress()));
         }
     }
@@ -175,13 +166,15 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         NativeParquetWriter writer = createWriter(filePath);
 
         // Writer was created with (id:int, name:utf8, score:long), write with (other_field:int)
-        try (ArrowExport export = exportDataWithSchema(
-            new Schema(List.of(new Field("other_field", FieldType.nullable(new ArrowType.Int(32, true)), null))),
-            root -> {
-                ((IntVector) root.getVector("other_field")).setSafe(0, 99);
-                root.setRowCount(1);
-            }
-        )) {
+        try (
+            ArrowExport export = exportDataWithSchema(
+                new Schema(List.of(new Field("other_field", FieldType.nullable(new ArrowType.Int(32, true)), null))),
+                root -> {
+                    ((IntVector) root.getVector("other_field")).setSafe(0, 99);
+                    root.setRowCount(1);
+                }
+            )
+        ) {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
@@ -203,17 +196,13 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         String filePath = createTempDir().resolve("double-flush.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
-        try (ArrowExport export = exportData(
-            new int[] { 1 },
-            new String[] { "alice" },
-            new long[] { 10L }
-        )) {
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
         writer.close();
         writer.flush();
-        assertTrue("Parquet file should exist after flush", new File(filePath).exists());
+        assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
         // Second flush fails — native side removed file from FILE_MANAGER after first fsync
         expectThrows(IOException.class, writer::flush);
     }

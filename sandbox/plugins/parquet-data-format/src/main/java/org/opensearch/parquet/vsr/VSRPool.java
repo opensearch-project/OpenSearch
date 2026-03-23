@@ -41,6 +41,14 @@ public class VSRPool implements AutoCloseable {
     private final AtomicInteger vsrCounter;
     private final int maxRowsPerVSR;
 
+    /**
+     * Creates a new VSRPool.
+     *
+     * @param poolId unique identifier for this pool
+     * @param schema Arrow schema for VSR creation
+     * @param bufferPool shared Arrow buffer pool
+     * @param maxRowsPerVSR row threshold triggering rotation
+     */
     public VSRPool(String poolId, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR) {
         this.poolId = poolId;
         this.schema = schema;
@@ -52,10 +60,20 @@ public class VSRPool implements AutoCloseable {
         initializeActiveVSR();
     }
 
+    /**
+     * Returns the active VSR.
+     *
+     * @return the active ManagedVSR
+     */
     public ManagedVSR getActiveVSR() {
         return activeVSR.get();
     }
 
+    /**
+     * Returns the frozen VSR.
+     *
+     * @return the frozen ManagedVSR, or null if none
+     */
     public ManagedVSR getFrozenVSR() {
         return frozenVSR.get();
     }
@@ -90,6 +108,11 @@ public class VSRPool implements AutoCloseable {
         }
     }
 
+    /**
+     * Clears the frozen VSR slot after it has been closed.
+     *
+     * @throws IOException if the frozen slot is empty or the VSR is not closed
+     */
     public void unsetFrozenVSR() throws IOException {
         ManagedVSR frozen = frozenVSR.get();
         if (frozen == null) {
@@ -101,6 +124,11 @@ public class VSRPool implements AutoCloseable {
         frozenVSR.set(null);
     }
 
+    /**
+     * Closes the given VSR, releasing its resources.
+     *
+     * @param vsr the ManagedVSR to close
+     */
     public void completeVSR(ManagedVSR vsr) {
         vsr.close();
     }

@@ -10,10 +10,10 @@ package org.opensearch.parquet.fields;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
@@ -31,6 +31,7 @@ public final class ArrowSchemaBuilder {
 
     /**
      * Creates an Arrow Schema from the MapperService.
+     * @param mapperService the mapper service containing field mappings
      */
     public static Schema getSchema(MapperService mapperService) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");

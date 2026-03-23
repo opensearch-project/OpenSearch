@@ -30,15 +30,19 @@ public final class ParquetSettings {
 
     private ParquetSettings() {}
 
+    /** Default maximum native memory allocation as a percentage of available non-heap memory. */
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
+    /** Default maximum number of rows per VectorSchemaRoot before rotation. */
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
+    /** Maximum native memory allocation for Arrow buffers, as a percentage of non-heap memory. */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         Setting.Property.NodeScope
     );
 
+    /** Maximum number of rows per VectorSchemaRoot before rotation is triggered. */
     public static final Setting<Integer> MAX_ROWS_PER_VSR = Setting.intSetting(
         "parquet.max_rows_per_vsr",
         DEFAULT_MAX_ROWS_PER_VSR,
@@ -46,6 +50,7 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
+    /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {
         return List.of(MAX_NATIVE_ALLOCATION, MAX_ROWS_PER_VSR);
     }

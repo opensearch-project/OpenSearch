@@ -25,12 +25,11 @@ import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 
 import java.io.Closeable;
-import java.util.Collections;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -53,7 +52,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     private static final Logger logger = LogManager.getLogger(ParquetIndexingEngine.class);
 
+    /** Prefix for generated Parquet file names. */
     public static final String FILE_NAME_PREFIX = "_parquet_file_generation";
+    /** File extension for Parquet files. */
     public static final String FILE_NAME_EXT = ".parquet";
 
     private final ParquetDataFormat dataFormat;
@@ -62,6 +63,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ArrowBufferPool bufferPool;
     private final Settings settings;
 
+    /**
+     * Creates a new ParquetIndexingEngine.
+     *
+     * @param settings       the node-level settings
+     * @param dataFormat     the Parquet data format descriptor
+     * @param shardPath      the shard path for file storage
+     * @param schemaSupplier supplier for the Arrow schema
+     * @param indexSettings  the index-level settings
+     */
     public ParquetIndexingEngine(
         Settings settings,
         ParquetDataFormat dataFormat,

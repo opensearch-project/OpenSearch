@@ -22,6 +22,9 @@ import java.util.Set;
  */
 public class ParquetDataFormat implements DataFormat {
 
+    /** Creates a new ParquetDataFormat. */
+    public ParquetDataFormat() {}
+
     static final String PARQUET_DATA_FORMAT_NAME = "parquet";
 
     @Override

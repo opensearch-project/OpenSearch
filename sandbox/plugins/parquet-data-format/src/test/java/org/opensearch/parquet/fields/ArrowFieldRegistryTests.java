@@ -45,8 +45,7 @@ public class ArrowFieldRegistryTests extends OpenSearchTestCase {
             TextFieldMapper.CONTENT_TYPE,
             KeywordFieldMapper.CONTENT_TYPE,
             IpFieldMapper.CONTENT_TYPE,
-            BinaryFieldMapper.CONTENT_TYPE,
-        };
+            BinaryFieldMapper.CONTENT_TYPE, };
         for (String type : expectedTypes) {
             assertNotNull("Missing registration for: " + type, ArrowFieldRegistry.getParquetField(type));
         }
@@ -61,8 +60,7 @@ public class ArrowFieldRegistryTests extends OpenSearchTestCase {
             IdFieldMapper.CONTENT_TYPE,
             SeqNoFieldMapper.CONTENT_TYPE,
             VersionFieldMapper.CONTENT_TYPE,
-            SeqNoFieldMapper.PRIMARY_TERM_NAME,
-        };
+            SeqNoFieldMapper.PRIMARY_TERM_NAME, };
         for (String type : expectedTypes) {
             assertNotNull("Missing registration for: " + type, ArrowFieldRegistry.getParquetField(type));
         }
