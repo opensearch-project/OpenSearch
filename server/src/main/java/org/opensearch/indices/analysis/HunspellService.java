@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.env.Environment;
 
@@ -59,32 +60,32 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * Serves as a node level registry for hunspell dictionaries. This services expects all dictionaries to be located under
- * the {@code <path.conf>/hunspell} directory, where each locale has its dedicated sub-directory which holds the dictionary
- * files. For example, the dictionary files for {@code en_US} locale must be placed under {@code <path.conf>/hunspell/en_US}
- * directory.
- * <p>
- * The following settings can be set for each dictionary:
+ * Serves as a node level registry for hunspell dictionaries. This service supports loading dictionaries from:
+ * <ul>
+ *   <li>Traditional location: {@code <path.conf>/hunspell/<locale>/} (e.g., config/hunspell/en_US/)</li>
+ *   <li>Package-based location: {@code <path.conf>/analyzers/<package-id>/hunspell/<locale>/} (e.g., config/analyzers/pkg-1234/hunspell/en_US/)</li>
+ * </ul>
+ *
+ * <h2>Cache Key Strategy:</h2>
+ * <ul>
+ *   <li>Traditional dictionaries: Cache key = locale (e.g., "en_US")</li>
+ *   <li>Package-based dictionaries: Cache key = "{packageId}:{locale}" (e.g., "pkg-1234:en_US")</li>
+ * </ul>
+ *
+ * <p>The following settings can be set for each dictionary:
  * <ul>
  * <li>{@code ignore_case} - If true, dictionary matching will be case insensitive (defaults to {@code false})</li>
  * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored
  *      (defaults to {@code true})</li>
  * </ul>
- * <p>
- * These settings can either be configured as node level configuration, such as:
- * <br><br>
+ *
+ * <p>These settings can either be configured as node level configuration, such as:
  * <pre><code>
  *     indices.analysis.hunspell.dictionary.en_US.ignore_case: true
  *     indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing: false
  * </code></pre>
- * <p>
- * or, as dedicated configuration per dictionary, placed in a {@code settings.yml} file under the dictionary directory. For
- * example, the following can be the content of the {@code <path.config>/hunspell/en_US/settings.yml} file:
- * <br><br>
- * <pre><code>
- *     ignore_case: true
- *     strict_affix_parsing: false
- * </code></pre>
+ *
+ * <p>or, as dedicated configuration per dictionary, placed in a {@code settings.yml} file under the dictionary directory.
  *
  * @see org.opensearch.index.analysis.HunspellTokenFilterFactory
  *
@@ -112,16 +113,18 @@ public class HunspellService {
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
     private final Path hunspellDir;
+    private final Environment env;
     private final Function<String, Dictionary> loadingFunction;
 
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
         throws IOException {
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
+        this.env = env;
         this.hunspellDir = resolveHunspellDirectory(env);
         this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
         this.loadingFunction = (locale) -> {
             try {
-                return loadDictionary(locale, settings, env);
+                return loadDictionary(locale, settings, env, hunspellDir);
             } catch (Exception e) {
                 logger.error("Failed to load hunspell dictionary for locale: " + locale, e);
                 throw new IllegalStateException("Failed to load hunspell dictionary for locale: " + locale);
@@ -135,8 +138,10 @@ public class HunspellService {
 
     /**
      * Returns the hunspell dictionary for the given locale.
+     * Loads from traditional location: config/hunspell/{locale}/
      *
-     * @param locale The name of the locale
+     * @param locale The name of the locale (e.g., "en_US")
+     * @return The loaded Dictionary
      */
     public Dictionary getDictionary(String locale) {
         Dictionary dictionary = knownDictionaries.get(locale);
@@ -144,6 +149,141 @@ public class HunspellService {
             dictionary = dictionaries.computeIfAbsent(locale, loadingFunction);
         }
         return dictionary;
+    }
+
+    /**
+     * Returns the hunspell dictionary from a package directory.
+     * Loads from package location: config/analyzers/{packageId}/hunspell/{locale}/
+     *
+     * <p>Cache key format: "{packageId}:{locale}" (e.g., "pkg-1234:en_US")
+     *
+     * @param packageId The package ID (e.g., "pkg-1234")
+     * @param locale The locale (e.g., "en_US")
+     * @return The loaded Dictionary
+     * @throws IllegalArgumentException if packageId or locale is null
+     * @throws IllegalStateException if hunspell directory not found or dictionary cannot be loaded
+     */
+    public Dictionary getDictionaryFromPackage(String packageId, String locale) {
+        if (Strings.isNullOrEmpty(packageId)) {
+            throw new IllegalArgumentException("packageId cannot be null or empty");
+        }
+        if (Strings.isNullOrEmpty(locale)) {
+            throw new IllegalArgumentException("locale cannot be null or empty");
+        }
+
+        String cacheKey = buildPackageCacheKey(packageId, locale);
+
+        return dictionaries.computeIfAbsent(cacheKey, (key) -> {
+            try {
+                return loadDictionaryFromPackage(packageId, locale);
+            } catch (Exception e) {
+
+                throw new IllegalStateException(
+                    String.format(Locale.ROOT, "Failed to load hunspell dictionary for package [%s] locale [%s]", packageId, locale),
+                    e
+                );
+            }
+        });
+    }
+
+    /**
+     * Loads a hunspell dictionary from a package directory.
+     * Expects hunspell files at: config/analyzers/{packageId}/hunspell/{locale}/
+     *
+     * @param packageId The package identifier
+     * @param locale The locale (e.g., "en_US")
+     * @return The loaded Dictionary
+     * @throws Exception if loading fails
+     */
+    private Dictionary loadDictionaryFromPackage(String packageId, String locale) throws Exception {
+        // Validate raw inputs before path resolution (defense-in-depth, caller should also validate)
+        if (packageId.contains("/") || packageId.contains("\\") || packageId.contains("..")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid package ID: [%s]. Must not contain path separators or '..' sequences.", packageId)
+            );
+        }
+        if (locale.contains("/") || locale.contains("\\") || locale.contains("..")) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid locale: [%s]. Must not contain path separators or '..' sequences.", locale)
+            );
+        }
+
+        // Resolve analyzers base directory: config/analyzers/
+        Path analyzersBaseDir = env.configDir().resolve("analyzers");
+
+        // Resolve package directory: config/analyzers/{packageId}/
+        Path packageDir = analyzersBaseDir.resolve(packageId);
+
+        // Security check: ensure path stays under config/analyzers/ (prevent path traversal attacks)
+        // Both paths must be converted to absolute and normalized before comparison
+        // Defense-in-depth: raw input validation above should prevent this, but we verify
+        // the resolved path as a secondary safeguard against any future code path changes
+        Path analyzersBaseDirAbsolute = analyzersBaseDir.toAbsolutePath().normalize();
+        Path packageDirAbsolute = packageDir.toAbsolutePath().normalize();
+        if (!packageDirAbsolute.startsWith(analyzersBaseDirAbsolute)) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Package path must be under config/analyzers directory. Package: [%s]", packageId)
+            );
+        }
+
+        // Additional check: ensure the resolved package directory is exactly one level under analyzers/
+        // This prevents packageId=".." or "foo/../bar" from escaping
+        if (!packageDirAbsolute.getParent().equals(analyzersBaseDirAbsolute)) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Invalid package ID: [%s]. Package ID cannot contain path traversal sequences.", packageId)
+            );
+        }
+
+        // Check if package directory exists
+        if (!Files.isDirectory(packageDir)) {
+            throw new OpenSearchException(
+                String.format(Locale.ROOT, "Package directory not found: [%s]. Expected at: %s", packageId, packageDir)
+            );
+        }
+
+        // Auto-detect hunspell directory within package
+        Path packageHunspellDir = packageDir.resolve("hunspell");
+        if (!Files.isDirectory(packageHunspellDir)) {
+            throw new OpenSearchException(
+                String.format(
+                    Locale.ROOT,
+                    "Hunspell directory not found in package [%s]. " + "Expected 'hunspell' subdirectory at: %s",
+                    packageId,
+                    packageHunspellDir
+                )
+            );
+        }
+
+        // Resolve locale directory within hunspell
+        Path dicDir = packageHunspellDir.resolve(locale);
+
+        // Security check: ensure locale path doesn't escape hunspell directory (prevent path traversal)
+        Path hunspellDirAbsolute = packageHunspellDir.toAbsolutePath().normalize();
+        Path dicDirAbsolute = dicDir.toAbsolutePath().normalize();
+        if (!dicDirAbsolute.startsWith(hunspellDirAbsolute)) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Locale path must be under hunspell directory. Locale: [%s]", locale)
+            );
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Loading hunspell dictionary from package [{}] locale [{}] at [{}]...", packageId, locale, dicDirAbsolute);
+        }
+
+        if (!FileSystemUtils.isAccessibleDirectory(dicDir, logger)) {
+            throw new OpenSearchException(
+                String.format(
+                    Locale.ROOT,
+                    "Locale [%s] not found in package [%s]. " + "Expected directory at: %s",
+                    locale,
+                    packageId,
+                    dicDirAbsolute
+                )
+            );
+        }
+
+        // Delegate to loadDictionary with the package's hunspell directory as base
+        return loadDictionary(locale, Settings.EMPTY, env, packageHunspellDir);
     }
 
     private Path resolveHunspellDirectory(Environment env) {
@@ -179,29 +319,33 @@ public class HunspellService {
     }
 
     /**
-     * Loads the hunspell dictionary for the given local.
+     * Loads a hunspell dictionary from a base directory by resolving the locale subdirectory,
+     * finding .aff and .dic files, and creating the Dictionary object.
+     * Used by both traditional locale-based loading (baseDir=hunspellDir) and
+     * package-based loading (baseDir=packageHunspellDir).
      *
-     * @param locale       The locale of the hunspell dictionary to be loaded.
-     * @param nodeSettings The node level settings
-     * @param env          The node environment (from which the conf path will be resolved)
+     * @param locale       The locale of the hunspell dictionary to be loaded
+     * @param nodeSettings The node level settings (pass Settings.EMPTY for package-based loading)
+     * @param env          The node environment
+     * @param baseDir      The base directory containing locale subdirectories with .aff/.dic files
      * @return The loaded Hunspell dictionary
-     * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
+     * @throws Exception when loading fails
      */
-    private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
+    private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env, Path baseDir) throws Exception {
         if (logger.isDebugEnabled()) {
-            logger.debug("Loading hunspell dictionary [{}]...", locale);
+            logger.debug("Loading hunspell dictionary [{}] from [{}]...", locale, baseDir);
         }
-        Path dicDir = hunspellDir.resolve(locale);
+        Path dicDir = baseDir.resolve(locale);
         if (FileSystemUtils.isAccessibleDirectory(dicDir, logger) == false) {
             throw new OpenSearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 
-        // merging node settings with hunspell dictionary specific settings
+        // Merge node settings with hunspell dictionary specific settings
         Settings dictSettings = HUNSPELL_DICTIONARY_OPTIONS.get(nodeSettings);
         nodeSettings = loadDictionarySettings(dicDir, dictSettings.getByPrefix(locale + "."));
-
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
 
+        // Find and validate affix files
         Path[] affixFiles = FileSystemUtils.files(dicDir, "*.aff");
         if (affixFiles.length == 0) {
             throw new OpenSearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
@@ -209,22 +353,20 @@ public class HunspellService {
         if (affixFiles.length != 1) {
             throw new OpenSearchException(String.format(Locale.ROOT, "Too many affix files exist for hunspell dictionary [%s]", locale));
         }
-        InputStream affixStream = null;
 
+        // Load dictionary files and create Dictionary object
         Path[] dicFiles = FileSystemUtils.files(dicDir, "*.dic");
         List<InputStream> dicStreams = new ArrayList<>(dicFiles.length);
+        InputStream affixStream = null;
         try {
-
-            for (int i = 0; i < dicFiles.length; i++) {
-                dicStreams.add(Files.newInputStream(dicFiles[i]));
+            for (Path dicFile : dicFiles) {
+                dicStreams.add(Files.newInputStream(dicFile));
             }
-
             affixStream = Files.newInputStream(affixFiles[0]);
 
             try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
-
         } catch (Exception e) {
             logger.error(() -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
             throw e;
@@ -255,4 +397,17 @@ public class HunspellService {
 
         return defaults;
     }
+
+    /**
+     * Builds the cache key for a package-based dictionary.
+     * Format: "{packageId}:{locale}" (e.g., "pkg-1234:en_US")
+     *
+     * @param packageId The package ID
+     * @param locale The locale
+     * @return The cache key
+     */
+    public static String buildPackageCacheKey(String packageId, String locale) {
+        return packageId + ":" + locale;
+    }
+
 }
