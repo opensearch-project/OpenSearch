@@ -92,6 +92,10 @@ tasks.register('copyNativeLib', Copy) {
   include "libparquet_dataformat_jni.so"
   include "parquet_dataformat_jni.dll"
   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  // Normalize permissions to non-executable (0644) so that the filepermissions precommit check does not flag .so files
+  filePermissions {
+    unix("0644")
+  }
 
   eachFile { file ->
     def os = System.getProperty('os.name').toLowerCase()
