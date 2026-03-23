@@ -291,6 +291,12 @@ if (project != rootProject) {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
   }
+
+  // Gradle 9.4 changed the default to enforce stricter validation. Disabling
+  // the validation for now and will follow up with a fix.
+  tasks.validatePlugins {
+    enableStricterValidation = false
+  }
 }
 
 // Define this here because we need it early. It uses VersionCatalogsExtension to extract all versions

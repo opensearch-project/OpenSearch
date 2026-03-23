@@ -188,7 +188,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             }
 
             {
-                final RetentionLeases retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
+                final RetentionLeases retentionLeases = indexShard.getIndexer().config().retentionLeasesSupplier().get();
                 assertThat(retentionLeases.version(), equalTo(initialVersion));
                 assertThat(retentionLeases.leases(), hasSize(2));
                 final RetentionLease retentionLease = retentionLeases.get("0");
@@ -214,7 +214,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             }
 
             {
-                final RetentionLeases retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
+                final RetentionLeases retentionLeases = indexShard.getIndexer().config().retentionLeasesSupplier().get();
                 assertThat(retentionLeases.version(), equalTo(initialVersion + 1));
                 assertThat(retentionLeases.leases(), hasSize(2));
                 final RetentionLease retentionLease = retentionLeases.get("0");
@@ -263,7 +263,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             indexShard.persistRetentionLeases();
 
             // the written retention leases should equal our current retention leases
-            final RetentionLeases retentionLeases = indexShard.getEngine().config().retentionLeasesSupplier().get();
+            final RetentionLeases retentionLeases = indexShard.getIndexer().config().retentionLeasesSupplier().get();
             final RetentionLeases writtenRetentionLeases = indexShard.loadRetentionLeases();
             assertThat(writtenRetentionLeases.version(), equalTo(1L + length));
             assertThat(writtenRetentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
@@ -275,7 +275,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             );
             try {
                 recoverShardFromStore(recoveredShard);
-                final RetentionLeases recoveredRetentionLeases = recoveredShard.getEngine().config().retentionLeasesSupplier().get();
+                final RetentionLeases recoveredRetentionLeases = recoveredShard.getIndexer().config().retentionLeasesSupplier().get();
                 assertThat(recoveredRetentionLeases.version(), equalTo(1L + length));
                 assertThat(recoveredRetentionLeases.leases(), contains(retentionLeases.leases().toArray(new RetentionLease[0])));
             } finally {
@@ -292,7 +292,7 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             );
             try {
                 recoverShardFromStore(forceRecoveredShard);
-                final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();
+                final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getIndexer().config().retentionLeasesSupplier().get();
                 assertThat(recoveredRetentionLeases.leases(), hasSize(1));
                 assertThat(
                     recoveredRetentionLeases.leases().iterator().next().id(),

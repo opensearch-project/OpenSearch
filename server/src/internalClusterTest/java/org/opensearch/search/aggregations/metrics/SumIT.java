@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
@@ -46,12 +48,16 @@ import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.hamcrest.core.IsNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -63,6 +69,7 @@ import static org.opensearch.search.aggregations.metrics.MetricAggScriptPlugin.V
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -70,6 +77,20 @@ public class SumIT extends AbstractNumericTestCase {
 
     public SumIT(Settings staticSettings) {
         super(staticSettings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return Arrays.asList(
+            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "segment").build() },
+            new Object[] { Settings.builder().put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "force").build() },
+            new Object[] {
+                Settings.builder()
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "balanced")
+                    .put(CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getKey(), 1000)
+                    .build() }
+        );
     }
 
     @Override
@@ -410,5 +431,25 @@ public class SumIT extends AbstractNumericTestCase {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(50.5));
+    }
+
+    public void testSumWithIntraSegmentPartitioning() throws Exception {
+        createIndex("test_sum_agg", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
+        try {
+            long expectedSum = 0;
+            List<IndexRequestBuilder> builders = new ArrayList<>(5000);
+            for (int i = 0; i < 5000; i++) {
+                expectedSum += (i + 1);
+                builders.add(client().prepareIndex("test_sum_agg").setSource("value", i + 1));
+            }
+            indexBulkWithSegments(builders, 2);
+            indexRandomForConcurrentSearch("test_sum_agg");
+            SearchResponse response = client().prepareSearch("test_sum_agg").addAggregation(sum("sum").field("value")).get();
+            Sum sumAgg = response.getAggregations().get("sum");
+            assertThat(sumAgg, notNullValue());
+            assertThat(sumAgg.getValue(), closeTo((double) expectedSum, 0.1));
+        } finally {
+            internalCluster().wipeIndices("test_sum_agg");
+        }
     }
 }

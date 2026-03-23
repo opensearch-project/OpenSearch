@@ -157,6 +157,7 @@ public class IngestionEngine extends InternalEngine {
             .mapperType(ingestionSource.getMapperType())
             .mapperSettings(ingestionSource.getMapperSettings())
             .pipelineExecutor(pipelineExecutor)
+            .warmupConfig(ingestionSource.getWarmupConfig())
             .build();
         registerStreamPollerListener();
 
@@ -664,4 +665,25 @@ public class IngestionEngine extends InternalEngine {
             shardPointer != null ? shardPointer.toString() : ""
         );
     }
+
+    /**
+     * Block until warmup is complete or timeout occurs.
+     * This method handles all warmup logic internally. On timeout, always logs a warning and proceeds.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    public void awaitWarmupComplete() throws InterruptedException {
+        IngestionSource ingestionSource = engineConfig.getIndexSettings().getIndexMetadata().getIngestionSource();
+        if (ingestionSource == null || !ingestionSource.getWarmupConfig().isEnabled() || streamPoller.isPaused()) {
+            return;
+        }
+
+        long timeoutMs = ingestionSource.getWarmupConfig().timeout().millis();
+        boolean completed = streamPoller.awaitWarmupComplete(timeoutMs);
+
+        if (!completed) {
+            logger.warn("Ingestion warmup timed out for shard after {}ms, proceeding with potentially stale data.", timeoutMs);
+        }
+    }
+
 }
