@@ -219,7 +219,7 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
                     .put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true)
             );
         IndexMetadata searchOnlyMetadata = searchOnlyMetadataBuilder.build();
-
+        assertEquals(ClusterHealthStatus.YELLOW, ClusterShardHealth.getShardHealth(null, 0, 1, searchOnlyMetadata));
         assertEquals(ClusterHealthStatus.GREEN, ClusterShardHealth.getShardHealth(null, 0, 0, searchOnlyMetadata));
     }
 
