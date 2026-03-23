@@ -117,8 +117,8 @@ tasks.register('runNativeUnitTests', Exec) {
 compileJava.dependsOn copyNativeLib
 processResources.dependsOn copyNativeLib
 
-// Ensure precommit tasks that scan src/main/resources run after native lib is copied
-['filepermissions', 'forbiddenPatterns', 'spotlessJava', 'spotlessJavaCheck', 'spotlessMisc', 'spotlessMiscCheck'].each { taskName ->
+// Ensure tasks that scan or package src/main/resources run after native lib is copied
+['filepermissions', 'forbiddenPatterns', 'spotlessJava', 'spotlessJavaCheck', 'spotlessMisc', 'spotlessMiscCheck', 'sourcesJar'].each { taskName ->
     tasks.named(taskName).configure {
         dependsOn copyNativeLib
     }
