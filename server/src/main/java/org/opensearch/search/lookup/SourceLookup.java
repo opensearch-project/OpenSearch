@@ -64,7 +64,7 @@ import static java.util.Collections.emptyMap;
 public class SourceLookup implements Map {
 
     private LeafReader reader;
-    CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
+    private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     private int docId = -1;
 
@@ -144,10 +144,8 @@ public class SourceLookup implements Map {
         }
         if (this.reader != context.reader()) {
             this.reader = context.reader();
-            // Defer fieldReader setup to loadSourceIfNeeded(). Eagerly initializing
-            // fieldReader here triggers madvise(MADV_SEQUENTIAL) on every segment
-            // transition even when the script never reads _source. On kernel 5.10 this
-            // acquires mmap_lock in WRITE mode causing convoy stalls.
+            // Lazily initialize fieldReader in loadSourceIfNeeded() to avoid
+            // unnecessary work when _source is never accessed.
             this.fieldReader = null;
         }
         this.source = null;
