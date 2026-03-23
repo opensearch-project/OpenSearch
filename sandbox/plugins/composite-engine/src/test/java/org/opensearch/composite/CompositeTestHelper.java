@@ -10,12 +10,10 @@ package org.opensearch.composite;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataformatAwareLockableWriterPool;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -33,7 +31,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Shared test utilities for composite engine tests.
@@ -53,7 +50,6 @@ final class CompositeTestHelper {
         }
 
         Settings.Builder settingsBuilder = Settings.builder()
-            .put("index.composite.enabled", true)
             .put("index.composite.primary_data_format", primaryName)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -67,12 +63,7 @@ final class CompositeTestHelper {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        DataformatAwareLockableWriterPool<CompositeWriter> writerPool = new DataformatAwareLockableWriterPool<>(
-            ConcurrentLinkedQueue::new,
-            Runtime.getRuntime().availableProcessors()
-        );
-
-        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, writerPool);
+        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null);
     }
 
     static DataFormatPlugin stubPlugin(String formatName, long priority) {
@@ -87,8 +78,7 @@ final class CompositeTestHelper {
             public IndexingExecutionEngine<?, ?> indexingEngine(
                 MapperService mapperService,
                 ShardPath shardPath,
-                IndexSettings indexSettings,
-                @Nullable DataformatAwareLockableWriterPool<?> writerPool
+                IndexSettings indexSettings
             ) {
                 return new StubIndexingExecutionEngine(format);
             }
@@ -107,8 +97,7 @@ final class CompositeTestHelper {
             public IndexingExecutionEngine<?, ?> indexingEngine(
                 MapperService mapperService,
                 ShardPath shardPath,
-                IndexSettings indexSettings,
-                @Nullable DataformatAwareLockableWriterPool<?> writerPool
+                IndexSettings indexSettings
             ) {
                 return new StubIndexingExecutionEngine(format);
             }

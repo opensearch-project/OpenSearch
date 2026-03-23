@@ -25,6 +25,7 @@ import java.util.AbstractMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -48,8 +49,26 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
     private final ReentrantLock lock;
     private final long writerGeneration;
     private final RowIdGenerator rowIdGenerator;
-    private volatile boolean aborted;
-    private volatile boolean flushPending;
+    private final AtomicReference<WriterState> state;
+
+    /**
+     * Represents the lifecycle state of a {@link CompositeWriter}.
+     * <p>
+     * State transitions are one-way from {@code ACTIVE}:
+     * <ul>
+     *   <li>{@code ACTIVE} → {@code FLUSH_PENDING} (when refresh marks the writer for flushing)</li>
+     *   <li>{@code ACTIVE} → {@code ABORTED} (when the writer is aborted due to failure)</li>
+     * </ul>
+     */
+    @ExperimentalApi
+    public enum WriterState {
+        /** Writer is actively accepting documents. */
+        ACTIVE,
+        /** Writer has been marked for flushing and should not accept new documents. */
+        FLUSH_PENDING,
+        /** Writer has been aborted due to a failure and should not be reused. */
+        ABORTED
+    }
 
     /**
      * Constructs a CompositeWriter from the given engine and writer generation.
@@ -64,8 +83,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
     @SuppressWarnings("unchecked")
     public CompositeWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
         this.lock = new ReentrantLock();
-        this.aborted = false;
-        this.flushPending = false;
+        this.state = new AtomicReference<>(WriterState.ACTIVE);
         this.writerGeneration = writerGeneration;
 
         IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
@@ -159,10 +177,14 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
     }
 
     /**
-     * Marks this writer as aborted.
+     * Marks this writer as aborted. Only transitions from {@code ACTIVE}.
+     *
+     * @throws IllegalStateException if the writer is not in {@code ACTIVE} state
      */
     public void abort() {
-        this.aborted = true;
+        if (this.state.compareAndSet(WriterState.ACTIVE, WriterState.ABORTED) == false) {
+            throw new IllegalStateException("Cannot abort writer in state " + state.get());
+        }
     }
 
     /**
@@ -171,14 +193,18 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      * @return {@code true} if aborted
      */
     public boolean isAborted() {
-        return aborted;
+        return getState() == WriterState.ABORTED;
     }
 
     /**
-     * Marks this writer as having a pending flush.
+     * Marks this writer as having a pending flush. Only transitions from {@code ACTIVE}.
+     *
+     * @throws IllegalStateException if the writer is not in {@code ACTIVE} state
      */
     public void setFlushPending() {
-        this.flushPending = true;
+        if (this.state.compareAndSet(WriterState.ACTIVE, WriterState.FLUSH_PENDING) == false) {
+            throw new IllegalStateException("Cannot set flush pending on writer in state " + state.get());
+        }
     }
 
     /**
@@ -187,7 +213,16 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      * @return {@code true} if a flush is pending
      */
     public boolean isFlushPending() {
-        return flushPending;
+        return getState() == WriterState.FLUSH_PENDING;
+    }
+
+    /**
+     * Returns the current state of this writer.
+     *
+     * @return the writer state
+     */
+    public WriterState getState() {
+        return state.get();
     }
 
     @Override

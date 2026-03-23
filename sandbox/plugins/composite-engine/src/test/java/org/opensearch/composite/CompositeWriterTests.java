@@ -36,6 +36,7 @@ public class CompositeWriterTests extends OpenSearchTestCase {
     public void testAbortedDefaultsToFalse() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         assertFalse(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
     }
 
@@ -43,12 +44,14 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         writer.abort();
         assertTrue(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ABORTED, writer.getState());
         writer.close();
     }
 
     public void testFlushPendingDefaultsToFalse() throws IOException {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         assertFalse(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
     }
 
@@ -56,6 +59,25 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         CompositeWriter writer = new CompositeWriter(engine, 0);
         writer.setFlushPending();
         assertTrue(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.FLUSH_PENDING, writer.getState());
+        writer.close();
+    }
+
+    public void testAbortDoesNotTransitionFromFlushPending() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, 0);
+        writer.setFlushPending();
+        expectThrows(IllegalStateException.class, writer::abort);
+        assertTrue(writer.isFlushPending());
+        assertEquals(CompositeWriter.WriterState.FLUSH_PENDING, writer.getState());
+        writer.close();
+    }
+
+    public void testFlushPendingDoesNotTransitionFromAborted() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, 0);
+        writer.abort();
+        expectThrows(IllegalStateException.class, writer::setFlushPending);
+        assertTrue(writer.isAborted());
+        assertEquals(CompositeWriter.WriterState.ABORTED, writer.getState());
         writer.close();
     }
 

@@ -70,8 +70,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             .indexingEngine(
                 mock(MapperService.class),
                 new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
-                new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings),
-                null
+                new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)
             );
         assertEquals(format, engine.getDataFormat());
 
@@ -406,12 +405,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         }
 
         @Override
-        public IndexingExecutionEngine<?, ?> indexingEngine(
-            MapperService mapperService,
-            ShardPath shardPath,
-            IndexSettings indexSettings,
-            DataformatAwareLockableWriterPool<?> writerPool
-        ) {
+        public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
             return new MockIndexingExecutionEngine(dataFormat);
         }
     }

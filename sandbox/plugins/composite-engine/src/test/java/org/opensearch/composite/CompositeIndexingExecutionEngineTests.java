@@ -13,14 +13,12 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataformatAwareLockableWriterPool;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Tests for {@link CompositeIndexingExecutionEngine}.
@@ -38,7 +36,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene", "parquet");
         assertNotNull(engine.getPrimaryDelegate());
         assertEquals(1, engine.getSecondaryDelegates().size());
-        assertEquals("parquet", engine.getSecondaryDelegates().get(0).getDataFormat().name());
+        assertEquals("parquet", engine.getSecondaryDelegates().iterator().next().getDataFormat().name());
     }
 
     public void testConstructorWithMultipleSecondaries() {
@@ -46,33 +44,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         assertEquals(2, engine.getSecondaryDelegates().size());
     }
 
-    public void testConstructorThrowsWhenCompositeDisabled() {
-        Map<String, DataFormatPlugin> plugins = new HashMap<>();
-        plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
-
-        Settings settings = Settings.builder()
-            .put("index.composite.enabled", false)
-            .put("index.composite.primary_data_format", "lucene")
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
-        DataformatAwareLockableWriterPool<CompositeWriter> pool = stubPool();
-        expectThrows(IllegalStateException.class, () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, pool));
-    }
-
     public void testConstructorThrowsWhenPrimaryFormatNotRegistered() {
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
 
-        IndexSettings indexSettings = createIndexSettings(true, "parquet");
-        DataformatAwareLockableWriterPool<CompositeWriter> pool = stubPool();
+        IndexSettings indexSettings = createIndexSettings("parquet");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, pool)
+            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null)
         );
         assertTrue(ex.getMessage().contains("parquet"));
     }
@@ -82,7 +61,6 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
 
         Settings settings = Settings.builder()
-            .put("index.composite.enabled", true)
             .put("index.composite.primary_data_format", "lucene")
             .putList("index.composite.secondary_data_formats", "parquet")
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -92,24 +70,21 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        DataformatAwareLockableWriterPool<CompositeWriter> pool = stubPool();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, pool)
+            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null)
         );
         assertTrue(ex.getMessage().contains("parquet"));
     }
 
     public void testConstructorRejectsNullDataFormatPlugins() {
-        IndexSettings indexSettings = createIndexSettings(true, "lucene");
-        DataformatAwareLockableWriterPool<CompositeWriter> pool = stubPool();
-        expectThrows(NullPointerException.class, () -> new CompositeIndexingExecutionEngine(null, indexSettings, null, null, pool));
+        IndexSettings indexSettings = createIndexSettings("lucene");
+        expectThrows(NullPointerException.class, () -> new CompositeIndexingExecutionEngine(null, indexSettings, null, null));
     }
 
     public void testConstructorRejectsNullIndexSettings() {
         Map<String, DataFormatPlugin> plugins = Map.of("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
-        DataformatAwareLockableWriterPool<CompositeWriter> pool = stubPool();
-        expectThrows(NullPointerException.class, () -> new CompositeIndexingExecutionEngine(plugins, null, null, null, pool));
+        expectThrows(NullPointerException.class, () -> new CompositeIndexingExecutionEngine(plugins, null, null, null));
     }
 
     public void testValidateFormatsRegisteredAcceptsValidConfig() {
@@ -193,9 +168,8 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         engine.deleteFiles(Map.of());
     }
 
-    private IndexSettings createIndexSettings(boolean compositeEnabled, String primaryFormat) {
+    private IndexSettings createIndexSettings(String primaryFormat) {
         Settings settings = Settings.builder()
-            .put("index.composite.enabled", compositeEnabled)
             .put("index.composite.primary_data_format", primaryFormat)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -203,13 +177,5 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         return new IndexSettings(indexMetadata, Settings.EMPTY);
-    }
-
-    /**
-     * Creates an uninitialized pool for tests that only exercise constructor validation
-     * and expect exceptions before the pool is ever used.
-     */
-    private static DataformatAwareLockableWriterPool<CompositeWriter> stubPool() {
-        return new DataformatAwareLockableWriterPool<>(ConcurrentLinkedQueue::new, 1);
     }
 }

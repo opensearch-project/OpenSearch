@@ -8,18 +8,13 @@
 
 package org.opensearch.composite;
 
-import org.opensearch.common.annotation.ExperimentalApi;
-
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Generates monotonically increasing row IDs for cross-format document synchronization.
  * Each writer instance gets its own {@code RowIdGenerator} so that row IDs are unique
  * within a writer's segment scope.
- *
- * @opensearch.experimental
  */
-@ExperimentalApi
 public class RowIdGenerator {
 
     private final String source;

@@ -10,6 +10,7 @@ package org.opensearch.common.queue;
 
 import java.util.Iterator;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
@@ -32,6 +33,8 @@ public final class ConcurrentQueue<T> {
     private final Lock[] locks;
     private final Queue<T>[] queues;
     private final Supplier<Queue<T>> queueSupplier;
+    /** Maps each entry to its queue index so that {@link #remove} can go directly to the right queue. */
+    private final ConcurrentHashMap<T, Integer> queueIndex;
 
     ConcurrentQueue(Supplier<Queue<T>> queueSupplier, int concurrency) {
         if (concurrency < MIN_CONCURRENCY || concurrency > MAX_CONCURRENCY) {
@@ -41,6 +44,7 @@ public final class ConcurrentQueue<T> {
         }
         this.concurrency = concurrency;
         this.queueSupplier = queueSupplier;
+        this.queueIndex = new ConcurrentHashMap<>();
         locks = new Lock[concurrency];
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Queue<T>[] queues = new Queue[concurrency];
@@ -63,6 +67,7 @@ public final class ConcurrentQueue<T> {
             if (lock.tryLock()) {
                 try {
                     queue.add(entry);
+                    queueIndex.put(entry, index);
                     return;
                 } finally {
                     lock.unlock();
@@ -75,6 +80,7 @@ public final class ConcurrentQueue<T> {
         lock.lock();
         try {
             queue.add(entry);
+            queueIndex.put(entry, index);
         } finally {
             lock.unlock();
         }
@@ -93,6 +99,7 @@ public final class ConcurrentQueue<T> {
                         T entry = it.next();
                         if (predicate.test(entry)) {
                             it.remove();
+                            queueIndex.remove(entry);
                             return entry;
                         }
                     }
@@ -112,6 +119,7 @@ public final class ConcurrentQueue<T> {
                     T entry = it.next();
                     if (predicate.test(entry)) {
                         it.remove();
+                        queueIndex.remove(entry);
                         return entry;
                     }
                 }
@@ -123,12 +131,29 @@ public final class ConcurrentQueue<T> {
     }
 
     boolean remove(T entry) {
+        Integer queueIdx = queueIndex.get(entry);
+        if (queueIdx != null) {
+            final Lock lock = locks[queueIdx];
+            final Queue<T> queue = queues[queueIdx];
+            lock.lock();
+            try {
+                if (queue.remove(entry)) {
+                    queueIndex.remove(entry);
+                    return true;
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+        // Fallback: entry may have been re-added to a different queue between the index lookup
+        // and the lock acquisition, so scan all stripes.
         for (int i = 0; i < concurrency; ++i) {
             final Lock lock = locks[i];
             final Queue<T> queue = queues[i];
             lock.lock();
             try {
                 if (queue.remove(entry)) {
+                    queueIndex.remove(entry);
                     return true;
                 }
             } finally {

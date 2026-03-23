@@ -58,9 +58,23 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        primaryDocumentInput.addField(fieldType, value);
-        for (DocumentInput<?> input : secondaryDocumentInputs.values()) {
-            input.addField(fieldType, value);
+        try {
+            primaryDocumentInput.addField(fieldType, value);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                "Failed to add field [" + fieldType.name() + "] in primary format [" + primaryFormat.name() + "]",
+                e
+            );
+        }
+        for (Map.Entry<DataFormat, DocumentInput<?>> entry : secondaryDocumentInputs.entrySet()) {
+            try {
+                entry.getValue().addField(fieldType, value);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                    "Failed to add field [" + fieldType.name() + "] in secondary format [" + entry.getKey().name() + "]",
+                    e
+                );
+            }
         }
     }
 

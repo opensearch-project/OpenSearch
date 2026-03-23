@@ -11,11 +11,11 @@ package org.opensearch.composite;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataformatAwareLockableWriterPool;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -32,9 +32,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -56,9 +58,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private static final Logger logger = LogManager.getLogger(CompositeIndexingExecutionEngine.class);
 
     private final IndexingExecutionEngine<?, ?> primaryEngine;
-    private final List<IndexingExecutionEngine<?, ?>> secondaryEngines;
+    private final Set<IndexingExecutionEngine<?, ?>> secondaryEngines;
     private final CompositeDataFormat compositeDataFormat;
-    private final DataformatAwareLockableWriterPool<CompositeWriter> writerPool;
+    private final LockablePool<CompositeWriter> writerPool;
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -70,35 +72,25 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      * commit coordination. Secondary engines receive writes alongside the primary but
      * are not used as the merge authority.
      * <p>
-     * The pool is initialized with a writer supplier that creates {@link CompositeWriter}
-     * instances bound to this engine, eliminating the circular dependency between the
-     * engine and its writer pool.
+     * The writer pool is created internally and initialized with a writer supplier
+     * that creates {@link CompositeWriter} instances bound to this engine.
      *
      * @param dataFormatPlugins the discovered data format plugins keyed by format name
      * @param indexSettings the index settings containing composite configuration
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
-     * @param writerPool the writer pool for managing composite writer instances
-     * @throws IllegalStateException if composite indexing is not enabled
      * @throws IllegalArgumentException if any configured format is not registered
-     * @throws NullPointerException if writerPool is null
      */
     public CompositeIndexingExecutionEngine(
         Map<String, DataFormatPlugin> dataFormatPlugins,
         IndexSettings indexSettings,
         MapperService mapperService,
-        ShardPath shardPath,
-        DataformatAwareLockableWriterPool<CompositeWriter> writerPool
+        ShardPath shardPath
     ) {
         Objects.requireNonNull(dataFormatPlugins, "dataFormatPlugins must not be null");
         Objects.requireNonNull(indexSettings, "indexSettings must not be null");
-        Objects.requireNonNull(writerPool, "writerPool must not be null");
 
         Settings settings = indexSettings.getSettings();
-        boolean compositeEnabled = CompositeEnginePlugin.COMPOSITE_ENABLED.get(settings);
-        if (compositeEnabled == false) {
-            throw new IllegalStateException("Composite indexing is not enabled for index [" + indexSettings.getIndex().getName() + "]");
-        }
 
         String primaryFormatName = CompositeEnginePlugin.PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = CompositeEnginePlugin.SECONDARY_DATA_FORMATS.get(settings);
@@ -107,23 +99,26 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);
-        this.primaryEngine = primaryPlugin.indexingEngine(mapperService, shardPath, indexSettings, null);
+        this.primaryEngine = primaryPlugin.indexingEngine(mapperService, shardPath, indexSettings);
         allFormats.add(primaryPlugin.getDataFormat());
 
         List<IndexingExecutionEngine<?, ?>> secondaries = new ArrayList<>();
         for (String secondaryName : secondaryFormatNames) {
             DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
-            secondaries.add(secondaryPlugin.indexingEngine(mapperService, shardPath, indexSettings, null));
+            secondaries.add(secondaryPlugin.indexingEngine(mapperService, shardPath, indexSettings));
             allFormats.add(secondaryPlugin.getDataFormat());
         }
-        this.secondaryEngines = List.copyOf(secondaries);
+        this.secondaryEngines = Set.copyOf(secondaries);
 
         this.compositeDataFormat = new CompositeDataFormat(allFormats);
-        this.writerPool = writerPool;
 
-        // Initialize the pool with a writer supplier now that the engine is fully constructed
+        // Create the writer pool internally, matching the reference code pattern
         AtomicLong writerGenerationCounter = new AtomicLong(0);
-        writerPool.initialize(() -> new CompositeWriter(this, writerGenerationCounter.getAndIncrement()));
+        this.writerPool = new LockablePool<>(
+            () -> new CompositeWriter(this, writerGenerationCounter.getAndIncrement()),
+            LinkedList::new,
+            Runtime.getRuntime().availableProcessors()
+        );
     }
 
     /**
@@ -262,10 +257,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             secondaryInputMap.put(engine.getDataFormat(), engine.newDocumentInput());
         }
         return new CompositeDocumentInput(primaryEngine.getDataFormat(), primaryInput, secondaryInputMap, () -> {
-            assert writer.isFlushPending() == false && writer.isAborted() == false : "CompositeWriter has pending flush: "
-                + writer.isFlushPending()
-                + " aborted="
-                + writer.isAborted();
+            assert writer.getState() == CompositeWriter.WriterState.ACTIVE : "CompositeWriter is not ACTIVE, state=" + writer.getState();
             writerPool.releaseAndUnlock(writer);
         });
     }
@@ -284,7 +276,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      *
      * @return the secondary engines
      */
-    public List<IndexingExecutionEngine<?, ?>> getSecondaryDelegates() {
+    public Set<IndexingExecutionEngine<?, ?>> getSecondaryDelegates() {
         return secondaryEngines;
     }
 

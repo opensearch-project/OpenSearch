@@ -10,15 +10,11 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DataformatAwareLockableWriterPool;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -27,10 +23,8 @@ import org.opensearch.plugins.Plugin;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Sandbox plugin that provides a {@link CompositeIndexingExecutionEngine} for
@@ -40,8 +34,8 @@ import java.util.Objects;
  * <p>
  * Registers two index settings:
  * <ul>
- *   <li>{@code index.composite.enabled} — activates composite indexing (default {@code false})</li>
  *   <li>{@code index.composite.primary_data_format} — designates the primary format (default {@code "lucene"})</li>
+ *   <li>{@code index.composite.secondary_data_formats} — lists the secondary formats (default empty)</li>
  * </ul>
  * <p>
  * Format plugins (e.g., Parquet) extend this plugin by declaring
@@ -57,45 +51,14 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
     private static final Logger logger = LogManager.getLogger(CompositeEnginePlugin.class);
 
     /**
-     * Index setting to enable composite indexing for an index.
-     * When {@code true}, the composite engine orchestrates writes across all registered data formats.
-     * Validates that the primary data format is non-empty when enabled.
-     */
-    public static final Setting<Boolean> COMPOSITE_ENABLED = Setting.boolSetting(
-        "index.composite.enabled",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {}
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    String primary = (String) settings.get(PRIMARY_DATA_FORMAT);
-                    if (primary == null || primary.isEmpty()) {
-                        throw new IllegalArgumentException(
-                            "[index.composite.enabled] requires [index.composite.primary_data_format] to be set"
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(PRIMARY_DATA_FORMAT).iterator();
-            }
-        },
-        Setting.Property.IndexScope
-    );
-
-    /**
      * Index setting that designates the primary data format for an index.
      * The primary format is the authoritative format used for merge operations.
      */
     public static final Setting<String> PRIMARY_DATA_FORMAT = Setting.simpleString(
         "index.composite.primary_data_format",
         "lucene",
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.Final
     );
 
     /**
@@ -107,7 +70,8 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
         "index.composite.secondary_data_formats",
         Collections.emptyList(),
         s -> s,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Setting.Property.Final
     );
 
     /**
@@ -163,20 +127,7 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(COMPOSITE_ENABLED, PRIMARY_DATA_FORMAT, SECONDARY_DATA_FORMATS);
-    }
-
-    @Override
-    public void onIndexModule(IndexModule indexModule) {
-        Settings settings = indexModule.getSettings();
-        boolean compositeEnabled = COMPOSITE_ENABLED.get(settings);
-        if (compositeEnabled == false) {
-            return;
-        }
-
-        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
-        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
-        CompositeIndexingExecutionEngine.validateFormatsRegistered(dataFormatPlugins, primaryFormatName, secondaryFormatNames);
+        return List.of(PRIMARY_DATA_FORMAT, SECONDARY_DATA_FORMATS);
     }
 
     @Override
@@ -186,17 +137,8 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings,
-        @Nullable DataformatAwareLockableWriterPool<?> writerPool
-    ) {
-        Objects.requireNonNull(writerPool, "DataformatAwareLockableWriterPool is required for CompositeIndexingExecutionEngine");
-        @SuppressWarnings("unchecked")
-        DataformatAwareLockableWriterPool<CompositeWriter> compositeWriterPool = (DataformatAwareLockableWriterPool<
-            CompositeWriter>) writerPool;
-        return new CompositeIndexingExecutionEngine(dataFormatPlugins, indexSettings, mapperService, shardPath, compositeWriterPool);
+    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+        return new CompositeIndexingExecutionEngine(dataFormatPlugins, indexSettings, mapperService, shardPath);
     }
 
     /**

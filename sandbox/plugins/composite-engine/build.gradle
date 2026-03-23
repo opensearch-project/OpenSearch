@@ -13,6 +13,7 @@ opensearchplugin {
 
 dependencies {
   api project(':libs:opensearch-concurrent-queue')
+  api project(':sandbox:libs:composite-common')
   compileOnly project(':server')
   testImplementation project(':test:framework')
 }

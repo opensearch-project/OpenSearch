@@ -8,12 +8,18 @@
 
 package org.opensearch.index.engine.dataformat;
 
-import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 
+/**
+ * Plugin interface for providing custom data format implementations.
+ * Plugins implement this to register their data format (e.g., Parquet, Lucene)
+ * with the DataFormatRegistry during node bootstrap.
+ *
+ * @opensearch.experimental
+ */
 /**
  * Plugin interface for providing custom data format implementations.
  * Plugins implement this to register their data format (e.g., Parquet, Lucene)
@@ -37,14 +43,7 @@ public interface DataFormatPlugin {
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
      * @param indexSettings the index settings
-     * @param writerPool the writer pool for managing writer instances, or {@code null} if the engine
-     *                    does not require external writer pool management (e.g., individual format engines)
      * @return the indexing execution engine instance
      */
-    IndexingExecutionEngine<?, ?> indexingEngine(
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings,
-        @Nullable DataformatAwareLockableWriterPool<?> writerPool
-    );
+    IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings);
 }

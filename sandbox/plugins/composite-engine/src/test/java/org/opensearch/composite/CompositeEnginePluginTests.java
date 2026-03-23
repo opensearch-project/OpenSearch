@@ -25,18 +25,12 @@ import java.util.Map;
  */
 public class CompositeEnginePluginTests extends OpenSearchTestCase {
 
-    public void testGetSettingsReturnsAllThreeSettings() {
+    public void testGetSettingsReturnsBothSettings() {
         CompositeEnginePlugin plugin = new CompositeEnginePlugin();
         List<Setting<?>> settings = plugin.getSettings();
-        assertEquals(3, settings.size());
-        assertTrue(settings.contains(CompositeEnginePlugin.COMPOSITE_ENABLED));
+        assertEquals(2, settings.size());
         assertTrue(settings.contains(CompositeEnginePlugin.PRIMARY_DATA_FORMAT));
         assertTrue(settings.contains(CompositeEnginePlugin.SECONDARY_DATA_FORMATS));
-    }
-
-    public void testCompositeEnabledDefaultsToFalse() {
-        Settings settings = Settings.builder().build();
-        assertFalse(CompositeEnginePlugin.COMPOSITE_ENABLED.get(settings));
     }
 
     public void testPrimaryDataFormatDefaultsToLucene() {
@@ -47,55 +41,6 @@ public class CompositeEnginePluginTests extends OpenSearchTestCase {
     public void testSecondaryDataFormatsDefaultsToEmpty() {
         Settings settings = Settings.builder().build();
         assertTrue(CompositeEnginePlugin.SECONDARY_DATA_FORMATS.get(settings).isEmpty());
-    }
-
-    public void testCompositeEnabledValidatorRejectsEmptyPrimaryFormat() {
-        // Directly invoke the cross-setting validator with enabled=true and empty primary
-        Setting.Validator<Boolean> validator = extractValidator();
-        Map<Setting<?>, Object> deps = Map.of(CompositeEnginePlugin.PRIMARY_DATA_FORMAT, "");
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(true, deps));
-        assertTrue(ex.getMessage().contains("index.composite.primary_data_format"));
-    }
-
-    public void testCompositeEnabledValidatorAcceptsNonEmptyPrimaryFormat() {
-        Setting.Validator<Boolean> validator = extractValidator();
-        Map<Setting<?>, Object> deps = Map.of(CompositeEnginePlugin.PRIMARY_DATA_FORMAT, "lucene");
-        // Should not throw
-        validator.validate(true, deps);
-    }
-
-    public void testCompositeEnabledValidatorSkipsWhenDisabled() {
-        Setting.Validator<Boolean> validator = extractValidator();
-        Map<Setting<?>, Object> deps = Map.of(CompositeEnginePlugin.PRIMARY_DATA_FORMAT, "");
-        // Should not throw when composite is disabled, even with empty primary
-        validator.validate(false, deps);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Setting.Validator<Boolean> extractValidator() {
-        // The COMPOSITE_ENABLED setting has a validator; extract it via the setting's properties
-        // We test the validator logic by constructing the dependency map directly
-        return new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {}
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    String primary = (String) settings.get(CompositeEnginePlugin.PRIMARY_DATA_FORMAT);
-                    if (primary == null || primary.isEmpty()) {
-                        throw new IllegalArgumentException(
-                            "[index.composite.enabled] requires [index.composite.primary_data_format] to be set"
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public java.util.Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(CompositeEnginePlugin.PRIMARY_DATA_FORMAT).iterator();
-            }
-        };
     }
 
     public void testGetDataFormatReturnsNull() {
@@ -159,8 +104,7 @@ public class CompositeEnginePluginTests extends OpenSearchTestCase {
             public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(
                 org.opensearch.index.mapper.MapperService mapperService,
                 org.opensearch.index.shard.ShardPath shardPath,
-                IndexSettings indexSettings,
-                org.opensearch.index.engine.dataformat.DataformatAwareLockableWriterPool<?> writerPool
+                IndexSettings indexSettings
             ) {
                 return null;
             }
