@@ -1090,13 +1090,8 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         // Dynamically disable warmup - updateWarmupStatus will handle completion on next poll loop
         warmupPoller.updateWarmupConfig(new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L));
 
-        // isWarmupComplete() returns true immediately via config check, but we need to verify
-        // the poll loop also calls updateWarmupStatus() which counts down the latch.
-        // Wait briefly for the poll loop to iterate and hit the disabled branch.
-        Thread.sleep(2000);
-
-        // Verify the latch was counted down by updateWarmupStatus (not just short-circuited by isWarmupComplete)
-        assertTrue("Warmup latch should be counted down", warmupPoller.awaitWarmupComplete(0));
+        // Wait for the poll loop to call updateWarmupStatus() which counts down the latch
+        assertTrue("Warmup should complete after being dynamically disabled", warmupPoller.awaitWarmupComplete(30000));
 
         warmupPoller.close();
     }

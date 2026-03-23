@@ -1395,7 +1395,7 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final String nodeA = internalCluster().startDataOnlyNode();
 
-        // Step 3: Create index with warmup enabled (long timeout, high lag threshold so warmup completes quickly)
+        // Step 3: Create index with warmup enabled (lag_threshold=100, so 5 messages will be under threshold)
         createIndex(
             indexName,
             Settings.builder()
