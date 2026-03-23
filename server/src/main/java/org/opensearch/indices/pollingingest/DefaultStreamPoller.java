@@ -23,7 +23,6 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
-import org.opensearch.ingest.IngestService;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -109,7 +108,7 @@ public class DefaultStreamPoller implements StreamPoller {
         long pointerBasedLagUpdateIntervalMs,
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
-        IngestService ingestService
+        IngestPipelineExecutor pipelineExecutor
     ) {
         this(
             startPointer,
@@ -122,7 +121,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 ingestionEngine,
                 errorStrategy,
                 blockingQueueSize,
-                ingestService
+                pipelineExecutor
             ),
             resetState,
             resetValue,
@@ -617,7 +616,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
-        private IngestService ingestService;
+        private IngestPipelineExecutor pipelineExecutor;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -726,10 +725,10 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
-         * Set ingest service for pipeline execution
+         * Set pipeline executor for ingest pipeline execution
          */
-        public Builder ingestService(IngestService ingestService) {
-            this.ingestService = ingestService;
+        public Builder pipelineExecutor(IngestPipelineExecutor pipelineExecutor) {
+            this.pipelineExecutor = pipelineExecutor;
             return this;
         }
 
@@ -754,7 +753,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 pointerBasedLagUpdateIntervalMs,
                 mapperType,
                 mapperSettings,
-                ingestService
+                pipelineExecutor
             );
         }
     }

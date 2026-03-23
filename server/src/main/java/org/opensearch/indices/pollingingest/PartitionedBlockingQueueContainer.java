@@ -15,7 +15,6 @@ import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.IngestionEngine;
 import org.opensearch.index.mapper.IdFieldMapper;
-import org.opensearch.ingest.IngestService;
 
 import java.util.List;
 import java.util.Locale;
@@ -51,7 +50,7 @@ public class PartitionedBlockingQueueContainer {
         IngestionEngine ingestionEngine,
         IngestionErrorStrategy errorStrategy,
         int blockingQueueSize,
-        IngestService ingestService
+        IngestPipelineExecutor pipelineExecutor
     ) {
         assert numPartitions > 0 : "Number of processor threads / partitions must be greater than 0";
         partitionToQueueMap = new ConcurrentHashMap<>();
@@ -79,7 +78,7 @@ public class PartitionedBlockingQueueContainer {
                 partitionToQueueMap.get(partition),
                 ingestionEngine,
                 errorStrategy,
-                ingestService
+                pipelineExecutor
             );
             partitionToMessageProcessorMap.put(partition, messageProcessorRunnable);
         }

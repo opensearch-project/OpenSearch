@@ -32,7 +32,6 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.mapper.VersionFieldMapper;
-import org.opensearch.ingest.IngestService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -74,20 +73,20 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     /**
      * Constructor.
      *
-     * @param blockingQueue the blocking queue to poll messages from
-     * @param engine        the ingestion engine
-     * @param errorStrategy the error strategy/policy to use
-     * @param ingestService the ingest service for pipeline execution
+     * @param blockingQueue    the blocking queue to poll messages from
+     * @param engine           the ingestion engine
+     * @param errorStrategy    the error strategy/policy to use
+     * @param pipelineExecutor the pipeline executor for ingest pipeline execution
      */
     public MessageProcessorRunnable(
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
         IngestionErrorStrategy errorStrategy,
-        IngestService ingestService
+        IngestPipelineExecutor pipelineExecutor
     ) {
         this(
             blockingQueue,
-            new MessageProcessor(engine, ingestService),
+            new MessageProcessor(engine, pipelineExecutor),
             errorStrategy,
             engine.config().getShardId().getIndexName(),
             engine.config().getShardId().getId()
@@ -122,11 +121,10 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
         private final String index;
         private final IngestPipelineExecutor pipelineExecutor;
 
-        MessageProcessor(IngestionEngine engine, IngestService ingestService) {
-            String indexName = engine.config().getIndexSettings().getIndex().getName();
+        MessageProcessor(IngestionEngine engine, IngestPipelineExecutor pipelineExecutor) {
             this.engine = engine;
-            this.index = indexName;
-            this.pipelineExecutor = new IngestPipelineExecutor(ingestService, indexName, engine.config().getIndexSettings());
+            this.index = engine.config().getIndexSettings().getIndex().getName();
+            this.pipelineExecutor = pipelineExecutor;
         }
 
         /**

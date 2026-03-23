@@ -36,6 +36,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.indices.pollingingest.DefaultStreamPoller;
+import org.opensearch.indices.pollingingest.IngestPipelineExecutor;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
@@ -61,13 +62,17 @@ public class IngestionEngine extends InternalEngine {
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final DocumentMapperForType documentMapperForType;
-    private final IngestService ingestService;
+    private final IngestPipelineExecutor pipelineExecutor;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
     public IngestionEngine(EngineConfig engineConfig, IngestionConsumerFactory ingestionConsumerFactory, IngestService ingestService) {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
-        this.ingestService = Objects.requireNonNull(ingestService);
+        this.pipelineExecutor = new IngestPipelineExecutor(
+            Objects.requireNonNull(ingestService),
+            engineConfig.getIndexSettings().getIndex().getName(),
+            engineConfig.getIndexSettings()
+        );
         this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
         registerDynamicIndexSettingsHandlers();
     }
@@ -151,7 +156,7 @@ public class IngestionEngine extends InternalEngine {
             .pointerBasedLagUpdateInterval(ingestionSource.getPointerBasedLagUpdateInterval().millis())
             .mapperType(ingestionSource.getMapperType())
             .mapperSettings(ingestionSource.getMapperSettings())
-            .ingestService(ingestService)
+            .pipelineExecutor(pipelineExecutor)
             .build();
         registerStreamPollerListener();
 
