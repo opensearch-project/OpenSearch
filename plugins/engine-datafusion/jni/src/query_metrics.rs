@@ -28,6 +28,38 @@ use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReser
 use datafusion::common::DataFusionError;
 
 // ---------------------------------------------------------------------------
+// mimalloc RSS check
+// ---------------------------------------------------------------------------
+
+/// Query mimalloc for the current process RSS via `mi_process_info`.
+/// Returns `(current_rss, peak_rss)` in bytes.
+fn get_mimalloc_rss() -> (usize, usize) {
+    let mut elapsed_ms: usize = 0;
+    let mut user_ms: usize = 0;
+    let mut system_ms: usize = 0;
+    let mut current_rss: usize = 0;
+    let mut peak_rss: usize = 0;
+    let mut current_commit: usize = 0;
+    let mut peak_commit: usize = 0;
+    let mut page_faults: usize = 0;
+
+    unsafe {
+        libmimalloc_sys::mi_process_info(
+            &mut elapsed_ms,
+            &mut user_ms,
+            &mut system_ms,
+            &mut current_rss,
+            &mut peak_rss,
+            &mut current_commit,
+            &mut peak_commit,
+            &mut page_faults,
+        );
+    }
+
+    (current_rss, peak_rss)
+}
+
+// ---------------------------------------------------------------------------
 // Per-query memory pool
 // ---------------------------------------------------------------------------
 
@@ -96,9 +128,33 @@ impl MemoryPool for QueryMemoryPool {
     }
 
     fn try_grow(&self, reservation: &MemoryReservation, additional: usize) -> Result<(), DataFusionError> {
-        self.inner.try_grow(reservation, additional)?;
-        self.track_grow(additional);
-        Ok(())
+        match self.inner.try_grow(reservation, additional) {
+            Ok(()) => {
+                self.track_grow(additional);
+                Ok(())
+            }
+            Err(e) => {
+                // Inner pool said no — check mimalloc process RSS as a fallback.
+                let (current_rss, peak_rss) = get_mimalloc_rss();
+                if current_rss.saturating_add(additional) <= peak_rss {
+                    // mimalloc says there's room (RSS + request fits within peak),
+                    // allow the allocation bypassing the cooperative pool limit.
+                    log_info!(
+                        "QueryMemoryPool: inner pool denied {}B, but mimalloc has headroom \
+                         (rss={}MB, peak={}MB) — allowing",
+                        additional,
+                        current_rss / (1024 * 1024),
+                        peak_rss / (1024 * 1024),
+                    );
+                    self.inner.grow(reservation, additional);
+                    self.track_grow(additional);
+                    Ok(())
+                } else {
+                    // mimalloc also says no — propagate the original error.
+                    Err(e)
+                }
+            }
+        }
     }
 
     fn reserved(&self) -> usize {
