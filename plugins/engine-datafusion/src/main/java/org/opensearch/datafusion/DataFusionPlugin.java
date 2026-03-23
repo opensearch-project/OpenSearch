@@ -171,7 +171,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionAction(), new ClearCacheAction());
+        return List.of(new DataFusionAction(), new ClearCacheAction(dataFusionService));
     }
 
     @Override

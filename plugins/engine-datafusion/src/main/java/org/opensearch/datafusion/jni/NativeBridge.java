@@ -50,7 +50,7 @@ public final class NativeBridge {
     public static native void streamClose(long stream);
 
     // Liquid Cache
-    public static native void clearLiquidCache();
+    public static native void clearLiquidCache(long runtimePtr);
 
     // Cache management
     public static native long createCustomCacheManager();

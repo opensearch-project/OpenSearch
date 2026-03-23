@@ -8,6 +8,7 @@
 
 package org.opensearch.datafusion.action;
 
+import org.opensearch.datafusion.DataFusionService;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
@@ -20,10 +21,16 @@ import java.util.List;
 import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
- * REST handler to clear the Liquid Cache.
+ * REST handler to clear all DataFusion caches (Liquid Cache + file metadata/statistics).
  * POST /_plugins/datafusion/clear_liquid_cache
  */
 public class ClearCacheAction extends BaseRestHandler {
+
+    private final DataFusionService dataFusionService;
+
+    public ClearCacheAction(DataFusionService dataFusionService) {
+        this.dataFusionService = dataFusionService;
+    }
 
     @Override
     public String getName() {
@@ -38,8 +45,8 @@ public class ClearCacheAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> {
-            NativeBridge.clearLiquidCache();
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, "{\"status\":\"ok\",\"message\":\"Liquid cache cleared\"}"));
+            NativeBridge.clearLiquidCache(dataFusionService.getRuntimePointer());
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, "{\"status\":\"ok\",\"message\":\"Cache cleared\"}"));
         };
     }
 }
