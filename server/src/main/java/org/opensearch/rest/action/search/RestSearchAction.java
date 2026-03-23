@@ -151,17 +151,13 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        // Honor streaming when cluster setting is enabled OR feature flag is enabled
-        final boolean streamingEnabledEffective = (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED))
-            || FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
-        if (streamingEnabledEffective) {
+        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
             if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
                 if (canUseStreamSearch(searchRequest)) {
                     String scoringMode = request.param("stream_scoring_mode");
                     if (scoringMode != null) {
                         searchRequest.setStreamingSearchMode(scoringMode);
                     }
-                    // StreamSearchAction should always execute with an explicit mode.
                     if (searchRequest.getStreamingSearchMode() == null) {
                         searchRequest.setStreamingSearchMode("no_scoring");
                     }
@@ -172,7 +168,7 @@ public class RestSearchAction extends BaseRestHandler {
                 } else {
                     logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
                 }
-            } else {
+            } else if (searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode")) {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
         }
@@ -182,14 +178,6 @@ public class RestSearchAction extends BaseRestHandler {
         };
     }
 
-    /**
-     * Factory method for creating RestCancellableNodeClient instances.
-     * This method is protected to allow tests to override it and inject spyable clients.
-     *
-     * @param client the NodeClient to wrap
-     * @param httpChannel the HTTP channel for cancellation tracking
-     * @return a RestCancellableNodeClient instance
-     */
     protected RestCancellableNodeClient createRestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
         return new RestCancellableNodeClient(client, httpChannel);
     }

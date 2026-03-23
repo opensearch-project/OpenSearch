@@ -9,11 +9,6 @@
 /**
  * Streaming search query execution components.
  *
- * This package contains classes for streaming search functionality that provides
- * progressive result emission during query execution. Key components include:
- *
- * Components for streaming search functionality that provides progressive result emission.
- *
  * @opensearch.internal
  */
 package org.opensearch.search.query.stream;

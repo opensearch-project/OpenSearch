@@ -85,17 +85,14 @@ public class StreamStringTermsAggregator extends AbstractStringTermsAggregator i
 
     @Override
     public void doReset() {
-        // super.doReset(); // Prevent clearing doc counts
+        // Keep parent counters intact.
         valueCount = 0;
         sortedDocValuesPerBatch = null;
     }
 
     @Override
     public void reset() {
-        // No-op to preserve state across streaming batches.
-        // We purposefully do NOT call super.reset() because that would:
-        // 1. Call doReset() (clearing bucket/doc counts)
-        // 2. Call collectableSubAggregators.reset() (clearing sub-aggregation state)
+        // Preserve aggregation state across streaming batches.
         this.leafCollectorCreated = false;
         this.ordinalComparator = null;
         this.tempBucket1 = null;
