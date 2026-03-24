@@ -20,21 +20,41 @@ public final class NativeBridge {
 
     private NativeBridge() {}
 
+    /**
+     * Creates a native DataFusion reader
+     * @param path the directory path containing data files
+     * @param files the array of file names to read
+     */
     public static native long createDatafusionReader(String path, String[] files);
 
+    /**
+     * Closes the native DataFusion reader.
+     * @param ptr the native reader pointer
+     */
     public static native void closeDatafusionReader(long ptr);
 
+    /**
+     * Creates a global DataFusion runtime with the given resource limits.
+     * @param memoryLimit the maximum memory in bytes
+     * @param cacheManagerPtr the native cache manager pointer
+     * @param spillDir the directory path for spill files
+     * @param spillLimit the maximum spill size in bytes
+     */
     public static native long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit);
 
+    /**
+     * Closes the global DataFusion runtime.
+     * @param ptr the native runtime pointer
+     */
     public static native void closeGlobalRuntime(long ptr);
 
     /**
      * Executes a substrait plan against the given reader and returns a stream pointer.
      *
-     * @param readerPtr     native reader pointer
-     * @param tableName     table name for registration with DataFusion
-     * @param substraitPlan serialized substrait plan bytes
-     * @param runtimePtr    native runtime pointer
+     * @param readerPtr the native reader pointer
+     * @param tableName the target table name
+     * @param substraitPlan the serialized substrait plan bytes
+     * @param runtimePtr the native runtime pointer
      * @return native stream pointer (caller must close via {@link #streamClose})
      */
     public static native long executeQuery(long readerPtr, String tableName, byte[] substraitPlan, long runtimePtr);
@@ -42,7 +62,7 @@ public final class NativeBridge {
     /**
      * Returns the Arrow schema address for the given stream.
      *
-     * @param streamPtr native stream pointer
+     * @param streamPtr the native stream pointer
      * @return ArrowSchema C Data Interface address
      */
     public static native long streamGetSchema(long streamPtr);
@@ -50,8 +70,8 @@ public final class NativeBridge {
     /**
      * Loads the next record batch from the stream.
      *
-     * @param runtimePtr native runtime pointer
-     * @param streamPtr  native stream pointer
+     * @param runtimePtr the native runtime pointer
+     * @param streamPtr the native stream pointer
      * @return ArrowArray C Data Interface address, or 0 if end-of-stream
      */
     public static native long streamNext(long runtimePtr, long streamPtr);
@@ -59,7 +79,7 @@ public final class NativeBridge {
     /**
      * Closes the native stream and releases associated resources.
      *
-     * @param streamPtr native stream pointer
+     * @param streamPtr the native stream pointer to close
      */
     public static native void streamClose(long streamPtr);
 }

@@ -29,15 +29,17 @@ public interface AnalyticsSearchBackendPlugin {
     /** Unique engine name (e.g., "lucene", "datafusion"). */
     String name();
 
-    /** Creates a searcher bound to the given reader snapshot. */
+    /**
+     * Creates a searcher bound to the given reader snapshot.
+     * @param ctx the execution context
+     */
     SearchExecEngine searcher(ExecutionContext ctx);
 
-    /** Supported functions as a Calcite operator table, or null if the back-end adds no functions. */
     /** Returns the set of RelNode operator classes this backend supports. */
     default Set<Class<? extends RelNode>> supportedOperators() {
         return Set.of(LogicalTableScan.class, LogicalFilter.class, LogicalAggregate.class, LogicalProject.class);
     }
 
-    // TODO : remove this ?
+    /** Returns the data formats supported by this backend. */
     List<DataFormat> getSupportedFormats();
 }

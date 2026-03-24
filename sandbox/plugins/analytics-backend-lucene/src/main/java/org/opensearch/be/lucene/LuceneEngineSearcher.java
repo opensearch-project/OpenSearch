@@ -33,6 +33,12 @@ public class LuceneEngineSearcher implements EngineSearcher<LuceneSearchContext>
     private final IndexSearcher indexSearcher;
     private final DirectoryReader directoryReader;
 
+    /**
+     * Creates a new LuceneEngineSearcher.
+     *
+     * @param indexSearcher the Lucene index searcher
+     * @param directoryReader the Lucene directory reader
+     */
     public LuceneEngineSearcher(IndexSearcher indexSearcher, DirectoryReader directoryReader) {
         this.indexSearcher = indexSearcher;
         this.directoryReader = directoryReader;
@@ -42,6 +48,8 @@ public class LuceneEngineSearcher implements EngineSearcher<LuceneSearchContext>
      * Execute: create a Weight from the query, register it on the
      * context's lifecycle manager, and store the key + segment metadata
      * on the context for JNI callbacks.
+     *
+     * @param context the search context containing the query to execute
      */
     @Override
     public void search(LuceneSearchContext context) throws IOException {
@@ -56,10 +64,12 @@ public class LuceneEngineSearcher implements EngineSearcher<LuceneSearchContext>
 
     }
 
+    /** Returns the underlying IndexSearcher. */
     public IndexSearcher getIndexSearcher() {
         return indexSearcher;
     }
 
+    /** Returns the underlying DirectoryReader. */
     public DirectoryReader getDirectoryReader() {
         return directoryReader;
     }

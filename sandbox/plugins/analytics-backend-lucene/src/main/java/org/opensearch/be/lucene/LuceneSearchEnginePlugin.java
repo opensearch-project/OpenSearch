@@ -25,6 +25,9 @@ import java.util.List;
 @ExperimentalApi
 public class LuceneSearchEnginePlugin implements SearchBackEndPlugin {
 
+    /** Creates a new LuceneSearchEnginePlugin. */
+    public LuceneSearchEnginePlugin() {}
+
     @Override
     public String name() {
         return "lucene-analytics-backend";

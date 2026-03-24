@@ -68,6 +68,10 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     private final Settings settings;
     private volatile DataFusionService dataFusionService;
 
+    /**
+     * Creates the DataFusion plugin with the given node settings.
+     * @param settings the node-level settings
+     */
     public DataFusionPlugin(Settings settings) {
         this.settings = settings;
     }

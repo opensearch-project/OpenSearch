@@ -32,6 +32,10 @@ public class DatafusionResultStream implements EngineResultStream {
     private final StreamHandle streamHandle;
     private volatile BatchIterator iteratorInstance;
 
+    /**
+     * Creates a result stream
+     * @param streamHandle the native stream handle
+     */
     public DatafusionResultStream(StreamHandle streamHandle) {
         this.streamHandle = streamHandle;
     }

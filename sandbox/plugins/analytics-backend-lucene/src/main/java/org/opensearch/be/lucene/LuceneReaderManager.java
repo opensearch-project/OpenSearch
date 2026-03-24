@@ -35,12 +35,21 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
     Map<CatalogSnapshot, DirectoryReader> readers = new HashMap<>();
     DataFormat dataFormat;
 
+    /**
+     * Creates a new LuceneReaderManager for the given data format.
+     *
+     * @param dataFormat the data format for this reader manager
+     */
     @SuppressWarnings("unchecked")
     public LuceneReaderManager(DataFormat dataFormat) {
         this.dataFormat = dataFormat;
     }
 
-    /** Called when files are deleted after merges. */
+    /**
+     * Called when files are deleted after merges.
+     *
+     * @param files the collection of deleted file paths
+     */
     public void onFilesDeleted(Collection<String> files) throws IOException {
         // no-op
     }

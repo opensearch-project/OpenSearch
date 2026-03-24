@@ -27,7 +27,10 @@ public interface SearchExecEngine extends Closeable {
      */
     void prepare(ExecutionContext context);
 
-    /** Executes the context and returns a result stream. */
+    /**
+     * Executes the context and returns a result stream.
+     * @param context the execution context
+     */
     EngineResultStream execute(ExecutionContext context) throws IOException;
 
     @Override

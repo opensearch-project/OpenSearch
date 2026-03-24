@@ -18,11 +18,17 @@ public final class StreamHandle extends NativeHandle {
 
     private final long streamPtr;
 
+    /**
+     * Creates a stream handle wrapping the native pointers.
+     * @param ptr the native handle pointer
+     * @param streamPtr the native stream pointer
+     */
     public StreamHandle(long ptr, long streamPtr) {
         super(ptr);
         this.streamPtr = streamPtr;
     }
 
+    /** Returns the native stream pointer. */
     public long getStreamPtr() {
         return streamPtr;
     }

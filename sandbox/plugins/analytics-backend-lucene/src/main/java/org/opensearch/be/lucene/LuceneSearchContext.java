@@ -30,6 +30,13 @@ public class LuceneSearchContext implements SearchExecutionContext<LuceneEngineS
     private final LuceneEngineSearcher searcher;
     private Query query;
 
+    /**
+     * Creates a new LuceneSearchContext.
+     *
+     * @param task the search shard task
+     * @param reader the directory reader over the index
+     * @param query the Lucene query to execute
+     */
     public LuceneSearchContext(SearchShardTask task, DirectoryReader reader, Query query) throws IOException {
         this.reader = reader;
         IndexSearcher indexSearcher = new IndexSearcher(reader);
@@ -38,6 +45,7 @@ public class LuceneSearchContext implements SearchExecutionContext<LuceneEngineS
         this.query = query;
     }
 
+    /** Returns the current query. */
     public Query getQuery() {
         return query;
     }
@@ -52,6 +60,11 @@ public class LuceneSearchContext implements SearchExecutionContext<LuceneEngineS
         return searcher;
     }
 
+    /**
+     * Sets the query for this context.
+     *
+     * @param query the Lucene query to set
+     */
     public void setQuery(Query query) {
         this.query = query;
     }

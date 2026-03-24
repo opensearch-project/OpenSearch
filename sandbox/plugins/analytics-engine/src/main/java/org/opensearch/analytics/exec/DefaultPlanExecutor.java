@@ -13,14 +13,19 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.analytics.plan.ResolvedPlan;
+import org.opensearch.analytics.backend.EngineResultBatch;
+import org.opensearch.analytics.backend.EngineResultBatchIterator;
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +34,7 @@ import java.util.Set;
 /**
  * {@link QueryPlanExecutor} default implementation.
  * <p>
- * Acquires a composite reader, creates a per-query {@link org.opensearch.analytics.backend.SearchExecEngine}
+ * Acquires a composite reader, creates a per-query {@link SearchExecEngine}
  * bound to the reader, and delegates convert + execute to it.
  * No backend-specific context is exposed to this class.
  */
@@ -39,9 +44,14 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     private final Map<String, AnalyticsSearchBackendPlugin> backEnds;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
-    // TODO: - move out as data node side service
-    private final AnalyticsQueryService queryService;
 
+    /**
+     * Constructs a DefaultPlanExecutor with the given plugins and services.
+     *
+     * @param plugins list of analytics search backend plugins
+     * @param indicesService service for accessing index shards
+     * @param clusterService service for accessing cluster state
+     */
     public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> plugins, IndicesService indicesService, ClusterService clusterService) {
         this.backEnds = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin plugin : plugins) {
@@ -49,31 +59,46 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         }
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.queryService = new AnalyticsQueryService(backEnds);
-        // TODO : init planning components
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         String tableName = extractTableName(logicalFragment);
-        IndexMetadata indexMetadata = clusterService.state().metadata().index(tableName);
-        if (indexMetadata == null) {
-            throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
-        }
-        int shardCount = indexMetadata.getNumberOfShards();
-
-        ResolvedPlan plan = null; // TODO : queryPlanner.plan(logicalFragment, shardCount);
-
-        if ("unresolved".equals(plan.getPrimaryBackend())) {
-            throw new IllegalStateException("Planning did not resolve backend assignment for plan root");
-        }
-
-        logger.info("[DefaultPlanExecutor] Plan resolved to backend [{}]", plan.getPrimaryBackend());
+        String backendName = selectBackEnd().name();
 
         IndexShard shard = resolveShard(tableName);
+        DataFormatAwareEngine dataFormatAwareEngine = shard.getCompositeEngine();
+        if (dataFormatAwareEngine == null) {
+            throw new IllegalStateException("No CompositeEngine on shard [" + shard.shardId() + "]");
+        }
+
+        AnalyticsSearchBackendPlugin plugin = backEnds.get(backendName);
         SearchShardTask task = null; // TODO : init task
-        return queryService.execute(plan, shard, task);
+        List<Object[]> rows = new ArrayList<>();
+        try (DataFormatAwareEngine.DataFormatAwareReader dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
+            ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader);
+            try (SearchExecEngine engine = plugin.searcher(ctx)) {
+                logger.info("[DefaultPlanExecutor] Executing via [{}]", plugin.name());
+                try (EngineResultStream resultStream = engine.execute(ctx)) {
+                    EngineResultBatchIterator batchIterator = resultStream.iterator();
+                    while (batchIterator.hasNext()) {
+                        EngineResultBatch batch = batchIterator.next();
+                        List<String> fieldNames = batch.getFieldNames();
+                        for (int row = 0; row < batch.getRowCount(); row++) {
+                            Object[] rowValues = new Object[fieldNames.size()];
+                            for (int col = 0; col < fieldNames.size(); col++) {
+                                rowValues[col] = batch.getFieldValue(fieldNames.get(col), row);
+                            }
+                            rows.add(rowValues);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Execution failed for [" + plugin.name() + "]", e);
+        }
+        return rows;
     }
 
     static String extractTableName(RelNode node) {
@@ -89,14 +114,11 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     }
 
     private IndexShard resolveShard(String indexName) {
-        IndexMetadata meta = clusterService.state().metadata().index(indexName);
-        if (meta == null) throw new IllegalArgumentException("Index [" + indexName + "] not found");
-        IndexService indexService = indicesService.indexService(meta.getIndex());
+        IndexService indexService = indicesService.indexService(clusterService.state().metadata().index(indexName).getIndex());
         if (indexService == null) throw new IllegalStateException("Index [" + indexName + "] not on this node");
         Set<Integer> shardIds = indexService.shardIds();
         if (shardIds.isEmpty()) throw new IllegalStateException("No shards for [" + indexName + "]");
-        IndexShard shard = indexService.getShardOrNull(shardIds.iterator().next());
-        return shard;
+        return indexService.getShardOrNull(shardIds.iterator().next());
     }
 
     private AnalyticsSearchBackendPlugin selectBackEnd() {

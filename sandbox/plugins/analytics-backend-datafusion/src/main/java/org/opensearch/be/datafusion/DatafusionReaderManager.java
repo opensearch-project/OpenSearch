@@ -35,6 +35,11 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private final DataFormat dataFormat;
     private final String directoryPath;
 
+    /**
+     * Creates a reader manager
+     * @param dataFormat the data format for this reader
+     * @param shardPath the shard path to read data from
+     */
     public DatafusionReaderManager(DataFormat dataFormat, ShardPath shardPath) {
         this.dataFormat = dataFormat;
         directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();

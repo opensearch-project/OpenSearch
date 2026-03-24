@@ -29,6 +29,10 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
 
     private final ReaderHandle readerHandle;
 
+    /**
+     * Creates a searcher
+     * @param readerHandle the native reader handle
+     */
     public DatafusionSearcher(ReaderHandle readerHandle) {
         this.readerHandle = readerHandle;
     }

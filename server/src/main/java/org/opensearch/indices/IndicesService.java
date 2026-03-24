@@ -432,7 +432,7 @@ public class IndicesService extends AbstractLifecycleComponent
         MapperService,
         IndexSettings,
         DataFormatAwareEngineFactory,
-        IOException> compositeEngineFactorySupplier;
+        IOException> dataFormatEngineFactorySupplier;
 
     @Override
     protected void doStart() {
@@ -618,7 +618,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
-        this.compositeEngineFactorySupplier = (shardPath, mapperService, indexSettings) -> new DataFormatAwareEngineFactory(
+        this.dataFormatEngineFactorySupplier = (shardPath, mapperService, indexSettings) -> new DataFormatAwareEngineFactory(
             pluginsService,
             shardPath,
             mapperService,
@@ -1153,7 +1153,7 @@ public class IndicesService extends AbstractLifecycleComponent
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
-            compositeEngineFactorySupplier
+            dataFormatEngineFactorySupplier
         );
     }
 

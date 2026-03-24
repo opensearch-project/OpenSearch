@@ -8,8 +8,6 @@
 
 package org.opensearch.index.engine.exec;
 
-import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
@@ -25,8 +23,7 @@ import java.util.Map;
 
 /**
  * Factory that discovers {@link SearchBackEndPlugin}s via
- * {@link PluginsService} and builds the per-format reader managers and
- * memoizing suppliers consumed by {@link DataFormatAwareEngine}.
+ * {@link PluginsService} and builds the per-format reader managers consumed by {@link DataFormatAwareEngine}.
  * <p>
  * This keeps DataformatAwareEngine decoupled from the plugin layer.
  *
@@ -51,33 +48,6 @@ public class DataFormatAwareEngineFactory {
             }
         }
         this.indexFileDeleter = new IndexFileDeleter(null, shardPath);
-    }
-
-    /**
-     * Wraps a {@link CheckedFunction} factory into a thread-safe memoizing supplier
-     * using double-checked locking. The factory is invoked at most once.
-     */
-    private static <T> CheckedSupplier<T, IOException> memoize(DataFormat format, CheckedFunction<DataFormat, T, IOException> factory) {
-        return new CheckedSupplier<>() {
-            private volatile T instance;
-
-            @Override
-            public T get() throws IOException {
-                T result = instance;
-                if (result != null) {
-                    return result;
-                }
-                synchronized (this) {
-                    result = instance;
-                    if (result != null) {
-                        return result;
-                    }
-                    result = factory.apply(format);
-                    instance = result;
-                    return result;
-                }
-            }
-        };
     }
 
     /**

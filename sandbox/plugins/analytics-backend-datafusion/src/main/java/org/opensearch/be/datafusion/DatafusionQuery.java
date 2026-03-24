@@ -17,23 +17,35 @@ public class DatafusionQuery {
     private final byte[] substraitBytes;
     private boolean fetchPhase;
 
+    /**
+     * Creates a query with the given index name and serialized substrait plan.
+     * @param indexName the target index name
+     * @param substraitBytes the serialized substrait plan bytes
+     */
     public DatafusionQuery(String indexName, byte[] substraitBytes) {
         this.indexName = indexName;
         this.substraitBytes = substraitBytes;
     }
 
+    /** Returns the target index name. */
     public String getIndexName() {
         return indexName;
     }
 
+    /** Returns the serialized substrait plan bytes. */
     public byte[] getSubstraitBytes() {
         return substraitBytes;
     }
 
+    /** Returns whether this query is in the fetch phase. */
     public boolean isFetchPhase() {
         return fetchPhase;
     }
 
+    /**
+     * Sets whether this query is in the fetch phase.
+     * @param fetchPhase true if this query is in the fetch phase
+     */
     public void setFetchPhase(boolean fetchPhase) {
         this.fetchPhase = fetchPhase;
     }

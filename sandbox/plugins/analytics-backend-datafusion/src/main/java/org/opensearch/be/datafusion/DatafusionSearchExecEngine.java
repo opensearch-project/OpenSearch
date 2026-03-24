@@ -27,6 +27,10 @@ public class DatafusionSearchExecEngine implements SearchExecEngine {
 
     private final DatafusionContext datafusionContext;
 
+    /**
+     * Creates an execution engine backed by the given DataFusion context.
+     * @param datafusionContext the DataFusion execution context
+     */
     public DatafusionSearchExecEngine(DatafusionContext datafusionContext) {
         this.datafusionContext = datafusionContext;
     }

@@ -814,7 +814,7 @@ public final class IndexModule {
             MapperService,
             IndexSettings,
             DataFormatAwareEngineFactory,
-            IOException> compositeEngineFactorySupplier
+            IOException> dataFormatAwareEngineFactorySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -888,7 +888,7 @@ public final class IndexModule {
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
                 clusterMergeSchedulerConfig,
-                compositeEngineFactorySupplier
+                dataFormatAwareEngineFactorySupplier
             );
             success = true;
             return indexService;

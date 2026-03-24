@@ -216,7 +216,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperService,
         IndexSettings,
         DataFormatAwareEngineFactory,
-        IOException> compositeEngineFactorySupplier;
+        IOException> dataFormatAwareEngineFactorySupplier;
 
     @InternalApi
     public IndexService(
@@ -269,7 +269,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             MapperService,
             IndexSettings,
             DataFormatAwareEngineFactory,
-            IOException> compositeEngineFactorySupplier
+            IOException> dataFormatAwareEngineFactorySupplier
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -380,7 +380,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 startIndexLevelRefreshTask();
             }
         }
-        this.compositeEngineFactorySupplier = compositeEngineFactorySupplier;
+        this.dataFormatAwareEngineFactorySupplier = dataFormatAwareEngineFactorySupplier;
     }
 
     @InternalApi
@@ -791,8 +791,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directoryFactory
             );
             eventListener.onStoreCreated(shardId);
-            DataFormatAwareEngineFactory dataFormatAwareEngineFactory = compositeEngineFactorySupplier != null
-                ? compositeEngineFactorySupplier.apply(path, mapperService, this.indexSettings)
+            DataFormatAwareEngineFactory dataFormatAwareEngineFactory = dataFormatAwareEngineFactorySupplier != null
+                ? dataFormatAwareEngineFactorySupplier.apply(path, mapperService, this.indexSettings)
                 : null;
             indexShard = new IndexShard(
                 routing,

@@ -28,6 +28,9 @@ import java.util.BitSet;
 @ExperimentalApi
 public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, LuceneIndexFilterContext, DirectoryReader> {
 
+    /** Creates a new LuceneIndexFilterProvider. */
+    public LuceneIndexFilterProvider() {}
+
     @Override
     public LuceneIndexFilterContext createContext(Query query, DirectoryReader reader) throws IOException {
         return new LuceneIndexFilterContext(query, reader);
@@ -37,6 +40,10 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
      * Creates a collector for the given segment and registers it in the
      * context's {@link CollectorQueryLifecycleManager}.
      *
+     * @param context the index filter context
+     * @param segmentOrd the segment ordinal
+     * @param minDoc the minimum document ID
+     * @param maxDoc the maximum document ID
      * @return an int key that identifies this collector across JNI
      */
     @Override
@@ -47,6 +54,11 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
 
     /**
      * Collects matching doc IDs for the collector identified by {@code key}.
+     *
+     * @param context the index filter context
+     * @param key the collector key
+     * @param minDoc the minimum document ID
+     * @param maxDoc the maximum document ID
      */
     public long[] collectDocs(LuceneIndexFilterContext context, int key, int minDoc, int maxDoc) {
         return context.getCollectorManager().collectDocs(key, minDoc, maxDoc);
@@ -54,6 +66,9 @@ public class LuceneIndexFilterProvider implements IndexFilterProvider<Query, Luc
 
     /**
      * Releases the collector identified by {@code key}.
+     *
+     * @param context the index filter context
+     * @param key the collector key
      */
     public void releaseCollector(LuceneIndexFilterContext context, int key) {
         context.getCollectorManager().releaseCollector(key);

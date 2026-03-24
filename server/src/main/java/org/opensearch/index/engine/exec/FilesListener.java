@@ -13,6 +13,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * Listener for lifecycle of files
+ */
 @ExperimentalApi
 public interface FilesListener {
     void onFilesDeleted(Collection<String> files) throws IOException;

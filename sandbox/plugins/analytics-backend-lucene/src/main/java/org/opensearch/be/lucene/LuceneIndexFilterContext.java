@@ -36,6 +36,12 @@ public class LuceneIndexFilterContext implements IndexFilterContext {
     private final List<LeafReaderContext> leaves;
     private final CollectorQueryLifecycleManager collectorManager = new CollectorQueryLifecycleManager();
 
+    /**
+     * Creates a new LuceneIndexFilterContext for the given query and reader.
+     *
+     * @param query the Lucene query to filter by
+     * @param reader the directory reader over the index
+     */
     public LuceneIndexFilterContext(Query query, DirectoryReader reader) throws IOException {
         IndexSearcher searcher = new IndexSearcher(reader);
         Query rewritten = searcher.rewrite(query);

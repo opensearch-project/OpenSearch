@@ -34,6 +34,8 @@ public class DatafusionReader implements Closeable {
     private final ReaderHandle readerHandle;
 
     /**
+     * Creates a DatafusionReader for the given shard directory and files.
+     *
      * @param directoryPath shard data directory
      * @param files The file metadata collection
      */

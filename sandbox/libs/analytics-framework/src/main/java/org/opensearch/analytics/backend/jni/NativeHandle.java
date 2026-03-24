@@ -19,8 +19,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public abstract class NativeHandle implements AutoCloseable {
 
+    /** Pointer to the native resource. */
     protected final long ptr;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    /** Sentinel value representing a null native pointer. */
     protected static final long NULL_POINTER = 0L;
     private final Cleaner.Cleanable cleanable;
 

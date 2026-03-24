@@ -34,6 +34,12 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private StreamHandle streamHandle;
     private SearchShardTask task;
 
+    /**
+     * Creates a DataFusion execution context
+     * @param task the search shard task
+     * @param reader the DataFusion reader providing index data
+     * @param nativeRuntime handle to the native DataFusion runtime
+     */
     public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
@@ -65,18 +71,28 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
         return nativeRuntime.get();
     }
 
+    /** Returns the DataFusion query plan. */
     public DatafusionQuery getDatafusionQuery() {
         return datafusionQuery;
     }
 
+    /**
+     * Sets the DataFusion query plan.
+     * @param query the DataFusion query to set
+     */
     public void setDatafusionQuery(DatafusionQuery query) {
         this.datafusionQuery = query;
     }
 
+    /** Returns the index filter tree, or {@code null} if not set. */
     public IndexFilterTree getFilterTree() {
         return filterTree;
     }
 
+    /**
+     * Sets the index filter tree for indexed query execution.
+     * @param filterTree the index filter tree
+     */
     public void setFilterTree(IndexFilterTree filterTree) {
         this.filterTree = filterTree;
     }
@@ -90,6 +106,8 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     /**
      * Sets the native result stream handle after query execution.
+     *
+     * @param streamHandle the native result stream handle
      */
     public void setStreamHandle(StreamHandle streamHandle) {
         this.streamHandle = streamHandle;

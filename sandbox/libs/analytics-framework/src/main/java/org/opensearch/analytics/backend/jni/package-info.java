@@ -6,5 +6,7 @@
  * compatible open source license.
  */
 
-/** DataFusion native engine backend for OpenSearch analytics. */
-package org.opensearch.be.datafusion;
+/**
+ * JNI handles for native engine resources.
+ */
+package org.opensearch.analytics.backend.jni;

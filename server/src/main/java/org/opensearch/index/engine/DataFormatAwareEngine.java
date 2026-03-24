@@ -36,7 +36,7 @@ public class DataFormatAwareEngine implements Closeable {
     private volatile CatalogSnapshot latestSnapshot;
 
     /**
-     * Constructs a new CompositeEngine with pre-built maps.
+     * Constructs a new DataFormatAwareEngine with pre-built maps.
      * Prefer using {@link DataFormatAwareEngineFactory#create()}.
      */
     public DataFormatAwareEngine(Map<DataFormat, EngineReaderManager<?>> readerManagers) {
@@ -73,7 +73,7 @@ public class DataFormatAwareEngine implements Closeable {
     }
 
     /**
-     * Acquires a composite reader on a specific catalog snapshot.
+     * Acquires a dataFormatAwareReader on a specific catalog snapshot.
      */
     public DataFormatAwareReader acquireReader(CatalogSnapshot catalogSnapshot) throws IOException {
         catalogSnapshot.incRef();
@@ -133,7 +133,7 @@ public class DataFormatAwareEngine implements Closeable {
             }
         }
         if (exceptions.isEmpty() == false) {
-            IOException ioException = new IOException("Failed to close CompositeEngine resources");
+            IOException ioException = new IOException("Failed to close DataFormatAwareEngine resources");
             for (Exception e : exceptions) {
                 ioException.addSuppressed(e);
             }

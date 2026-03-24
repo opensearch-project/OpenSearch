@@ -15,6 +15,11 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
  */
 public final class ReaderHandle extends NativeHandle {
 
+    /**
+     * Creates a reader handle by allocating a native DataFusion reader for the given path and files.
+     * @param path the directory path containing data files
+     * @param files the array of file names to read
+     */
     public ReaderHandle(String path, String[] files) {
         super(NativeBridge.createDatafusionReader(path, files));
     }

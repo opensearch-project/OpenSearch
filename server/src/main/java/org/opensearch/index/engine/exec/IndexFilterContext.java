@@ -13,6 +13,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import java.io.Closeable;
 
 /**
+ * Context to maintain state for index filters
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi

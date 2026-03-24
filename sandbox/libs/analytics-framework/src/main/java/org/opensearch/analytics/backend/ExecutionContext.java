@@ -9,41 +9,43 @@
 package org.opensearch.analytics.backend;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.analytics.plan.ResolvedPlan;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 
 /**
- * Execution context carrying plan, reader, and delegation state through
+ * Execution context carrying reader and delegation state through
  * the query execution lifecycle.
  *
  * @opensearch.internal
  */
 public class ExecutionContext {
 
-    private final ResolvedPlan plan;
     private final String tableName;
     private final DataFormatAwareEngine.DataFormatAwareReader reader;
     SearchShardTask task;
 
-    public ExecutionContext(ResolvedPlan plan, String tableName, SearchShardTask task, DataFormatAwareEngine.DataFormatAwareReader reader) {
-        this.plan = plan;
+    /**
+     * Constructs an execution context.
+     * @param tableName the target table name
+     * @param task the search shard task
+     * @param reader the data-format aware reader
+     */
+    public ExecutionContext(String tableName, SearchShardTask task, DataFormatAwareEngine.DataFormatAwareReader reader) {
         this.tableName = tableName;
         this.task = task;
         this.reader = reader;
     }
 
+    /** Returns the search shard task. */
     public SearchShardTask getTask() {
         return task;
     }
 
-    public ResolvedPlan plan() {
-        return plan;
-    }
-
+    /** Returns the target table name. */
     public String getTableName() {
         return tableName;
     }
 
+    /** Returns the data-format aware reader. */
     public DataFormatAwareEngine.DataFormatAwareReader getReader() {
         return reader;
     }

@@ -6,4 +6,5 @@
  * compatible open source license.
  */
 
+/** Lucene-backed analytics backend plugin. */
 package org.opensearch.be.lucene;
