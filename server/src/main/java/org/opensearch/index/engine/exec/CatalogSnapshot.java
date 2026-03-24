@@ -10,6 +10,9 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.engine.dataformat.DataFormat;
 
 import java.io.IOException;
@@ -25,7 +28,7 @@ import java.util.Set;
  * Subclasses must implement methods for accessing file metadata, segments, and user data.
  */
 @ExperimentalApi
-public abstract class CatalogSnapshot extends AbstractRefCounted {
+public abstract class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cloneable {
 
     /**
      * Key for storing catalog snapshot in user data.
@@ -47,6 +50,24 @@ public abstract class CatalogSnapshot extends AbstractRefCounted {
         super(name);
         this.generation = generation;
         this.version = version;
+    }
+
+    /**
+     * Constructs a CatalogSnapshot from a {@link StreamInput}.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs
+     */
+    public CatalogSnapshot(StreamInput in) throws IOException {
+        super("catalog_snapshot");
+        this.generation = in.readLong();
+        this.version = in.readLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(generation);
+        out.writeLong(version);
     }
 
     public long getGeneration() {
@@ -109,13 +130,6 @@ public abstract class CatalogSnapshot extends AbstractRefCounted {
     public abstract String serializeToString() throws IOException;
 
     /**
-     * Sets the catalog snapshot map for tracking multiple snapshots.
-     *
-     * @param catalogSnapshotMap map of generation to catalog snapshots
-     */
-    public abstract void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> catalogSnapshotMap);
-
-    /**
      * Creates a clone without acquiring a reference count.
      * Used for Lucene compatibility where clone is required.
      *
@@ -131,9 +145,17 @@ public abstract class CatalogSnapshot extends AbstractRefCounted {
      * Sets user-defined metadata for this catalog snapshot.
      *
      * @param userData map of user data key-value pairs
-     * @param b additional boolean parameter for implementation-specific behavior
      */
-    public abstract void setUserData(Map<String, String> userData, boolean b);
+    public abstract void setUserData(Map<String, String> userData);
+
+    /**
+     * Creates a deep copy of this catalog snapshot. The cloned snapshot starts with a fresh reference count
+     * of 1 (from {@link AbstractRefCounted}).
+     * Subclasses must ensure all mutable state is properly copied.
+     *
+     * @return a new {@link CatalogSnapshot} with the same logical state
+     */
+    public abstract CatalogSnapshot clone();
 
     public abstract Object getReader(DataFormat dataFormat);
 }

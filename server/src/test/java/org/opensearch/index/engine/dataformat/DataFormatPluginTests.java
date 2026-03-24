@@ -407,4 +407,138 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1, rm.deletedFiles.size());
         assertTrue(rm.deletedFiles.contains("a.parquet"));
     }
+
+    static class MockReader {
+        final List<String> fileNames;
+        final long totalRows;
+        boolean closed;
+
+        MockReader(List<String> fileNames, long totalRows) {
+            this.fileNames = fileNames;
+            this.totalRows = totalRows;
+        }
+
+        void close() {
+            closed = true;
+        }
+    }
+
+    static class MockReaderManager implements EngineReaderManager<MockReader> {
+        private final String formatName;
+        private final Map<CatalogSnapshot, MockReader> readers = new HashMap<>();
+        final List<String> addedFiles = new ArrayList<>();
+        final List<String> deletedFiles = new ArrayList<>();
+
+        MockReaderManager(String formatName) {
+            this.formatName = formatName;
+        }
+
+        @Override
+        public MockReader getReader(CatalogSnapshot snapshot) {
+            return readers.get(snapshot);
+        }
+
+        int readerCount() {
+            return readers.size();
+        }
+
+        @Override
+        public void beforeRefresh() {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh, CatalogSnapshot snapshot) {
+            if (didRefresh == false || readers.containsKey(snapshot)) return;
+            Collection<WriterFileSet> files = snapshot.getSearchableFiles(formatName);
+            List<String> allFiles = new ArrayList<>();
+            long totalRows = 0;
+            for (WriterFileSet wfs : files) {
+                allFiles.addAll(wfs.files());
+                totalRows += wfs.numRows();
+            }
+            readers.put(snapshot, new MockReader(allFiles, totalRows));
+        }
+
+        @Override
+        public void onDeleted(CatalogSnapshot snapshot) {
+            MockReader reader = readers.remove(snapshot);
+            if (reader != null) reader.close();
+        }
+
+        @Override
+        public void onFilesDeleted(Collection<String> files) {
+            deletedFiles.addAll(files);
+        }
+
+        @Override
+        public void onFilesAdded(Collection<String> files) {
+            addedFiles.addAll(files);
+        }
+    }
+
+    static class MockCatalogSnapshot extends CatalogSnapshot {
+        private final List<Segment> segments;
+        private final MockDataFormat format;
+
+        MockCatalogSnapshot(long generation, List<Segment> segments, MockDataFormat format) {
+            super("mock-snapshot", generation, 1L);
+            this.segments = segments;
+            this.format = format;
+        }
+
+        @Override
+        public Map<String, String> getUserData() {
+            return Map.of();
+        }
+
+        @Override
+        public long getId() {
+            return generation;
+        }
+
+        @Override
+        public List<Segment> getSegments() {
+            return segments;
+        }
+
+        @Override
+        public Collection<WriterFileSet> getSearchableFiles(String dataFormat) {
+            List<WriterFileSet> result = new ArrayList<>();
+            for (Segment seg : segments) {
+                WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(dataFormat);
+                if (wfs != null) result.add(wfs);
+            }
+            return result;
+        }
+
+        @Override
+        public Set<String> getDataFormats() {
+            return Set.of(format.name());
+        }
+
+        @Override
+        public long getLastWriterGeneration() {
+            return generation;
+        }
+
+        @Override
+        public String serializeToString() {
+            return "mock-snapshot-" + generation;
+        }
+
+        @Override
+        public void setUserData(Map<String, String> userData) {}
+
+        @Override
+        public Object getReader(DataFormat dataFormat) {
+            return null;
+        }
+
+        @Override
+        public MockCatalogSnapshot clone() {
+            return new MockCatalogSnapshot(generation, segments, format);
+        }
+
+        @Override
+        protected void closeInternal() {}
+    }
 }

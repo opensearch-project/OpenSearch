@@ -288,14 +288,16 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> map) {}
-
-        @Override
-        public void setUserData(Map<String, String> userData, boolean b) {}
+        public void setUserData(Map<String, String> userData) {}
 
         @Override
         public Object getReader(DataFormat dataFormat) {
             return null;
+        }
+
+        @Override
+        public MockCatalogSnapshot clone() {
+            return new MockCatalogSnapshot(generation, segments, format);
         }
 
         @Override

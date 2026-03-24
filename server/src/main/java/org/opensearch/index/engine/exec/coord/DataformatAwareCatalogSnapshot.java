@@ -1,0 +1,231 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.exec.coord;
+
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.BytesStreamInput;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.CatalogSnapshot;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Concrete implementation of {@link CatalogSnapshot} for the composite multi-format engine.
+ * Holds segments grouped by data format, supports searchable file lookups across formats,
+ * and tracks snapshot metadata including user data and writer generation.
+ */
+@ExperimentalApi
+public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+
+    private final long id;
+    private final List<Segment> segments;
+    private final long lastWriterGeneration;
+    private Map<String, String> userData;
+
+    /**
+     * Constructs a new DataformatAwareCatalogSnapshot.
+     *
+     * @param id the unique snapshot identifier
+     * @param generation the monotonically increasing generation number
+     * @param version the schema version for serialization compatibility
+     * @param segments the list of segments in this snapshot
+     * @param lastWriterGeneration the generation of the last writer that contributed to this snapshot
+     * @param userData user-defined metadata key-value pairs
+     */
+    public DataformatAwareCatalogSnapshot(
+        long id,
+        long generation,
+        long version,
+        List<Segment> segments,
+        long lastWriterGeneration,
+        Map<String, String> userData
+    ) {
+        super("dataformat_aware_catalog_snapshot", generation, version);
+        this.id = id;
+        this.segments = Collections.unmodifiableList(new ArrayList<>(segments));
+        this.lastWriterGeneration = lastWriterGeneration;
+        this.userData = Map.copyOf(userData);
+    }
+
+    /**
+     * Constructs a DataformatAwareCatalogSnapshot from a {@link StreamInput}.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs
+     */
+    public DataformatAwareCatalogSnapshot(StreamInput in) throws IOException {
+        super(in);
+
+        // Read userData map
+        int userDataSize = in.readVInt();
+        this.userData = new HashMap<>();
+        for (int i = 0; i < userDataSize; i++) {
+            String key = in.readString();
+            String value = in.readString();
+            userData.put(key, value);
+        }
+
+        this.id = in.readLong();
+        this.lastWriterGeneration = in.readLong();
+
+        int segmentCount = in.readVInt();
+        List<Segment> segmentList = new ArrayList<>(segmentCount);
+        for (int i = 0; i < segmentCount; i++) {
+            long segGeneration = in.readLong();
+            int formatCount = in.readVInt();
+            Map<String, WriterFileSet> dfGrouped = new HashMap<>(formatCount);
+            for (int j = 0; j < formatCount; j++) {
+                String formatName = in.readString();
+                String directory = in.readString();
+                long writerGeneration = in.readLong();
+                List<String> fileList = in.readStringList();
+                long numRows = in.readLong();
+                dfGrouped.put(formatName, new WriterFileSet(directory, writerGeneration, new HashSet<>(fileList), numRows));
+            }
+            segmentList.add(new Segment(segGeneration, dfGrouped));
+        }
+        this.segments = Collections.unmodifiableList(segmentList);
+    }
+
+    @Override
+    public long getId() {
+        return id;
+    }
+
+    @Override
+    public List<Segment> getSegments() {
+        return segments;
+    }
+
+    @Override
+    public Collection<WriterFileSet> getSearchableFiles(String dataFormat) {
+        List<WriterFileSet> result = new ArrayList<>();
+        for (Segment segment : segments) {
+            WriterFileSet writerFileSet = segment.dfGroupedSearchableFiles().get(dataFormat);
+            if (writerFileSet != null) {
+                result.add(writerFileSet);
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public Set<String> getDataFormats() {
+        Set<String> formats = new HashSet<>();
+        for (Segment segment : segments) {
+            formats.addAll(segment.dfGroupedSearchableFiles().keySet());
+        }
+        return formats;
+    }
+
+    @Override
+    public long getLastWriterGeneration() {
+        return lastWriterGeneration;
+    }
+
+    @Override
+    public Map<String, String> getUserData() {
+        return userData;
+    }
+
+    @Override
+    public void setUserData(Map<String, String> userData) {
+        this.userData = Map.copyOf(userData);
+    }
+
+    @Override
+    public String serializeToString() throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            this.writeTo(out);
+            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+        }
+    }
+
+    /**
+     * Deserializes a {@link DataformatAwareCatalogSnapshot} from a Base64-encoded binary string.
+     *
+     * @param serializedData the Base64 string produced by {@link #serializeToString()}
+     * @return a reconstructed {@link DataformatAwareCatalogSnapshot}
+     * @throws IOException if the data is malformed or missing required fields
+     */
+    public static DataformatAwareCatalogSnapshot deserializeFromString(String serializedData) throws IOException {
+        try {
+            byte[] bytes = Base64.getDecoder().decode(serializedData);
+            try (BytesStreamInput in = new BytesStreamInput(bytes)) {
+                return new DataformatAwareCatalogSnapshot(in);
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Failed to deserialize DataformatAwareCatalogSnapshot: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+
+        // Write userData map
+        if (userData == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(userData.size());
+            for (Map.Entry<String, String> entry : userData.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+        }
+
+        out.writeLong(id);
+        out.writeLong(lastWriterGeneration);
+
+        out.writeVInt(segments.size());
+        for (Segment seg : segments) {
+            out.writeLong(seg.generation());
+            out.writeVInt(seg.dfGroupedSearchableFiles().size());
+            for (Map.Entry<String, WriterFileSet> dfEntry : seg.dfGroupedSearchableFiles().entrySet()) {
+                out.writeString(dfEntry.getKey());
+                WriterFileSet wfs = dfEntry.getValue();
+                out.writeString(wfs.directory());
+                out.writeLong(wfs.writerGeneration());
+                out.writeStringCollection(wfs.files());
+                out.writeLong(wfs.numRows());
+            }
+        }
+    }
+
+    @Override
+    public DataformatAwareCatalogSnapshot clone() {
+        return new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData);
+    }
+
+    @Override
+    protected void closeInternal() {
+        // Subclass-specific resource cleanup. Map removal is handled by CatalogSnapshotManager.decRefAndRemove.
+    }
+
+    @Override
+    public Object getReader(DataFormat dataFormat) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+}
