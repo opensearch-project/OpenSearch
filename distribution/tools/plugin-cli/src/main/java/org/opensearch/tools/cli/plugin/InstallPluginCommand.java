@@ -274,7 +274,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final Path pluginZip = download(terminal, pluginId, env.tmpDir(), isBatch);
                 final Path extractedZip = unzip(pluginZip, env.pluginsDir());
                 deleteOnFailure.add(extractedZip);
-                final PluginInfo pluginInfo = installPlugin(terminal, isBatch, pluginId, extractedZip, env, deleteOnFailure);
+                final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName() + " with folder name " + pluginInfo.getTargetFolderName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
@@ -841,14 +841,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
      * If the plugin has a bin dir and/or a config dir, those are moved.
      */
-    private PluginInfo installPlugin(
-        Terminal terminal,
-        boolean isBatch,
-        String sourcePluginId,
-        Path tmpRoot,
-        Environment env,
-        List<Path> deleteOnFailure
-    ) throws Exception {
+    private PluginInfo installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot, Environment env, List<Path> deleteOnFailure)
+        throws Exception {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
         Path policy = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
