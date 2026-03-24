@@ -42,6 +42,14 @@ public interface StreamTransportResponse<T extends TransportResponse> extends Cl
     T nextResponse();
 
     /**
+     * Retrieves the next native batch from the stream without deserialization.
+     * Returns null when exhausted. Default returns null (unsupported).
+     */
+    default Object nextNativeBatch() {
+        return null;
+    }
+
+        /**
      * Cancels the stream due to client-side errors, timeouts, or early termination.
      * <p>
      * The {@code reason} should describe the cause (e.g., "Client timeout"), and

@@ -1,0 +1,21 @@
+[package]
+name = "analytics-datafusion-jni"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jni = "0.21"
+arrow = { version = "54", features = ["ffi"] }
+datafusion = "45"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+parquet = { version = "54", features = ["arrow"] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 2
+lto = "thin"

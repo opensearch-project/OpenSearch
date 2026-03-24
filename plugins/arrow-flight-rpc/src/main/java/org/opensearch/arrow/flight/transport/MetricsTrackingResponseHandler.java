@@ -126,6 +126,11 @@ class MetricsTrackingResponseHandler<T extends TransportResponse> implements Tra
         }
 
         @Override
+        public Object nextNativeBatch() {
+            return delegate.nextNativeBatch();
+        }
+
+                @Override
         public void cancel(String reason, Throwable cause) {
             try {
                 callTracker.recordCallEnd(StreamErrorCode.CANCELLED.name());

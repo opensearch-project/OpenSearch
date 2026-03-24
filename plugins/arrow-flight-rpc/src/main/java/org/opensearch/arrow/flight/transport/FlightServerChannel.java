@@ -39,7 +39,7 @@ import static org.opensearch.arrow.flight.transport.FlightErrorMapper.mapFromCal
  * TcpChannel implementation for Arrow Flight. It is created per call in ArrowFlightProducer.
  * This implementation is not thread safe; consumer must ensure to invoke sendBatch serially and call completeStream() at the end
  */
-class FlightServerChannel implements TcpChannel {
+public class FlightServerChannel implements TcpChannel {
     private static final String PROFILE_NAME = "flight";
 
     private final Logger logger = LogManager.getLogger(FlightServerChannel.class);
@@ -94,6 +94,40 @@ class FlightServerChannel implements TcpChannel {
      */
     public ExecutorService getExecutor() {
         return executor;
+    }
+
+    /**
+     * Sends a native Arrow batch directly, bypassing VectorStreamOutput serialization.
+     */
+    public void sendNativeBatch(ByteBuffer header, VectorSchemaRoot nativeRoot) {
+        if (cancelled) {
+            throw StreamException.cancelled("Cannot flush more batches. Stream cancelled by the client");
+        }
+        if (!open.get()) {
+            throw new IllegalStateException("FlightServerChannel already closed.");
+        }
+        batchNumber.incrementAndGet();
+        long batchStartTime = System.nanoTime();
+        if (root == null) {
+            middleware.setHeader(header);
+            root = nativeRoot;
+            serverStreamListener.start(root);
+        } else {
+            root = nativeRoot;
+        }
+        logger.debug("Sending native batch #{} for correlation ID: {}", batchNumber, correlationId);
+        serverStreamListener.putNext();
+        long putNextTime = (System.nanoTime() - batchStartTime) / 1_000_000;
+        if (callTracker != null) {
+            long rootSize = FlightUtils.calculateVectorSchemaRootSize(root);
+            callTracker.recordBatchSent(rootSize, System.nanoTime() - batchStartTime);
+            logger.debug(
+                "Native batch #{} sent for correlation ID: {}, size: {} bytes, putNext: {}ms",
+                batchNumber, correlationId, rootSize, putNextTime
+            );
+        } else {
+            logger.debug("Native batch #{} sent for correlation ID: {}, putNext: {}ms", batchNumber, correlationId, putNextTime);
+        }
     }
 
     /**

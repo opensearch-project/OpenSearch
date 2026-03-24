@@ -11,6 +11,8 @@ package org.opensearch.arrow.flight.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.search.query.QuerySearchResult;
@@ -18,8 +20,10 @@ import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.TcpTransportChannel;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
+import java.nio.ByteBuffer;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * The underlying TcpChannel is closed when release is called.
  * @opensearch.internal
  */
-class FlightTransportChannel extends TcpTransportChannel {
+public class FlightTransportChannel extends TcpTransportChannel {
     private static final Logger logger = LogManager.getLogger(FlightTransportChannel.class);
 
     private final AtomicBoolean streamOpen = new AtomicBoolean(true);
@@ -115,6 +119,33 @@ class FlightTransportChannel extends TcpTransportChannel {
         }
     }
 
+    /**
+     * Sends a native Arrow batch directly, bypassing VectorStreamOutput serialization.
+     */
+    public void sendNativeArrowBatch(VectorSchemaRoot nativeRoot) {
+        if (!streamOpen.get()) {
+            throw new StreamException(StreamErrorCode.UNAVAILABLE, "Stream is closed for requestId [" + requestId + "]");
+        }
+        try {
+            FlightServerChannel flightChannel = (FlightServerChannel) getChannel();
+            ByteBuffer header = ((FlightOutboundHandler) outboundHandler).getHeaderBuffer(requestId, version, features);
+            flightChannel.sendNativeBatch(header, nativeRoot);
+        } catch (StreamException e) {
+            release(true);
+            throw e;
+        } catch (Exception e) {
+            release(true);
+            throw new StreamException(StreamErrorCode.INTERNAL, "Error sending native arrow batch", e);
+        }
+    }
+
+    /**
+     * Returns the Arrow allocator from the underlying FlightServerChannel.
+     */
+    public BufferAllocator getAllocator() {
+        return ((FlightServerChannel) getChannel()).getAllocator();
+    }
+
     @Override
     public void completeStream() {
         if (streamOpen.compareAndSet(true, false)) {
@@ -143,6 +174,18 @@ class FlightTransportChannel extends TcpTransportChannel {
     @Override
     public String getChannelType() {
         return "stream-transport";
+    }
+
+
+    /**
+     * Makes this channel discoverable through the TransportChannel.get() delegation chain.
+     */
+    @Override
+    public <T> Optional<T> get(String name, Class<T> clazz) {
+        if (clazz.isInstance(this)) {
+            return Optional.of(clazz.cast(this));
+        }
+        return super.get(name, clazz);
     }
 
     public void releaseChannel(boolean isExceptionResponse) {
