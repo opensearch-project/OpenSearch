@@ -126,7 +126,19 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        command = wrapRunnable(command);
+        // Bind IndexInputScope per task. Wrap innermost so TimedRunnable/preserveContext
+        // layering is preserved for afterExecute unwrap.
+        final Runnable inner = command;
+        command = wrapRunnable(() -> {
+            final IndexInputScope scope = new IndexInputScope();
+            ScopedValue.where(IndexInputScope.SCOPE, scope).run(() -> {
+                try {
+                    inner.run();
+                } finally {
+                    scope.closeAll();
+                }
+            });
+        });
         try {
             super.execute(command);
         } catch (OpenSearchRejectedExecutionException ex) {
@@ -199,19 +211,7 @@ public class OpenSearchThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     protected Runnable wrapRunnable(Runnable command) {
-        // Bind IndexInputScope per task, then preserve ThreadContext on top.
-        // Order matters: preserveContext must be outermost so unwrap() works correctly.
-        final Runnable scoped = () -> {
-            final IndexInputScope scope = new IndexInputScope();
-            ScopedValue.where(IndexInputScope.SCOPE, scope).run(() -> {
-                try {
-                    command.run();
-                } finally {
-                    scope.closeAll();
-                }
-            });
-        };
-        return contextHolder.preserveContext(scoped);
+        return contextHolder.preserveContext(command);
     }
 
     protected Runnable unwrap(Runnable runnable) {
