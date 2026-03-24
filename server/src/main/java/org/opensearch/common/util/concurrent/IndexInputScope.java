@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.ScopedValue;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,6 +20,9 @@ import java.util.List;
  * Holds references to IndexInput clones/slices created during a thread pool task execution.
  * Bound via {@link ScopedValue} in {@link OpenSearchThreadPoolExecutor} so that all
  * registered IndexInputs are closed when the task completes.
+ *
+ * <p>For slices, {@code close()} only unpins the current block without setting
+ * {@code isOpen=false}, so merge threads that hold references can still use them.
  *
  * @opensearch.internal
  */
