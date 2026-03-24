@@ -32,18 +32,10 @@
 
 package org.opensearch.common.xcontent.smile;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.core.StreamReadFeature;
-import com.fasterxml.jackson.core.StreamWriteConstraints;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
-import com.fasterxml.jackson.dataformat.smile.SmileFactoryBuilder;
-import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
-
 import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XObjectReadContext;
+import org.opensearch.common.xcontent.XObjectWriteContext;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -57,6 +49,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
+
+import tools.jackson.core.JsonEncoding;
+import tools.jackson.core.StreamReadConstraints;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.core.StreamWriteConstraints;
+import tools.jackson.core.StreamWriteFeature;
+import tools.jackson.dataformat.smile.SmileFactory;
+import tools.jackson.dataformat.smile.SmileFactoryBuilder;
+import tools.jackson.dataformat.smile.SmileWriteFeature;
 
 /**
  * A Smile based content implementation using Jackson.
@@ -72,22 +73,22 @@ public class SmileXContent implements XContent, XContentConstraints {
     static {
         final SmileFactoryBuilder builder = new SmileFactoryBuilder(new SmileFactory());
         builder.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-
-        smileFactory = builder.build();
-        // for now, this is an overhead, might make sense for web sockets
-        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
-        smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        smileFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
-        smileFactory.setStreamReadConstraints(
+        builder.streamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        builder.streamReadConstraints(
             StreamReadConstraints.builder()
                 .maxStringLength(DEFAULT_MAX_STRING_LEN)
                 .maxNameLength(DEFAULT_MAX_NAME_LEN)
                 .maxNestingDepth(DEFAULT_MAX_DEPTH)
                 .build()
         );
-        smileFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        // for now, this is an overhead, might make sense for web sockets
+        builder.configure(SmileWriteFeature.ENCODE_BINARY_AS_7BIT, false);
+        // Do not automatically close unclosed objects/arrays in tools.jackson.dataformat.smile.SmileGenerator#close() method
+        builder.configure(StreamWriteFeature.AUTO_CLOSE_CONTENT, false);
+        builder.configure(StreamReadFeature.STRICT_DUPLICATE_DETECTION, true);
+        builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
+
+        smileFactory = builder.build();
         smileXContent = new SmileXContent();
     }
 
@@ -104,26 +105,32 @@ public class SmileXContent implements XContent, XContentConstraints {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
+        throws IOException {
+        return new SmileXContentGenerator(
+            smileFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            os,
+            includes,
+            excludes
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(content));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(data));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), data));
     }
 
     @Override
@@ -134,12 +141,16 @@ public class SmileXContent implements XContent, XContentConstraints {
         int offset,
         int length
     ) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(data, offset, length));
+        return new SmileXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            smileFactory.createParser(new XObjectReadContext(), data, offset, length)
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(reader));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), reader));
     }
 }

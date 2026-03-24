@@ -32,17 +32,10 @@
 
 package org.opensearch.common.xcontent.cbor;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.core.StreamReadFeature;
-import com.fasterxml.jackson.core.StreamWriteConstraints;
-import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-import com.fasterxml.jackson.dataformat.cbor.CBORFactoryBuilder;
-
 import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.XObjectReadContext;
+import org.opensearch.common.xcontent.XObjectWriteContext;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -58,6 +51,14 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import tools.jackson.core.JsonEncoding;
+import tools.jackson.core.StreamReadConstraints;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.core.StreamWriteConstraints;
+import tools.jackson.core.StreamWriteFeature;
+import tools.jackson.dataformat.cbor.CBORFactory;
+import tools.jackson.dataformat.cbor.CBORFactoryBuilder;
+
 /**
  * A CBOR based content implementation using Jackson.
  */
@@ -72,20 +73,20 @@ public class CborXContent implements XContent, XContentConstraints {
     static {
         final CBORFactoryBuilder builder = new CBORFactoryBuilder(new CBORFactory());
         builder.configure(CBORFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-
-        cborFactory = builder.build();
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
-        cborFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        cborFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        cborFactory.setStreamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
-        cborFactory.setStreamReadConstraints(
+        builder.streamWriteConstraints(StreamWriteConstraints.builder().maxNestingDepth(DEFAULT_MAX_DEPTH).build());
+        builder.streamReadConstraints(
             StreamReadConstraints.builder()
                 .maxStringLength(DEFAULT_MAX_STRING_LEN)
                 .maxNameLength(DEFAULT_MAX_NAME_LEN)
                 .maxNestingDepth(DEFAULT_MAX_DEPTH)
                 .build()
         );
-        cborFactory.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER.mappedFeature(), true);
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.cbor.CBORGenerator#close() method
+        builder.configure(StreamWriteFeature.AUTO_CLOSE_CONTENT, false);
+        builder.configure(StreamReadFeature.STRICT_DUPLICATE_DETECTION, true);
+        builder.configure(StreamReadFeature.USE_FAST_DOUBLE_PARSER, true);
+
+        cborFactory = builder.build();
         cborXContent = new CborXContent();
     }
 
@@ -102,26 +103,32 @@ public class CborXContent implements XContent, XContentConstraints {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
+        throws IOException {
+        return new CborXContentGenerator(
+            cborFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            os,
+            includes,
+            excludes
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(content));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(data));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), data));
     }
 
     @Override
@@ -132,13 +139,17 @@ public class CborXContent implements XContent, XContentConstraints {
         int offset,
         int length
     ) throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(data, offset, length));
+        return new CborXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            cborFactory.createParser(new XObjectReadContext(), data, offset, length)
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(reader));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), reader));
     }
 
 }
