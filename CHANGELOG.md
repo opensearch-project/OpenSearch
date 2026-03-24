@@ -88,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:gradle-info-plugin` to 16.2.1 ([#20825](https://github.com/opensearch-project/OpenSearch/pull/20825))
 - Bump `com.sun.xml.bind:jaxb-impl` from 4.0.6 to 4.0.7 ([#20886](https://github.com/opensearch-project/OpenSearch/pull/20886))
 - Bump `lycheeverse/lychee-action` from 2.7.0 to 2.8.0 ([#20888](https://github.com/opensearch-project/OpenSearch/pull/20888))
+- Update Jackson to 2.21.2 ([#20989](https://github.com/opensearch-project/OpenSearch/pull/20989))
 
 ### Removed
 
