@@ -31,7 +31,7 @@ public class TieredStoragePrefetchSettingsTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("StormbornPrefetchSettingsTests");
+        threadPool = new TestThreadPool("TieredStoragePrefetchSettingsTests");
         Set<Setting<?>> clusterSettingsToAdd = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         clusterSettingsToAdd.add(TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT);
         clusterSettingsToAdd.add(TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING);

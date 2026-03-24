@@ -32,49 +32,16 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * Plugin to support writable warm index and other related features
+ * Plugin to support writable warm index and other related features.
  */
-public class TieredStoragePlugin extends Plugin { // implements IndexStorePlugin, ActionPlugin, TelemetryAwarePlugin //
+public class TieredStoragePlugin extends Plugin {
 
     /**
      * Default constructor.
      */
     public TieredStoragePlugin() {}
 
-    /**
-     * Index type for optimised downloads on hot indices.
-     */
-    // public static final String HOT_BLOCK_EAGER_FETCH_INDEX_TYPE = "hot_block_eager_fetch";
-    // private static final String REMOTE_DOWNLOAD = "remote_download";
-    // private final SetOnce<ThreadPool> threadpool = new SetOnce<>();
-    // public static final String TIERED_COMPOSITE_INDEX_TYPE = "tiered-storage";
     private TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
-    // private TierActionMetrics tierActionMetrics;
-
-    // private final List<Setting<?>> tieredStorageSettings = Stream.concat(
-    // Stream.of(
-    // // TieringUtils.H2W_MAX_CONCURRENT_TIEIRNG_REQUESTS,
-    // // TieringUtils.W2H_MAX_CONCURRENT_TIEIRNG_REQUESTS,
-    // // TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
-    // // TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
-    // TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
-    // TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
-    // ),
-    // // TIERED_STORAGE_SEARCH_SLOWLOG_SETTINGS.stream()
-    // ).toList();
-
-    // @Override
-    // public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
-    // return Collections.emptyMap();
-    // }
-
-    // @Override
-    // public Map<String, IndexStorePlugin.CompositeDirectoryFactory> getCompositeDirectoryFactories() {
-    // final Map<String, IndexStorePlugin.CompositeDirectoryFactory> registry = new HashMap<>();
-    // registry.put(HOT_BLOCK_EAGER_FETCH_INDEX_TYPE, new OSBlockHotDirectoryFactory(() -> threadpool.get()));
-    // registry.put(TIERED_COMPOSITE_INDEX_TYPE, new TieredDirectoryFactory(getPrefetchSettingsSupplier()));
-    // return registry;
-    // }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -84,21 +51,6 @@ public class TieredStoragePlugin extends Plugin { // implements IndexStorePlugin
         );
     }
 
-    // public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-    // final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
-    // ExecutorBuilder<?> executorBuilder = new ScalingExecutorBuilder(
-    // REMOTE_DOWNLOAD,
-    // 1,
-    // ThreadPool.twiceAllocatedProcessors(allocatedProcessors),
-    // TimeValue.timeValueMinutes(5)
-    // );
-    // return List.of(executorBuilder);
-    // }
-
-    // public ThreadPool getThreadpool() {
-    // return threadpool.get();
-    // }
-
     /**
      * Returns a supplier for the tiered storage prefetch settings.
      * @return supplier of {@link TieredStoragePrefetchSettings}
@@ -106,40 +58,6 @@ public class TieredStoragePlugin extends Plugin { // implements IndexStorePlugin
     public Supplier<TieredStoragePrefetchSettings> getPrefetchSettingsSupplier() {
         return () -> this.tieredStoragePrefetchSettings;
     }
-
-    // @Override
-    // public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-    // if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
-    // return List.of(
-    // new ActionHandler<>(HotToWarmTierAction.INSTANCE, TransportHotToWarmTierAction.class),
-    // new ActionHandler<>(WarmToHotTierAction.INSTANCE, TransportWarmToHotTierAction.class),
-    // new ActionHandler<>(CancelTieringAction.INSTANCE, TransportCancelTierAction.class),
-    // new ActionHandler<>(ListTieringStatusAction.INSTANCE, TransportListTieringStatusAction.class),
-    // new ActionHandler<>(GetTieringStatusAction.INSTANCE, TransportGetTieringStatusAction.class));
-    // } else {
-    // return List.of();
-    // }
-    // }
-
-    // @Override
-    // public List<RestHandler> getRestHandlers(
-    // Settings settings, RestController restController,
-    // ClusterSettings clusterSettings,
-    // IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-    // IndexNameExpressionResolver indexNameExpressionResolver,
-    // Supplier<DiscoveryNodes> nodesInCluster
-    // ) {
-    // if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
-    // return List.of(
-    // new RestHotToWarmTierAction(),
-    // new RestWarmToHotTierAction(),
-    // new RestCancelTierAction(),
-    // new RestGetTieringStatusAction(),
-    // new RestListTieringStatusAction());
-    // } else {
-    // return List.of();
-    // }
-    // }
 
     @Override
     public Collection<Object> createComponents(
@@ -154,36 +72,15 @@ public class TieredStoragePlugin extends Plugin { // implements IndexStorePlugin
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
-        // Tracer tracer,
-        // MetricsRegistry metricsRegistry
     ) {
-        // this.tierActionMetrics = new TierActionMetrics(metricsRegistry);
         this.tieredStoragePrefetchSettings = new TieredStoragePrefetchSettings(clusterService.getClusterSettings());
-        // this.threadpool.set(threadPool);
         return Collections.emptyList();
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
-            // indexModule.addSearchOperationListener(new TieredStorageSearchSlowLog(indexModule.getIndexSettings()));
             indexModule.addSearchOperationListener(new StoredFieldsPrefetch(getPrefetchSettingsSupplier()));
         }
     }
-
-    // @Override
-    // public Collection<Module> createGuiceModules() {
-    // List<Module> modules = new ArrayList<>();
-    // if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
-    // modules.add(new AbstractModule() {
-    // @Override
-    // protected void configure() {
-    // bind(HotToWarmTieringService.class).asEagerSingleton();
-    // bind(WarmToHotTieringService.class).asEagerSingleton();
-    // bind(TierActionMetrics.class).toInstance(tierActionMetrics);
-    // }
-    // });
-    // }
-    // return Collections.unmodifiableCollection(modules);
-    // }
 }

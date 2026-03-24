@@ -17,6 +17,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.util.BitSet;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.SearchContext;
@@ -42,14 +43,9 @@ public class StoredFieldsPrefetch implements SearchOperationListener {
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
-        // Based on cluster settings
         if (checkIfStoredFieldsPrefetchEnabled()) {
             executePrefetch(searchContext);
-            // TieredStorageQueryMetricService.getInstance().recordStoredFieldsPrefetch(true);
         }
-        // else {
-        // TieredStorageQueryMetricService.getInstance().recordStoredFieldsPrefetch(false);
-        // }
     }
 
     private void executePrefetch(SearchContext context) {
@@ -98,7 +94,7 @@ public class StoredFieldsPrefetch implements SearchOperationListener {
                 }
                 currentReader.prefetch(subDocId);
             } catch (Exception e) {
-                log.warn("Failed to prefetch stored fields for docId: " + docId, e);
+                throw ExceptionsHelper.convertToOpenSearchException(e);
             }
         }
     }
