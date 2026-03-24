@@ -8,56 +8,45 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.SearchExecEngine;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
 /**
  * DataFusion-backed search execution engine.
  * <p>
- * Converts logical plan fragments to Substrait, executes them via the native
- * DataFusion runtime, and returns results as a {@link DatafusionResultStream}.
+ * Delegates execution to the native DataFusion runtime via {@link DatafusionSearcher}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionContext, byte[], DatafusionResultStream> {
+public class DatafusionSearchExecEngine implements SearchExecEngine {
 
-    private final NativeRuntimeHandle nativeRuntime;
+    private final DatafusionContext datafusionContext;
 
-    public DatafusionSearchExecEngine(NativeRuntimeHandle nativeRuntime, DataFormat dataFormat) {
-        this.nativeRuntime = nativeRuntime;
+    public DatafusionSearchExecEngine(DatafusionContext datafusionContext) {
+        this.datafusionContext = datafusionContext;
     }
 
     @Override
-    public byte[] convertFragment(Object fragment) {
+    public void prepare(ExecutionContext requestContext) {
         // TODO: wire Substrait conversion (RelNode → Substrait bytes)
-        throw new UnsupportedOperationException("Substrait conversion not yet wired");
+        byte[] substraitBytes = null;
+        datafusionContext.setDatafusionQuery(new DatafusionQuery(requestContext.getTableName(), substraitBytes));
     }
 
     @Override
-    public DatafusionContext createContext(
-        Object reader,
-        byte[] plan,
-        ShardSearchRequest request,
-        SearchShardTarget shardTarget,
-        SearchShardTask task
-    ) throws IOException {
-        DatafusionReader dfReader = (DatafusionReader) reader;
-        DatafusionContext context = new DatafusionContext(request, shardTarget, dfReader, nativeRuntime);
-        context.setDatafusionQuery(new DatafusionQuery("", plan));
-        return context;
+    public EngineResultStream execute(ExecutionContext requestContext) throws IOException {
+        DatafusionSearcher searcher = datafusionContext.getSearcher();
+        searcher.search(datafusionContext);
+        return new DatafusionResultStream(datafusionContext.getStreamHandle());
     }
 
     @Override
-    public DatafusionResultStream execute(DatafusionContext context) throws IOException {
-        DatafusionSearcher searcher = context.getEngineSearcher();
-        searcher.search(context);
-        return new DatafusionResultStream(context.getStreamHandle());
+    public void close() throws IOException {
+        datafusionContext.close();
     }
 }

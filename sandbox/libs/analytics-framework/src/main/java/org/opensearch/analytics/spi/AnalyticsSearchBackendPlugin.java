@@ -8,13 +8,17 @@
 
 package org.opensearch.analytics.spi;
 
-import org.apache.calcite.sql.SqlOperatorTable;
-import org.opensearch.analytics.backend.EngineBridge;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.SearchExecEngine;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * SPI extension point for back-end query engines (DataFusion, Lucene, etc.).
@@ -25,16 +29,14 @@ public interface AnalyticsSearchBackendPlugin {
     /** Unique engine name (e.g., "lucene", "datafusion"). */
     String name();
 
-    /**
-     * Creates a per-query bridge bound to the given reader.
-     *
-     * @param reader the format-specific reader from the composite reader
-     * @return a bridge for this query, caller must close when done
-     */
-    EngineBridge<?, ?, ?> bridge(DataFormat format, Object reader, SearchExecEngine<?, ?, ?> engine) throws IOException;
+    /** Creates a searcher bound to the given reader snapshot. */
+    SearchExecEngine searcher(ExecutionContext ctx);
 
     /** Supported functions as a Calcite operator table, or null if the back-end adds no functions. */
-    SqlOperatorTable operatorTable();
+    /** Returns the set of RelNode operator classes this backend supports. */
+    default Set<Class<? extends RelNode>> supportedOperators() {
+        return Set.of(LogicalTableScan.class, LogicalFilter.class, LogicalAggregate.class, LogicalProject.class);
+    }
 
     // TODO : remove this ?
     List<DataFormat> getSupportedFormats();

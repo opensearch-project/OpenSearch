@@ -8,8 +8,8 @@
 
 package org.opensearch.search;
 
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.Closeable;
 
@@ -19,9 +19,10 @@ import java.io.Closeable;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface SearchExecutionContext extends Closeable {
+public interface SearchExecutionContext<S> extends Closeable {
 
-    ShardSearchRequest request();
+    SearchShardTask task();
 
-    SearchShardTarget shardTarget();
+    S getSearcher();
+
 }

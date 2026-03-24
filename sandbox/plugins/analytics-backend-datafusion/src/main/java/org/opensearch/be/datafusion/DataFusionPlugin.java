@@ -8,10 +8,10 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.backend.EngineBridge;
+import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -23,7 +23,6 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -46,7 +45,7 @@ import java.util.function.Supplier;
  * per-shard {@link DatafusionSearchExecEngine} instances via the
  * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, AnalyticsSearchBackendPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -104,26 +103,18 @@ public class DataFusionPlugin extends Plugin implements AnalyticsSearchBackendPl
     }
 
     @Override
-    public EngineBridge<?, ?, ?> bridge(DataFormat format, Object reader, SearchExecEngine<?, ?, ?> engine) throws IOException {
-        return new DataFusionBridge((DatafusionSearchExecEngine) engine, (DatafusionReader) reader);
-    }
-
-    @Override
-    public SqlOperatorTable operatorTable() {
-        return null;
+    public SearchExecEngine searcher(ExecutionContext ctx) {
+        // TODO: resolve DataFormat properly instead of passing null
+        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().getReader(null);
+        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+        DatafusionSearchExecEngine datafusionSearchExecEngine = new DatafusionSearchExecEngine(context);
+        datafusionSearchExecEngine.prepare(ctx);
+        return datafusionSearchExecEngine;
     }
 
     @Override
     public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
         return new DatafusionReaderManager(format, shardPath);
-    }
-
-    @Override
-    public SearchExecEngine<?, ?, ?> createSearchExecEngine(DataFormat format, ShardPath shardPath) throws IOException {
-        if (dataFusionService == null) {
-            throw new IllegalStateException("DataFusionPlugin.createComponents() has not been called yet");
-        }
-        return new DatafusionSearchExecEngine(dataFusionService.getNativeRuntime(), format);
     }
 
     /**

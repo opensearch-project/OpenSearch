@@ -11,10 +11,9 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
@@ -24,57 +23,37 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchContext implements SearchExecutionContext {
+public class LuceneSearchContext implements SearchExecutionContext<LuceneEngineSearcher> {
 
-    private final ShardSearchRequest request;
-    private final SearchShardTarget shardTarget;
-
+    private final SearchShardTask task;
     private final DirectoryReader reader;
     private final LuceneEngineSearcher searcher;
     private Query query;
 
-    public LuceneSearchContext(ShardSearchRequest request, SearchShardTarget shardTarget, DirectoryReader reader) throws IOException {
+    public LuceneSearchContext(SearchShardTask task, DirectoryReader reader, Query query) throws IOException {
         this.reader = reader;
         IndexSearcher indexSearcher = new IndexSearcher(reader);
         this.searcher = new LuceneEngineSearcher(indexSearcher, reader);
-        this.request = request;
-        this.shardTarget = shardTarget;
+        this.task = task;
+        this.query = query;
     }
 
     public Query getQuery() {
         return query;
     }
 
-    public DirectoryReader getReader() {
-        return reader;
+    @Override
+    public SearchShardTask task() {
+        return task;
+    }
+
+    @Override
+    public LuceneEngineSearcher getSearcher() {
+        return searcher;
     }
 
     public void setQuery(Query query) {
         this.query = query;
-    }
-
-    /**
-     * Returns the number of segments for the registered weight.
-     */
-    public int getSegmentCount() {
-        return -1;
-    }
-
-    /**
-     * Returns the max doc array for all segments of the registered weight.
-     */
-    public int[] getSegmentMaxDocs() {
-        return null;
-    }
-
-    @Override
-    public ShardSearchRequest request() {
-        return request;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
     }
 
     @Override

@@ -8,20 +8,15 @@
 
 package org.opensearch.index.engine;
 
-import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.IndexFilterProvider;
-import org.opensearch.index.engine.exec.SearchExecEngine;
-import org.opensearch.index.engine.exec.SourceProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,50 +33,18 @@ import java.util.Map;
 public class DataFormatAwareEngine implements Closeable {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
-    private final Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?, ?>, IOException>> engineSuppliers;
-    private final Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers;
-    private final Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers;
     private volatile CatalogSnapshot latestSnapshot;
 
     /**
      * Constructs a new CompositeEngine with pre-built maps.
      * Prefer using {@link DataFormatAwareEngineFactory#create()}.
      */
-    public DataFormatAwareEngine(
-        Map<DataFormat, EngineReaderManager<?>> readerManagers,
-        Map<DataFormat, CheckedSupplier<SearchExecEngine<?, ?, ?>, IOException>> engineSuppliers,
-        Map<DataFormat, CheckedSupplier<IndexFilterProvider<?, ?, ?>, IOException>> indexFilterProviderSuppliers,
-        Map<DataFormat, CheckedSupplier<SourceProvider<?, ?, ?>, IOException>> sourceProviderSuppliers
-    ) {
+    public DataFormatAwareEngine(Map<DataFormat, EngineReaderManager<?>> readerManagers) {
         this.readerManagers = readerManagers;
-        this.engineSuppliers = engineSuppliers;
-        this.indexFilterProviderSuppliers = indexFilterProviderSuppliers;
-        this.sourceProviderSuppliers = sourceProviderSuppliers;
     }
 
     public EngineReaderManager<?> getReaderManager(DataFormat format) {
         return readerManagers.get(format);
-    }
-
-    public SearchExecEngine<?, ?, ?> getSearchExecEngine(DataFormat format) throws IOException {
-        return getFromSupplier(engineSuppliers, format, "search exec engine");
-    }
-
-    public IndexFilterProvider<?, ?, ?> getIndexFilterProvider(DataFormat format) throws IOException {
-        return getFromSupplier(indexFilterProviderSuppliers, format, "index filter provider");
-    }
-
-    public SourceProvider<?, ?, ?> getSourceProvider(DataFormat format) throws IOException {
-        return getFromSupplier(sourceProviderSuppliers, format, "source provider");
-    }
-
-    private <T> T getFromSupplier(Map<DataFormat, CheckedSupplier<T, IOException>> suppliers, DataFormat format, String label)
-        throws IOException {
-        CheckedSupplier<T, IOException> supplier = suppliers.get(format);
-        if (supplier == null) {
-            throw new IllegalArgumentException("No " + label + " registered for format: " + format.name());
-        }
-        return supplier.get();
     }
 
     /**
@@ -160,9 +123,6 @@ public class DataFormatAwareEngine implements Closeable {
     @Override
     public void close() throws IOException {
         List<Exception> exceptions = new ArrayList<>();
-        closeSupplierInstances(engineSuppliers.values(), exceptions);
-        closeSupplierInstances(indexFilterProviderSuppliers.values(), exceptions);
-        closeSupplierInstances(sourceProviderSuppliers.values(), exceptions);
         for (EngineReaderManager<?> rm : readerManagers.values()) {
             if (rm instanceof Closeable) {
                 try {
@@ -178,23 +138,6 @@ public class DataFormatAwareEngine implements Closeable {
                 ioException.addSuppressed(e);
             }
             throw ioException;
-        }
-    }
-
-    /**
-     * Attempts to retrieve each memoized instance and close it if it implements {@link Closeable}.
-     * Suppliers that were never invoked will return quickly from the memoize wrapper.
-     */
-    private static <T> void closeSupplierInstances(Collection<CheckedSupplier<T, IOException>> suppliers, List<Exception> exceptions) {
-        for (CheckedSupplier<T, IOException> supplier : suppliers) {
-            try {
-                T instance = supplier.get();
-                if (instance instanceof Closeable) {
-                    ((Closeable) instance).close();
-                }
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
         }
     }
 }

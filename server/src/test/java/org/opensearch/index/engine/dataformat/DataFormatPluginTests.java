@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.Version;
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -17,15 +16,11 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.SearchExecEngine;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.search.SearchExecutionContext;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -419,58 +414,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
     }
 
     /**
-     * write → refresh → catalog snapshot → DataFormatAwareEngine → acquireReader → search.
-     */
-    public void testWritePathToSearchExecEngine() throws IOException {
-        MockDataFormat format = new MockDataFormat();
-        MockIndexingExecutionEngine indexEngine = new MockIndexingExecutionEngine(format);
-
-        Writer<MockDocumentInput> w = indexEngine.createWriter(1L);
-        MockDocumentInput d1 = indexEngine.newDocumentInput();
-        d1.addField(mock(MappedFieldType.class), "Alice");
-        d1.setRowId("_row_id", 0);
-        w.addDoc(d1);
-        MockDocumentInput d2 = indexEngine.newDocumentInput();
-        d2.addField(mock(MappedFieldType.class), "Bob");
-        d2.setRowId("_row_id", 1);
-        w.addDoc(d2);
-        WriterFileSet fs = w.flush().getWriterFileSet(format).get();
-        w.close();
-
-        RefreshResult refreshResult = indexEngine.refresh(RefreshInput.builder().addWriterFileSet(fs).build());
-        MockCatalogSnapshot snapshot = new MockCatalogSnapshot(1L, refreshResult.refreshedSegments(), format);
-
-        MockReaderManager readerManager = new MockReaderManager(format.name());
-        readerManager.afterRefresh(true, snapshot);
-
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
-            Map.of(format, readerManager),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
-        // setLatestSnapshot incRefs snapshot (refcount: 1 initial + 1 engine = 2)
-        dataFormatAwareEngine.setLatestSnapshot(snapshot);
-
-        // acquireReader incRefs again (refcount: 3)
-        try (DataFormatAwareEngine.DataFormatAwareReader cr = dataFormatAwareEngine.acquireReader()) {
-            MockReader reader = (MockReader) cr.getReader(format);
-            assertNotNull(reader);
-            assertEquals(2, reader.totalRows);
-
-            MockSearchExecEngine searchEngine = new MockSearchExecEngine();
-            String plan = searchEngine.convertFragment("SELECT * FROM hits");
-            MockSearchContext ctx = searchEngine.createContext(reader, plan, null, null, null);
-            List<Object[]> results = searchEngine.execute(ctx);
-            assertEquals(2, results.size());
-            ctx.close();
-        }
-        // cr.close() decRefs. Snapshot still alive — engine owns the construction ref.
-        assertTrue(snapshot.tryIncRef());
-        snapshot.decRef(); // undo probe
-    }
-
-    /**
      * Search holds snapshot alive while refresh replaces it.
      * <p>
      * Timeline:
@@ -500,12 +443,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MockReaderManager readerManager = new MockReaderManager(format.name());
         readerManager.afterRefresh(true, snapshot1);
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
-            Map.of(format, readerManager),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format, readerManager));
         dataFormatAwareEngine.setLatestSnapshot(snapshot1); // takes over construction ref, refcount: 1
 
         // Search acquires reader — refcount: 2
@@ -591,12 +529,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         rm1.afterRefresh(true, snapshot);
         rm2.afterRefresh(true, snapshot);
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(
-            Map.of(format1, rm1, format2, rm2),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format1, rm1, format2, rm2));
         dataFormatAwareEngine.setLatestSnapshot(snapshot);
 
         try (DataFormatAwareEngine.DataFormatAwareReader cr = dataFormatAwareEngine.acquireReader()) {
@@ -672,57 +605,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         void close() {
             closed = true;
-        }
-    }
-
-    static class MockSearchContext implements SearchExecutionContext {
-        final String plan;
-        final long totalRows;
-
-        MockSearchContext(String plan, long totalRows) {
-            this.plan = plan;
-            this.totalRows = totalRows;
-        }
-
-        @Override
-        public ShardSearchRequest request() {
-            return null;
-        }
-
-        @Override
-        public SearchShardTarget shardTarget() {
-            return null;
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    static class MockSearchExecEngine implements SearchExecEngine<MockSearchContext, String, List<Object[]>> {
-        @Override
-        public String convertFragment(Object fragment) {
-            return "PLAN:" + fragment;
-        }
-
-        @Override
-        public MockSearchContext createContext(
-            Object reader,
-            String plan,
-            ShardSearchRequest request,
-            SearchShardTarget shardTarget,
-            SearchShardTask task
-        ) {
-            MockReader r = (MockReader) reader;
-            return new MockSearchContext(plan, r.totalRows);
-        }
-
-        @Override
-        public List<Object[]> execute(MockSearchContext context) {
-            List<Object[]> rows = new ArrayList<>();
-            for (int i = 0; i < context.totalRows; i++) {
-                rows.add(new Object[] { "row_" + i });
-            }
-            return rows;
         }
     }
 

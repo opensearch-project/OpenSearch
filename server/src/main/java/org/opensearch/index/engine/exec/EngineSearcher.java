@@ -19,7 +19,7 @@ import java.io.IOException;
  * <p>
  * Each engine implementation provides its own searcher that knows how to
  * execute queries against its reader. The searcher is acquired from
- * {@link SearchExecEngine} and used to execute searches against a
+ * the search execution engine and used to execute searches against a
  * point-in-time snapshot.
  *
  * @param <C> the context type this searcher operates on

@@ -94,17 +94,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     }
 
     private SqlOperatorTable aggregateOperatorTables() {
-        List<SqlOperatorTable> tables = new ArrayList<>();
-        for (AnalyticsSearchBackendPlugin backEnd : backEnds) {
-            SqlOperatorTable table = backEnd.operatorTable();
-            if (table != null) {
-                tables.add(table);
-            }
-        }
-        if (tables.isEmpty()) {
-            return SqlOperatorTables.of();
-        }
-        return SqlOperatorTables.chain(tables.toArray(new SqlOperatorTable[0]));
+        // TODO: re-wire once operatorTable() is added back to AnalyticsSearchBackendPlugin
+        return SqlOperatorTables.of();
     }
 
     /**

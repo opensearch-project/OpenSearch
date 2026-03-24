@@ -8,12 +8,11 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.search.SearchExecutionContext;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
@@ -26,36 +25,19 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DatafusionContext implements SearchExecutionContext {
+public class DatafusionContext implements SearchExecutionContext<DatafusionSearcher> {
 
-    private final ShardSearchRequest request;
-    private final SearchShardTarget shardTarget;
     private final DatafusionSearcher engineSearcher;
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
     private IndexFilterTree filterTree;
     private StreamHandle streamHandle;
+    private SearchShardTask task;
 
-    public DatafusionContext(
-        ShardSearchRequest request,
-        SearchShardTarget shardTarget,
-        DatafusionReader reader,
-        NativeRuntimeHandle nativeRuntime
-    ) throws IOException {
-        this.request = request;
-        this.shardTarget = shardTarget;
+    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+        this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
-    }
-
-    @Override
-    public ShardSearchRequest request() {
-        return request;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
     }
 
     @Override
@@ -74,12 +56,6 @@ public class DatafusionContext implements SearchExecutionContext {
                 engineSearcher.close();
             }
         }
-    }
-
-    // DataFusion-specific
-
-    public DatafusionSearcher getEngineSearcher() {
-        return engineSearcher;
     }
 
     /**
@@ -117,5 +93,15 @@ public class DatafusionContext implements SearchExecutionContext {
      */
     public void setStreamHandle(StreamHandle streamHandle) {
         this.streamHandle = streamHandle;
+    }
+
+    @Override
+    public SearchShardTask task() {
+        return task;
+    }
+
+    @Override
+    public DatafusionSearcher getSearcher() {
+        return engineSearcher;
     }
 }

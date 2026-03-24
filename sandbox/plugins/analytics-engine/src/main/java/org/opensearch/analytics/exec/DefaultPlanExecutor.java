@@ -12,17 +12,15 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.backend.EngineBridge;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.plan.ResolvedPlan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.engine.DataFormatAwareEngine;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +29,7 @@ import java.util.Set;
 /**
  * {@link QueryPlanExecutor} default implementation.
  * <p>
- * Acquires a composite reader, creates a per-query {@link EngineBridge}
+ * Acquires a composite reader, creates a per-query {@link org.opensearch.analytics.backend.SearchExecEngine}
  * bound to the reader, and delegates convert + execute to it.
  * No backend-specific context is exposed to this class.
  */
@@ -41,6 +39,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     private final Map<String, AnalyticsSearchBackendPlugin> backEnds;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
+    // TODO: - move out as data node side service
+    private final AnalyticsQueryService queryService;
 
     public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> plugins, IndicesService indicesService, ClusterService clusterService) {
         this.backEnds = new LinkedHashMap<>();
@@ -49,32 +49,31 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         }
         this.indicesService = indicesService;
         this.clusterService = clusterService;
+        this.queryService = new AnalyticsQueryService(backEnds);
+        // TODO : init planning components
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
-        AnalyticsSearchBackendPlugin plugin = selectBackEnd();
         String tableName = extractTableName(logicalFragment);
-        DataFormatAwareEngine engine = resolveCompositeEngine(tableName);
-
-        List<DataFormat> formats = plugin.getSupportedFormats();
-        DataFormat format = formats.get(0);
-
-        try (DataFormatAwareEngine.DataFormatAwareReader reader = engine.acquireReader()) {
-            EngineBridge bridge = plugin.bridge(format, reader.getReader(format), engine.getSearchExecEngine(format));
-            try {
-                Object plan = bridge.convertFragment(logicalFragment);
-                Object result = bridge.execute(plan);
-                // TODO: consume result stream into rows
-                logger.info("[DefaultPlanExecutor] Executed via [{}]", plugin.name());
-                return new ArrayList<>();
-            } finally {
-                bridge.close();
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Execution failed for [" + plugin.name() + "]", e);
+        IndexMetadata indexMetadata = clusterService.state().metadata().index(tableName);
+        if (indexMetadata == null) {
+            throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
         }
+        int shardCount = indexMetadata.getNumberOfShards();
+
+        ResolvedPlan plan = null; // TODO : queryPlanner.plan(logicalFragment, shardCount);
+
+        if ("unresolved".equals(plan.getPrimaryBackend())) {
+            throw new IllegalStateException("Planning did not resolve backend assignment for plan root");
+        }
+
+        logger.info("[DefaultPlanExecutor] Plan resolved to backend [{}]", plan.getPrimaryBackend());
+
+        IndexShard shard = resolveShard(tableName);
+        SearchShardTask task = null; // TODO : init task
+        return queryService.execute(plan, shard, task);
     }
 
     static String extractTableName(RelNode node) {
@@ -89,7 +88,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         throw new IllegalArgumentException("No TableScan found in plan fragment");
     }
 
-    private DataFormatAwareEngine resolveCompositeEngine(String indexName) {
+    private IndexShard resolveShard(String indexName) {
         IndexMetadata meta = clusterService.state().metadata().index(indexName);
         if (meta == null) throw new IllegalArgumentException("Index [" + indexName + "] not found");
         IndexService indexService = indicesService.indexService(meta.getIndex());
@@ -97,10 +96,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
         Set<Integer> shardIds = indexService.shardIds();
         if (shardIds.isEmpty()) throw new IllegalStateException("No shards for [" + indexName + "]");
         IndexShard shard = indexService.getShardOrNull(shardIds.iterator().next());
-        if (shard == null) throw new IllegalStateException("Shard not found");
-        DataFormatAwareEngine ce = shard.getCompositeEngine();
-        if (ce == null) throw new IllegalStateException("No CompositeEngine on shard");
-        return ce;
+        return shard;
     }
 
     private AnalyticsSearchBackendPlugin selectBackEnd() {
