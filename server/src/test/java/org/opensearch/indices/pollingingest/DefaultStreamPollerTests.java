@@ -1092,6 +1092,7 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
 
         // Wait for the poll loop to call updateWarmupStatus() which counts down the latch
         assertTrue("Warmup should complete after being dynamically disabled", warmupPoller.awaitWarmupComplete(30000));
+        assertTrue(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
     }
