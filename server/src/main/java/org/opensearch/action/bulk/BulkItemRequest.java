@@ -48,29 +48,26 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class BulkItemRequest implements Writeable, Accountable {
+public record BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemResponse primaryResponse) implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
-
-    private final int id;
-    private final DocWriteRequest<?> request;
-    private final BulkItemResponse primaryResponse;
 
     /**
      * @param shardId the shard id
      */
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        id = in.readVInt();
-        request = DocWriteRequest.readDocumentRequest(shardId, in);
+        this(in.readVInt(), DocWriteRequest.readDocumentRequest(shardId, in), readPrimaryResponse(shardId, in));
+    }
+
+    private static BulkItemResponse readPrimaryResponse(ShardId shardId, StreamInput in) throws IOException {
         if (in.readBoolean()) {
             if (shardId == null) {
-                primaryResponse = new BulkItemResponse(in);
+                return new BulkItemResponse(in);
             } else {
-                primaryResponse = new BulkItemResponse(shardId, in);
+                return new BulkItemResponse(shardId, in);
             }
-        } else {
-            primaryResponse = null;
         }
+        return null;
     }
 
     // NOTE: public for testing only
@@ -78,27 +75,9 @@ public class BulkItemRequest implements Writeable, Accountable {
         this(id, request, null);
     }
 
-    BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemResponse primaryResponse) {
-        this.id = id;
-        this.request = request;
-        this.primaryResponse = primaryResponse;
-    }
-
-    public int id() {
-        return id;
-    }
-
-    public DocWriteRequest<?> request() {
-        return request;
-    }
-
     public String index() {
         assert request.indices().length == 1;
         return request.indices()[0];
-    }
-
-    BulkItemResponse getPrimaryResponse() {
-        return primaryResponse;
     }
 
     @Override

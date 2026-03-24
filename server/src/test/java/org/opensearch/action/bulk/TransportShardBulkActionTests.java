@@ -173,7 +173,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Translog should change, since there were no problems
         assertNotNull(context.getLocationToSync());
 
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
 
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
@@ -206,7 +206,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemRequest replicaRequest = completedRequest.items()[0];
 
-        primaryResponse = replicaRequest.getPrimaryResponse();
+        primaryResponse = replicaRequest.primaryResponse();
 
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
@@ -287,7 +287,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // 1 for this execution)
         verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
 
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
@@ -337,7 +337,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Translog shouldn't be synced, as there were conflicting mappings
         assertThat(context.getLocationToSync(), nullValue());
 
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
 
         // Since this was not a conflict failure, the primary response
         // should be filled out with the failure information
@@ -383,7 +383,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemRequest replicaRequest = completedRequest.items()[0];
         DocWriteRequest<?> replicaDeleteRequest = replicaRequest.request();
-        BulkItemResponse primaryResponse = replicaRequest.getPrimaryResponse();
+        BulkItemResponse primaryResponse = replicaRequest.primaryResponse();
         DeleteResponse response = primaryResponse.getResponse();
 
         // Any version can be matched on replica
@@ -431,7 +431,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         replicaRequest = completedRequest.items()[0];
         replicaDeleteRequest = replicaRequest.request();
-        primaryResponse = replicaRequest.getPrimaryResponse();
+        primaryResponse = replicaRequest.primaryResponse();
         response = primaryResponse.getResponse();
 
         // Any version can be matched on replica
@@ -493,7 +493,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         // Basically nothing changes in the request since it's a noop
         assertThat(context.getLocationToSync(), nullValue());
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -548,7 +548,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // should be filled out with the failure information
         assertNull(context.getLocationToSync());
         BulkShardRequest completedRequest = context.getBulkShardRequest();
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -604,7 +604,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -666,7 +666,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(completedRequest.items()[0].request(), equalTo(updateResponse));
         // Since this was not a conflict failure, the primary response
         // should be filled out with the failure information
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -721,7 +721,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Check that the translog is successfully advanced
         assertThat(context.getLocationToSync(), equalTo(resultLocation));
         assertThat(completedRequest.items()[0].request(), equalTo(updateResponse));
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -757,7 +757,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertFalse(context.hasMoreOperationsToExecute());
 
         assertNull(context.getLocationToSync());
-        BulkItemResponse primaryResponse = completedRequest.items()[0].getPrimaryResponse();
+        BulkItemResponse primaryResponse = completedRequest.items()[0].primaryResponse();
         assertThat(primaryResponse.getItemId(), equalTo(0));
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -1151,7 +1151,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             listener -> listener.onResponse(null),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation));
-                BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
+                BulkItemResponse primaryResponse = result.replicaRequest().items()[0].primaryResponse();
                 assertThat(primaryResponse.getItemId(), equalTo(0));
                 assertThat(primaryResponse.getId(), equalTo("id"));
                 assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
@@ -1215,7 +1215,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 assertEquals(nItems, result.replicaRequest().items().length);
                 for (BulkItemRequest item : result.replicaRequest().items()) {
-                    assertEquals(VersionConflictEngineException.class, item.getPrimaryResponse().getFailure().getCause().getClass());
+                    assertEquals(VersionConflictEngineException.class, item.primaryResponse().getFailure().getCause().getClass());
                 }
                 completedRequest[0] = result.replicaRequest();
             }), latch),
@@ -1230,7 +1230,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
 
         for (BulkItemRequest item : completedRequest[0].items()) {
-            assertEquals(item.getPrimaryResponse().getFailure().getCause().getClass(), VersionConflictEngineException.class);
+            assertEquals(item.primaryResponse().getFailure().getCause().getClass(), VersionConflictEngineException.class);
 
             // this assertion is based on the assumption that all bulk item requests are updates and are hence calling
             // UpdateRequest::prepareRequest
@@ -1332,7 +1332,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
-            BulkItemResponse primaryResponse1 = completedRequest[0].items()[0].getPrimaryResponse();
+            BulkItemResponse primaryResponse1 = completedRequest[0].items()[0].primaryResponse();
             assertThat(primaryResponse1.getItemId(), equalTo(0));
             assertThat(primaryResponse1.getId(), equalTo("id"));
             assertThat(primaryResponse1.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
@@ -1340,13 +1340,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             assertThat(primaryResponse1.getResponse().status(), equalTo(RestStatus.CREATED));
             assertThat(primaryResponse1.getResponse().getSeqNo(), equalTo(10L));
 
-            BulkItemResponse primaryResponse2 = completedRequest[0].items()[1].getPrimaryResponse();
+            BulkItemResponse primaryResponse2 = completedRequest[0].items()[1].primaryResponse();
             assertThat(primaryResponse2.getItemId(), equalTo(1));
             assertThat(primaryResponse2.getId(), equalTo("id"));
             assertThat(primaryResponse2.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
             assertTrue(primaryResponse2.isFailed());
             assertNull(primaryResponse2.getResponse());
-            assertEquals(primaryResponse2.status(), RestStatus.TOO_MANY_REQUESTS);
+            assertEquals(RestStatus.TOO_MANY_REQUESTS, primaryResponse2.status());
             assertThat(primaryResponse2.getFailure().getCause(), instanceOf(OpenSearchRejectedExecutionException.class));
 
             closeShards(shard);

@@ -102,7 +102,7 @@ class BulkPrimaryExecutionContext {
 
     private int findNextNonAborted(int startIndex) {
         final int length = request.items().length;
-        while (startIndex < length && isAborted(request.items()[startIndex].getPrimaryResponse())) {
+        while (startIndex < length && isAborted(request.items()[startIndex].primaryResponse())) {
             startIndex++;
         }
         return startIndex;
@@ -135,7 +135,14 @@ class BulkPrimaryExecutionContext {
             BulkItemRequest oldRequest = request.items()[i];
             newRequests[i] = new BulkItemRequest(oldRequest.id(), oldRequest.request(), primaryResponses[i]);
         }
-        return new BulkShardRequest(request.shardId(), request.getRefreshPolicy(), newRequests);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), request.getRefreshPolicy(), newRequests);
+        // Clone other properties from primary shard request
+        // See TransportBulkAction.BulkOperation#doRun() for construction of the primary shard request.
+        bulkShardRequest.waitForActiveShards(request.waitForActiveShards());
+        bulkShardRequest.timeout(request.timeout());
+        bulkShardRequest.routedBasedOnClusterVersion(request.routedBasedOnClusterVersion());
+        bulkShardRequest.setParentTask(request.getParentTask());
+        return bulkShardRequest;
     }
 
     /** returns the result of the request that has been executed on the shard */
@@ -380,7 +387,7 @@ class BulkPrimaryExecutionContext {
             case COMPLETED:
                 assert requestToExecute != null;
                 assert executionResult != null;
-                assert getCurrentItem().getPrimaryResponse() != null;
+                assert getCurrentItem().primaryResponse() != null;
                 break;
         }
         return true;

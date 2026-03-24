@@ -860,9 +860,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
-            final BulkItemResponse response = item.getPrimaryResponse();
+            final BulkItemResponse response = item.primaryResponse();
             final Engine.Result operationResult;
-            if (item.getPrimaryResponse().isFailed()) {
+            if (item.primaryResponse().isFailed()) {
                 if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     continue; // ignore replication as we didn't generate a sequence number for this request.
                 }
