@@ -22,6 +22,26 @@ def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
   }
 }
 
+tasks.register("bwcTestSnapshots2x") {
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { task ->
+      BuildParams.bwcVersions.unreleased.any { version ->
+        bwcTaskName(version) == task.name && version.getMajor() == 2
+      }
+    }
+  }
+}
+
+tasks.register("bwcTestSnapshots3x") {
+  if (project.bwc_tests_enabled) {
+    dependsOn tasks.matching { task ->
+      BuildParams.bwcVersions.unreleased.any { version ->
+        bwcTaskName(version) == task.name && version.getMajor() == 3
+      }
+    }
+  }
+}
+
 tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
@@ -33,10 +53,6 @@ tasks.register("bwcTest") {
 
 tasks.withType(Test).configureEach {
   onlyIf { project.bwc_tests_enabled }
-}
-
-tasks.named("check").configure {
-  dependsOn(bwcTestSnapshots)
 }
 
 tasks.findByName("test")?.enabled = false

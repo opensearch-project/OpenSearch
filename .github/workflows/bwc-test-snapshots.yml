@@ -1,0 +1,66 @@
+name: Backward Compatibility Tests
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bwc-test-snapshots:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [ 'bwcTestSnapshots2x', 'bwcTestSnapshots3x' ]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v5
+        with:
+          java-version: 11
+          distribution: temurin
+
+      - name: Set JAVA11_HOME
+        run: echo "JAVA11_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Set JAVA17_HOME
+        run: echo "JAVA17_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: gradle
+
+      - name: Set JAVA21_HOME
+        run: echo "JAVA21_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
+      - name: Run ${{ matrix.task }}
+        run: ./gradlew ${{ matrix.task }}
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.task }}-test-results
+          path: ${{ matrix.task }}/build/reports/tests/
+          retention-days: 7
