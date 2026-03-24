@@ -1398,7 +1398,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         RefreshResponse actionGet = client().admin()
             .indices()
             .prepareRefresh(indices)
-            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
+            .setIndicesOptions(IndicesOptions.strictExpandOpenHiddenAndForbidClosed())
             .execute()
             .actionGet();
         assertNoFailures(actionGet);
