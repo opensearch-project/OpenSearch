@@ -116,7 +116,7 @@ jobs:
           echo "platforms=${platforms}" >> "$GITHUB_OUTPUT"
 
       - name: Download tarball
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: ${{ env.docker_path }}
           pattern: "wazuh-indexer_*linux*"

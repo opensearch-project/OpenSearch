@@ -157,7 +157,7 @@ jobs:
           java-version: 21
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Get version
         id: version
@@ -200,7 +200,7 @@ jobs:
           java-version: 21
 
       - name: Setup Gradle # Used for caching
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Get version
         id: version
@@ -235,7 +235,7 @@ jobs:
 
       # Download plugins
       - name: Download plugins
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         if: ${{ inputs.wazuh_plugins_ref != '' || inputs.reporting_plugin_ref != '' }}
         with:
           path: ./artifacts/plugins
@@ -251,7 +251,7 @@ jobs:
           java-version: 21
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Provision
         if: ${{ matrix.distribution == 'deb' }}

@@ -330,7 +330,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Restore Maven Local Cache
         uses: actions/cache/restore@v5
@@ -380,7 +380,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle # Used for caching
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Get version
         id: version
@@ -422,7 +422,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle # Used for caching
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Get version
         id: version
@@ -471,7 +471,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle # Used for caching
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Get version
         id: version
@@ -516,7 +516,7 @@ jobs:
 
       # Download plugins
       - name: Download plugins
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: wazuh-indexer-*.zip
           path: ./artifacts/plugins
@@ -524,7 +524,7 @@ jobs:
 
       # Download Wazuh Engine
       - name: Download Wazuh Engine
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: wazuh-engine-*-linux-${{ matrix.architecture == 'x64' && 'amd64' || 'arm64' }}
           merge-multiple: true
@@ -539,7 +539,7 @@ jobs:
           java-version: 25
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Provision
         run: |
