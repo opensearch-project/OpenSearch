@@ -52,7 +52,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         try {
             System.loadLibrary(NATIVE_LIBRARY_NAME);
         } catch (UnsatisfiedLinkError e) {
-            throw new IllegalStateException("Failed to load native library: " + NATIVE_LIBRARY_NAME, e);
+            logger.warn("Native library [{}] not found — DataFusion backend will be unavailable", NATIVE_LIBRARY_NAME);
+            return;
         }
 
         // TODO: initialize Tokio runtime and memory pool via NativeBridge

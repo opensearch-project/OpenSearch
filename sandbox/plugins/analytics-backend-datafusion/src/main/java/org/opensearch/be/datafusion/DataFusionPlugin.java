@@ -65,16 +65,12 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
         Setting.Property.NodeScope
     );
 
-    private final Settings settings;
     private volatile DataFusionService dataFusionService;
 
     /**
-     * Creates the DataFusion plugin with the given node settings.
-     * @param settings the node-level settings
+     * Creates the DataFusion plugin.
      */
-    public DataFusionPlugin(Settings settings) {
-        this.settings = settings;
-    }
+    public DataFusionPlugin() {}
 
     @Override
     public Collection<Object> createComponents(
@@ -90,6 +86,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
