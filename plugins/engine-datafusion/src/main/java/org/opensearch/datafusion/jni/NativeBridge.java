@@ -31,7 +31,6 @@ public final class NativeBridge {
     public static native void closeGlobalRuntime(long ptr);
 
     // Tokio runtime
-    public static native long startTokioRuntimeMonitoring();
     // Initialize tokio runtime manager once on startup
     public static native void initTokioRuntimeManager(int cpuThreads);
     // Shutdown tokio runtime manager on datafusion service
@@ -83,4 +82,7 @@ public final class NativeBridge {
      * Used to verify that sliced arrays across FFI boundary are handled correctly
      **/
     public static native void createTestSlicedArray(int offset, int length, ActionListener<long[]> listener);
+
+    // Single protobuf-encoded stats collection
+    public static native byte[] stats();
 }

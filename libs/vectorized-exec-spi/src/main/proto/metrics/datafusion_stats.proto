@@ -1,0 +1,32 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+syntax = "proto3";
+package vectorized.metrics;
+
+import "metrics/tokio_metrics.proto";
+
+option java_package = "org.opensearch.vectorized.execution.metrics.proto";
+option java_outer_classname = "DataFusionStatsProto";
+
+// Top-level stats message for the DataFusion plugin.
+// Encodes all runtime and task monitor metrics in a single protobuf payload
+// that crosses the JNI boundary as byte[].
+message DataFusionStats {
+  RuntimeMetrics io_runtime = 1;
+  RuntimeMetrics cpu_runtime = 2;  // absent if no CPU runtime configured
+  TaskMonitors task_monitors = 3;
+}
+
+// Aggregated task monitor metrics for all monitored task categories.
+message TaskMonitors {
+  TaskMonitorMetrics query_execution = 1;
+  TaskMonitorMetrics stream_next = 2;
+  TaskMonitorMetrics fetch_phase = 3;
+  TaskMonitorMetrics segment_stats = 4;
+}

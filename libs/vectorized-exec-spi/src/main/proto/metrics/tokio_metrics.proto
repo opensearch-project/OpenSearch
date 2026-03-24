@@ -1,0 +1,58 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+syntax = "proto3";
+package vectorized.metrics;
+
+option java_package = "org.opensearch.vectorized.execution.metrics.proto";
+option java_outer_classname = "TokioMetricsProto";
+
+// Snapshot of Tokio runtime metrics collected via Handle::metrics().
+// All counter fields are cumulative (monotonically increasing).
+// Queue-depth fields are point-in-time gauges.
+// New metrics get new field numbers (29+) without breaking existing consumers.
+message RuntimeMetrics {
+  uint64 workers_count = 1;
+  uint64 total_park_count = 2;
+  uint64 max_park_count = 3;
+  uint64 min_park_count = 4;
+  uint64 total_noop_count = 5;
+  uint64 max_noop_count = 6;
+  uint64 min_noop_count = 7;
+  uint64 total_steal_count = 8;
+  uint64 max_steal_count = 9;
+  uint64 min_steal_count = 10;
+  uint64 total_steal_operations = 11;
+  uint64 total_local_schedule_count = 12;
+  uint64 max_local_schedule_count = 13;
+  uint64 min_local_schedule_count = 14;
+  uint64 total_overflow_count = 15;
+  uint64 max_overflow_count = 16;
+  uint64 min_overflow_count = 17;
+  uint64 total_polls_count = 18;
+  uint64 max_polls_count = 19;
+  uint64 min_polls_count = 20;
+  uint64 total_busy_duration_ms = 21;
+  uint64 max_busy_duration_ms = 22;
+  uint64 min_busy_duration_ms = 23;
+  uint64 total_local_queue_depth = 24;
+  uint64 max_local_queue_depth = 25;
+  uint64 min_local_queue_depth = 26;
+  uint64 global_queue_depth = 27;
+  uint64 blocking_queue_depth = 28;
+}
+
+// Cumulative metrics from a single task monitor (tokio_metrics::TaskMetrics).
+message TaskMonitorMetrics {
+  uint64 total_poll_duration_ms = 1;
+  uint64 total_scheduled_duration_ms = 2;
+  uint64 total_idle_duration_ms = 3;
+  uint64 total_slow_poll_count = 4;
+  uint64 total_long_delay_count = 5;
+  double slow_poll_ratio = 6;
+}

@@ -6,6 +6,10 @@
  * compatible open source license.
  */
 
+plugins {
+  id('com.google.protobuf') version 'latest.release'
+}
+
 apply plugin: 'opensearch.build'
 
 description = 'Vectorized engine common interfaces for OpenSearch'
@@ -14,20 +18,63 @@ dependencies {
   api project(':libs:opensearch-core')
   api project(':libs:opensearch-common')
 
+  // protobuf for decoding native metrics from Rust (prost-encoded)
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
   // Log4j for RustLoggerBridge - used by JNI code to log from Rust
   implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'vectorized-exec-spi'
   }
+
+  // jqwik for property-based testing (requires JUnit 5 Platform)
+  testImplementation 'net.jqwik:jqwik-api:1.9.2'
+  testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+  testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.2'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.3'
+}
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
+  }
 }
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
+  ignoreViolations(
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+  )
+}
+
+tasks.named("filepermissions").configure {
+  mustRunAfter("generateProto")
+}
+
+tasks.named("licenseHeaders").configure {
+  dependsOn("generateProto")
+  // Ignore protobuf generated code
+  excludes << 'org/opensearch/vectorized/execution/metrics/proto/*'
+}
+
+tasks.named("sourcesJar").configure {
+  filesMatching("**/proto/*") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  }
 }
 
 jarHell.enabled = false
 
 test {
   systemProperty 'tests.security.manager', 'false'
+  useJUnitPlatform()
 }
