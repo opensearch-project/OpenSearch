@@ -1041,7 +1041,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         Property.IndexScope,
-        Property.Final
+        Property.Dynamic
     );
 
     /**
@@ -1054,7 +1054,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         100L,
         0L,
         Property.IndexScope,
-        Property.Final
+        Property.Dynamic
     );
 
     /**
