@@ -52,6 +52,26 @@ tasks.named('thirdPartyAudit').configure {
 
 def rustDir = file("${projectDir}/src/main/rust")
 
+def isCargoInstalled() {
+  def possiblePaths = [
+    System.getenv('HOME') + '/.cargo/bin/cargo',
+    '/usr/local/bin/cargo'
+  ]
+  for (String path : possiblePaths) {
+    if (new File(path).exists()) {
+      return true
+    }
+  }
+  try {
+    def process = 'which cargo'.execute()
+    process.waitFor()
+    return process.exitValue() == 0
+  } catch (Exception e) {
+    return false
+  }
+}
+
+// Resolves cargo path at execution time (after installRust may have run)
 def findCargo() {
   def possiblePaths = [
     System.getenv('HOME') + '/.cargo/bin/cargo',
@@ -66,22 +86,32 @@ def findCargo() {
   return 'cargo'
 }
 
+tasks.register('installRust', Exec) {
+  description = 'Install Rust toolchain via rustup if cargo is not available'
+  group = 'build'
+  onlyIf { !isCargoInstalled() }
+  commandLine 'sh', '-c', 'curl --proto \'=https\' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y'
+}
+
 tasks.register('buildRust', Exec) {
   description = 'Build the Rust JNI library using Cargo'
   group = 'build'
+  dependsOn installRust
   workingDir = rustDir
-
-  def cargoArgs = [findCargo(), 'build']
-  if (buildType == 'release') {
-    cargoArgs.add('--release')
-  }
-  commandLine cargoArgs
-
   environment 'CARGO_TARGET_DIR', file("${rustDir}/target").absolutePath
 
   inputs.files fileTree("${rustDir}/src")
   inputs.file "${rustDir}/Cargo.toml"
   outputs.dir "${rustDir}/target/${buildType}"
+
+  doFirst {
+    def cargoArgs = [findCargo(), 'build']
+    if (buildType == 'release') {
+      cargoArgs.add('--release')
+    }
+    executable cargoArgs[0]
+    args cargoArgs.drop(1)
+  }
 }
 
 tasks.register('copyNativeLib', Copy) {
@@ -109,8 +139,12 @@ tasks.register('copyNativeLib', Copy) {
 tasks.register('runNativeUnitTests', Exec) {
   description = 'Run Rust unit and integration tests'
   group = 'verification'
+  dependsOn installRust
   workingDir = rustDir
-  commandLine findCargo(), 'test'
+  doFirst {
+    executable findCargo()
+    args 'test'
+  }
 }
 
 // Wire Rust build into Java build lifecycle
