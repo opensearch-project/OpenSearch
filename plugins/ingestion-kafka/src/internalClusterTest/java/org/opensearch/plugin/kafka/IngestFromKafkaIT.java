@@ -1338,4 +1338,97 @@ public class IngestFromKafkaIT extends KafkaIngestionBaseIT {
                 && !docs.get("jkl").containsKey("expired");
         });
     }
+
+    public void testWarmupPhase() throws Exception {
+        // Step 1: Publish 10 messages before creating the index
+        for (int i = 0; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 2: Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with warmup enabled, lag_threshold=0, and long timeout
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.lag_threshold", 0)
+                .put("ingestion_source.warmup.timeout", "10m")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for poller to enter POLLING state (warmup complete)
+        waitForState(() -> {
+            GetIngestionStateResponse ingestionState = getIngestionState(indexName);
+            return ingestionState.getShardStates().length == 1
+                && ingestionState.getShardStates()[0].getPollerState().equalsIgnoreCase("polling");
+        });
+
+        // Step 5: Verify poller metric confirms all 10 messages were polled during warmup
+        PollingIngestStats stats = client(nodeA).admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards()[0]
+            .getPollingIngestStats();
+        assertNotNull(stats);
+        assertEquals(10L, stats.getConsumerStats().totalPolledCount());
+
+        // Step 6: Wait for documents to be searchable (handles async refresh)
+        waitForSearchableDocs(10, List.of(nodeA));
+    }
+
+    public void testDynamicWarmupSettingsUpdate() throws Exception {
+        // Step 1: Publish messages before creating the index
+        for (int i = 0; i < 5; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        // Step 2: Start cluster
+        internalCluster().startClusterManagerOnlyNode();
+        final String nodeA = internalCluster().startDataOnlyNode();
+
+        // Step 3: Create index with warmup enabled (lag_threshold=100, so 5 messages will be under threshold)
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("ingestion_source.type", "kafka")
+                .put("ingestion_source.pointer.init.reset", "earliest")
+                .put("ingestion_source.param.topic", topicName)
+                .put("ingestion_source.param.bootstrap_servers", kafka.getBootstrapServers())
+                .put("ingestion_source.warmup.lag_threshold", 100)
+                .put("ingestion_source.warmup.timeout", "10m")
+                .put("ingestion_source.all_active", true)
+                .build(),
+            "{\"properties\":{\"name\":{\"type\": \"text\"},\"age\":{\"type\": \"integer\"}}}}"
+        );
+
+        ensureGreen(indexName);
+
+        // Step 4: Wait for warmup to complete and docs to be searchable
+        waitForSearchableDocs(5, List.of(nodeA));
+
+        // Step 5: Dynamically update warmup settings (lag_threshold and timeout)
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put("ingestion_source.warmup.lag_threshold", 50).put("ingestion_source.warmup.timeout", "5m"))
+            .get();
+
+        // Step 6: Produce more data and verify it's still ingested (settings update didn't break anything)
+        for (int i = 5; i < 10; i++) {
+            produceData(Integer.toString(i), "name" + i, "25");
+        }
+
+        waitForSearchableDocs(10, List.of(nodeA));
+    }
 }

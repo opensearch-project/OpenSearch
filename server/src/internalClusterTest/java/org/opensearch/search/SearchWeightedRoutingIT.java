@@ -461,7 +461,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
         Assert.assertTrue(failedShardCount > 0);
@@ -537,7 +537,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -604,7 +604,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -674,7 +674,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -762,7 +762,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 SearchResponse searchResponse = responses[i].get();
                 assertEquals(searchResponse.getFailedShards(), 0);
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -825,7 +825,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 assertEquals(searchResponse.getFailedShards(), 0);
                 assertNotEquals(searchResponse.getHits().getTotalHits().value(), 0);
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
         assertNoSearchInAZ("c");
@@ -959,7 +959,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
         networkDisruption.stopDisrupting();
@@ -1036,7 +1036,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 assertThat(multiGetResponse.getResponses()[0].isFailed(), equalTo(false));
                 assertThat(multiGetResponse.getResponses()[1].isFailed(), equalTo(false));
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -1108,7 +1108,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                     failedCount++;
                 }
             } catch (Exception t) {
-                fail("search should not fail");
+                throw new AssertionError("search should not fail", t);
             }
         }
 
@@ -1451,7 +1451,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
                 hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
             }
         } catch (Exception t) {
-            fail("search should not fail");
+            throw new AssertionError("search should not fail", t);
         }
         assertSearchInAZ("b");
         assertSearchInAZ("c");
