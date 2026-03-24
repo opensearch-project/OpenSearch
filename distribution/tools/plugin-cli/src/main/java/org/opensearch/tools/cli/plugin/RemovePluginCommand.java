@@ -41,7 +41,6 @@ import org.opensearch.common.cli.EnvironmentAwareCommand;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
 
 import java.io.IOException;
@@ -131,8 +130,6 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         }
 
         // read shared library names before we start removing anything
-        List<String> sharedLibraryNames = readSharedLibraryNames(pluginDir);
-
         terminal.println("-> removing [" + pluginName + "]...");
         /*
          * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found, unless there's
@@ -232,50 +229,5 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
         pluginPaths.add(removing);
 
         IOUtils.rm(pluginPaths.toArray(new Path[0]));
-
-        // auto-remove shared library plugins that are no longer needed by any remaining plugin
-        for (String depName : sharedLibraryNames) {
-            Path depDir = PluginHelper.verifyIfPluginExists(env.pluginsDir(), depName);
-            if (Files.exists(depDir) == false) {
-                continue;
-            }
-            // check no other installed plugin still declares this as a shared library
-            if (isSharedLibraryStillNeeded(env.pluginsDir(), depName)) {
-                terminal.println("-> keeping shared library [" + depName + "] (still required by another plugin)");
-            } else {
-                terminal.println("-> removing shared library [" + depName + "] (no longer needed)...");
-                execute(terminal, env, depName, purge);
-            }
-        }
-    }
-
-    /**
-     * Reads the {@code shared.libraries} names from the installed plugin's descriptor, returning
-     * just the plugin names (keys). Returns an empty list if the descriptor cannot be read or has no entries.
-     */
-    private List<String> readSharedLibraryNames(Path pluginDir) {
-        try {
-            return new ArrayList<>(PluginInfo.readFromProperties(pluginDir).getSharedLibraries().keySet());
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
-
-    /**
-     * Returns true if any currently installed plugin (other than the one being removed, which is already gone)
-     * declares {@code depName} in its {@code shared.libraries}.
-     */
-    private boolean isSharedLibraryStillNeeded(Path pluginsDir, String depName) {
-        try (Stream<Path> dirs = Files.list(pluginsDir)) {
-            return dirs.filter(Files::isDirectory).anyMatch(dir -> {
-                try {
-                    return PluginInfo.readFromProperties(dir).getSharedLibraries().containsKey(depName);
-                } catch (Exception e) {
-                    return false;
-                }
-            });
-        } catch (IOException e) {
-            return false;
-        }
     }
 }
