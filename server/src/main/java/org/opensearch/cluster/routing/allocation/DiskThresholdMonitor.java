@@ -494,6 +494,18 @@ public class DiskThresholdMonitor {
     }
 
     private void handleReadBlocks(ClusterState state, Set<String> indicesToBlockRead, ActionListener<Void> listener) {
+        final Runnable applyPhase = () -> {
+            final Set<String> indicesToApplyReadBlock = indicesToBlockRead.stream()
+                .filter(index -> !state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
+                .collect(Collectors.toSet());
+            logger.trace("Applying read block on indices: [{}]", indicesToApplyReadBlock);
+            if (indicesToApplyReadBlock.isEmpty() == false) {
+                updateIndicesReadBlock(indicesToApplyReadBlock, listener, true);
+            } else {
+                listener.onResponse(null);
+            }
+        };
+
         if (diskThresholdSettings.isReadBlockAutoReleaseEnabled()) {
             final Set<String> indicesToReleaseReadBlock = StreamSupport.stream(
                 Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
@@ -505,24 +517,18 @@ public class DiskThresholdMonitor {
                 .collect(Collectors.toSet());
 
             if (indicesToReleaseReadBlock.isEmpty() == false) {
-                updateIndicesReadBlock(indicesToReleaseReadBlock, listener, false);
+                updateIndicesReadBlock(
+                    indicesToReleaseReadBlock,
+                    ActionListener.wrap(v -> applyPhase.run(), listener::onFailure),
+                    false
+                );
             } else {
                 logger.trace("no auto-release required");
-                listener.onResponse(null);
+                applyPhase.run();
             }
         } else {
             logger.trace("read block auto-release is disabled, skipping auto-release");
-            listener.onResponse(null);
-        }
-
-        final Set<String> indicesToApplyReadBlock = indicesToBlockRead.stream()
-            .filter(index -> !state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_BLOCK))
-            .collect(Collectors.toSet());
-        logger.trace("Applying read block on indices: [{}]", indicesToApplyReadBlock);
-        if (indicesToApplyReadBlock.isEmpty() == false) {
-            updateIndicesReadBlock(indicesToApplyReadBlock, listener, true);
-        } else {
-            listener.onResponse(null);
+            applyPhase.run();
         }
     }
 
