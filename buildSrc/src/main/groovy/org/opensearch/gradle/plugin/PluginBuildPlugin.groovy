@@ -113,7 +113,8 @@ class PluginBuildPlugin implements Plugin<Project> {
                     'customFolderName'    : extension1.customFolderName,
                     'extendedPlugins'     : extension1.extendedPlugins.join(','),
                     'hasNativeController' : extension1.hasNativeController,
-                    'requiresKeystore'    : extension1.requiresKeystore
+                    'requiresKeystore'    : extension1.requiresKeystore,
+                    'pluginDependencies'  : extension1.pluginDependencies.collect { k, v -> "${k}=${v}" }.join(',')
             ]
             project.tasks.named('pluginProperties').configure {
                 expand(properties)

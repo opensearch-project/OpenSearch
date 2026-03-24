@@ -56,6 +56,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -91,6 +92,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
     // Optional extended plugins are a subset of extendedPlugins that only contains the optional extended plugins
     private final List<String> optionalExtendedPlugins;
     private final boolean hasNativeController;
+    // Install-time plugin prerequisites declared via plugin.dependencies in the descriptor.
+    // Format: "plugin-name=install-id" pairs where install-id is anything the install command
+    // understands (official name, maven coordinates, or URL). If the named plugin is already
+    // present on disk it is skipped; otherwise it is auto-installed before this plugin.
+    private final Map<String, String> pluginDependencies;
 
     /**
      * Construct plugin info.
@@ -140,6 +146,32 @@ public class PluginInfo implements Writeable, ToXContentObject {
         List<String> extendedPlugins,
         boolean hasNativeController
     ) {
+        this(
+            name,
+            description,
+            version,
+            opensearchVersionRanges,
+            javaVersion,
+            classname,
+            customFolderName,
+            extendedPlugins,
+            hasNativeController,
+            Collections.emptyMap()
+        );
+    }
+
+    public PluginInfo(
+        String name,
+        String description,
+        String version,
+        List<SemverRange> opensearchVersionRanges,
+        String javaVersion,
+        String classname,
+        String customFolderName,
+        List<String> extendedPlugins,
+        boolean hasNativeController,
+        Map<String, String> pluginDependencies
+    ) {
         this.name = name;
         this.description = description;
         this.version = version;
@@ -159,6 +191,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .map(s -> s.split(";")[0])
             .collect(Collectors.toUnmodifiableList());
         this.hasNativeController = hasNativeController;
+        this.pluginDependencies = Collections.unmodifiableMap(new LinkedHashMap<>(pluginDependencies));
     }
 
     /**
@@ -222,6 +255,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             this.optionalExtendedPlugins = new ArrayList<>();
         }
+        // pluginDependencies is local-only (install-time); not transmitted over the wire
+        this.pluginDependencies = Collections.emptyMap();
     }
 
     static boolean isOptionalExtension(String extendedPlugin) {
@@ -359,6 +394,38 @@ public class PluginInfo implements Writeable, ToXContentObject {
             extendedPlugins = Arrays.asList(Strings.delimitedListToStringArray(extendedString, ","));
         }
 
+        final String pluginDependenciesString = propsMap.remove("plugin.dependencies");
+        final Map<String, String> pluginDependencies;
+        if (pluginDependenciesString == null || pluginDependenciesString.isBlank()) {
+            pluginDependencies = Collections.emptyMap();
+        } else {
+            // Format: "plugin-name=install-id,plugin-name2=install-id2"
+            // install-id is anything opensearch-plugin install understands: official name, maven coords, or URL.
+            // The "=install-id" part is optional; if omitted the plugin name is used as the install identifier,
+            // which works for any official OpenSearch plugin or any plugin resolvable by name.
+            Map<String, String> deps = new LinkedHashMap<>();
+            for (String entry : Strings.delimitedListToStringArray(pluginDependenciesString, ",")) {
+                String trimmed = entry.trim();
+                int eq = trimmed.indexOf('=');
+                if (eq == 0 || eq == trimmed.length() - 1) {
+                    throw new IllegalArgumentException(
+                        "Invalid plugin.dependencies entry ["
+                            + entry
+                            + "] for plugin ["
+                            + name
+                            + "]; expected format: plugin-name or plugin-name=install-id"
+                    );
+                }
+                if (eq < 0) {
+                    // bare name — use the name itself as the install identifier
+                    deps.put(trimmed, trimmed);
+                } else {
+                    deps.put(trimmed.substring(0, eq).trim(), trimmed.substring(eq + 1).trim());
+                }
+            }
+            pluginDependencies = Collections.unmodifiableMap(deps);
+        }
+
         final String hasNativeControllerValue = propsMap.remove("has.native.controller");
         final boolean hasNativeController;
         if (hasNativeControllerValue == null) {
@@ -397,7 +464,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            pluginDependencies
         );
     }
 
@@ -506,6 +574,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
+     * Other plugins that must be installed before this plugin can be loaded.
+     * Unlike {@link #getExtendedPlugins()}, these do not affect classloader wiring —
+     * they are purely an install-time prerequisite. The map key is the plugin name
+     * (used to check if it is already installed) and the value is the install identifier
+     * (official name, maven coordinates, or URL) passed to the install command.
+     *
+     * @return map of plugin-name to install-id for required plugin dependencies
+     */
+    public Map<String, String> getPluginDependencies() {
+        return pluginDependencies;
+    }
+
+    /**
      * The target folder name for the plugin.
      *
      * @return the custom folder name for the plugin if the folder name is specified, else return the id with kebab-case.
@@ -528,6 +609,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
             builder.field("optional_extended_plugins", optionalExtendedPlugins);
+            builder.field("plugin_dependencies", pluginDependencies);
         }
         builder.endObject();
 
@@ -588,6 +670,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix)
             .append("Extended Plugins: ")
             .append(extendedPlugins)
+            .append("\n")
+            .append(prefix)
+            .append("Plugin Dependencies: ")
+            .append(pluginDependencies)
             .append("\n")
             .append(prefix)
             .append(" * Classname: ")

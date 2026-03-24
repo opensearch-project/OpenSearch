@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -375,6 +376,147 @@ public class PluginInfoTests extends OpenSearchTestCase {
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
         assertThat(info.getExtendedPlugins(), empty());
+    }
+
+    public void testPluginDependenciesSingle() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "plugin.dependencies",
+            "some-spi-plugin=org.example:some-spi-plugin:1.0.0"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getPluginDependencies().keySet(), contains("some-spi-plugin"));
+        assertThat(info.getPluginDependencies().get("some-spi-plugin"), equalTo("org.example:some-spi-plugin:1.0.0"));
+    }
+
+    public void testPluginDependenciesMultiple() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "plugin.dependencies",
+            "dep-one=org.example:dep-one:1.0.0,dep-two=org.example:dep-two:2.0.0"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getPluginDependencies().keySet(), containsInAnyOrder("dep-one", "dep-two"));
+        assertThat(info.getPluginDependencies().get("dep-one"), equalTo("org.example:dep-one:1.0.0"));
+        assertThat(info.getPluginDependencies().get("dep-two"), equalTo("org.example:dep-two:2.0.0"));
+    }
+
+    public void testPluginDependenciesAbsent() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getPluginDependencies().isEmpty(), is(true));
+    }
+
+    public void testPluginDependenciesEmpty() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "plugin.dependencies",
+            ""
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getPluginDependencies().isEmpty(), is(true));
+    }
+
+    public void testPluginDependenciesInvalidFormat() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "plugin.dependencies",
+            "=no-name-before-equals"
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
+        assertThat(e.getMessage(), containsString("Invalid plugin.dependencies entry"));
+    }
+
+    public void testPluginDependenciesBareName() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "plugin.dependencies",
+            "some-spi-plugin"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertThat(info.getPluginDependencies().keySet(), contains("some-spi-plugin"));
+        // bare name: install-id defaults to the name itself
+        assertThat(info.getPluginDependencies().get("some-spi-plugin"), equalTo("some-spi-plugin"));
     }
 
     public void testSerialize() throws Exception {

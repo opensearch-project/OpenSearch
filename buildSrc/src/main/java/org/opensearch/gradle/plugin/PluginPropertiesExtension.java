@@ -36,7 +36,9 @@ import org.gradle.api.Project;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy
@@ -55,6 +57,9 @@ public class PluginPropertiesExtension {
 
     /** Other plugins this plugin extends through SPI */
     private List<String> extendedPlugins = new ArrayList<>();
+
+    /** Other plugins that must be installed before this plugin can be installed */
+    private Map<String, String> pluginDependencies = new LinkedHashMap<>();
 
     private boolean hasNativeController;
 
@@ -120,6 +125,14 @@ public class PluginPropertiesExtension {
 
     public List<String> getExtendedPlugins() {
         return this.extendedPlugins;
+    }
+
+    public Map<String, String> getPluginDependencies() {
+        return this.pluginDependencies;
+    }
+
+    public void setPluginDependencies(Map<String, String> pluginDependencies) {
+        this.pluginDependencies = pluginDependencies;
     }
 
     public boolean isHasNativeController() {
