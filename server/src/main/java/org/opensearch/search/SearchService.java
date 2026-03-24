@@ -378,7 +378,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @ExperimentalApi
     public static final Setting<Integer> MAX_AGGREGATION_REWRITE_FILTERS = Setting.intSetting(
         "search.max_aggregation_rewrite_filters",
-        3000,
+        10000,
         0,
         Property.Dynamic,
         Property.NodeScope
