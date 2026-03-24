@@ -309,4 +309,79 @@ impl DedicatedExecutor {
         state.handle = None;
         state.start_shutdown.notify_one();
     }
+
+    /// Returns a clone of the tokio runtime [`Handle`] for this executor,
+    /// or `None` if the executor has been shut down.
+    pub fn handle(&self) -> Option<Handle> {
+        let state = self.state.read();
+        state.handle.clone()
+    }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::runtime::Builder;
+
+    /// **Validates: Requirements 3.1**
+    ///
+    /// Property 5: DedicatedExecutor handle availability
+    ///
+    /// For any DedicatedExecutor that has been created and not yet shut down,
+    /// calling handle() SHALL return Some(Handle). After shutdown, calling
+    /// handle() SHALL return None.
+    #[test]
+    fn test_handle_availability_before_and_after_shutdown() {
+        // Create a minimal multi-thread runtime builder for the executor
+        let mut builder = Builder::new_multi_thread();
+        builder.worker_threads(1).enable_all();
+
+        let executor = DedicatedExecutor::new("test-handle-avail", builder);
+
+        // Before shutdown: handle() must return Some
+        let handle = executor.handle();
+        assert!(
+            handle.is_some(),
+            "handle() should return Some before shutdown"
+        );
+
+        // Shutdown the executor
+        executor.shutdown();
+
+        // After shutdown: handle() must return None
+        let handle_after = executor.handle();
+        assert!(
+            handle_after.is_none(),
+            "handle() should return None after shutdown"
+        );
+    }
+
+    /// Additional verification: handle() returns Some across clones before shutdown,
+    /// and None across clones after shutdown (since clones share state).
+    #[test]
+    fn test_handle_availability_across_clones() {
+        let mut builder = Builder::new_multi_thread();
+        builder.worker_threads(1).enable_all();
+
+        let executor = DedicatedExecutor::new("test-handle-clone", builder);
+        let clone = executor.clone();
+
+        // Both original and clone should return Some before shutdown
+        assert!(executor.handle().is_some());
+        assert!(clone.handle().is_some());
+
+        // Shutdown via the clone
+        clone.shutdown();
+
+        // Both should return None after shutdown
+        assert!(
+            executor.handle().is_none(),
+            "original handle() should return None after clone shutdown"
+        );
+        assert!(
+            clone.handle().is_none(),
+            "clone handle() should return None after shutdown"
+        );
+    }
+}
+

@@ -122,6 +122,14 @@ dependencies {
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
   testImplementation 'org.awaitility:awaitility:4.3.0'
+
+  // jqwik for property-based testing (requires JUnit 5 Platform)
+  testImplementation 'net.jqwik:jqwik-api:1.9.2'
+  testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+  testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.2'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.3'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -386,6 +394,7 @@ tasks.named("licenseHeaders").configure {
 tasks.test {
     environment "node.roles.test", "[]"
     jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED", "-Djdk.attach.allowAttachSelf=true", "-XX:+EnableDynamicAgentLoading" ]
+    useJUnitPlatform()
 }
 
 tasks.named("sourcesJar").configure {

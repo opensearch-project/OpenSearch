@@ -35,6 +35,9 @@ dependencies {
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
+    // protobuf for decoding native metrics from Rust (prost-encoded)
+    implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
     // Bundle Jackson in the plugin JAR using 'api' like other OpenSearch plugins
     api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -79,6 +82,14 @@ dependencies {
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
     testImplementation "org.mockito:mockito-core:${versions.mockito}"
     testImplementation project(":modules:parquet-data-format")
+
+    // jqwik for property-based testing (requires JUnit 5 Platform)
+    testImplementation 'net.jqwik:jqwik-api:1.9.2'
+    testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+    testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.3'
     // Add CSV plugin for testing
     // testImplementation project(':plugins:dataformat-csv')
 }
@@ -239,6 +250,7 @@ test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 
   systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
+  useJUnitPlatform()
 }
 
 internalClusterTest {
@@ -305,7 +317,15 @@ tasks.named('thirdPartyAudit').configure {
         'org.apache.arrow.vector.Decimal256Vector',
         'org.apache.arrow.vector.DecimalVector',
         'org.apache.arrow.vector.util.DecimalUtility',
-        'org.apache.arrow.vector.util.VectorAppender'
+        'org.apache.arrow.vector.util.VectorAppender',
+        // Protobuf internal classes that use Unsafe operations
+        'com.google.protobuf.MessageSchema',
+        'com.google.protobuf.UnsafeUtil',
+        'com.google.protobuf.UnsafeUtil$1',
+        'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
     )
 }
 
@@ -316,4 +336,17 @@ missingJavadoc {
         'org.opensearch.datafusion.action',
         'org.opensearch.datafusion.core'
     ]
+}
+
+// Handle protobuf generated code
+tasks.named('forbiddenApisMain').configure {
+    ignoreViolations(
+        'com.google.protobuf.MessageSchema',
+        'com.google.protobuf.UnsafeUtil',
+        'com.google.protobuf.UnsafeUtil$1',
+        'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    )
 }
