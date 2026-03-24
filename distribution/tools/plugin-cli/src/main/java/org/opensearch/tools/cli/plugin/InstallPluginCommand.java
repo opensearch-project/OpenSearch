@@ -793,14 +793,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo loadPluginInfo(
-        Terminal terminal,
-        Path pluginRoot,
-        boolean isBatch,
-        String sourcePluginId,
-        Environment env,
-        List<Path> deleteOnFailure
-    ) throws Exception {
+    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
         if (info.hasNativeController()) {
             throw new IllegalStateException("plugins can not have native controllers");
@@ -856,7 +849,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         Environment env,
         List<Path> deleteOnFailure
     ) throws Exception {
-        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, isBatch, sourcePluginId, env, deleteOnFailure);
+        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
         Path policy = tmpRoot.resolve(PluginInfo.OPENSEARCH_PLUGIN_POLICY);
         final Set<String> permissions;
