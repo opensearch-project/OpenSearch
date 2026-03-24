@@ -172,6 +172,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
+                "Shared Libraries: {}",
                 " * Classname: org.fake",
                 "Folder name: custom-folder"
             ),
@@ -195,6 +196,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: true",
                 "Extended Plugins: []",
+                "Shared Libraries: {}",
                 " * Classname: org.fake",
                 "Folder name: custom-folder"
             ),
@@ -219,6 +221,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
+                "Shared Libraries: {}",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
                 "fake_plugin2",
@@ -230,6 +233,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: 1.8",
                 "Native Controller: false",
                 "Extended Plugins: []",
+                "Shared Libraries: {}",
                 " * Classname: org.fake2",
                 "Folder name: custom-folder"
             ),
@@ -318,6 +322,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Java Version: " + System.getProperty("java.specification.version"),
                 "Native Controller: false",
                 "Extended Plugins: []",
+                "Shared Libraries: {}",
                 " * Classname: org.fake1",
                 "Folder name: null"
             ),

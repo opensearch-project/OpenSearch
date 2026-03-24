@@ -58,8 +58,8 @@ public class PluginPropertiesExtension {
     /** Other plugins this plugin extends through SPI */
     private List<String> extendedPlugins = new ArrayList<>();
 
-    /** Other plugins that must be installed before this plugin can be installed */
-    private Map<String, String> pluginDependencies = new LinkedHashMap<>();
+    /** Shared library plugins that must be installed before this plugin can be installed */
+    private Map<String, String> sharedLibraries = new LinkedHashMap<>();
 
     private boolean hasNativeController;
 
@@ -127,12 +127,12 @@ public class PluginPropertiesExtension {
         return this.extendedPlugins;
     }
 
-    public Map<String, String> getPluginDependencies() {
-        return this.pluginDependencies;
+    public Map<String, String> getSharedLibraries() {
+        return this.sharedLibraries;
     }
 
-    public void setPluginDependencies(Map<String, String> pluginDependencies) {
-        this.pluginDependencies = pluginDependencies;
+    public void setSharedLibraries(Map<String, String> sharedLibraries) {
+        this.sharedLibraries = sharedLibraries;
     }
 
     public boolean isHasNativeController() {

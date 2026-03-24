@@ -448,6 +448,20 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 }
             }
         }
+        if (Files.exists(original.resolve("lib"))) {
+            Path libDir = env.libDir().resolve(name);
+            assertTrue("lib dir exists", Files.exists(libDir));
+            assertTrue("lib is a dir", Files.isDirectory(libDir));
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(libDir)) {
+                for (Path file : stream) {
+                    assertFalse("lib entry is not a dir", Files.isDirectory(file));
+                    if (isPosix) {
+                        PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
+                        assertEquals(InstallPluginCommand.PLUGIN_FILES_PERMS, attributes.permissions());
+                    }
+                }
+            }
+        }
     }
 
     void assertInstallCleaned(Environment env) throws IOException {
@@ -640,7 +654,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
         // install the plugin that declares dep-plugin as a dependency (already present, no auto-install needed)
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "plugin.dependencies", "dep-plugin=" + depZip);
+        String pluginZip = createPluginUrl("fake", pluginDir, "shared.libraries", "dep-plugin=" + depZip);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -654,7 +668,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
         // install the plugin that declares dep-plugin as a dependency — it should be auto-installed
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "plugin.dependencies", "dep-plugin=" + depZip);
+        String pluginZip = createPluginUrl("fake", pluginDir, "shared.libraries", "dep-plugin=" + depZip);
         installPlugin(pluginZip, env.v1());
 
         // both the dependency and the main plugin should now be installed
@@ -675,7 +689,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Files.copy(writeZip(depDir, null), depZip, StandardCopyOption.REPLACE_EXISTING);
 
         Path pluginDir = createPluginDir(temp);
-        writePlugin("fake", pluginDir, "plugin.dependencies", "dep-plugin");
+        writePlugin("fake", pluginDir, "shared.libraries", "dep-plugin");
         Path pluginZip = distDir.resolve("fake-1.0.zip");
         Files.copy(writeZip(pluginDir, null), pluginZip, StandardCopyOption.REPLACE_EXISTING);
 
@@ -697,7 +711,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         installPlugin(dep2Zip, env.v1());
 
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "plugin.dependencies", "dep-one=" + dep1Zip + ",dep-two=" + dep2Zip);
+        String pluginZip = createPluginUrl("fake", pluginDir, "shared.libraries", "dep-one=" + dep1Zip + ",dep-two=" + dep2Zip);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
     }
@@ -712,7 +726,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         String dep2Zip = createPluginUrl("dep-two", dep2Dir);
 
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "plugin.dependencies", "dep-one=" + dep1Zip + ",dep-two=" + dep2Zip);
+        String pluginZip = createPluginUrl("fake", pluginDir, "shared.libraries", "dep-one=" + dep1Zip + ",dep-two=" + dep2Zip);
         installPlugin(pluginZip, env.v1());
 
         assertPlugin("dep-one", dep1Dir, env.v2());
@@ -720,12 +734,12 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertPlugin("fake", pluginDir, env.v2());
     }
 
-    public void testInstallPluginInvalidDependencyFormat() throws Exception {
+    public void testInstallPluginInvalidSharedLibraryFormat() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "plugin.dependencies", "=no-name-before-equals");
+        String pluginZip = createPluginUrl("fake", pluginDir, "shared.libraries", "=no-name-before-equals");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertThat(e.getMessage(), containsString("Invalid plugin.dependencies entry"));
+        assertThat(e.getMessage(), containsString("Invalid shared.libraries entry"));
         assertInstallCleaned(env.v2());
     }
 
@@ -911,6 +925,43 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertTrue(Files.exists(installedConfigDir));
         assertTrue(Files.isDirectory(installedConfigDir));
         assertTrue(Files.exists(installedConfigDir.resolve("myconfig.yml")));
+    }
+
+    public void testLib() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path libDir = pluginDir.resolve("lib");
+        Files.createDirectory(libDir);
+        writeJar(libDir.resolve("dep.jar"), "DepClass");
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+        // lib jar must be in OPENSEARCH_HOME/lib/fake/
+        assertTrue(Files.exists(env.v2().libDir().resolve("fake").resolve("dep.jar")));
+        // lib dir must NOT remain inside the plugin dir
+        assertFalse(Files.exists(env.v2().pluginsDir().resolve("fake").resolve("lib")));
+    }
+
+    public void testLibNotDir() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Files.createFile(pluginDir.resolve("lib"));
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
+        assertInstallCleaned(env.v2());
+    }
+
+    public void testLibContainsDir() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path dirInLibDir = pluginDir.resolve("lib").resolve("subdir");
+        Files.createDirectories(dirInLibDir);
+        Files.createFile(dirInLibDir.resolve("dep.jar"));
+        String pluginZip = createPluginUrl("fake", pluginDir);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("Directories not allowed in lib dir for plugin"));
+        assertInstallCleaned(env.v2());
     }
 
     public void testMissingDescriptor() throws Exception {

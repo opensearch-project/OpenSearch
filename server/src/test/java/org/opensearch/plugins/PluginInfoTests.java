@@ -378,7 +378,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
-    public void testPluginDependenciesSingle() throws Exception {
+    public void testSharedLibrariesSingle() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -394,15 +394,15 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "plugin.dependencies",
+            "shared.libraries",
             "some-spi-plugin=org.example:some-spi-plugin:1.0.0"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getPluginDependencies().keySet(), contains("some-spi-plugin"));
-        assertThat(info.getPluginDependencies().get("some-spi-plugin"), equalTo("org.example:some-spi-plugin:1.0.0"));
+        assertThat(info.getSharedLibraries().keySet(), contains("some-spi-plugin"));
+        assertThat(info.getSharedLibraries().get("some-spi-plugin"), equalTo("org.example:some-spi-plugin:1.0.0"));
     }
 
-    public void testPluginDependenciesMultiple() throws Exception {
+    public void testSharedLibrariesMultiple() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -418,16 +418,16 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "plugin.dependencies",
+            "shared.libraries",
             "dep-one=org.example:dep-one:1.0.0,dep-two=org.example:dep-two:2.0.0"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getPluginDependencies().keySet(), containsInAnyOrder("dep-one", "dep-two"));
-        assertThat(info.getPluginDependencies().get("dep-one"), equalTo("org.example:dep-one:1.0.0"));
-        assertThat(info.getPluginDependencies().get("dep-two"), equalTo("org.example:dep-two:2.0.0"));
+        assertThat(info.getSharedLibraries().keySet(), containsInAnyOrder("dep-one", "dep-two"));
+        assertThat(info.getSharedLibraries().get("dep-one"), equalTo("org.example:dep-one:1.0.0"));
+        assertThat(info.getSharedLibraries().get("dep-two"), equalTo("org.example:dep-two:2.0.0"));
     }
 
-    public void testPluginDependenciesAbsent() throws Exception {
+    public void testSharedLibrariesAbsent() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -445,10 +445,10 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "FakePlugin"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getPluginDependencies().isEmpty(), is(true));
+        assertThat(info.getSharedLibraries().isEmpty(), is(true));
     }
 
-    public void testPluginDependenciesEmpty() throws Exception {
+    public void testSharedLibrariesEmpty() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -464,14 +464,14 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "plugin.dependencies",
+            "shared.libraries",
             ""
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getPluginDependencies().isEmpty(), is(true));
+        assertThat(info.getSharedLibraries().isEmpty(), is(true));
     }
 
-    public void testPluginDependenciesInvalidFormat() throws Exception {
+    public void testSharedLibrariesInvalidFormat() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -487,14 +487,14 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "plugin.dependencies",
+            "shared.libraries",
             "=no-name-before-equals"
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginInfo.readFromProperties(pluginDir));
-        assertThat(e.getMessage(), containsString("Invalid plugin.dependencies entry"));
+        assertThat(e.getMessage(), containsString("Invalid shared.libraries entry"));
     }
 
-    public void testPluginDependenciesBareName() throws Exception {
+    public void testSharedLibrariesBareName() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(
             pluginDir,
@@ -510,13 +510,13 @@ public class PluginInfoTests extends OpenSearchTestCase {
             System.getProperty("java.specification.version"),
             "classname",
             "FakePlugin",
-            "plugin.dependencies",
+            "shared.libraries",
             "some-spi-plugin"
         );
         PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertThat(info.getPluginDependencies().keySet(), contains("some-spi-plugin"));
+        assertThat(info.getSharedLibraries().keySet(), contains("some-spi-plugin"));
         // bare name: install-id defaults to the name itself
-        assertThat(info.getPluginDependencies().get("some-spi-plugin"), equalTo("some-spi-plugin"));
+        assertThat(info.getSharedLibraries().get("some-spi-plugin"), equalTo("some-spi-plugin"));
     }
 
     public void testSerialize() throws Exception {
