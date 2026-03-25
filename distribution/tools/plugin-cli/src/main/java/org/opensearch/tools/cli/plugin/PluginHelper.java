@@ -31,10 +31,12 @@ public class PluginHelper {
      * @throws IOException if any I/O exception occurs while performing a file operation
      */
     public static Path verifyIfPluginExists(Path pluginPath, String pluginName) throws IOException {
-        List<Path> pluginSubFolders = Files.walk(pluginPath, 1).filter(Files::isDirectory).collect(Collectors.toList());
+        List<Path> pluginSubFolders = Files.walk(pluginPath, 1)
+            .filter(Files::isDirectory)
+            .filter(f -> !f.getFileName().toString().equals("lib"))
+            .collect(Collectors.toList());
         for (Path customPluginFolderPath : pluginSubFolders) {
             if (customPluginFolderPath != pluginPath
-                && "lib".equals(customPluginFolderPath.getFileName().toString()) == false
                 && !((customPluginFolderPath.getFileName().toString()).contains(".installing"))
                 && !((customPluginFolderPath.getFileName().toString()).contains(".removing"))) {
                 final PluginInfo info = PluginInfo.readFromProperties(customPluginFolderPath);
