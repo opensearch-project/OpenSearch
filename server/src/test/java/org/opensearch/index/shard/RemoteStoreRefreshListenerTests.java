@@ -907,11 +907,13 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     public void testCleanupTriggeredWhenMapExceedsThreshold() throws IOException {
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = setupDirectoryWithThreshold(10);
+        int threshold = 10;
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = setupDirectoryWithThreshold(threshold);
+
         indexAndRefreshWithoutFlush(100);
 
         int mapSize = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStoreSize();
-        assertTrue("Map size should be reasonable with threshold cleanup, but was: " + mapSize, mapSize < 100);
+        assertTrue("Map size should be bounded by threshold cleanup, but was: " + mapSize, mapSize < 100);
     }
 
     public void testCleanupNotTriggeredWhenThresholdDisabled() throws IOException {

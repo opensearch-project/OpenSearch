@@ -246,7 +246,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // This is done to avoid delete post each refresh.
                 // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
                 // to prevent unbounded memory growth when flushes do not happen.
-                if (isRefreshAfterCommit() || isUploadedSegmentsMapExceedsThreshold()) {
+                if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
@@ -451,7 +451,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return false;
     }
 
-    private boolean isUploadedSegmentsMapExceedsThreshold() {
+    private boolean uploadedSegmentsMapExceedsThreshold() {
         int threshold = indexShard.getRemoteStoreSettings().getUploadedSegmentsCleanupThreshold();
         return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
     }

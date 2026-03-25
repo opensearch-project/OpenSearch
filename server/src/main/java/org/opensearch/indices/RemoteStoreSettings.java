@@ -26,6 +26,9 @@ import org.opensearch.index.remote.RemoteStoreEnums;
 @PublicApi(since = "2.14.0")
 public class RemoteStoreSettings {
     private static final int MIN_CLUSTER_REMOTE_MAX_TRANSLOG_READERS = 100;
+    private static final int MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100;
+    private static final int MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100000;
+    private static final int DEFAULT_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 1000;
 
     /**
      * Used to specify the default translog buffer interval for remote store backed indexes.
@@ -181,8 +184,18 @@ public class RemoteStoreSettings {
      */
     public static final Setting<Integer> CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING = Setting.intSetting(
         "cluster.remote_store.uploaded_segments_cleanup_threshold",
-        10000,
+        DEFAULT_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD,
         -1,
+        v -> {
+            if (v != -1 && (v < MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD || v > MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD)) {
+                throw new IllegalArgumentException(
+                    "Value must be -1 or between "
+                        + MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD
+                        + " and "
+                        + MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD
+                );
+            }
+        },
         Property.NodeScope,
         Property.Dynamic
     );
