@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::time::Instant;
 use datafusion::common::stats::Precision;
 use jni::sys::jlong;
 use datafusion::{
@@ -57,6 +58,7 @@ use crate::{CustomFileMeta, FileStats};
 use crate::DataFusionRuntime;
 use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
 use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
+use vectorized_exec_spi::log_info;
 
 /// Executes a query using DataFusion with cross-runtime streaming capabilities.
 /// This function sets up the complete query execution pipeline including table registration,
@@ -114,6 +116,8 @@ pub async fn execute_query_with_cross_rt_stream(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
+    let query_start = Instant::now();
+
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
             .iter()
@@ -150,10 +154,12 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.parquet.pushdown_filters = false;
     config.options_mut().execution.target_partitions = target_partitions;
     config.options_mut().execution.batch_size = 8192;
-    // Liquid Cache requires these Parquet settings
-    config.options_mut().execution.parquet.schema_force_view_types = false;
-    config.options_mut().execution.parquet.skip_arrow_metadata = false;
-    config.options_mut().execution.parquet.skip_metadata = false;
+    // Liquid Cache requires these Parquet settings (only when enabled)
+    if runtime.liquid_cache_optimizer.is_some() {
+        config.options_mut().execution.parquet.schema_force_view_types = false;
+        config.options_mut().execution.parquet.skip_arrow_metadata = false;
+        config.options_mut().execution.parquet.skip_metadata = false;
+    }
 
     let mut state_builder = datafusion::execution::SessionStateBuilder::new()
         .with_config(config.clone())
@@ -186,6 +192,9 @@ pub async fn execute_query_with_cross_rt_stream(
         // the AbsoluteRowIdOptimizer to convert relative row IDs to absolute ones
         .with_table_partition_cols(vec![(ROW_BASE_FIELD_NAME.to_string(), DataType::Int64)]);
 
+    log_info!("[Profiler] setup took {:?}", query_start.elapsed());
+    let t = Instant::now();
+
     let resolved_schema = match listing_options
         .infer_schema(&ctx.state(), &table_path)
         .await {
@@ -195,6 +204,9 @@ pub async fn execute_query_with_cross_rt_stream(
             return Err(e);
         }
     };
+
+    log_info!("[Profiler] infer_schema took {:?}", t.elapsed());
+    let t = Instant::now();
 
     let table_config = ListingTableConfig::new(table_path.clone())
         .with_listing_options(listing_options)
@@ -212,6 +224,9 @@ pub async fn execute_query_with_cross_rt_stream(
         error!("Failed to register table: {}", e);
         return Err(e);
     }
+
+    log_info!("[Profiler] register_table took {:?}", t.elapsed());
+    let t = Instant::now();
 
     // Decode substrait
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
@@ -233,6 +248,9 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     }
 
+    log_info!("[Profiler] substrait_decode took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
         Ok(plan) => plan,
         Err(e) => {
@@ -240,6 +258,9 @@ pub async fn execute_query_with_cross_rt_stream(
             return Err(e);
         }
     };
+
+    log_info!("[Profiler] from_substrait_plan took {:?}", t.elapsed());
+    let t = Instant::now();
 
     let is_aggregation_query = is_aggs_query(&logical_plan);
 
@@ -269,6 +290,9 @@ pub async fn execute_query_with_cross_rt_stream(
         ).expect("Failed to create top level projection with ___row_id"));
     }
 
+    log_info!("[Profiler] logical_plan_optimize took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut dataframe = match ctx.execute_logical_plan(logical_plan).await {
         Ok(df) => df,
         Err(e) => {
@@ -277,7 +301,12 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     };
 
+    log_info!("[Profiler] execute_logical_plan took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut physical_plan = dataframe.clone().create_physical_plan().await?;
+
+    log_info!("[Profiler] create_physical_plan took {:?}", t.elapsed());
 
     // For non-aggregation queries, we need to return absolute row IDs to identify specific rows
     // The AbsoluteRowIdOptimizer works at the physical plan level to transform relative row IDs
@@ -305,6 +334,8 @@ pub async fn execute_query_with_cross_rt_stream(
             return Err(e);
         }
     };
+
+    log_info!("[Profiler] total query setup took {:?}", query_start.elapsed());
 
     Ok(get_cross_rt_stream(cpu_executor, df_stream))
 }
