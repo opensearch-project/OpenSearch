@@ -43,14 +43,8 @@ if [[ -z "$OPENSEARCH_HOME" ]]; then
   OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
 fi
 
-# now set the classpath — include lib/* (core jars) plus any lib/<name>/ subdirectories
-# (shared library plugins installed by opensearch-plugin are extracted into lib/<name>/)
+# now set the classpath — include lib/* (core jars)
 OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"
-for libsubdir in "$OPENSEARCH_HOME/lib"/*/; do
-  if [ -d "$libsubdir" ]; then
-    OPENSEARCH_CLASSPATH="$OPENSEARCH_CLASSPATH:${libsubdir}*"
-  fi
-done
 
 # now set the path to java: OPENSEARCH_JAVA_HOME -> JAVA_HOME -> bundled JRE -> bundled JDK
 if [ ! -z "$OPENSEARCH_JAVA_HOME" ]; then

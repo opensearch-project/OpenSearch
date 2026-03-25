@@ -863,7 +863,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             tmpRoot,
             env.binDir().resolve(targetFolderName),
             env.configDir().resolve(targetFolderName),
-            env.libDir().resolve(targetFolderName),
+            env.pluginsDir().resolve("lib").resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

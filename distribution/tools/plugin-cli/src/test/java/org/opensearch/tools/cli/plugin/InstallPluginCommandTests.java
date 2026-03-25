@@ -449,7 +449,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
             }
         }
         if (Files.exists(original.resolve("lib"))) {
-            Path libDir = env.libDir().resolve(name);
+            Path libDir = env.pluginsDir().resolve("lib").resolve(name);
             assertTrue("lib dir exists", Files.exists(libDir));
             assertTrue("lib is a dir", Files.isDirectory(libDir));
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(libDir)) {
@@ -837,8 +837,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         String pluginZip = createPluginUrl("fake", pluginDir);
         installPlugin(pluginZip, env.v1());
         assertPlugin("fake", pluginDir, env.v2());
-        // lib jar must be in OPENSEARCH_HOME/lib/fake/
-        assertTrue(Files.exists(env.v2().libDir().resolve("fake").resolve("dep.jar")));
+        // lib jar must be in plugins/lib/fake/
+        assertTrue(Files.exists(env.v2().pluginsDir().resolve("lib").resolve("fake").resolve("dep.jar")));
         // lib dir must NOT remain inside the plugin dir
         assertFalse(Files.exists(env.v2().pluginsDir().resolve("fake").resolve("lib")));
     }

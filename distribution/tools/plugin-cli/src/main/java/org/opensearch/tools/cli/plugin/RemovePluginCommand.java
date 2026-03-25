@@ -159,7 +159,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
 
-        final Path pluginBinDir = env.binDir().resolve(pluginName);
+        final Path pluginBinDir = env.binDir().resolve(pluginDir.getFileName());
         if (Files.exists(pluginBinDir)) {
             if (!Files.isDirectory(pluginBinDir)) {
                 throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginName + " is not a directory");
@@ -171,16 +171,16 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
             terminal.println(VERBOSE, "removing [" + pluginBinDir + "]");
         }
 
-        final Path pluginLibDir = env.libDir().resolve(pluginName);
-        if (Files.exists(pluginLibDir)) {
-            if (!Files.isDirectory(pluginLibDir)) {
-                throw new UserException(ExitCodes.IO_ERROR, "lib dir for " + pluginName + " is not a directory");
+        final Path pluginSharedLibDir = env.pluginsDir().resolve("lib").resolve(pluginDir.getFileName());
+        if (Files.exists(pluginSharedLibDir)) {
+            if (Files.isDirectory(pluginSharedLibDir) == false) {
+                throw new UserException(ExitCodes.IO_ERROR, "shared lib dir for " + pluginName + " is not a directory");
             }
-            try (Stream<Path> paths = Files.list(pluginLibDir)) {
+            try (Stream<Path> paths = Files.list(pluginSharedLibDir)) {
                 pluginPaths.addAll(paths.collect(Collectors.toList()));
             }
-            pluginPaths.add(pluginLibDir);
-            terminal.println(VERBOSE, "removing [" + pluginLibDir + "]");
+            pluginPaths.add(pluginSharedLibDir);
+            terminal.println(VERBOSE, "removing [" + pluginSharedLibDir + "]");
         }
 
         if (Files.exists(pluginConfigDir)) {

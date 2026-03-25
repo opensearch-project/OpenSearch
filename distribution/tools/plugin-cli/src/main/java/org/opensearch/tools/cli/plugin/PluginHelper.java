@@ -34,6 +34,7 @@ public class PluginHelper {
         List<Path> pluginSubFolders = Files.walk(pluginPath, 1).filter(Files::isDirectory).collect(Collectors.toList());
         for (Path customPluginFolderPath : pluginSubFolders) {
             if (customPluginFolderPath != pluginPath
+                && "lib".equals(customPluginFolderPath.getFileName().toString()) == false
                 && !((customPluginFolderPath.getFileName().toString()).contains(".installing"))
                 && !((customPluginFolderPath.getFileName().toString()).contains(".removing"))) {
                 final PluginInfo info = PluginInfo.readFromProperties(customPluginFolderPath);

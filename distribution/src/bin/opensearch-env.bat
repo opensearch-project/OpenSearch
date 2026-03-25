@@ -18,12 +18,8 @@ if not "%DIRNAME%" == "bin" (
 for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
 
 :opensearch_home_done_setup
-rem now set the classpath — include lib\* (core jars) plus any lib\<name>\ subdirectories
-rem (shared library plugins installed by opensearch-plugin are extracted into lib\<name>\)
+rem now set the classpath — include lib\* (core jars)
 set OPENSEARCH_CLASSPATH=!OPENSEARCH_HOME!\lib\*
-for /d %%D in ("!OPENSEARCH_HOME!\lib\*") do (
-  set OPENSEARCH_CLASSPATH=!OPENSEARCH_CLASSPATH!;%%D\*
-)
 
 set HOSTNAME=%COMPUTERNAME%
 
