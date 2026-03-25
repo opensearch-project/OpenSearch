@@ -108,3 +108,35 @@
 - Cold aggregation after upgrade: 2-4ms (10-20x speedup)
 - Star tree files: present for all 10 segments
 - Both compound (.cfs) and non-compound segments handled correctly
+
+
+### Issue 6: New segments after upgrade not building star tree
+- **Symptom**: New segments ingested after upgrade didn't have separate `.cid`/`.cim` files on disk
+- **Root cause**: Initially missing `codecServiceOverride` — the new engine used the old `codecService` which didn't include `Composite912Codec`
+- **Fix**: Set `codecServiceOverride = engineConfigFactory.newDefaultCodecService(...)` before creating the new engine
+- **Verification**: New segment `_1.cfs` contains `.cid`, `.cim`, `.cidvd`, `.cidvm` entries inside the compound file (confirmed by reading `.cfe` entries). Star tree files for natively-written segments are packed inside `.cfs`, not as separate files — this is correct behavior.
+- **Status**: RESOLVED
+
+### Post-upgrade ingest test (100k + 5k)
+- Ingested 100k docs → upgraded → ingested 5k more docs
+- Upgraded segments: star tree files as separate files (`.cid`, `.cim` outside `.cfs`)
+- New segments: star tree files inside `.cfs` compound file (built by `Composite912DocValuesWriter` during flush)
+- Star tree queries work across both segment types (`terminated_early=True`)
+- Total doc count: 105,000 (all preserved)
+
+
+### 3-shard test (100k docs + 10k post-upgrade)
+- Index: 3 shards, 0 replicas, 100,000 docs
+- Upgrade: `_shards: total=3, successful=3, failed=0` — all 3 shards upgraded
+- Data distribution: shard 0 = 33,502 docs, shard 1 = 33,159 docs, shard 2 = 33,339 docs
+- Post-upgrade ingest: 10,000 more docs → distributed ~3.3k per shard
+- Each shard: 2 segments after post-ingest (_0 = upgraded, _1 = new with star tree inside .cfs)
+- Query: `terminated_early=true`, `total_docs=110,000`, all 3 shards successful
+- Star tree active on all shards for both upgraded and new segments
+- 3ms query time across 3 shards, 6 segments total
+
+### Issue 7: codecServiceOverride needed for post-upgrade ingest
+- **Problem**: New segments after upgrade didn't build star tree data
+- **Root cause**: `CodecService` was created at shard init (before mapping update). The new engine used the old `codecService` which didn't include `Composite912Codec`
+- **Fix**: Set `codecServiceOverride = engineConfigFactory.newDefaultCodecService(...)` before creating the new engine. The fresh `CodecService` sees the updated mapping with star tree fields and includes `Composite912Codec`. Cleared after engine creation.
+- **Status**: RESOLVED

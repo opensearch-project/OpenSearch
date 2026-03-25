@@ -2353,6 +2353,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Create a fresh engine directly from segments_N+1.
                     // The new engine's IndexWriter opens segments_N+1 which has Composite912Codec
                     // and the star tree files in the file set — so it won't delete them.
+                    // Set codecServiceOverride so the new engine uses Composite912Codec for NEW
+                    // segments (flushes/merges after the upgrade). Without this, new segments
+                    // would use the old codec and not build star tree data.
+                    codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
                     synchronized (engineMutex) {
                         Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
                         onNewEngine(newEngine);
@@ -2361,6 +2365,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         newEngine.refresh("star-tree-upgrade");
                         active.set(true);
                     }
+                    // Clear the override — the codecService for subsequent engine configs
+                    // will be created fresh by the engine config factory which will see the
+                    // updated mapping with star tree fields
+                    codecServiceOverride = null;
                 }
             });
 

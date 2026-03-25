@@ -66,7 +66,25 @@ For compound file segments (`.cfs`), star tree files are outside the compound fi
 | File | Change |
 |------|--------|
 | `StarTreeUpgradeService.java` | New: per-segment build + SegmentInfos/.si rewrite |
-| `IndexShard.java` | New: `upgradeToStarTree(StarTreeField)` with close-engine approach |
+| `IndexShard.java` | New: `upgradeToStarTree(StarTreeField)` with close-engine approach + codecServiceOverride for post-upgrade ingest |
 | `TransportStarTreeUpgradeAction.java` | Updated: passes StarTreeField, mapping propagation guard |
 | `Composite912DocValuesFormat.java` | New: PerField suffix detection for upgraded segments |
 | `Composite912DocValuesReader.java` | New: fallback to segmentInfo.dir for compound file star tree files |
+
+## Post-Upgrade Behavior
+
+After the upgrade completes:
+- **Existing segments**: Star tree files are separate files outside `.cfs` (built by Phase 2). `Composite912DocValuesFormat` detects PerField attributes and reads doc values with the correct suffix. `Composite912DocValuesReader` falls back to `segmentInfo.dir` for star tree files in compound segments.
+- **New segments** (flushes/merges after upgrade): Star tree data is built natively by `Composite912DocValuesWriter` during flush and packed inside `.cfs`. The engine uses `Composite912Codec` via `codecServiceOverride` set during the upgrade.
+- **Queries**: Star tree acceleration works across both segment types (`terminated_early=true`).
+
+## Test Results
+
+| Test | Docs | Shards | Upgrade Time | Query Before | Query After |
+|------|------|--------|-------------|-------------|-------------|
+| Basic | 5 | 1 | <1s | N/A | 2ms (star tree) |
+| 100k | 100,000 | 1 | ~5s | 14ms | 1-2ms |
+| 1M | 1,000,000 | 1 | ~27s | 40-100ms | 2-4ms |
+| 100k + post-ingest | 105,000 | 1 | ~5s | N/A | 3ms (both segment types) |
+| 3-shard | 100,000 | 3 | ~5s | N/A | 2-3ms |
+| 3-shard + post-ingest | 110,000 | 3 | ~5s | N/A | 3ms (all shards, both types) |
