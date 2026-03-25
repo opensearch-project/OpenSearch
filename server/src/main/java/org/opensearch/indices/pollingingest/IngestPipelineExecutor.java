@@ -44,6 +44,9 @@ public class IngestPipelineExecutor {
     // TODO: consider making this configurable via index settings if use cases with slow processors arise
     static final long PIPELINE_EXECUTION_TIMEOUT_SECONDS = 30;
 
+    // TODO: explore synchronous pipeline execution (IngestService.executeBulkRequestSync) to avoid
+    // thread pool dispatch and execute pipelines directly on the processor thread
+
     private final IngestService ingestService;
     private final String index;
     private volatile String resolvedFinalPipeline;
