@@ -58,7 +58,6 @@ import software.amazon.awssdk.services.s3.model.ObjectAttributes;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Error;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
@@ -112,6 +111,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
+import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
 class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
@@ -131,7 +131,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivileged(
                 () -> clientReference.get()
-                    .headObject(HeadObjectRequest.builder().bucket(blobStore.bucket()).key(buildKey(blobName)).build())
+                    .headObject(
+                        HeadObjectRequest.builder()
+                            .bucket(blobStore.bucket())
+                            .key(buildKey(blobName))
+                            .expectedBucketOwner(blobStore.expectedBucketOwner())
+                            .build()
+                    )
             );
             return true;
         } catch (NoSuchKeyException e) {
@@ -216,7 +222,12 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.doRemoteDataIntegrityCheck(),
             writeContext.getExpectedChecksum(),
             blobStore.isUploadRetryEnabled(),
-            writeContext.getMetadata()
+            writeContext.getMetadata(),
+            blobStore.serverSideEncryptionType(),
+            blobStore.serverSideEncryptionKmsKey(),
+            blobStore.serverSideEncryptionBucketKey(),
+            blobStore.serverSideEncryptionEncryptionContext(),
+            blobStore.expectedBucketOwner()
         );
         try {
             // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
@@ -594,6 +605,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .prefix(keyPath)
             .delimiter("/")
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
             .build();
     }
 
@@ -630,14 +642,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .contentLength(blobSize)
             .storageClass(blobStore.getStorageClass())
             .acl(blobStore.getCannedACL())
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
         if (CollectionUtils.isNotEmpty(metadata)) {
             putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
-        if (blobStore.serverSideEncryption()) {
-            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-        }
+        configureEncryptionSettings(putObjectRequestBuilder, blobStore);
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
@@ -687,15 +698,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .key(blobName)
             .storageClass(blobStore.getStorageClass())
             .acl(blobStore.getCannedACL())
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
         if (CollectionUtils.isNotEmpty(metadata)) {
             createMultipartUploadRequestBuilder.metadata(metadata);
         }
 
-        if (blobStore.serverSideEncryption()) {
-            createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-        }
+        configureEncryptionSettings(createMultipartUploadRequestBuilder, blobStore);
 
         final InputStream requestInputStream;
         if (blobStore.isUploadRetryEnabled()) {
@@ -724,6 +734,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .partNumber(i)
                     .contentLength((i < nbParts) ? partSize : lastPartSize)
                     .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
 
                 bytesCount += uploadPartRequest.contentLength();
@@ -746,6 +757,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 .uploadId(uploadId.get())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
                 .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                .expectedBucketOwner(blobStore.expectedBucketOwner())
                 .build();
 
             SocketAccess.doPrivilegedVoid(() -> clientReference.get().completeMultipartUpload(completeMultipartUploadRequest));
@@ -759,6 +771,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .bucket(bucketName)
                     .key(blobName)
                     .uploadId(uploadId.get())
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                     SocketAccess.doPrivilegedVoid(() -> clientReference.get().abortMultipartUpload(abortRequest));
@@ -825,12 +838,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         @Nullable Integer partNumber
     ) {
         final boolean isMultipartObject = partNumber != null;
-        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder().bucket(bucketName).key(blobKey);
+        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(blobKey)
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
         if (isMultipartObject) {
             getObjectRequestBuilder.partNumber(partNumber);
         }
-
         return SocketAccess.doPrivileged(
             () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
                 .thenApply(response -> transformResponseToInputStreamContainer(response, isMultipartObject))
@@ -871,6 +886,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .bucket(bucketName)
             .key(blobName)
             .objectAttributes(ObjectAttributes.CHECKSUM, ObjectAttributes.OBJECT_SIZE, ObjectAttributes.OBJECT_PARTS)
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
             .build();
 
         return SocketAccess.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
