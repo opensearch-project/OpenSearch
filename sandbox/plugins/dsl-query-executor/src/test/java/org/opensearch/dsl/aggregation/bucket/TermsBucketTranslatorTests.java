@@ -58,4 +58,8 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
     public void testToBucketAggregationNotYetImplemented() {
         expectThrows(UnsupportedOperationException.class, () -> translator.toBucketAggregation(brandAgg, List.of()));
     }
+
+    public void testGetWalkStrategyReturnsStandard() {
+        assertEquals(BucketTranslator.WalkStrategy.STANDARD, translator.getWalkStrategy());
+    }
 }

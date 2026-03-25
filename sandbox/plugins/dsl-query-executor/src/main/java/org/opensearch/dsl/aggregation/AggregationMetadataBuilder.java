@@ -12,6 +12,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -34,6 +35,9 @@ public class AggregationMetadataBuilder {
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
     private boolean implicitCountRequested = false;
+    private RexNode filterCondition;
+    private String bucketKey;
+    private String aggregationName;
 
     /** Creates a new empty builder. */
     public AggregationMetadataBuilder() {}
@@ -64,6 +68,33 @@ public class AggregationMetadataBuilder {
      */
     public void requestImplicitCount() {
         this.implicitCountRequested = true;
+    }
+
+    /**
+     * Sets the filter condition from a filter bucket aggregation.
+     *
+     * @param filterCondition the RexNode filter condition, or null for no filter
+     */
+    public void setFilterCondition(RexNode filterCondition) {
+        this.filterCondition = filterCondition;
+    }
+
+    /**
+     * Sets the bucket key for response assembly (e.g., filter key in a filters aggregation).
+     *
+     * @param bucketKey the bucket key, or null for no bucket key
+     */
+    public void setBucketKey(String bucketKey) {
+        this.bucketKey = bucketKey;
+    }
+
+    /**
+     * Sets the DSL aggregation name for response assembly.
+     *
+     * @param aggregationName the aggregation name from the DSL, or null
+     */
+    public void setAggregationName(String aggregationName) {
+        this.aggregationName = aggregationName;
     }
 
     /** Returns true if this builder has at least one aggregate call or implicit count. */
@@ -126,7 +157,10 @@ public class AggregationMetadataBuilder {
             ImmutableBitSet.of(allGroupIndices),
             allGroupFieldNames,
             allCalls,
-            allFieldNames
+            allFieldNames,
+            filterCondition,
+            bucketKey,
+            aggregationName
         );
     }
 }

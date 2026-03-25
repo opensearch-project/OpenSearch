@@ -113,8 +113,7 @@ public class SearchSourceConverter {
         if (hasAggs) {
             List<AggregationMetadata> metadataList = treeWalker.walk(
                 searchSource.aggregations().getAggregatorFactories(),
-                table.getRowType(),
-                cluster.getTypeFactory()
+                ctx
             );
             for (AggregationMetadata metadata : metadataList) {
                 RelNode aggs = aggregateConverter.convert(base, metadata);
