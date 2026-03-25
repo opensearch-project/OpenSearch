@@ -24,7 +24,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.List;
 
 public class VSRManagerTests extends OpenSearchTestCase {
@@ -168,7 +167,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
         assertEquals(50001, metadata.numRows());
     }
 
-    public void testRotationThrowsWhenFrozenSlotOccupied() throws Exception {
+    public void testRotationAwaitsWhenFrozenSlotOccupied() throws Exception {
         String filePath = createTempDir().resolve("double-rotate.parquet").toString();
         VSRManager manager = new VSRManager(filePath, schema, bufferPool, 100, threadPool);
 
@@ -184,15 +183,19 @@ public class VSRManagerTests extends OpenSearchTestCase {
         ManagedVSR second = manager.getActiveManagedVSR();
         assertNotSame(first, second);
 
-        // Fill second VSR to trigger another rotation — should throw since frozen slot is still occupied
+        // Fill second VSR to trigger another rotation — should await pending write then succeed
         IntVector vec2 = (IntVector) second.getVector("val");
         for (int i = 0; i < 100; i++) {
             vec2.setSafe(i, i + 100);
         }
         second.setRowCount(100);
-        IOException ex = expectThrows(IOException.class, () -> manager.maybeRotateActiveVSR());
-        assertTrue(ex.getMessage().contains("frozen slot is occupied"));
+        manager.maybeRotateActiveVSR();
 
+        ManagedVSR third = manager.getActiveManagedVSR();
+        assertNotSame(second, third);
+        assertEquals(VSRState.ACTIVE, third.getState());
+
+        manager.flush();
         manager.close();
     }
 

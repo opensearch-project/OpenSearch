@@ -54,8 +54,22 @@ public class VSRManager implements AutoCloseable {
     private final String fileName;
     private final VSRPool vsrPool;
     private final ThreadPool threadPool;
+    private final boolean runAsync;
     private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
+
+    /**
+     * Creates a new VSRManager with asynchronous background writes (production default).
+     *
+     * @param fileName output Parquet file path
+     * @param schema Arrow schema for vector creation
+     * @param bufferPool shared Arrow buffer pool
+     * @param maxRowsPerVSR row threshold triggering VSR rotation
+     * @param threadPool the thread pool for background native writes
+     */
+    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
+        this(fileName, schema, bufferPool, maxRowsPerVSR, threadPool, true);
+    }
 
     /**
      * Creates a new VSRManager.
@@ -65,11 +79,21 @@ public class VSRManager implements AutoCloseable {
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
      * @param threadPool the thread pool for background native writes
+     * @param runAsync if true, frozen VSR writes run on the background thread pool;
+     *                 if false, they run on the calling thread (for benchmarks/tests)
      */
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
+    public VSRManager(
+        String fileName,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool,
+        boolean runAsync
+    ) {
         this.fileName = fileName;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
+        this.runAsync = runAsync;
         this.managedVSR.set(vsrPool.getActiveVSR());
         initializeWriter();
     }
@@ -102,10 +126,11 @@ public class VSRManager implements AutoCloseable {
 
     /**
      * Handles VSR rotation after document addition if row threshold is reached.
-     * Submits frozen VSR write to the background thread pool, allowing the new active VSR
-     * to accept writes immediately. Blocks if a previous background write is still in progress.
+     * Submits frozen VSR write to the background thread pool or runs it on the calling thread,
+     * depending on the {@code runAsync} setting.
      */
     public void maybeRotateActiveVSR() throws IOException {
+        awaitPendingWrite();
         boolean rotated = vsrPool.maybeRotateActiveVSR();
         if (!rotated) {
             return;
@@ -114,7 +139,7 @@ public class VSRManager implements AutoCloseable {
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
             logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
-            pendingWrite = threadPool.executor(ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME).submit(() -> {
+            Runnable writeTask = () -> {
                 try (ArrowExport export = frozenVSR.exportToArrow()) {
                     writer.write(export.getArrayAddress(), export.getSchemaAddress());
                 } catch (IOException e) {
@@ -126,7 +151,12 @@ public class VSRManager implements AutoCloseable {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            });
+            };
+            if (runAsync) {
+                pendingWrite = threadPool.executor(ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME).submit(writeTask);
+            } else {
+                writeTask.run();
+            }
         }
         ManagedVSR newVSR = vsrPool.getActiveVSR();
         if (newVSR == null) {
