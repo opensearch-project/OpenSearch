@@ -88,27 +88,25 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
 
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        String loggerName = SearchRequestSlowLog.CLUSTER_SEARCH_REQUEST_SLOWLOG_PREFIX + ".SearchRequestSlowLog";
 
-        new MockSearchPhaseContext(1);
         ClusterService clusterService1 = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
         new SearchRequestSlowLog(clusterService1);
-        int numberOfLoggersBefore = context.getLoggers().size();
+        Logger logger1 = context.getLogger(loggerName);
 
-        new MockSearchPhaseContext(1);
         ClusterService clusterService2 = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
-        new SearchRequestOperationsCompositeListenerFactory();
         new SearchRequestSlowLog(clusterService2);
+        Logger logger2 = context.getLogger(loggerName);
 
-        int numberOfLoggersAfter = context.getLoggers().size();
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore));
+        assertSame(logger1, logger2);
     }
 
     public void testOnRequestEnd() {

@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'DataFusion native execution engine plugin for the query engine.'
+  classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
+  extendedPlugins = ['analytics-engine']
+}
+
+dependencies {
+  // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
+  compileOnly project(':sandbox:libs:analytics-framework')
+
+  compileOnly "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  compileOnly "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+}
+
+// TODO: Remove once back-end is built out with test suite
+testingConventions.enabled = false
