@@ -63,7 +63,7 @@ public abstract class RangeAggregatorBridge extends AggregatorBridge {
             uppers[i] = upper;
         }
 
-        setRanges.accept(new Ranges(lowers, uppers));
+        setRanges.accept(Ranges.forByteArrays(lowers, uppers));
     }
 
     @Override

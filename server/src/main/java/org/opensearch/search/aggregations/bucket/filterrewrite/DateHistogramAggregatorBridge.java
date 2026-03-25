@@ -144,7 +144,7 @@ public abstract class DateHistogramAggregatorBridge extends AggregatorBridge {
         DateFieldMapper.DateFieldType fieldType = getFieldType();
 
         Function<Integer, Long> getBucketOrd = (activeIndex) -> {
-            long rangeStart = LongPoint.decodeDimension(ranges.lowers[activeIndex], 0);
+            long rangeStart = LongPoint.decodeDimension(ranges.lower(activeIndex), 0);
             rangeStart = fieldType.convertNanosToMillis(rangeStart);
             return getBucketOrd(bucketOrdProducer().apply(rangeStart));
         };

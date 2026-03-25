@@ -32,8 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
-
 /**
  * Utility class to help range filters rewrite optimization
  *
@@ -182,34 +180,21 @@ final class Helper {
             prevRounded = roundedLow;
         }
 
-        long[][] ranges = new long[bucketCount][2];
+        long[] lowers = new long[bucketCount];
+        long[] uppers = new long[bucketCount];
         if (bucketCount > 0) {
             roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
 
-            int i = 0;
-            while (i < bucketCount) {
-                // Calculate the lower bucket bound
+            for (int i = 0; i < bucketCount; i++) {
                 long lower = i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow);
                 roundedLow = preparedRounding.round(roundedLow + interval);
-
-                // plus one on high value because upper bound is exclusive, but high value exists
                 long upper = i + 1 == bucketCount ? high + 1 : fieldType.convertRoundedMillisToNanos(roundedLow);
 
-                ranges[i][0] = lower;
-                ranges[i][1] = upper;
-                i++;
+                lowers[i] = lower;
+                uppers[i] = upper;
             }
         }
 
-        byte[][] lowers = new byte[ranges.length][];
-        byte[][] uppers = new byte[ranges.length][];
-        for (int i = 0; i < ranges.length; i++) {
-            byte[] lower = LONG.encodePoint(ranges[i][0]);
-            byte[] max = LONG.encodePoint(ranges[i][1]);
-            lowers[i] = lower;
-            uppers[i] = max;
-        }
-
-        return new Ranges(lowers, uppers);
+        return new HistogramRanges(lowers, uppers);
     }
 }

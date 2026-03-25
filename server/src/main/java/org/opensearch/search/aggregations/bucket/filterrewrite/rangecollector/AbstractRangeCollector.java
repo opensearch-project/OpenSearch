@@ -52,12 +52,12 @@ public abstract class AbstractRangeCollector implements RangeCollector {
 
     @Override
     public boolean withinLowerBound(byte[] value) {
-        return ranges.withinLowerBound(value, ranges.getLowers()[activeIndex]);
+        return ranges.withinLowerBound(activeIndex, value);
     }
 
     @Override
     public boolean withinUpperBound(byte[] value) {
-        return ranges.withinUpperBound(value, ranges.getUppers()[activeIndex]);
+        return ranges.withinUpperBound(activeIndex, value);
     }
 
     @Override
