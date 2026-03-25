@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.backend;
 
+import java.util.Iterator;
+
 /**
  * A closeable stream of record batches returned by engine execution.
  * Callers iterate batches via the returned iterator and MUST close the stream
@@ -21,7 +23,7 @@ public interface EngineResultStream extends AutoCloseable {
      * Returns an iterator over the record batches in this stream.
      * Each call returns the same iterator instance — the stream is single-pass.
      */
-    EngineResultBatchIterator iterator();
+    Iterator<EngineResultBatch> iterator();
 
     @Override
     void close();

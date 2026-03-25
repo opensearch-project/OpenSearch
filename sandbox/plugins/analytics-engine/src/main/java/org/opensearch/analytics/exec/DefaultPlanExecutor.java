@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.analytics.backend.EngineResultBatchIterator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -26,6 +25,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +65,10 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         String tableName = extractTableName(logicalFragment);
-        String backendName = selectBackEnd().name();
+        AnalyticsSearchBackendPlugin plugin = selectBackEnd();
+        if (plugin == null) {
+            return new ArrayList<>();
+        }
 
         IndexShard shard = resolveShard(tableName);
         DataFormatAwareEngine dataFormatAwareEngine = shard.getCompositeEngine();
@@ -73,15 +76,14 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             throw new IllegalStateException("No CompositeEngine on shard [" + shard.shardId() + "]");
         }
 
-        AnalyticsSearchBackendPlugin plugin = backEnds.get(backendName);
         SearchShardTask task = null; // TODO : init task
         List<Object[]> rows = new ArrayList<>();
         try (DataFormatAwareEngine.DataFormatAwareReader dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
             ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader);
-            try (SearchExecEngine engine = plugin.searcher(ctx)) {
+            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = plugin.searcher(ctx)) {
                 logger.info("[DefaultPlanExecutor] Executing via [{}]", plugin.name());
                 try (EngineResultStream resultStream = engine.execute(ctx)) {
-                    EngineResultBatchIterator batchIterator = resultStream.iterator();
+                    Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
                     while (batchIterator.hasNext()) {
                         EngineResultBatch batch = batchIterator.next();
                         List<String> fieldNames = batch.getFieldNames();
@@ -122,7 +124,11 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     }
 
     private AnalyticsSearchBackendPlugin selectBackEnd() {
-        if (backEnds.isEmpty()) throw new IllegalStateException("No back-end plugins registered");
+        if (backEnds.isEmpty()) {
+            logger.warn("No back-end plugins registered — queries will return empty results");
+            return null;
+        }
+        // TODO : This is placeholder - select based on data format
         return backEnds.values().iterator().next();
     }
 }

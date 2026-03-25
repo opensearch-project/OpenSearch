@@ -9,12 +9,12 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.analytics.backend.EngineResultBatchIterator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
@@ -41,7 +41,7 @@ public class DatafusionResultStream implements EngineResultStream {
     }
 
     @Override
-    public EngineResultBatchIterator iterator() {
+    public Iterator<EngineResultBatch> iterator() {
         if (iteratorInstance == null) {
             iteratorInstance = new BatchIterator(streamHandle);
         }
@@ -57,7 +57,7 @@ public class DatafusionResultStream implements EngineResultStream {
      * Iterator that pulls Arrow record batches from the native stream via JNI.
      * Each call to {@link #next()} returns a batch wrapping the current Arrow data.
      */
-    static class BatchIterator implements EngineResultBatchIterator {
+    static class BatchIterator implements Iterator<EngineResultBatch> {
 
         private final StreamHandle streamHandle;
         private Boolean hasNext;

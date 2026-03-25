@@ -22,7 +22,6 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.analytics.backend.EngineResultBatchIterator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -49,6 +48,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -302,7 +302,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         protected void closeInternal() {}
     }
 
-    static class MockSearchExecEngine implements SearchExecEngine {
+    static class MockSearchExecEngine implements SearchExecEngine<ExecutionContext, EngineResultStream> {
         private final long totalRows;
 
         MockSearchExecEngine(long totalRows) {
@@ -329,7 +329,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public EngineResultBatchIterator iterator() {
+        public Iterator<EngineResultBatch> iterator() {
             return new MockBatchIterator(rowCount);
         }
 
@@ -337,7 +337,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         public void close() {}
     }
 
-    static class MockBatchIterator implements EngineResultBatchIterator {
+    static class MockBatchIterator implements Iterator<EngineResultBatch> {
         private final long rowCount;
         private boolean consumed;
 
@@ -393,7 +393,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchExecEngine searcher(ExecutionContext ctx) {
+        public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
             Object reader = ctx.getReader().getReader(format);
             long rows = reader instanceof Long ? (Long) reader : 0L;
             return new MockSearchExecEngine(rows);

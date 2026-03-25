@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -104,7 +105,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     }
 
     @Override
-    public SearchExecEngine searcher(ExecutionContext ctx) {
+    public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
         // TODO: resolve DataFormat properly instead of passing null
         DatafusionReader dfReader = (DatafusionReader) ctx.getReader().getReader(null);
         DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());

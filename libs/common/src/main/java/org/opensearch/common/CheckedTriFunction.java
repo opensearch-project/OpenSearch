@@ -8,14 +8,14 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * A {@link TriFunction}-like interface which allows throwing checked exceptions.
  *
  * @opensearch.internal
  */
-@ExperimentalApi
+@PublicApi(since = "2.9.0")
 @FunctionalInterface
 public interface CheckedTriFunction<S, T, U, R, E extends Exception> {
     R apply(S s, T t, U u) throws E;

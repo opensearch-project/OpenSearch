@@ -21,7 +21,7 @@ public class ExecutionContext {
 
     private final String tableName;
     private final DataFormatAwareEngine.DataFormatAwareReader reader;
-    SearchShardTask task;
+    private final SearchShardTask task;
 
     /**
      * Constructs an execution context.

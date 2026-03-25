@@ -25,3 +25,6 @@ dependencies {
 test {
     systemProperty 'tests.security.manager', 'false'
 }
+
+// TODO: Remove once back-end is built out with test suite
+testingConventions.enabled = false

@@ -23,7 +23,7 @@ import java.io.IOException;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DatafusionSearchExecEngine implements SearchExecEngine {
+public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionContext, EngineResultStream> {
 
     private final DatafusionContext datafusionContext;
 
