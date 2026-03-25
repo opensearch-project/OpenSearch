@@ -30,6 +30,7 @@ dependencies {
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   // SLF4J — Calcite's logging facade
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "commons-io:commons-io:${versions.commonsio}"
 
   // Calcite optional deps required at runtime — BuiltInMethod.<clinit> reflectively loads ALL
   // methods which triggers class loading for every type referenced in Calcite's SqlFunctions.
