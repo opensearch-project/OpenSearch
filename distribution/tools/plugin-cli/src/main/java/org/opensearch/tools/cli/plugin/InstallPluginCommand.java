@@ -870,7 +870,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         return info;
     }
 
-    /** Moves bin, config, and lib directories from the plugin if they exist */
+    /** Moves bin, config, and shared directories from the plugin if they exist */
     private void installPluginSupportFiles(
         PluginInfo info,
         Path tmpRoot,
@@ -892,7 +892,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             installConfig(info, tmpConfigDir, destConfigDir);
         }
 
-        Path tmpLibDir = tmpRoot.resolve("lib");
+        Path tmpLibDir = tmpRoot.resolve("shared");
         if (Files.exists(tmpLibDir)) {
             deleteOnFailure.add(destLibDir);
             installLib(info, tmpLibDir, destLibDir);
@@ -950,13 +950,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /**
-     * Copies jar files from {@code tmpLibDir} into {@code destLibDir} ({@code OPENSEARCH_HOME/lib/<plugin_name>/}).
-     * These jars are added to the system classpath at startup via the subdirectory glob in {@code opensearch-env},
-     * making them visible to all plugins without classloader wiring.
+     * Copies jar files from {@code tmpLibDir} into {@code destLibDir} ({@code plugins/lib/<plugin_name>/}).
+     * These jars are added to the plugin's classloader at startup, making them visible to plugins
+     * that extend this one without exposing the full implementation classpath.
      */
     private void installLib(PluginInfo info, Path tmpLibDir, Path destLibDir) throws Exception {
         if (Files.isDirectory(tmpLibDir) == false) {
-            throw new UserException(PLUGIN_MALFORMED, "lib in plugin " + info.getName() + " is not a directory");
+            throw new UserException(PLUGIN_MALFORMED, "shared in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectories(destLibDir);
         setFileAttributes(destLibDir, PLUGIN_DIR_PERMS);
@@ -966,7 +966,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 if (Files.isDirectory(srcFile)) {
                     throw new UserException(
                         PLUGIN_MALFORMED,
-                        "Directories not allowed in lib dir for plugin " + info.getName() + ", found " + srcFile.getFileName()
+                        "Directories not allowed in shared dir for plugin " + info.getName() + ", found " + srcFile.getFileName()
                     );
                 }
                 Path destFile = destLibDir.resolve(tmpLibDir.relativize(srcFile));
