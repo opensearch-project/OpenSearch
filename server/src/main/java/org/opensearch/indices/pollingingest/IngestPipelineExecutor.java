@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.threadpool.ThreadPool;
@@ -50,6 +52,13 @@ public class IngestPipelineExecutor {
     private final IngestService ingestService;
     private final String index;
     private volatile String resolvedFinalPipeline;
+
+    // Pipeline execution metrics
+    private final CounterMetric executionCount = new CounterMetric();
+    private final CounterMetric executionTimeNanos = new CounterMetric();
+    private final CounterMetric failedCount = new CounterMetric();
+    private final CounterMetric droppedCount = new CounterMetric();
+    private final CounterMetric timeoutCount = new CounterMetric();
 
     /**
      * Creates an IngestPipelineExecutor for the given index.
@@ -106,6 +115,8 @@ public class IngestPipelineExecutor {
             return sourceMap;
         }
 
+        long startTimeNanos = System.nanoTime();
+
         // Build IndexRequest to carry the document through the pipeline
         IndexRequest indexRequest = new IndexRequest(index);
         indexRequest.id(id);
@@ -140,15 +151,23 @@ public class IngestPipelineExecutor {
         try {
             future.get(PIPELINE_EXECUTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException e) {
+            timeoutCount.inc();
+            failedCount.inc();
             throw new RuntimeException("Ingest pipeline execution timed out after [" + PIPELINE_EXECUTION_TIMEOUT_SECONDS + "] seconds", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            failedCount.inc();
             throw new RuntimeException("Ingest pipeline execution was interrupted", e);
         } catch (ExecutionException e) {
+            failedCount.inc();
             throw new RuntimeException("Ingest pipeline execution failed", e.getCause());
+        } finally {
+            executionTimeNanos.inc(System.nanoTime() - startTimeNanos);
+            executionCount.inc();
         }
 
         if (dropped.get()) {
+            droppedCount.inc();
             return null;
         }
 
@@ -172,4 +191,29 @@ public class IngestPipelineExecutor {
 
         return indexRequest.sourceAsMap();
     }
+
+    /**
+     * Returns pipeline execution metrics.
+     */
+    public PipelineMetrics getMetrics() {
+        return new PipelineMetrics(
+            executionCount.count(),
+            TimeUnit.NANOSECONDS.toMillis(executionTimeNanos.count()),
+            failedCount.count(),
+            droppedCount.count(),
+            timeoutCount.count()
+        );
+    }
+
+    /**
+     * Pipeline execution metrics for pull-based ingestion.
+     */
+    @PublicApi(since = "3.6.0")
+    public record PipelineMetrics(
+        long totalExecutionCount,
+        long totalExecutionTimeInMillis,
+        long totalFailedCount,
+        long totalDroppedCount,
+        long totalTimeoutCount
+    ) {}
 }

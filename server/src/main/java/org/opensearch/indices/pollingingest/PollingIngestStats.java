@@ -26,10 +26,34 @@ import java.util.Objects;
 public class PollingIngestStats implements Writeable, ToXContentFragment {
     private final MessageProcessorStats messageProcessorStats;
     private final ConsumerStats consumerStats;
+    private final PipelineStats pipelineStats;
 
     public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats) {
+        this(messageProcessorStats, consumerStats, new PipelineStats(0, 0, 0, 0, 0));
+    }
+
+    public PollingIngestStats(
+        MessageProcessorStats messageProcessorStats,
+        ConsumerStats consumerStats,
+        IngestPipelineExecutor.PipelineMetrics pipelineMetrics
+    ) {
+        this(
+            messageProcessorStats,
+            consumerStats,
+            new PipelineStats(
+                pipelineMetrics.totalExecutionCount(),
+                pipelineMetrics.totalExecutionTimeInMillis(),
+                pipelineMetrics.totalFailedCount(),
+                pipelineMetrics.totalDroppedCount(),
+                pipelineMetrics.totalTimeoutCount()
+            )
+        );
+    }
+
+    public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats, PipelineStats pipelineStats) {
         this.messageProcessorStats = messageProcessorStats;
         this.consumerStats = consumerStats;
+        this.pipelineStats = pipelineStats;
     }
 
     public PollingIngestStats(StreamInput in) throws IOException {
@@ -68,6 +92,18 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             totalDuplicateMessageSkippedCount,
             pointerBasedLag
         );
+
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            this.pipelineStats = new PipelineStats(
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong()
+            );
+        } else {
+            this.pipelineStats = new PipelineStats(0, 0, 0, 0, 0);
+        }
     }
 
     @Override
@@ -87,6 +123,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
 
         if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
             out.writeLong(consumerStats.pointerBasedLag);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeLong(pipelineStats.totalExecutionCount);
+            out.writeLong(pipelineStats.totalExecutionTimeInMillis);
+            out.writeLong(pipelineStats.totalFailedCount);
+            out.writeLong(pipelineStats.totalDroppedCount);
+            out.writeLong(pipelineStats.totalTimeoutCount);
         }
     }
 
@@ -110,6 +154,13 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         builder.field("lag_in_millis", consumerStats.lagInMillis);
         builder.field("pointer_based_lag", consumerStats.pointerBasedLag);
         builder.endObject();
+        builder.startObject("pipeline_stats");
+        builder.field("total_execution_count", pipelineStats.totalExecutionCount);
+        builder.field("total_execution_time_in_millis", pipelineStats.totalExecutionTimeInMillis);
+        builder.field("total_failed_count", pipelineStats.totalFailedCount);
+        builder.field("total_dropped_count", pipelineStats.totalDroppedCount);
+        builder.field("total_timeout_count", pipelineStats.totalTimeoutCount);
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -122,17 +173,23 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         return consumerStats;
     }
 
+    public PipelineStats getPipelineStats() {
+        return pipelineStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof PollingIngestStats)) return false;
         PollingIngestStats that = (PollingIngestStats) o;
-        return Objects.equals(messageProcessorStats, that.messageProcessorStats) && Objects.equals(consumerStats, that.consumerStats);
+        return Objects.equals(messageProcessorStats, that.messageProcessorStats)
+            && Objects.equals(consumerStats, that.consumerStats)
+            && Objects.equals(pipelineStats, that.pipelineStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(messageProcessorStats, consumerStats);
+        return Objects.hash(messageProcessorStats, consumerStats, pipelineStats);
     }
 
     /**
@@ -154,6 +211,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Stats for pipeline execution in pull-based ingestion.
+     */
+    @PublicApi(since = "3.6.0")
+    public record PipelineStats(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount, long totalDroppedCount,
+        long totalTimeoutCount) {
+    }
+
+    /**
      * Builder for {@link PollingIngestStats}
      */
     @PublicApi(since = "3.6.0")
@@ -171,6 +236,11 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long totalPollerMessageDroppedCount;
         private long totalDuplicateMessageSkippedCount;
         private long pointerBasedLag;
+        private long pipelineExecutionCount;
+        private long pipelineExecutionTimeInMillis;
+        private long pipelineFailedCount;
+        private long pipelineDroppedCount;
+        private long pipelineTimeoutCount;
 
         public Builder() {}
 
@@ -243,6 +313,15 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
+        public Builder setPipelineStats(IngestPipelineExecutor.PipelineMetrics metrics) {
+            this.pipelineExecutionCount = metrics.totalExecutionCount();
+            this.pipelineExecutionTimeInMillis = metrics.totalExecutionTimeInMillis();
+            this.pipelineFailedCount = metrics.totalFailedCount();
+            this.pipelineDroppedCount = metrics.totalDroppedCount();
+            this.pipelineTimeoutCount = metrics.totalTimeoutCount();
+            return this;
+        }
+
         public PollingIngestStats build() {
             MessageProcessorStats messageProcessorStats = new MessageProcessorStats(
                 totalProcessedCount,
@@ -261,7 +340,14 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
                 totalDuplicateMessageSkippedCount,
                 pointerBasedLag
             );
-            return new PollingIngestStats(messageProcessorStats, consumerStats);
+            PipelineStats pipelineStats = new PipelineStats(
+                pipelineExecutionCount,
+                pipelineExecutionTimeInMillis,
+                pipelineFailedCount,
+                pipelineDroppedCount,
+                pipelineTimeoutCount
+            );
+            return new PollingIngestStats(messageProcessorStats, consumerStats, pipelineStats);
         }
     }
 
