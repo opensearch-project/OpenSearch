@@ -32,8 +32,10 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import joptsimple.internal.Strings;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
@@ -134,7 +136,60 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            // Optimized path for single-valued fields using Lucene 10.4 bulk APIs
+            return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
+                private final int[] docBuffer = new int[256];
+                private final long[] valueBuffer = new long[256];
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (singleton.advanceExact(doc)) {
+                        long val = singleton.longValue();
+                        if ((longFilter == null) || (longFilter.accept(val))) {
+                            long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                            if (bucketOrdinal < 0) {
+                                bucketOrdinal = -1 - bucketOrdinal;
+                                collectExistingBucket(sub, doc, bucketOrdinal);
+                            } else {
+                                collectBucket(sub, doc, bucketOrdinal);
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                        singleton.longValues(count, docBuffer, valueBuffer, Long.MAX_VALUE);
+                        for (int i = 0; i < count; i++) {
+                            long val = valueBuffer[i];
+                            if (val != Long.MAX_VALUE) {
+                                if ((longFilter == null) || (longFilter.accept(val))) {
+                                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                                    if (bucketOrdinal < 0) {
+                                        bucketOrdinal = -1 - bucketOrdinal;
+                                        collectExistingBucket(sub, docBuffer[i], bucketOrdinal);
+                                    } else {
+                                        collectBucket(sub, docBuffer[i], bucketOrdinal);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
+            });
+        }
+        // Multi-valued path
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
+            private final int[] docBuffer = new int[256];
+
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
@@ -161,7 +216,29 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
 
             @Override
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+                for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                    for (int i = 0; i < count; i++) {
+                        if (values.advanceExact(docBuffer[i])) {
+                            int valuesCount = values.docValueCount();
+                            long previous = Long.MAX_VALUE;
+                            for (int j = 0; j < valuesCount; ++j) {
+                                long val = values.nextValue();
+                                if (previous != val || j == 0) {
+                                    if ((longFilter == null) || (longFilter.accept(val))) {
+                                        long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                                        if (bucketOrdinal < 0) {
+                                            bucketOrdinal = -1 - bucketOrdinal;
+                                            collectExistingBucket(sub, docBuffer[i], bucketOrdinal);
+                                        } else {
+                                            collectBucket(sub, docBuffer[i], bucketOrdinal);
+                                        }
+                                    }
+                                    previous = val;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             @Override

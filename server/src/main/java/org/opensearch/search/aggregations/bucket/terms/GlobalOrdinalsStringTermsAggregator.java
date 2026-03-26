@@ -264,6 +264,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                  * common and marginally faster.
                  */
                 return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+                    // Buffer for bulk collection using Lucene 10.4 DocIdStream#intoArray
+                    private final int[] docBuffer = new int[256];
+
                     @Override
                     public void collect(int doc, long owningBucketOrd) throws IOException {
                         if (false == singleValues.advanceExact(doc)) {
@@ -275,7 +278,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
                     @Override
                     public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                        super.collect(stream, owningBucketOrd);
+                        // Use Lucene 10.4 intoArray to batch doc IDs, making the inner loop's
+                        // advanceExact/ordValue/collectGlobalOrd call sites monomorphic.
+                        for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                            for (int i = 0; i < count; i++) {
+                                if (singleValues.advanceExact(docBuffer[i])) {
+                                    int globalOrd = singleValues.ordValue();
+                                    collectionStrategy.collectGlobalOrd(owningBucketOrd, docBuffer[i], globalOrd, sub);
+                                }
+                            }
+                        }
                     }
 
                     @Override
@@ -285,6 +297,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 });
             }
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+                private final int[] docBuffer = new int[256];
+
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (false == singleValues.advanceExact(doc)) {
@@ -299,7 +313,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                    for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                        for (int i = 0; i < count; i++) {
+                            if (singleValues.advanceExact(docBuffer[i])) {
+                                int globalOrd = singleValues.ordValue();
+                                if (acceptedGlobalOrdinals.test(globalOrd)) {
+                                    collectionStrategy.collectGlobalOrd(owningBucketOrd, docBuffer[i], globalOrd, sub);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 @Override
@@ -315,6 +338,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
              * common and marginally faster.
              */
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+                private final int[] docBuffer = new int[256];
+
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (false == globalOrds.advanceExact(doc)) {
@@ -329,7 +354,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                    for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                        for (int i = 0; i < count; i++) {
+                            if (globalOrds.advanceExact(docBuffer[i])) {
+                                int ordCount = globalOrds.docValueCount();
+                                long globalOrd;
+                                while ((ordCount-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                    collectionStrategy.collectGlobalOrd(owningBucketOrd, docBuffer[i], globalOrd, sub);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 @Override
@@ -339,6 +374,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             });
         }
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, globalOrds) {
+            private final int[] docBuffer = new int[256];
+
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (false == globalOrds.advanceExact(doc)) {
@@ -356,7 +393,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
             @Override
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+                for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                    for (int i = 0; i < count; i++) {
+                        if (globalOrds.advanceExact(docBuffer[i])) {
+                            int ordCount = globalOrds.docValueCount();
+                            long globalOrd;
+                            while ((ordCount-- > 0) && (globalOrd = globalOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                if (acceptedGlobalOrdinals.test(globalOrd)) {
+                                    collectionStrategy.collectGlobalOrd(owningBucketOrd, docBuffer[i], globalOrd, sub);
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             @Override

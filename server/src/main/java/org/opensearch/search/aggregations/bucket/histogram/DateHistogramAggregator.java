@@ -241,6 +241,10 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             // Optimized path for single-valued fields
             singleValuedCollectorsUsed++;
             return new LeafBucketCollectorBase(sub, values) {
+                // Buffers for bulk collection using Lucene 10.4 APIs
+                private final int[] docBuffer = new int[256];
+                private final long[] valueBuffer = new long[256];
+
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     if (singleton.advanceExact(doc)) {
@@ -251,7 +255,16 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
 
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                    // Use Lucene 10.4 bulk APIs: intoArray + longValues to batch doc value retrieval,
+                    // reducing virtual call overhead from per-doc advanceExact/longValue calls.
+                    for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
+                        singleton.longValues(count, docBuffer, valueBuffer, Long.MIN_VALUE);
+                        for (int i = 0; i < count; i++) {
+                            if (valueBuffer[i] != Long.MIN_VALUE) {
+                                collectValue(sub, docBuffer[i], owningBucketOrd, preparedRounding.round(valueBuffer[i]));
+                            }
+                        }
+                    }
                 }
 
                 @Override
