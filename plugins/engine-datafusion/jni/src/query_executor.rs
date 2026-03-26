@@ -9,6 +9,7 @@
 use std::sync::Arc;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::time::Instant;
+use dashmap::DashMap;
 use datafusion::common::stats::Precision;
 use jni::sys::jlong;
 use datafusion::{
@@ -59,6 +60,12 @@ use crate::DataFusionRuntime;
 use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
 use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
 use vectorized_exec_spi::log_info;
+
+use once_cell::sync::Lazy;
+
+/// Global schema cache: keyed by table path string, caches the inferred SchemaRef.
+/// This avoids re-reading parquet footers on every query for the same table.
+static SCHEMA_CACHE: Lazy<DashMap<String, SchemaRef>> = Lazy::new(DashMap::new);
 
 /// Executes a query using DataFusion with cross-runtime streaming capabilities.
 /// This function sets up the complete query execution pipeline including table registration,
@@ -195,14 +202,23 @@ pub async fn execute_query_with_cross_rt_stream(
     log_info!("[Profiler] setup took {:?}", query_start.elapsed());
     let t = Instant::now();
 
-    let resolved_schema = match listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await {
-        Ok(schema) => schema,
-        Err(e) => {
-            error!("Failed to infer schema: {}", e);
-            return Err(e);
-        }
+    let cache_key = table_path.prefix().to_string();
+    let resolved_schema = if let Some(cached) = SCHEMA_CACHE.get(&cache_key) {
+        log_info!("[Profiler] schema cache hit for {}", cache_key);
+        cached.clone()
+    } else {
+        let schema = match listing_options
+            .infer_schema(&ctx.state(), &table_path)
+            .await {
+            Ok(schema) => schema,
+            Err(e) => {
+                error!("Failed to infer schema: {}", e);
+                return Err(e);
+            }
+        };
+        SCHEMA_CACHE.insert(cache_key.clone(), schema.clone());
+        log_info!("[Profiler] schema cache miss for {}, inferred and cached", cache_key);
+        schema
     };
 
     log_info!("[Profiler] infer_schema took {:?}", t.elapsed());
