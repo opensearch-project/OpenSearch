@@ -118,7 +118,9 @@ on:
 
 jobs:
   branches:
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       wazuh_plugins_ref: ${{ steps.branches.outputs.wazuh_indexer_plugins_branch }}
       reporting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_reporting_branch }}
@@ -134,7 +136,9 @@ jobs:
           branch: ${{ inputs.plugins_ref }}
 
   get-versions-wazuh-indexer:
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       version: ${{ steps.version.outputs.version }}
       opensearch_version: ${{ steps.version.outputs.opensearch_version }}
@@ -153,7 +157,9 @@ jobs:
 
   get-versions-wazuh-indexer-plugins:
     needs: [branches]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       version: ${{ steps.plugins_version.outputs.version }}
       opensearch_version: ${{ steps.plugins_version.outputs.opensearch_version }}
@@ -174,7 +180,9 @@ jobs:
 
   get-versions-wazuh-indexer-reporting:
     needs: [branches]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       version: ${{ steps.reporting_version.outputs.version }}
       opensearch_version: ${{ steps.reporting_version.outputs.opensearch_version }}
@@ -195,7 +203,9 @@ jobs:
 
   get-versions-wazuh-indexer-security-analytics:
     needs: [branches]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       version: ${{ steps.security_analytics_version.outputs.version }}
       opensearch_version: ${{ steps.security_analytics_version.outputs.opensearch_version }}
@@ -216,7 +226,9 @@ jobs:
 
   get-versions-wazuh-indexer-notifications:
     needs: [branches]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       version: ${{ steps.notifications_version.outputs.version }}
       opensearch_version: ${{ steps.notifications_version.outputs.opensearch_version }}
@@ -236,7 +248,9 @@ jobs:
             echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
 
   compatibility-check:
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins, get-versions-wazuh-indexer-reporting, get-versions-wazuh-indexer-security-analytics, get-versions-wazuh-indexer-notifications]
     steps:
       - name: Check version compatibility
@@ -255,7 +269,9 @@ jobs:
   setup:
     needs: [compatibility-check]
     name: Set up variables
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       previous_version: ${{ steps.previous_release.outputs.previous_version }}
@@ -282,7 +298,9 @@ jobs:
 
   # Publish security-analytics-plugin and its commons to Local Maven
   sap-maven-local-publication:
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     needs: [compatibility-check, branches, get-versions-wazuh-indexer-security-analytics]
     steps:
       - name: Publish SAP to Local Maven
@@ -313,7 +331,9 @@ jobs:
       fail-fast: false
       matrix:
         plugins: ["setup", "content-manager"]
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     env:
       plugin_name: wazuh-indexer-${{ matrix.plugins }}
     outputs:
@@ -363,7 +383,9 @@ jobs:
   build-reporting-plugin:
     needs: [compatibility-check, branches]
     if: ${{ needs.branches.outputs.reporting_plugin_ref != '' }}
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     env:
@@ -405,7 +427,9 @@ jobs:
   build-security-analytics-plugin:
     needs: [compatibility-check, branches]
     if: ${{ needs.branches.outputs.security_analytics_plugin_ref != '' }}
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     env:
@@ -454,7 +478,9 @@ jobs:
   build-notifications-plugin:
     needs: [compatibility-check, branches]
     if: ${{ needs.branches.outputs.notifications_plugin_ref != '' }}
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: 'wz-linux-amd64'
+      labels: 'wz-linux-amd64'
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     env:
