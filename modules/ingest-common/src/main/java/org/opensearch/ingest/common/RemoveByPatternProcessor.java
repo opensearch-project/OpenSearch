@@ -163,7 +163,7 @@ public final class RemoveByPatternProcessor extends AbstractProcessor {
                 if (fieldPattern.startsWith("_")) {
                     validationErrors.add(patternKey + " [" + fieldPattern + "] must not start with '_'");
                 }
-                if (Strings.validFileNameExcludingAstrix(fieldPattern) == false) {
+                if (Strings.validFileNameExcludingAsterisk(fieldPattern) == false) {
                     validationErrors.add(
                         patternKey + " [" + fieldPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                     );

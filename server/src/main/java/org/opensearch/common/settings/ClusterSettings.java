@@ -594,6 +594,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH,
                 SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY,
                 SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD,
+                SearchService.TERMS_AGGREGATION_MAX_PRECOMPUTE_CARDINALITY,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED,
                 CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD,
                 SearchService.KEYWORD_INDEX_OR_DOC_VALUES_ENABLED,
@@ -781,6 +782,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteClusterStateService.REMOTE_CLUSTER_STATE_ENABLED_SETTING,
                 RemoteClusterStateService.REMOTE_PUBLICATION_SETTING,
                 RemoteClusterStateService.REMOTE_STATE_DOWNLOAD_TO_SERVE_READ_API,
+                RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_BATCH_SIZE_SETTING,
+                RemoteClusterStateCleanupManager.REMOTE_CLUSTER_STATE_CLEANUP_MAX_BATCHES_SETTING,
 
                 INDEX_METADATA_UPLOAD_TIMEOUT_SETTING,
                 GLOBAL_METADATA_UPLOAD_TIMEOUT_SETTING,

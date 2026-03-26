@@ -116,7 +116,23 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 lastResult = runCommand(execOperations, dockerPath, "version", "--format", "{{.Server.Version}}");
 
                 if (lastResult.isSuccess()) {
-                    version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
+                    // On some systems, Docker reports version prefixed with 'v', on some without,
+                    // for example:
+                    //
+                    // $ docker info
+                    // Client: Docker Engine - Community
+                    // Version: v29.1.2
+                    // Context: default
+                    // Debug Mode: false
+                    //
+                    // $ docker info
+                    // Client:
+                    // Version: 28.2.2
+                    // Context: default
+                    // Debug Mode: false
+                    //
+                    final String versionString = lastResult.stdout.trim().replaceAll("^v", "");
+                    version = Version.fromString(versionString, Version.Mode.RELAXED);
 
                     isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
 

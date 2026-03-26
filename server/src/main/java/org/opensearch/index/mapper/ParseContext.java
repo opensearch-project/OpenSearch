@@ -700,6 +700,15 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         return switchDoc(doc);
     }
 
+    public final ParseContext switchParser(final XContentParser parser) {
+        return new FilterParseContext(this) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+    }
+
     /**
      * Return a new context that has the provided document as the current document.
      */

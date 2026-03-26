@@ -252,6 +252,14 @@ public final class ThreadContext implements Writeable {
         return newStoredContext(preserveResponseHeaders, Collections.emptyList());
     }
 
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, boolean preserveTransients) {
+        return newStoredContext(preserveResponseHeaders, preserveTransients, Collections.emptyList());
+    }
+
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+        return newStoredContext(preserveResponseHeaders, false, transientHeadersToClear);
+    }
+
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
      * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
@@ -259,7 +267,11 @@ public final class ThreadContext implements Writeable {
      *
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(
+        boolean preserveResponseHeaders,
+        boolean preserveTransients,
+        Collection<String> transientHeadersToClear
+    ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
 
@@ -293,10 +305,24 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
 
         return () -> {
+            // Re-apply propagator-declared transients from the current context back into the
+            // snapshot being restored. This ensures that transients written after the snapshot
+            // was taken using newStoredContext (e.g. CURRENT_SPAN set by the tracing infrastructure) are not silently
+            // dropped when the security plugin (or any other caller) calls storedContext.restore().
+            // Without this, restore() would blindly overwrite the threadLocal with the original
+            // snapshot, losing any propagated transients that were set after newStoredContext() was called.
+            ThreadContextStruct current = threadLocal.get();
+            ThreadContextStruct restoredContext = originalContext;
+            if (preserveTransients) {
+                final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
+                if (!propagated.isEmpty()) {
+                    restoredContext = originalContext.putTransientIfAbsent(propagated);
+                }
+            }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+                threadLocal.set(restoredContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(originalContext);
+                threadLocal.set(restoredContext);
             }
         };
     }
@@ -860,6 +886,14 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             for (Map.Entry<String, Object> entry : values.entrySet()) {
                 putSingleHeader(entry.getKey(), entry.getValue(), newTransient);
+            }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
+        }
+
+        private ThreadContextStruct putTransientIfAbsent(Map<String, Object> values) {
+            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                newTransient.putIfAbsent(entry.getKey(), entry.getValue());
             }
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
         }

@@ -36,6 +36,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -47,7 +48,7 @@ import java.util.Collection;
  *
  * @opensearch.internal
  */
-final class ProfileScorer extends Scorer {
+final class ProfileScorer extends Scorer implements ProfilingWrapper<Scorer> {
 
     private final Scorer scorer;
 
@@ -81,7 +82,8 @@ final class ProfileScorer extends Scorer {
      * @return the underlying wrapped scorer
      * @see ProfileCollector#getDelegate()
      */
-    public Scorer getWrappedScorer() {
+    @Override
+    public Scorer getDelegate() {
         return scorer;
     }
 

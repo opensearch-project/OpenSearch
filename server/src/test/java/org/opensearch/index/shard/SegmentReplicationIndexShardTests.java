@@ -492,7 +492,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primaryShard, shards.getReplicas());
 
             IndexShard spyShard = spy(replicaShard);
-            Engine.Searcher test = replicaShard.getEngine().acquireSearcher("testSegmentReplication_With_ReaderClosedConcurrently");
+            Engine.Searcher test = getEngine(replicaShard).acquireSearcher("testSegmentReplication_With_ReaderClosedConcurrently");
             shards.assertAllEqual(numDocs);
 
             // Step 2. Ingest numDocs documents again & replicate to replica shard
@@ -554,7 +554,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             // cleans up recently copied over files
             IndexShard spyShard = spy(replicaShard);
             doAnswer(n -> {
-                NRTReplicationEngine engine = (NRTReplicationEngine) replicaShard.getEngine();
+                NRTReplicationEngine engine = (NRTReplicationEngine) getEngine(replicaShard);
                 // Using engine.close() prevents indexShard.finalizeReplication execution due to engine AlreadyClosedException,
                 // thus as workaround, use updateSegments which eventually calls commitSegmentInfos on latest segment infos.
                 engine.updateSegments(engine.getSegmentInfosSnapshot().get());
@@ -975,7 +975,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         CountDownLatch latch = new CountDownLatch(1);
         shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
             try {
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+                assertAtMostOneLuceneDocumentPerSequenceNumber(getEngine(replicaShard));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -1004,7 +1004,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             final AtomicReference<Throwable> failed = new AtomicReference<>();
             doAnswer(ans -> {
                 try {
-                    final Engine engineOrNull = replicaShard.getEngineOrNull();
+                    final Engine engineOrNull = getEngine(replicaShard);
                     assertNotNull(engineOrNull);
                     assertTrue(engineOrNull instanceof ReadOnlyEngine);
                     shards.assertAllEqual(10);
@@ -1100,7 +1100,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             CountDownLatch latch = new CountDownLatch(1);
             doAnswer(ans -> {
-                final Engine engineOrNull = replicaShard.getEngineOrNull();
+                final Engine engineOrNull = getEngine(replicaShard);
                 assertNotNull(engineOrNull);
                 assertTrue(engineOrNull instanceof ReadOnlyEngine);
                 shards.assertAllEqual(10);
