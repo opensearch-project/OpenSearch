@@ -1,12 +1,4 @@
 #!/bin/bash
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-# The OpenSearch Contributors require contributions made to
-# this file be licensed under the Apache-2.0 license or a
-# compatible open source license.
-#
-
 # -----------------------------------------------------------------------------
 #
 # Description:
@@ -18,12 +10,11 @@
 #   plugin for indexing.
 #
 # Usage:
-#   ./download-cti-snapshots.sh --env <base-url> [--output-dir <path>] [--help]
+#   ./download_snapshots.sh --env <base-url> [--output-dir <path>] [--help]
 #
 # Arguments:
 #   --env <base-url>         CTI API base URL (e.g. https://<your-environment>/api/v1).
-#   --output-dir <path>      Directory for the output .zip files (default:
-#                            ./cti-snapshots).
+#   --output-dir <path>      Directory for the output .zip files (default: ./snapshots).
 #   --help                   Show this help message and exit.
 #
 # Requirements:
@@ -47,8 +38,8 @@ set -euo pipefail
 # =============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CTI_BASE_URL=""
-CONTENT_SOURCES="${SCRIPT_DIR}/content-sources.json"
-OUTPUT_DIR="./cti-snapshots"
+CONTENT_SOURCES="${SCRIPT_DIR}/feeds.json"
+OUTPUT_DIR="./snapshots"
 
 # =============================================================================
 # Usage
@@ -61,10 +52,10 @@ Downloads CTI snapshot .zip files for all consumers (content, IoC, CVE).
 
 Options:
   --env <base-url>        CTI API base URL (e.g. https://<your-environment>/api/v1).
-  --output-dir <path>     Output directory (default: ./cti-snapshots).
+  --output-dir <path>     Output directory (default: ./snapshots).
   --help                  Show this help message and exit.
 
-The script reads consumer definitions from content-sources.json located
+The script reads consumer definitions from feeds.json located
 in the same directory as this script. Each key becomes the output filename (<key>.zip).
 
 Example:
@@ -103,7 +94,7 @@ if [[ -z "${CTI_BASE_URL}" ]]; then
     usage
 fi
 
-# Validate content-sources file exists
+# Validate feeds file exists
 if [[ ! -f "${CONTENT_SOURCES}" ]]; then
     echo "ERROR: Content sources file not found: ${CONTENT_SOURCES}"
     exit 1
@@ -234,7 +225,7 @@ main() {
     # Remove any previous snapshot .zip files to avoid stale data
     rm -f "${OUTPUT_DIR}"/*.zip
 
-    # Iterate over every entry in the content-sources JSON file.
+    # Iterate over every entry in the feeds JSON file.
     # Each key is used as the snapshot label and output filename.
     local keys
     keys=$(jq -r 'keys[]' "${CONTENT_SOURCES}")

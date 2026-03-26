@@ -26,7 +26,7 @@ function check_project_root_folder() {
 # ====
 function parse_args() {
 
-    while getopts ":p:r:s:R:S:d:a:Dh" arg; do
+    while getopts ":p:r:s:n:c:R:S:d:a:e:Dh" arg; do
         case $arg in
         h)
             usage
@@ -40,6 +40,15 @@ function parse_args() {
             ;;
         s)
             SECURITY_ANALYTICS_BRANCH=$OPTARG
+            ;;
+        n)
+            NOTIFICATIONS_BRANCH=$OPTARG
+            ;;
+        c)
+            COMMON_UTILS_BRANCH=$OPTARG
+            ;;
+        e)
+            ENGINE_TARBALL=$OPTARG
             ;;
         R)
             REVISION=$OPTARG
@@ -72,6 +81,9 @@ function parse_args() {
     [ -z "$INDEXER_PLUGINS_BRANCH" ] && INDEXER_PLUGINS_BRANCH="main"
     [ -z "$INDEXER_REPORTING_BRANCH" ] && INDEXER_REPORTING_BRANCH="main"
     [ -z "$SECURITY_ANALYTICS_BRANCH" ] && SECURITY_ANALYTICS_BRANCH="main"
+    [ -z "$NOTIFICATIONS_BRANCH" ] && NOTIFICATIONS_BRANCH="main"
+    [ -z "$COMMON_UTILS_BRANCH" ] && COMMON_UTILS_BRANCH="main"
+    [ -z "$ENGINE_TARBALL" ] && ENGINE_TARBALL=""
     [ -z "$REVISION" ] && REVISION="0"
     [ -z "$IS_STAGE" ] && IS_STAGE="false"
     [ -z "$DISTRIBUTION" ] && DISTRIBUTION="rpm"
@@ -89,6 +101,9 @@ function usage() {
     echo -e "-p INDEXER_PLUGINS_BRANCH\t[Optional] wazuh-indexer-plugins repo branch, default is 'main'."
     echo -e "-r INDEXER_REPORTING_BRANCH\t[Optional] wazuh-indexer-reporting repo branch, default is 'main'."
     echo -e "-s SECURITY_ANALYTICS_BRANCH\t[Optional] wazuh-indexer-security-analytics repo branch, default is 'main'."
+    echo -e "-n NOTIFICATIONS_BRANCH\t\t[Optional] wazuh-indexer-notifications repo branch, default is 'main'."
+    echo -e "-c COMMON_UTILS_BRANCH\t\t[Optional] wazuh-indexer-common-utils repo branch, default is 'main'."
+    echo -e "-e ENGINE_TARBALL\t\t[Optional] Path to wazuh-engine tarball (.tar.gz) on the host."
     echo -e "-R REVISION\t[Optional] Package revision, default is '0'."
     echo -e "-S STAGE\t[Optional] Staging build, default is 'false'."
     echo -e "-d DISTRIBUTION\t[Optional] Distribution, default is 'rpm'."
@@ -106,17 +121,21 @@ function main() {
     compose_cmd="docker compose -f $compose_file"
     REPO_PATH=$(pwd)
     VERSION="$(bash ${REPO_PATH}/build-scripts/product_version.sh)"
+
+    parse_args "${@}"
+
     export REPO_PATH
     export VERSION
     export INDEXER_PLUGINS_BRANCH
     export INDEXER_REPORTING_BRANCH
     export SECURITY_ANALYTICS_BRANCH
+    export NOTIFICATIONS_BRANCH
+    export COMMON_UTILS_BRANCH
+    export ENGINE_TARBALL
     export REVISION
     export IS_STAGE
     export DISTRIBUTION
     export ARCHITECTURE
-
-    parse_args "${@}"
 
     if [[ "$DESTROY" == true || "$DESTROY" == "1" ]]; then
         $compose_cmd down -v

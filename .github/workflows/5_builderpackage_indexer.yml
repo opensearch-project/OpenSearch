@@ -587,9 +587,9 @@ jobs:
       - name: Download CTI snapshots
         if: ${{ vars.CTI_API_URL != '' }}
         run: |
-          bash build-scripts/cti-content/download-cti-snapshots.sh \
+          bash build-scripts/download_snapshots.sh \
             --env "${{ vars.CTI_API_URL }}" \
-            --output-dir ${{ github.workspace }}/artifacts/cti-snapshots
+            --output-dir ${{ github.workspace }}/artifacts/snapshots
 
       - name: Run `assemble.sh`
         run: |
