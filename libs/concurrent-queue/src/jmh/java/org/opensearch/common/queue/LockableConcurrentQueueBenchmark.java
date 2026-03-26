@@ -6,10 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.benchmark.queue;
+package org.opensearch.common.queue;
 
-import org.opensearch.common.queue.Lockable;
-import org.opensearch.common.queue.LockableConcurrentQueue;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,14 +30,6 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * JMH benchmark for {@link LockableConcurrentQueue} measuring throughput of
  * lock-and-poll / add-and-unlock cycles under varying concurrency levels.
- * <p>
- * Includes two benchmark groups:
- * <ul>
- *   <li>{@code pollAndReturn} — minimal overhead: poll an entry and immediately return it.</li>
- *   <li>{@code writerWorkload} — simulates a writer pool: poll an entry, perform simulated
- *       document writes (CPU work), then return the entry. Models the composite writer
- *       checkout-write-return cycle.</li>
- * </ul>
  */
 @Fork(3)
 @Warmup(iterations = 5, time = 1)
@@ -68,8 +58,6 @@ public class LockableConcurrentQueueBenchmark {
         }
     }
 
-    // ---- pollAndReturn: minimal overhead benchmarks ----
-
     @Benchmark
     @Threads(1)
     public LockableEntry pollAndReturn_1thread() {
@@ -96,8 +84,6 @@ public class LockableConcurrentQueueBenchmark {
         return entry;
     }
 
-    // ---- writerWorkload: simulated writer pool benchmarks ----
-
     @Benchmark
     @Threads(4)
     public void writerWorkload_4threads(Blackhole bh) {
@@ -116,27 +102,16 @@ public class LockableConcurrentQueueBenchmark {
         writerWorkload(bh);
     }
 
-    /**
-     * Simulates a writer pool cycle: checkout an entry, perform CPU work
-     * representing document indexing across multiple formats, then return it.
-     */
     private void writerWorkload(Blackhole bh) {
         LockableEntry entry = queue.lockAndPoll();
         if (entry != null) {
-            // Simulate document write work (field additions across formats)
-            bh.consume(simulateDocumentWrite(entry));
+            bh.consume(simulateWork(entry));
             queue.addAndUnlock(entry);
         }
     }
 
-    /**
-     * Simulates the CPU cost of writing a document to multiple data formats.
-     * Performs arithmetic work to prevent JIT elimination while keeping
-     * the hold time realistic relative to a real addDoc call.
-     */
-    private static long simulateDocumentWrite(LockableEntry entry) {
+    private static long simulateWork(LockableEntry entry) {
         long result = entry.hashCode();
-        // ~10 field additions across 2 formats
         for (int i = 0; i < 20; i++) {
             result ^= (result << 13);
             result ^= (result >> 7);

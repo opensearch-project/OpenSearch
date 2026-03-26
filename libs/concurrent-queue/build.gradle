@@ -11,6 +11,15 @@
  * No external dependencies — pure Java concurrency primitives.
  */
 
+// ---- JMH benchmark source set ----
+sourceSets {
+  jmh {
+    java.srcDirs = ['src/jmh/java']
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
 dependencies {
   /*******
    *  !!!! NO RUNTIME DEPENDENCIES !!!!
@@ -23,6 +32,10 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-concurrent-queue'
   }
+
+  // JMH benchmark dependencies
+  jmhImplementation "org.openjdk.jmh:jmh-core:${versions.jmh}"
+  jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:${versions.jmh}"
 }
 
 testingConventions.enabled = true
@@ -30,4 +43,29 @@ testingConventions.enabled = true
 tasks.named('forbiddenApisMain').configure {
   // :libs:opensearch-concurrent-queue does not depend on server
   replaceSignatureFiles 'jdk-signatures'
+}
+
+// JMH generated code uses forbidden APIs — skip checking
+tasks.matching { it.name == 'forbiddenApisJmh' }.configureEach { enabled = false }
+
+// JMH annotation processor
+tasks.named('compileJmhJava').configure {
+  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+}
+
+// Convenience task to run JMH benchmarks
+tasks.register('jmh', JavaExec) {
+  dependsOn jmhClasses
+  mainClass = 'org.openjdk.jmh.Main'
+  classpath = sourceSets.jmh.runtimeClasspath
+  // Pass -Pjmh.includes=<regex> to filter benchmarks
+  if (project.hasProperty('jmh.includes')) {
+    args project.property('jmh.includes')
+  }
+}
+
+spotless {
+  java {
+    targetExclude 'src/jmh/generated/**/*.java'
+  }
 }

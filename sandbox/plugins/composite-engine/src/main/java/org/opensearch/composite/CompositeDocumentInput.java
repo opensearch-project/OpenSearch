@@ -32,7 +32,6 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     private final DocumentInput<?> primaryDocumentInput;
     private final DataFormat primaryFormat;
     private final Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs;
-    private final Runnable onClose;
 
     /**
      * Constructs a CompositeDocumentInput with a primary format input and secondary format inputs.
@@ -40,20 +39,17 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
      * @param primaryFormat the primary data format
      * @param primaryDocumentInput the document input for the primary format
      * @param secondaryDocumentInputs a map of secondary data formats to their corresponding document inputs
-     * @param onClose callback invoked when this composite input is closed, typically to release the writer back to the pool
      */
     public CompositeDocumentInput(
         DataFormat primaryFormat,
         DocumentInput<?> primaryDocumentInput,
-        Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs,
-        Runnable onClose
+        Map<DataFormat, DocumentInput<?>> secondaryDocumentInputs
     ) {
         this.primaryFormat = Objects.requireNonNull(primaryFormat, "primaryFormat must not be null");
         this.primaryDocumentInput = Objects.requireNonNull(primaryDocumentInput, "primaryDocumentInput must not be null");
         this.secondaryDocumentInputs = Map.copyOf(
             Objects.requireNonNull(secondaryDocumentInputs, "secondaryDocumentInputs must not be null")
         );
-        this.onClose = Objects.requireNonNull(onClose, "onClose must not be null");
     }
 
     @Override
@@ -93,7 +89,7 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
 
     @Override
     public void close() {
-        onClose.run();
+        // No-op: document input lifecycle is independent of writer pool
     }
 
     /**

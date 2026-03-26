@@ -134,6 +134,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         String primaryFormatName,
         List<String> secondaryFormatNames
     ) {
+        if (primaryFormatName == null || primaryFormatName.isBlank()) {
+            throw new IllegalArgumentException("Primary data format name must not be null or blank");
+        }
         if (dataFormatPlugins.containsKey(primaryFormatName) == false) {
             throw new IllegalArgumentException(
                 "Primary data format ["
@@ -143,6 +146,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             );
         }
         for (String secondaryName : secondaryFormatNames) {
+            if (secondaryName == null || secondaryName.isBlank()) {
+                throw new IllegalArgumentException("Secondary data format name must not be null or blank");
+            }
             if (secondaryName.equals(primaryFormatName)) {
                 throw new IllegalStateException(
                     "Secondary data format [" + secondaryName + "] is the same as primary :[" + primaryFormatName + "]"
@@ -242,24 +248,38 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     @Override
     public void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException {
-        primaryEngine.deleteFiles(filesToDelete);
+        IOException firstException = null;
+        try {
+            primaryEngine.deleteFiles(filesToDelete);
+        } catch (IOException e) {
+            logger.error("Failed to delete files in primary engine [{}]: {}", primaryEngine.getDataFormat().name(), e.getMessage());
+            firstException = e;
+        }
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-            engine.deleteFiles(filesToDelete);
+            try {
+                engine.deleteFiles(filesToDelete);
+            } catch (IOException e) {
+                logger.error("Failed to delete files in secondary engine [{}]: {}", engine.getDataFormat().name(), e.getMessage());
+                if (firstException == null) {
+                    firstException = e;
+                } else {
+                    firstException.addSuppressed(e);
+                }
+            }
+        }
+        if (firstException != null) {
+            throw firstException;
         }
     }
 
     @Override
     public CompositeDocumentInput newDocumentInput() {
-        CompositeWriter writer = writerPool.getAndLock();
         DocumentInput<?> primaryInput = primaryEngine.newDocumentInput();
         Map<DataFormat, DocumentInput<?>> secondaryInputMap = new LinkedHashMap<>();
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             secondaryInputMap.put(engine.getDataFormat(), engine.newDocumentInput());
         }
-        return new CompositeDocumentInput(primaryEngine.getDataFormat(), primaryInput, secondaryInputMap, () -> {
-            assert writer.getState() == CompositeWriter.WriterState.ACTIVE : "CompositeWriter is not ACTIVE, state=" + writer.getState();
-            writerPool.releaseAndUnlock(writer);
-        });
+        return new CompositeDocumentInput(primaryEngine.getDataFormat(), primaryInput, secondaryInputMap);
     }
 
     /**

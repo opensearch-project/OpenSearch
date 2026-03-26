@@ -40,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
+class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
@@ -61,7 +61,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      * </ul>
      */
     @ExperimentalApi
-    public enum WriterState {
+    enum WriterState {
         /** Writer is actively accepting documents. */
         ACTIVE,
         /** Writer has been marked for flushing and should not accept new documents. */
@@ -81,7 +81,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      * @param writerGeneration the writer generation number
      */
     @SuppressWarnings("unchecked")
-    public CompositeWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
+    CompositeWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
         this.lock = new ReentrantLock();
         this.state = new AtomicReference<>(WriterState.ACTIVE);
         this.writerGeneration = writerGeneration;
@@ -102,6 +102,9 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
 
     @Override
     public WriteResult addDoc(CompositeDocumentInput doc) throws IOException {
+        if (state.get() != WriterState.ACTIVE) {
+            throw new IllegalStateException("Cannot add document to writer in state " + state.get());
+        }
         // Write to primary first
         WriteResult primaryResult = primaryWriter.getValue().addDoc(doc.getPrimaryInput());
         switch (primaryResult) {
@@ -172,7 +175,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      *
      * @return the writer generation
      */
-    public long getWriterGeneration() {
+    long getWriterGeneration() {
         return writerGeneration;
     }
 
@@ -181,7 +184,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      *
      * @throws IllegalStateException if the writer is not in {@code ACTIVE} state
      */
-    public void abort() {
+    void abort() {
         if (this.state.compareAndSet(WriterState.ACTIVE, WriterState.ABORTED) == false) {
             throw new IllegalStateException("Cannot abort writer in state " + state.get());
         }
@@ -192,7 +195,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      *
      * @return {@code true} if aborted
      */
-    public boolean isAborted() {
+    boolean isAborted() {
         return getState() == WriterState.ABORTED;
     }
 
@@ -201,7 +204,7 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      *
      * @throws IllegalStateException if the writer is not in {@code ACTIVE} state
      */
-    public void setFlushPending() {
+    void setFlushPending() {
         if (this.state.compareAndSet(WriterState.ACTIVE, WriterState.FLUSH_PENDING) == false) {
             throw new IllegalStateException("Cannot set flush pending on writer in state " + state.get());
         }
@@ -212,16 +215,16 @@ public class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable
      *
      * @return {@code true} if a flush is pending
      */
-    public boolean isFlushPending() {
+    boolean isFlushPending() {
         return getState() == WriterState.FLUSH_PENDING;
     }
 
     /**
-     * Returns the current state of this writer.
+     * Returns the current state of this writer for testing purpose.
      *
      * @return the writer state
      */
-    public WriterState getState() {
+    WriterState getState() {
         return state.get();
     }
 

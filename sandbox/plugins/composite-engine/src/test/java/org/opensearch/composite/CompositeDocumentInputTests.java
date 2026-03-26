@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Tests for {@link CompositeDocumentInput}.
@@ -38,12 +37,7 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
         DataFormat secondaryFormat = mockFormat("parquet", 2, Set.of());
 
-        CompositeDocumentInput composite = new CompositeDocumentInput(
-            primaryFormat,
-            primaryInput,
-            Map.of(secondaryFormat, secondaryInput),
-            () -> {}
-        );
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, Map.of(secondaryFormat, secondaryInput));
 
         MappedFieldType keywordField = mockFieldType("keyword");
         composite.addField(keywordField, "value1");
@@ -65,7 +59,7 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         secondaries.put(secondaryFormat1, secondary1);
         secondaries.put(secondaryFormat2, secondary2);
 
-        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, secondaries, () -> {});
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, primaryInput, secondaries);
 
         composite.setRowId("_row_id", 42L);
 
@@ -81,34 +75,20 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         CompositeDocumentInput composite = new CompositeDocumentInput(
             mockFormat("lucene", 1, Set.of()),
             new RecordingDocumentInput(),
-            Map.of(),
-            () -> {}
+            Map.of()
         );
         assertNull(composite.getFinalInput());
     }
 
-    public void testCloseInvokesOnCloseCallback() {
-        AtomicBoolean closed = new AtomicBoolean(false);
-        CompositeDocumentInput composite = new CompositeDocumentInput(
-            mockFormat("lucene", 1, Set.of()),
-            new RecordingDocumentInput(),
-            Map.of(),
-            () -> closed.set(true)
-        );
-
-        composite.close();
-        assertTrue(closed.get());
-    }
-
     public void testGetPrimaryInputReturnsPrimaryDocumentInput() {
         RecordingDocumentInput primaryInput = new RecordingDocumentInput();
-        CompositeDocumentInput composite = new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), primaryInput, Map.of(), () -> {});
+        CompositeDocumentInput composite = new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), primaryInput, Map.of());
         assertSame(primaryInput, composite.getPrimaryInput());
     }
 
     public void testGetPrimaryFormatReturnsPrimaryDataFormat() {
         DataFormat primaryFormat = mockFormat("lucene", 1, Set.of());
-        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, new RecordingDocumentInput(), Map.of(), () -> {});
+        CompositeDocumentInput composite = new CompositeDocumentInput(primaryFormat, new RecordingDocumentInput(), Map.of());
         assertSame(primaryFormat, composite.getPrimaryFormat());
     }
 
@@ -119,8 +99,7 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         CompositeDocumentInput composite = new CompositeDocumentInput(
             mockFormat("lucene", 1, Set.of()),
             new RecordingDocumentInput(),
-            Map.of(secondaryFormat, secondaryInput),
-            () -> {}
+            Map.of(secondaryFormat, secondaryInput)
         );
 
         Map<DataFormat, DocumentInput<?>> secondaries = composite.getSecondaryInputs();
@@ -132,27 +111,17 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
     }
 
     public void testConstructorRejectsNullPrimaryFormat() {
-        expectThrows(NullPointerException.class, () -> new CompositeDocumentInput(null, new RecordingDocumentInput(), Map.of(), () -> {}));
+        expectThrows(NullPointerException.class, () -> new CompositeDocumentInput(null, new RecordingDocumentInput(), Map.of()));
     }
 
     public void testConstructorRejectsNullPrimaryInput() {
-        expectThrows(
-            NullPointerException.class,
-            () -> new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), null, Map.of(), () -> {})
-        );
+        expectThrows(NullPointerException.class, () -> new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), null, Map.of()));
     }
 
     public void testConstructorRejectsNullSecondaryInputs() {
         expectThrows(
             NullPointerException.class,
-            () -> new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), new RecordingDocumentInput(), null, () -> {})
-        );
-    }
-
-    public void testConstructorRejectsNullOnClose() {
-        expectThrows(
-            NullPointerException.class,
-            () -> new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), new RecordingDocumentInput(), Map.of(), null)
+            () -> new CompositeDocumentInput(mockFormat("lucene", 1, Set.of()), new RecordingDocumentInput(), null)
         );
     }
 

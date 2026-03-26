@@ -122,7 +122,7 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
             registry.put(name, plugin);
             logger.info("Registered DataFormatPlugin [{}] for format [{}]", plugin.getClass().getName(), name);
         }
-        this.dataFormatPlugins = Collections.unmodifiableMap(registry);
+        this.dataFormatPlugins = Map.copyOf(registry);
     }
 
     @Override
