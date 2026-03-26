@@ -36,7 +36,6 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
@@ -449,8 +448,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    assert owningBucketOrd == 0;
+                    for (int i = 0; i < count; i++) {
+                        collect(docs[i], owningBucketOrd);
+                    }
                 }
 
                 private void collectValue(int doc, long rounded) throws IOException {
@@ -738,8 +740,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        collect(docs[i], owningBucketOrd);
+                    }
                 }
 
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {

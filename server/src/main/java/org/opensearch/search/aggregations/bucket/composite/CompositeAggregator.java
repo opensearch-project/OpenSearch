@@ -42,7 +42,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafFieldComparator;
@@ -639,8 +638,11 @@ public final class CompositeAggregator extends BucketsAggregator {
                     }
 
                     @Override
-                    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                        super.collect(stream, owningBucketOrd);
+                    public void collect(int[] docs, int count, long zeroBucket) throws IOException {
+                        assert zeroBucket == 0L;
+                        for (int i = 0; i < count; i++) {
+                            inner.collect(docs[i]);
+                        }
                     }
                 };
             }
@@ -673,8 +675,10 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long bucket) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    collect(docs[i], bucket);
+                }
             }
         };
     }
@@ -737,8 +741,11 @@ public final class CompositeAggregator extends BucketsAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long zeroBucket) throws IOException {
+                assert zeroBucket == 0;
+                for (int i = 0; i < count; i++) {
+                    collect(docs[i], zeroBucket);
+                }
             }
         };
     }

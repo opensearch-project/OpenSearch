@@ -33,7 +33,6 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
@@ -125,15 +124,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long bucket) throws IOException {
+                public void collect(int[] docs, int count, long bucket) throws IOException {
                     counts = bigArrays.grow(counts, bucket + 1);
-                    final long[] count = { 0 };
-                    stream.forEach((doc) -> {
-                        if (values.advanceExact(doc)) {
-                            count[0] += values.docValueCount();
+                    long docCount = 0;
+                    for (int i = 0; i < count; i++) {
+                        if (values.advanceExact(docs[i])) {
+                            docCount += values.docValueCount();
                         }
-                    });
-                    counts.increment(bucket, count[0]);
+                    }
+                    counts.increment(bucket, docCount);
                 }
 
                 @Override

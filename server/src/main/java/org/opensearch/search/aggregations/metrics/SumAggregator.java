@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;

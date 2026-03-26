@@ -44,7 +44,6 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -649,9 +648,11 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
             final BitArray bits = getBitArray(owningBucketOrd);
-            stream.forEach((doc) -> collect(doc, bits));
+            for (int i = 0; i < count; i++) {
+                collect(docs[i], bits);
+            }
         }
 
         @Override
@@ -905,13 +906,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
             try {
-                activeCollector.collect(stream, owningBucketOrd);
+                activeCollector.collect(docs, count, owningBucketOrd);
             } catch (MemoryLimitExceededException e) {
                 switchToDirectCollector();
                 // Retry collection with DirectCollector
-                activeCollector.collect(stream, owningBucketOrd);
+                activeCollector.collect(docs, count, owningBucketOrd);
             }
         }
 

@@ -37,7 +37,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
@@ -789,8 +788,10 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    super.collect(stream, owningBucketOrd);
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        collect(docs[i], owningBucketOrd);
+                    }
                 }
             };
         }

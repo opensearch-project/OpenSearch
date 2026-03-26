@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations;
 
 import org.apache.lucene.index.DocValuesSkipper;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
@@ -41,7 +40,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 

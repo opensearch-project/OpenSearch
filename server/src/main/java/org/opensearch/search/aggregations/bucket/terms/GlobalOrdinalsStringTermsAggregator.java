@@ -600,6 +600,18 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         segmentDocCounts.increment(ord + 1, docCount);
                     }
 
+                    @Override
+                    public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                        assert owningBucketOrd == 0;
+                        for (int i = 0; i < count; i++) {
+                            if (singleValues.advanceExact(docs[i])) {
+                                int ord = singleValues.ordValue();
+                                long docCount = docCountProvider.getDocCount(docs[i]);
+                                segmentDocCounts.increment(ord + 1, docCount);
+                            }
+                        }
+                    }
+
                 });
             }
             segmentsWithMultiValuedOrds++;
@@ -615,6 +627,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     while ((count-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                         long docCount = docCountProvider.getDocCount(doc);
                         segmentDocCounts.increment(segmentOrd + 1, docCount);
+                    }
+                }
+
+                @Override
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    assert owningBucketOrd == 0;
+                    for (int i = 0; i < count; i++) {
+                        if (segmentOrds.advanceExact(docs[i])) {
+                            int ordCount = segmentOrds.docValueCount();
+                            long segmentOrd;
+                            while ((ordCount-- > 0) && (segmentOrd = segmentOrds.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
+                                long docCount = docCountProvider.getDocCount(docs[i]);
+                                segmentDocCounts.increment(segmentOrd + 1, docCount);
+                            }
+                        }
                     }
                 }
             });
@@ -1222,6 +1249,13 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     super.collect(doc, owningBucketOrd);
                     subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
+                }
+
+                @Override
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    for (int i = 0; i < count; i++) {
+                        collect(docs[i], owningBucketOrd);
+                    }
                 }
             };
         }

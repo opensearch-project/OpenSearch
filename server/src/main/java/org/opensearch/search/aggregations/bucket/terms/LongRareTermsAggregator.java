@@ -33,7 +33,6 @@ package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.LongHash;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
@@ -119,9 +118,12 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                super.collect(stream, owningBucketOrd);
+            public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    collect(docs[i], owningBucketOrd);
+                }
             }
+
         };
     }
 
