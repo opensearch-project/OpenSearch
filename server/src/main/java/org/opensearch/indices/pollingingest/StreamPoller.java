@@ -84,6 +84,12 @@ public interface StreamPoller extends Closeable, ClusterStateListener {
     void requestConsumerReinitialization(IngestionSource updatedIngestionSource);
 
     /**
+     * Updates the warmup configuration dynamically.
+     * Called when index settings are changed at runtime.
+     */
+    void updateWarmupConfig(IngestionSource.WarmupConfig config);
+
+    /**
      * @return true if the warmup phase is complete and the shard is ready to serve
      */
     boolean isWarmupComplete();

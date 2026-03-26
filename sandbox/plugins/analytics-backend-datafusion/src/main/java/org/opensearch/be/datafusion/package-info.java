@@ -6,7 +6,5 @@
  * compatible open source license.
  */
 
-/**
- * DataFusion native execution engine back-end plugin.
- */
+/** DataFusion native engine backend for OpenSearch analytics. */
 package org.opensearch.be.datafusion;

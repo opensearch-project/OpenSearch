@@ -1,5 +1,14 @@
 name: Gradle Assemble
-on: [pull_request]
+on:
+  pull_request:
+    # Skip this check unless files that could plausibly impact a
+    # distribution have changed.
+    paths:
+      - 'distribution/**'
+      - 'buildSrc/**'
+      - '**/*.gradle'
+      - 'gradle/**'
+      - '.github/workflows/assemble.yml'
 
 jobs:
   assemble:

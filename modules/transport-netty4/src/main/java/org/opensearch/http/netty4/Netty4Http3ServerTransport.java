@@ -231,6 +231,8 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
     @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws Exception {
         ChannelFuture future = bootstrap.bind(socketAddress).sync();
+        logger.info("Bound to {}", socketAddress);
+
         Channel channel = future.channel();
         Netty4HttpServerChannel httpServerChannel = new Netty4HttpServerChannel(channel);
         channel.attr(HTTP_SERVER_CHANNEL_KEY).set(httpServerChannel);
