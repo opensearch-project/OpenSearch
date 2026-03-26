@@ -137,15 +137,15 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue i
                 }
 
                 @Override
-                public void collectRange(int min, int max) throws IOException {
-                    counts = bigArrays.grow(counts, 1);
+                public void collectRange(int min, int max, long bucket) throws IOException {
+                    counts = bigArrays.grow(counts, bucket + 1);
                     long count = 0;
                     for (int doc = min; doc < max; doc++) {
                         if (values.advanceExact(doc)) {
                             count += values.docValueCount();
                         }
                     }
-                    counts.increment(0, count);
+                    counts.increment(bucket, count);
                 }
             };
         }

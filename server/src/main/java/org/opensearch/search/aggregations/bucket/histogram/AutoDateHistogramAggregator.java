@@ -454,8 +454,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 }
 
                 @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collectRange(int min, int max, long bucket) throws IOException {
+                    super.collectRange(min, max, bucket);
                 }
 
                 private void collectValue(int doc, long rounded) throws IOException {
@@ -748,8 +748,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 }
 
                 @Override
-                public void collectRange(int min, int max) throws IOException {
-                    super.collectRange(min, max);
+                public void collectRange(int min, int max, long bucket) throws IOException {
+                    super.collectRange(min, max, bucket);
                 }
 
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {

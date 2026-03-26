@@ -166,8 +166,8 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                setKahanSummation(0);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                setKahanSummation(bucket);
                 int count = 0;
                 for (int docId = min; docId < max; docId++) {
                     if (values.advanceExact(docId)) {
@@ -178,9 +178,9 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
                         }
                     }
                 }
-                counts.increment(0, count);
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
+                counts.increment(bucket, count);
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
             }
 
             private void setKahanSummation(long bucket) {

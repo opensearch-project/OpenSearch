@@ -219,6 +219,40 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
         }
     }
 
+    @Override
+    public void collectRange(int min, int max, long owningBucketOrd) throws IOException {
+        while (min < max) {
+            if (min > upToInclusive) {
+                advanceSkipper(min, owningBucketOrd);
+            }
+
+            int upToExclusive = upToInclusive + 1;
+            if (upToExclusive < 0) { // overflow
+                upToExclusive = Integer.MAX_VALUE;
+            }
+            // Clamp to the range we're collecting
+            int end = Math.min(upToExclusive, max);
+
+            if (upToSameBucket) {
+                if (isSubNoOp) {
+                    // All docs in [min, end) map to the same bucket — just count them
+                    aggregator.incrementBucketDocCount(upToBucketIndex, end - min);
+                } else {
+                    // Delegate to sub-aggregator's collectRange with the resolved bucket
+                    sub.collectRange(min, end, upToBucketIndex);
+                    aggregator.incrementBucketDocCount(upToBucketIndex, end - min);
+                }
+            } else {
+                // Fall back to per-doc collection for docs that don't all map to the same bucket
+                for (int doc = min; doc < end; doc++) {
+                    collect(doc, owningBucketOrd);
+                }
+            }
+
+            min = end;
+        }
+    }
+
     /**
      * Call back for auto date histogram
      *

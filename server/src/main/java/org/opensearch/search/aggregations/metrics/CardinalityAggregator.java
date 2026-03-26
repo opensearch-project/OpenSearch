@@ -655,8 +655,8 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collectRange(int minDoc, int maxDoc) throws IOException {
-            final BitArray bits = getBitArray(0);
+        public void collectRange(int minDoc, int maxDoc, long bucket) throws IOException {
+            final BitArray bits = getBitArray(bucket);
             for (int doc = minDoc; doc < maxDoc; ++doc) {
                 collect(doc, bits);
             }
@@ -916,13 +916,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collectRange(int minDoc, int maxDoc) throws IOException {
+        public void collectRange(int minDoc, int maxDoc, long bucket) throws IOException {
             try {
-                activeCollector.collectRange(minDoc, maxDoc);
+                activeCollector.collectRange(minDoc, maxDoc, bucket);
             } catch (MemoryLimitExceededException e) {
                 switchToDirectCollector();
                 // Retry collection with DirectCollector
-                activeCollector.collectRange(minDoc, maxDoc);
+                activeCollector.collectRange(minDoc, maxDoc, bucket);
             }
         }
 

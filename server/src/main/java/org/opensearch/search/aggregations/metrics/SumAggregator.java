@@ -149,8 +149,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             }
 
             @Override
-            public void collectRange(int min, int max) throws IOException {
-                setKahanSummation(0);
+            public void collectRange(int min, int max, long bucket) throws IOException {
+                setKahanSummation(bucket);
                 for (int docId = min; docId < max; docId++) {
                     if (values.advanceExact(docId)) {
                         for (int i = 0; i < values.docValueCount(); i++) {
@@ -158,8 +158,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
                         }
                     }
                 }
-                sums.set(0, kahanSummation.value());
-                compensations.set(0, kahanSummation.delta());
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
             }
 
             private void setKahanSummation(long bucket) {
