@@ -453,11 +453,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     super.collect(stream, owningBucketOrd);
                 }
 
-                @Override
-                public void collectRange(int min, int max, long bucket) throws IOException {
-                    super.collectRange(min, max, bucket);
-                }
-
                 private void collectValue(int doc, long rounded) throws IOException {
                     long bucketOrd = bucketOrds.add(0, rounded);
                     if (bucketOrd < 0) { // already seen
@@ -745,11 +740,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                     super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max, long bucket) throws IOException {
-                    super.collectRange(min, max, bucket);
                 }
 
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {

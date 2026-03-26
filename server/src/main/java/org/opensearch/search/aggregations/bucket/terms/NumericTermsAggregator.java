@@ -140,7 +140,7 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
         if (singleton != null) {
             // Optimized path for single-valued fields using Lucene 10.4 bulk APIs
             return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
-                private final int[] docBuffer = new int[256];
+                // Buffer for bulk doc value retrieval using NumericDocValues#longValues
                 private final long[] valueBuffer = new long[256];
 
                 @Override
@@ -160,36 +160,27 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 }
 
                 @Override
-                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                    for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
-                        singleton.longValues(count, docBuffer, valueBuffer, Long.MAX_VALUE);
-                        for (int i = 0; i < count; i++) {
-                            long val = valueBuffer[i];
-                            if (val != Long.MAX_VALUE) {
-                                if ((longFilter == null) || (longFilter.accept(val))) {
-                                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
-                                    if (bucketOrdinal < 0) {
-                                        bucketOrdinal = -1 - bucketOrdinal;
-                                        collectExistingBucket(sub, docBuffer[i], bucketOrdinal);
-                                    } else {
-                                        collectBucket(sub, docBuffer[i], bucketOrdinal);
-                                    }
+                public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                    singleton.longValues(count, docs, valueBuffer, Long.MAX_VALUE);
+                    for (int i = 0; i < count; i++) {
+                        long val = valueBuffer[i];
+                        if (val != Long.MAX_VALUE) {
+                            if ((longFilter == null) || (longFilter.accept(val))) {
+                                long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                                if (bucketOrdinal < 0) {
+                                    bucketOrdinal = -1 - bucketOrdinal;
+                                    collectExistingBucket(sub, docs[i], bucketOrdinal);
+                                } else {
+                                    collectBucket(sub, docs[i], bucketOrdinal);
                                 }
                             }
                         }
                     }
                 }
-
-                @Override
-                public void collectRange(int min, int max, long bucket) throws IOException {
-                    super.collectRange(min, max, bucket);
-                }
             });
         }
         // Multi-valued path
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
-            private final int[] docBuffer = new int[256];
-
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 if (values.advanceExact(doc)) {
@@ -215,35 +206,28 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
             }
 
             @Override
-            public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-                for (int count = stream.intoArray(docBuffer); count != 0; count = stream.intoArray(docBuffer)) {
-                    for (int i = 0; i < count; i++) {
-                        if (values.advanceExact(docBuffer[i])) {
-                            int valuesCount = values.docValueCount();
-                            long previous = Long.MAX_VALUE;
-                            for (int j = 0; j < valuesCount; ++j) {
-                                long val = values.nextValue();
-                                if (previous != val || j == 0) {
-                                    if ((longFilter == null) || (longFilter.accept(val))) {
-                                        long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
-                                        if (bucketOrdinal < 0) {
-                                            bucketOrdinal = -1 - bucketOrdinal;
-                                            collectExistingBucket(sub, docBuffer[i], bucketOrdinal);
-                                        } else {
-                                            collectBucket(sub, docBuffer[i], bucketOrdinal);
-                                        }
+            public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        int valuesCount = values.docValueCount();
+                        long previous = Long.MAX_VALUE;
+                        for (int j = 0; j < valuesCount; ++j) {
+                            long val = values.nextValue();
+                            if (previous != val || j == 0) {
+                                if ((longFilter == null) || (longFilter.accept(val))) {
+                                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                                    if (bucketOrdinal < 0) {
+                                        bucketOrdinal = -1 - bucketOrdinal;
+                                        collectExistingBucket(sub, docs[i], bucketOrdinal);
+                                    } else {
+                                        collectBucket(sub, docs[i], bucketOrdinal);
                                     }
-                                    previous = val;
                                 }
+                                previous = val;
                             }
                         }
                     }
                 }
-            }
-
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                super.collectRange(min, max, bucket);
             }
         });
     }
@@ -807,11 +791,6 @@ public class NumericTermsAggregator extends TermsAggregator implements StarTreeP
                 @Override
                 public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                     super.collect(stream, owningBucketOrd);
-                }
-
-                @Override
-                public void collectRange(int min, int max, long bucket) throws IOException {
-                    super.collectRange(min, max, bucket);
                 }
             };
         }

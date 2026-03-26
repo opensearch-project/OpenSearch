@@ -122,11 +122,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
             }
-
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                super.collectRange(min, max, bucket);
-            }
         };
     }
 

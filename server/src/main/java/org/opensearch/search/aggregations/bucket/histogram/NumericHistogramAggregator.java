@@ -143,11 +143,6 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
                 super.collect(stream, owningBucketOrd);
             }
-
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                super.collectRange(min, max, bucket);
-            }
         };
     }
 }

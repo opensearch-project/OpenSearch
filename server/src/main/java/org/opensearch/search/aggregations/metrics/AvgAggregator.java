@@ -148,37 +148,19 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
             }
 
             @Override
-            public void collect(DocIdStream stream, long bucket) throws IOException {
+            public void collect(int[] docs, int count, long bucket) throws IOException {
                 setKahanSummation(bucket);
-                final int[] count = { 0 };
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
+                int totalValues = 0;
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
                         int valueCount = values.docValueCount();
-                        count[0] += valueCount;
-                        for (int i = 0; i < valueCount; i++) {
-                            kahanSummation.add(values.nextValue());
-                        }
-                    }
-                });
-                counts.increment(bucket, count[0]);
-                sums.set(bucket, kahanSummation.value());
-                compensations.set(bucket, kahanSummation.delta());
-            }
-
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                setKahanSummation(bucket);
-                int count = 0;
-                for (int docId = min; docId < max; docId++) {
-                    if (values.advanceExact(docId)) {
-                        int valueCount = values.docValueCount();
-                        count += valueCount;
-                        for (int i = 0; i < valueCount; i++) {
+                        totalValues += valueCount;
+                        for (int j = 0; j < valueCount; j++) {
                             kahanSummation.add(values.nextValue());
                         }
                     }
                 }
-                counts.increment(bucket, count);
+                counts.increment(bucket, totalValues);
                 sums.set(bucket, kahanSummation.value());
                 compensations.set(bucket, kahanSummation.delta());
             }

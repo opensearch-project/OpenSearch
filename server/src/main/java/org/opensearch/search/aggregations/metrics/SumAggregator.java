@@ -135,31 +135,17 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
             }
 
             @Override
-            public void collect(DocIdStream stream, long bucket) throws IOException {
+            public void collect(int[] docs, int count, long bucket) throws IOException {
                 setKahanSummation(bucket);
-                stream.forEach((doc) -> {
-                    if (values.advanceExact(doc)) {
-                        for (int i = 0; i < values.docValueCount(); i++) {
-                            kahanSummation.add(values.nextValue());
-                        }
-                    }
-                });
-                compensations.set(bucket, kahanSummation.delta());
-                sums.set(bucket, kahanSummation.value());
-            }
-
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                setKahanSummation(bucket);
-                for (int docId = min; docId < max; docId++) {
-                    if (values.advanceExact(docId)) {
-                        for (int i = 0; i < values.docValueCount(); i++) {
+                for (int i = 0; i < count; i++) {
+                    if (values.advanceExact(docs[i])) {
+                        for (int j = 0; j < values.docValueCount(); j++) {
                             kahanSummation.add(values.nextValue());
                         }
                     }
                 }
-                sums.set(bucket, kahanSummation.value());
                 compensations.set(bucket, kahanSummation.delta());
+                sums.set(bucket, kahanSummation.value());
             }
 
             private void setKahanSummation(long bucket) {

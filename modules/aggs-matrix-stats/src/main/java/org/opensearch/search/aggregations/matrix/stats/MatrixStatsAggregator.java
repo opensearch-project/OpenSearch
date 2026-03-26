@@ -120,11 +120,6 @@ final class MatrixStatsAggregator extends MetricsAggregator {
                 super.collect(stream, owningBucketOrd);
             }
 
-            @Override
-            public void collectRange(int min, int max, long bucket) throws IOException {
-                super.collectRange(min, max, bucket);
-            }
-
             /**
              * return a map of field names and data
              */
