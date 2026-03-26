@@ -1,0 +1,76 @@
+name: Backward Compatibility Tests
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bwc-test-snapshots:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      matrix:
+        version: [ '2.19.6', '3.5.1' ]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Remove unnecessary files
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          java-version: 25
+          distribution: temurin
+          cache: gradle
+
+      - name: Set JAVA25_HOME
+        run: echo "JAVA25_HOME=$JAVA_HOME" >> $GITHUB_ENV
+
+      - name: Run v${{ matrix.version }}#bwcTest
+        run: ./gradlew v${{ matrix.version }}#bwcTest -Dbwc.buildUnreleasedFromSource=false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bwc-${{ matrix.version }}-test-results
+          path: '**/build/reports/tests/'
+          retention-days: 7
+
+      - name: Check if version has been released
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="https://artifacts.opensearch.org/releases/core/opensearch/${{ matrix.version }}/opensearch-min-${{ matrix.version }}-linux-x64.tar.gz"
+          status=$(curl -sI -o /dev/null -w "%{http_code}" "$url")
+          if [ "$status" != "200" ]; then
+            echo "${{ matrix.version }} has not been released yet."
+            exit 0
+          fi
+          marker="<!-- bwc-version-released-${{ matrix.version }} -->"
+          body="${marker}
+          ## ⚠️ BWC version update needed
+
+          Version **${{ matrix.version }}** has been released. Please update \`Version.java\` and the version list in \`.github/workflows/bwc-test-snapshots.yml\`."
+
+          existing=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"${marker}\")) | .id" | head -1)
+          if [ -n "$existing" ]; then
+            echo "Comment already exists, skipping."
+          else
+            gh pr comment "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --body "$body"
+          fi

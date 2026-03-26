@@ -42,6 +42,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.ExternalModuleDependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -146,7 +147,23 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 // an artifact transform registered to resolve it as an unpacked folder.
                 dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
             }
+            // SNAPSHOT artifacts can change at any time; ensure Gradle always re-checks
+            if (distribution.getVersion().endsWith("-SNAPSHOT")) {
+                markChanging(distribution.configuration);
+                if (distribution.getType().shouldExtract()) {
+                    markChanging(distribution.getExtracted());
+                }
+            }
         }
+    }
+
+    private static void markChanging(Configuration configuration) {
+        configuration.resolutionStrategy(rs -> rs.cacheChangingModulesFor(0, "seconds"));
+        configuration.getDependencies().all(dep -> {
+            if (dep instanceof ExternalModuleDependency) {
+                ((ExternalModuleDependency) dep).setChanging(true);
+            }
+        });
     }
 
     private DistributionDependency resolveDependencyNotation(Project p, OpenSearchDistribution distribution) {
