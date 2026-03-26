@@ -799,22 +799,7 @@ public abstract class TopDocsCollectorContext extends QueryCollectorContext impl
             );
         }
 
-        // Get circuit breaker from search context
-        CircuitBreaker circuitBreaker = null;
-        try {
-            // Try to get REQUEST circuit breaker
-            if (searchContext.bigArrays() != null && searchContext.bigArrays().breakerService() != null) {
-                circuitBreaker = searchContext.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to get circuit breaker for streaming search", e);
-        }
-
-        if (circuitBreaker == null) {
-            logger.warn("No circuit breaker available for streaming search - memory protection disabled");
-        }
-
-        return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext, circuitBreaker);
+        return new StreamingUnsortedCollectorContext("streaming_no_scoring", searchContext.size(), searchContext);
     }
 
     /**

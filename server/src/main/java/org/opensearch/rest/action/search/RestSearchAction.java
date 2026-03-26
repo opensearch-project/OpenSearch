@@ -151,25 +151,27 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
-            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-                if (canUseStreamSearch(searchRequest)) {
-                    String scoringMode = request.param("stream_scoring_mode");
-                    if (scoringMode != null) {
-                        searchRequest.setStreamingSearchMode(scoringMode);
-                    }
-                    if (searchRequest.getStreamingSearchMode() == null) {
-                        searchRequest.setStreamingSearchMode("no_scoring");
-                    }
-                    return channel -> {
-                        RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
-                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
-                    };
-                } else {
-                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
-                }
-            } else if (searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode")) {
+        if (searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode")) {
+            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT) == false) {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
+            }
+            if (clusterSettings == null || clusterSettings.get(STREAM_SEARCH_ENABLED) == false) {
+                throw new IllegalArgumentException("Stream search is disabled. Enable [stream.search.enabled] to use stream search.");
+            }
+            if (canUseStreamSearch(searchRequest)) {
+                String scoringMode = request.param("stream_scoring_mode");
+                if (scoringMode != null) {
+                    searchRequest.setStreamingSearchMode(scoringMode);
+                }
+                if (searchRequest.getStreamingSearchMode() == null) {
+                    searchRequest.setStreamingSearchMode("no_scoring");
+                }
+                return channel -> {
+                    RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
+                    cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                };
+            } else {
+                logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
             }
         }
         return channel -> {
