@@ -805,7 +805,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 new Object(),
                 clusterService.getClusterApplierService(),
                 mergedSegmentPublisher,
-                ReferencedSegmentsPublisher.EMPTY
+                ReferencedSegmentsPublisher.EMPTY,
+                null // TODO
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             if (remoteStoreStatsTrackerFactory != null) {

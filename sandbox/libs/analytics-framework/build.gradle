@@ -15,6 +15,7 @@
 def calciteVersion = '1.41.0'
 
 dependencies {
+  compileOnly project(':server')
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
   api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
@@ -35,7 +36,7 @@ dependencies {
 
 testingConventions.enabled = false
 
-// analytics-framework does not depend on server
+// analytics-framework depends on server for SearchAnalyticsBackEndPlugin SPI
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
   failOnMissingClasses = false
@@ -47,59 +48,10 @@ tasks.named('forbiddenApisMain').configure {
 // Split into multiple calls to stay under the JVM method parameter limit.
 tasks.named('thirdPartyAudit').configure {
   ignoreMissingClasses(
-    // Jackson (optional JSON serialization in Calcite)
-    'com.fasterxml.jackson.core.JsonParser$Feature',
-    'com.fasterxml.jackson.core.PrettyPrinter',
-    'com.fasterxml.jackson.core.type.TypeReference',
-    'com.fasterxml.jackson.core.util.DefaultIndenter',
-    'com.fasterxml.jackson.core.util.DefaultPrettyPrinter',
-    'com.fasterxml.jackson.core.util.Separators',
-    'com.fasterxml.jackson.core.util.Separators$Spacing',
+    // Jackson databind (optional JSON serialization in Calcite — only databind is missing, core is on classpath)
     'com.fasterxml.jackson.databind.DeserializationFeature',
     'com.fasterxml.jackson.databind.ObjectMapper',
     'com.fasterxml.jackson.databind.ObjectWriter',
-
-    // Protobuf (Avatica RPC serialization, not used)
-    'com.google.protobuf.AbstractMessageLite$Builder',
-    'com.google.protobuf.AbstractParser',
-    'com.google.protobuf.ByteString',
-    'com.google.protobuf.CodedInputStream',
-    'com.google.protobuf.CodedOutputStream',
-    'com.google.protobuf.Descriptors$Descriptor',
-    'com.google.protobuf.Descriptors$EnumDescriptor',
-    'com.google.protobuf.Descriptors$EnumValueDescriptor',
-    'com.google.protobuf.Descriptors$FieldDescriptor',
-    'com.google.protobuf.Descriptors$FileDescriptor',
-    'com.google.protobuf.Descriptors$OneofDescriptor',
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.GeneratedMessageV3',
-    'com.google.protobuf.GeneratedMessageV3$Builder',
-    'com.google.protobuf.GeneratedMessageV3$BuilderParent',
-    'com.google.protobuf.GeneratedMessageV3$FieldAccessorTable',
-    'com.google.protobuf.GeneratedMessageV3$UnusedPrivateParameter',
-    'com.google.protobuf.Internal',
-    'com.google.protobuf.Internal$EnumLiteMap',
-    'com.google.protobuf.Internal$IntList',
-    'com.google.protobuf.Internal$LongList',
-    'com.google.protobuf.InvalidProtocolBufferException',
-    'com.google.protobuf.LazyStringArrayList',
-    'com.google.protobuf.MapEntry',
-    'com.google.protobuf.MapEntry$Builder',
-    'com.google.protobuf.MapField',
-    'com.google.protobuf.MapFieldReflectionAccessor',
-    'com.google.protobuf.Message',
-    'com.google.protobuf.MessageOrBuilder',
-    'com.google.protobuf.Parser',
-    'com.google.protobuf.ProtocolMessageEnum',
-    'com.google.protobuf.ProtocolStringList',
-    'com.google.protobuf.RepeatedFieldBuilderV3',
-    'com.google.protobuf.SingleFieldBuilderV3',
-    'com.google.protobuf.TextFormat',
-    'com.google.protobuf.UninitializedMessageException',
-    'com.google.protobuf.UnknownFieldSet',
-    'com.google.protobuf.UnsafeByteOperations',
-    'com.google.protobuf.WireFormat$FieldType',
 
     // Uzaygezen (optional Hilbert curve spatial indexing)
     'com.google.uzaygezen.core.BacktrackingQueryBuilder',
@@ -200,61 +152,14 @@ tasks.named('thirdPartyAudit').configure {
     'org.joou.UShort',
     'org.joou.Unsigned',
 
-    // JTS / Proj4j (optional spatial/geometry support)
+    // JTS / Proj4j (optional spatial/geometry support — classes still missing)
     'org.locationtech.jts.algorithm.InteriorPoint',
-    'org.locationtech.jts.algorithm.LineIntersector',
-    'org.locationtech.jts.algorithm.MinimumBoundingCircle',
-    'org.locationtech.jts.algorithm.MinimumDiameter',
-    'org.locationtech.jts.densify.Densifier',
-    'org.locationtech.jts.geom.Coordinate',
-    'org.locationtech.jts.geom.CoordinateSequence',
-    'org.locationtech.jts.geom.CoordinateSequenceFactory',
-    'org.locationtech.jts.geom.Envelope',
-    'org.locationtech.jts.geom.Geometry',
-    'org.locationtech.jts.geom.GeometryCollection',
-    'org.locationtech.jts.geom.GeometryFactory',
-    'org.locationtech.jts.geom.GeometryFilter',
-    'org.locationtech.jts.geom.IntersectionMatrix',
-    'org.locationtech.jts.geom.LineSegment',
-    'org.locationtech.jts.geom.LineString',
-    'org.locationtech.jts.geom.LinearRing',
-    'org.locationtech.jts.geom.MultiLineString',
-    'org.locationtech.jts.geom.MultiPoint',
-    'org.locationtech.jts.geom.MultiPolygon',
-    'org.locationtech.jts.geom.OctagonalEnvelope',
-    'org.locationtech.jts.geom.Point',
-    'org.locationtech.jts.geom.Polygon',
-    'org.locationtech.jts.geom.util.AffineTransformation',
-    'org.locationtech.jts.geom.util.GeometryEditor',
-    'org.locationtech.jts.geom.util.GeometryEditor$CoordinateOperation',
     'org.locationtech.jts.geom.util.GeometryFixer',
-    'org.locationtech.jts.geom.util.GeometryTransformer',
-    'org.locationtech.jts.geom.util.LineStringExtracter',
-    'org.locationtech.jts.io.WKBReader',
-    'org.locationtech.jts.io.WKBWriter',
-    'org.locationtech.jts.io.WKTReader',
-    'org.locationtech.jts.io.WKTWriter',
     'org.locationtech.jts.io.geojson.GeoJsonReader',
     'org.locationtech.jts.io.geojson.GeoJsonWriter',
-    'org.locationtech.jts.io.gml2.GMLReader',
-    'org.locationtech.jts.io.gml2.GMLWriter',
-    'org.locationtech.jts.linearref.LengthIndexedLine',
-    'org.locationtech.jts.operation.buffer.BufferOp',
-    'org.locationtech.jts.operation.buffer.BufferParameters',
     'org.locationtech.jts.operation.buffer.OffsetCurve',
-    'org.locationtech.jts.operation.distance.DistanceOp',
-    'org.locationtech.jts.operation.linemerge.LineMerger',
-    'org.locationtech.jts.operation.overlay.snap.GeometrySnapper',
-    'org.locationtech.jts.operation.polygonize.Polygonizer',
-    'org.locationtech.jts.operation.union.UnaryUnionOp',
-    'org.locationtech.jts.precision.GeometryPrecisionReducer',
-    'org.locationtech.jts.simplify.DouglasPeuckerSimplifier',
-    'org.locationtech.jts.simplify.TopologyPreservingSimplifier',
-    'org.locationtech.jts.triangulate.DelaunayTriangulationBuilder',
     'org.locationtech.jts.triangulate.polygon.ConstrainedDelaunayTriangulator',
-    'org.locationtech.jts.triangulate.quadedge.QuadEdgeSubdivision',
     'org.locationtech.jts.triangulate.tri.Tri',
-    'org.locationtech.jts.util.GeometricShapeFactory',
     'org.locationtech.proj4j.CRSFactory',
     'org.locationtech.proj4j.CoordinateReferenceSystem',
     'org.locationtech.proj4j.CoordinateTransform',
