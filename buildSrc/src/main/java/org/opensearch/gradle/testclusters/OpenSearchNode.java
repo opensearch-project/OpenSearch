@@ -549,7 +549,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             logToProcessStdout("installed plugins");
         }
 
-        if (FipsBuildParams.isInFipsMode() && keystorePassword.isEmpty()) {
+        if (FipsBuildParams.isInFipsApprovedOnlyMode() && keystorePassword.isEmpty()) {
             throw new TestClustersException("Can not start " + this + " in FIPS JVM, missing keystore password");
         }
 
