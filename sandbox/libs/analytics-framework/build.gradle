@@ -30,6 +30,8 @@ dependencies {
   // Calcite's BuiltInMethod and DefaultRelMetadataProvider eagerly resolve methods via
   // reflection during RelOptCluster.create(). These optional calcite-core transitive deps
   // must be in the same classloader as Calcite (i.e., here, not in child plugins).
+  // TODO: These may not be needed once Analytics Core starts providing RelOptTable directly,
+  //  since child plugins would no longer call RelOptCluster.create() themselves.
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
   runtimeOnly "commons-io:commons-io:${versions.commonsio}"
