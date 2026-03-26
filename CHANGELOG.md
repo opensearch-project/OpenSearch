@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update streaming flag to use search request context ([#20530](https://github.com/opensearch-project/OpenSearch/pull/20530))
 - Move pull-based ingestion classes from experimental to publicAPI ([#20704](https://github.com/opensearch-project/OpenSearch/pull/20704))
 - Lazy init stored field reader in SourceLookup ([#20827](https://github.com/opensearch-project/OpenSearch/pull/20827))
+* Improved error message when trying to open an index originally created with Elasticsearch on OpenSearch ([#20512](https://github.com/opensearch-project/OpenSearch/pull/20512))
 
 ### Fixed
 - Relax index template pattern overlap check to use minimum-string heuristic, allowing distinguishable multi-wildcard patterns at the same priority ([#20702](https://github.com/opensearch-project/OpenSearch/pull/20702))
@@ -63,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Delegate getMin/getMax methods for ExitableTerms ([#20775](https://github.com/opensearch-project/OpenSearch/pull/20775))
 - Fix terms lookup subquery fetch limit reading from non-existent index setting instead of cluster `max_clause_count` ([#20823](https://github.com/opensearch-project/OpenSearch/pull/20823))
 - Fix array_index_out_of_bounds_exception with wildcard and aggregations ([#20842](https://github.com/opensearch-project/OpenSearch/pull/20842))
+- Fix stale segment cleanup logic for remote store ([#20976](https://github.com/opensearch-project/OpenSearch/pull/20976))
 - Ensure that transient ThreadContext headers with propagators survive restore ([#169373](https://github.com/opensearch-project/OpenSearch/pull/20854))
 - Handle dependencies between analyzers ([#19248](https://github.com/opensearch-project/OpenSearch/pull/19248))
 - Fix `_field_caps` returning empty results and corrupted field names for `disable_objects: true` mappings ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
@@ -72,7 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `ch.qos.logback:logback-core` and `ch.qos.logback:logback-classic` from 1.5.24 to 1.5.27 ([#20525](https://github.com/opensearch-project/OpenSearch/pull/20525))
 - Bump `org.apache.commons:commons-text` from 1.14.0 to 1.15.0 ([#20576](https://github.com/opensearch-project/OpenSearch/pull/20576))
 - Bump `aws-actions/configure-aws-credentials` from 5 to 6 ([#20577](https://github.com/opensearch-project/OpenSearch/pull/20577))
-- Bump `netty` from 4.2.9.Final to 4.2.10.Final ([#20586](https://github.com/opensearch-project/OpenSearch/pull/20586))
+- Bump `netty` from 4.2.9.Final to 4.2.12.Final ([#20586](https://github.com/opensearch-project/OpenSearch/pull/20586), [#20997](https://github.com/opensearch-project/OpenSearch/pull/20997), [#20998](https://github.com/opensearch-project/OpenSearch/pull/20998))
 - Bump Apache Lucene from 10.3.2 to 10.4.0 ([#20735](https://github.com/opensearch-project/OpenSearch/pull/20735))
 - Bump `reactor-netty` from 1.3.2 to 1.3.4 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589), [#20834](https://github.com/opensearch-project/OpenSearch/pull/20834))
 - Bump `reactor` from 3.8.2 to 3.8.4 ([#20589](https://github.com/opensearch-project/OpenSearch/pull/20589), [#20834](https://github.com/opensearch-project/OpenSearch/pull/20834))
