@@ -885,7 +885,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
             if (isStreamSearch) {
                 assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
-                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult>) listener);
             }
 
             if (request.getStreamingSearchMode() != null) {
@@ -902,12 +902,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 afterQueryTime = executor.success();
             }
             if (request.numberOfShards() == 1) {
-                if (isStreamSearch && logger.isTraceEnabled()) {
-                    logger.trace(
-                        "shard [{}] sending final {}",
-                        request.shardId(),
-                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
-                    );
+                if (isStreamSearch) {
+                    logger.trace("shard [{}] sending final {}", request.shardId(), (request.numberOfShards() == 1 ? "query+fetch" : "query"));
                 }
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
@@ -916,12 +912,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final RescoreDocIds rescoreDocIds = context.rescoreDocIds();
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
-                if (isStreamSearch && logger.isTraceEnabled()) {
-                    logger.trace(
-                        "shard [{}] sending final {}",
-                        request.shardId(),
-                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
-                    );
+                if (isStreamSearch) {
+                    logger.trace("shard [{}] sending final {}", request.shardId(), (request.numberOfShards() == 1 ? "query+fetch" : "query"));
                 }
                 return context.queryResult();
             }
@@ -933,7 +925,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     ? (Exception) exception.getCause()
                     : new OpenSearchException(exception.getCause());
             }
-            if (isStreamSearch && logger.isTraceEnabled()) {
+            if (isStreamSearch) {
                 logger.trace("shard [{}] failure {}", request.shardId(), exception.toString());
             }
             logger.trace("Query phase failed", exception);

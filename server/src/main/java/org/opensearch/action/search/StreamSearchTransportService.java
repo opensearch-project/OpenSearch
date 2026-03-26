@@ -59,10 +59,11 @@ public class StreamSearchTransportService extends SearchTransportService {
 
     @Override
     public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
-        // Delegate to StreamTransportService to get connections from the streaming connection manager.
-        // This ensures connections understand the streaming protocol and call handleStreamResponse()
-        // instead of handleResponse() on StreamTransportResponseHandler instances.
-        return transportService.getConnection(node);
+        if (clusterAlias == null) {
+            return transportService.getConnection(node);
+        } else {
+            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
+        }
     }
 
     public static final Setting<Boolean> STREAM_SEARCH_ENABLED = Setting.boolSetting(
@@ -93,7 +94,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                     request,
                     false,
                     (SearchShardTask) task,
-                    new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
+                    new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME),
                     ThreadPool.Names.STREAM_SEARCH,
                     isStreamSearch
                 );
@@ -110,7 +111,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 searchService.executeFetchPhase(
                     request,
                     (SearchShardTask) task,
-                    new StreamSearchChannelListener<>(channel, FETCH_ID_ACTION_NAME, request),
+                    new StreamSearchChannelListener<>(channel, FETCH_ID_ACTION_NAME),
                     ThreadPool.Names.STREAM_SEARCH
                 );
             }
@@ -120,7 +121,7 @@ public class StreamSearchTransportService extends SearchTransportService {
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.canMatch(request, new StreamSearchChannelListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+                searchService.canMatch(request, new StreamSearchChannelListener<>(channel, QUERY_CAN_MATCH_NAME));
             }
         );
         transportService.registerRequestHandler(
@@ -145,7 +146,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 request,
                 false,
                 (SearchShardTask) task,
-                new StreamSearchChannelListener<>(channel, DFS_ACTION_NAME, request),
+                new StreamSearchChannelListener<>(channel, DFS_ACTION_NAME),
                 ThreadPool.Names.STREAM_SEARCH
             )
         );

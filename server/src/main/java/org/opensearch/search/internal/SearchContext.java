@@ -612,10 +612,10 @@ public abstract class SearchContext implements Releasable {
     }
 
     @ExperimentalApi
-    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {}
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult> listener) {}
 
     @ExperimentalApi
-    public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
+    public StreamSearchChannelListener<SearchPhaseResult> getStreamChannelListener() {
         return null;
     }
 

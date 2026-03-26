@@ -905,10 +905,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ForceMergeManagerSettings.DISK_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.JVM_THRESHOLD_PERCENTAGE_FOR_AUTO_FORCE_MERGE,
                 ForceMergeManagerSettings.CONCURRENCY_MULTIPLIER,
-                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING,
-                StreamSearchTransportService.STREAM_SEARCH_ENABLED,
-                TieredStoragePrefetchSettings.READ_AHEAD_BLOCK_COUNT,
-                TieredStoragePrefetchSettings.STORED_FIELDS_PREFETCH_ENABLED_SETTING
+                StreamTransportService.STREAM_TRANSPORT_REQ_TIMEOUT_SETTING
             )
         )
     );
@@ -928,6 +925,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_PUBLISH_INTERVAL_SETTING,
             TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING,
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
+        ),
+        List.of(FeatureFlags.STREAM_TRANSPORT),
+        List.of(
+            StreamSearchTransportService.STREAM_SEARCH_ENABLED
         )
     );
 }

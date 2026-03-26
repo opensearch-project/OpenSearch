@@ -18,8 +18,8 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.FlushMode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +33,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     private static final Logger logger = LogManager.getLogger(StreamingUnsortedCollectorContext.class);
 
-    private final CircuitBreaker circuitBreaker;
     private final SearchContext searchContext;
 
     private StreamingUnsortedCollector activeCollector;
@@ -41,13 +40,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
     public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext) {
         super(profilerName, numHits);
         this.searchContext = searchContext;
-        this.circuitBreaker = null;
-    }
-
-    public StreamingUnsortedCollectorContext(String profilerName, int numHits, SearchContext searchContext, CircuitBreaker breaker) {
-        super(profilerName, numHits);
-        this.searchContext = searchContext;
-        this.circuitBreaker = breaker;
     }
 
     @Override
@@ -63,6 +55,9 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     @Override
     public void postProcess(org.opensearch.search.query.QuerySearchResult result) throws IOException {
+        if (activeCollector != null) {
+            activeCollector.emitSegmentBatch(false);
+        }
         if (result.hasTopDocs()) {
             return;
         }
@@ -120,8 +115,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
      */
     private class StreamingUnsortedCollector implements Collector {
 
-        private final int batchSize = Math.max(1, searchContext != null ? searchContext.getStreamingBatchSize() : 10);
-        private final List<ScoreDoc> currentBatch = new ArrayList<>(batchSize);
+        private final List<ScoreDoc> currentSegmentBatch = new ArrayList<>();
         private final List<ScoreDoc> firstK = new ArrayList<>(numHits());
         private int totalHitsCount = 0;
 
@@ -132,6 +126,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
         @Override
         public LeafCollector getLeafCollector(org.apache.lucene.index.LeafReaderContext context) throws IOException {
+            emitSegmentBatch(false);
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {}
@@ -141,11 +136,7 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
                     totalHitsCount++;
                     ScoreDoc scoreDoc = new ScoreDoc(doc + context.docBase, Float.NaN);
 
-                    currentBatch.add(scoreDoc);
-                    if (currentBatch.size() >= batchSize) {
-                        emitCurrentBatch(false);
-                        currentBatch.clear();
-                    }
+                    currentSegmentBatch.add(scoreDoc);
 
                     if (firstK.size() < numHits()) {
                         firstK.add(scoreDoc);
@@ -162,30 +153,28 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             return totalHitsCount;
         }
 
-        /**
-         * Emit current batch of collected documents through streaming channel
-         */
-        private void emitCurrentBatch(boolean isFinal) {
-            if (currentBatch.isEmpty()) return;
+        void emitSegmentBatch(boolean isFinal) {
+            if (currentSegmentBatch.isEmpty()) {
+                return;
+            }
 
             try {
+                if (searchContext == null || searchContext.getFlushMode() != FlushMode.PER_SEGMENT || searchContext.getStreamChannelListener() == null) {
+                    return;
+                }
                 QuerySearchResult partial = new QuerySearchResult();
                 TopDocs topDocs = new TopDocs(
-                    new TotalHits(currentBatch.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
-                    currentBatch.toArray(new ScoreDoc[0])
+                    new TotalHits(currentSegmentBatch.size(), TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO),
+                    currentSegmentBatch.toArray(new ScoreDoc[0])
                 );
                 partial.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
-
-                if (searchContext != null && searchContext.getStreamChannelListener() != null) {
-                    searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
-                }
-
-                if (!isFinal) {
-                    currentBatch.clear();
-                }
+                searchContext.getStreamChannelListener().onStreamResponse(partial, isFinal);
             } catch (Exception e) {
                 logger.trace("Failed to emit streaming batch", e);
+            } finally {
+                currentSegmentBatch.clear();
             }
         }
     }
+
 }
