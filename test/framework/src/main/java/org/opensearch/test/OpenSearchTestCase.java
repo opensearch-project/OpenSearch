@@ -329,8 +329,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             Configurator.shutdown(context);
         }));
 
-        BootstrapForTesting.ensureInitialized();
-        TransportService.ensureClassloaded(); // ensure server streamables are registered
+        // BootstrapForTesting.ensureInitialized();
+        // TransportService.ensureClassloaded(); // ensure server streamables are registered
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
