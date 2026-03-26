@@ -8,6 +8,8 @@
 
 use std::sync::Arc;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::time::Instant;
+use dashmap::DashMap;
 use datafusion::common::stats::Precision;
 use jni::sys::jlong;
 use datafusion::{
@@ -57,6 +59,13 @@ use crate::{CustomFileMeta, FileStats};
 use crate::DataFusionRuntime;
 use crate::project_row_id_analyzer::ProjectRowIdAnalyzer;
 use crate::absolute_row_id_optimizer::{AbsoluteRowIdOptimizer, ROW_BASE_FIELD_NAME, ROW_ID_FIELD_NAME};
+use vectorized_exec_spi::log_info;
+
+use once_cell::sync::Lazy;
+
+/// Global schema cache: keyed by table path string, caches the inferred SchemaRef.
+/// This avoids re-reading parquet footers on every query for the same table.
+static SCHEMA_CACHE: Lazy<DashMap<String, SchemaRef>> = Lazy::new(DashMap::new);
 
 /// Executes a query using DataFusion with cross-runtime streaming capabilities.
 /// This function sets up the complete query execution pipeline including table registration,
@@ -114,6 +123,8 @@ pub async fn execute_query_with_cross_rt_stream(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
+    let query_start = Instant::now();
+
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
             .iter()
@@ -150,13 +161,28 @@ pub async fn execute_query_with_cross_rt_stream(
     config.options_mut().execution.parquet.pushdown_filters = false;
     config.options_mut().execution.target_partitions = 4;
     config.options_mut().execution.batch_size = 8192;
+    // Liquid Cache requires these Parquet settings (only when enabled)
+    if runtime.liquid_cache_optimizer.is_some() {
+        config.options_mut().execution.parquet.schema_force_view_types = false;
+        config.options_mut().execution.parquet.skip_arrow_metadata = false;
+        config.options_mut().execution.parquet.skip_metadata = false;
+    }
 
-    let state = datafusion::execution::SessionStateBuilder::new()
+    let mut state_builder = datafusion::execution::SessionStateBuilder::new()
         .with_config(config.clone())
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer))
-        .build();
+        .with_physical_optimizer_rule(Arc::new(PartialAggregationOptimizer));
+
+    // Add Liquid Cache optimizer rules if enabled
+    if let Some(ref optimizer) = runtime.liquid_cache_optimizer {
+        state_builder = state_builder.with_physical_optimizer_rule(optimizer.clone());
+    }
+    if let Some(ref lineage_opt) = runtime.liquid_cache_lineage_optimizer {
+        state_builder = state_builder.with_optimizer_rule(lineage_opt.clone());
+    }
+
+    let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
 
@@ -173,15 +199,30 @@ pub async fn execute_query_with_cross_rt_stream(
         // the AbsoluteRowIdOptimizer to convert relative row IDs to absolute ones
         .with_table_partition_cols(vec![(ROW_BASE_FIELD_NAME.to_string(), DataType::Int64)]);
 
-    let resolved_schema = match listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await {
-        Ok(schema) => schema,
-        Err(e) => {
-            error!("Failed to infer schema: {}", e);
-            return Err(e);
-        }
+    log_info!("[Profiler] setup took {:?}", query_start.elapsed());
+    let t = Instant::now();
+
+    let cache_key = table_path.prefix().to_string();
+    let resolved_schema = if let Some(cached) = SCHEMA_CACHE.get(&cache_key) {
+        log_info!("[Profiler] schema cache hit for {}", cache_key);
+        cached.clone()
+    } else {
+        let schema = match listing_options
+            .infer_schema(&ctx.state(), &table_path)
+            .await {
+            Ok(schema) => schema,
+            Err(e) => {
+                error!("Failed to infer schema: {}", e);
+                return Err(e);
+            }
+        };
+        SCHEMA_CACHE.insert(cache_key.clone(), schema.clone());
+        log_info!("[Profiler] schema cache miss for {}, inferred and cached", cache_key);
+        schema
     };
+
+    log_info!("[Profiler] infer_schema took {:?}", t.elapsed());
+    let t = Instant::now();
 
     let table_config = ListingTableConfig::new(table_path.clone())
         .with_listing_options(listing_options)
@@ -199,6 +240,9 @@ pub async fn execute_query_with_cross_rt_stream(
         error!("Failed to register table: {}", e);
         return Err(e);
     }
+
+    log_info!("[Profiler] register_table took {:?}", t.elapsed());
+    let t = Instant::now();
 
     // Decode substrait
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
@@ -220,6 +264,9 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     }
 
+    log_info!("[Profiler] substrait_decode took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut logical_plan = match from_substrait_plan(&ctx.state(), &modified_plan).await {
         Ok(plan) => plan,
         Err(e) => {
@@ -227,6 +274,9 @@ pub async fn execute_query_with_cross_rt_stream(
             return Err(e);
         }
     };
+
+    log_info!("[Profiler] from_substrait_plan took {:?}", t.elapsed());
+    let t = Instant::now();
 
     let is_aggregation_query = is_aggs_query(&logical_plan);
 
@@ -256,6 +306,9 @@ pub async fn execute_query_with_cross_rt_stream(
         ).expect("Failed to create top level projection with ___row_id"));
     }
 
+    log_info!("[Profiler] logical_plan_optimize took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut dataframe = match ctx.execute_logical_plan(logical_plan).await {
         Ok(df) => df,
         Err(e) => {
@@ -264,7 +317,12 @@ pub async fn execute_query_with_cross_rt_stream(
         }
     };
 
+    log_info!("[Profiler] execute_logical_plan took {:?}", t.elapsed());
+    let t = Instant::now();
+
     let mut physical_plan = dataframe.clone().create_physical_plan().await?;
+
+    log_info!("[Profiler] create_physical_plan took {:?}", t.elapsed());
 
     // For non-aggregation queries, we need to return absolute row IDs to identify specific rows
     // The AbsoluteRowIdOptimizer works at the physical plan level to transform relative row IDs
@@ -292,6 +350,8 @@ pub async fn execute_query_with_cross_rt_stream(
             return Err(e);
         }
     };
+
+    log_info!("[Profiler] total query setup took {:?}", query_start.elapsed());
 
     Ok(get_cross_rt_stream(cpu_executor, df_stream))
 }
@@ -354,8 +414,6 @@ pub async fn execute_fetch_phase(
     cpu_executor: DedicatedExecutor,
 ) -> Result<jlong, DataFusionError> {
     // Create optimized Parquet access plans for targeted row retrieval
-    // This converts absolute row IDs back to file-relative positions and creates
-    // efficient access patterns for each file's row groups
     let access_plans = create_access_plans(row_ids, files_metadata.clone()).await?;
 
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
@@ -372,7 +430,7 @@ pub async fn execute_fetch_phase(
     };
     list_file_cache.put(&table_scoped_path, object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
                 .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())

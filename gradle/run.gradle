@@ -40,6 +40,11 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+    // Liquid Cache configuration for DataFusion engine
+    if (findProperty("enableLiquidCache")) {
+      setting 'datafusion.liquid_cache.enabled', 'true'
+      setting 'datafusion.liquid_cache.size', findProperty("liquidCacheSize") ?: '1gb'
+    }
     // S3 repository configuration
     if (findProperty("enableS3")) {
       plugin(':plugins:repository-s3')

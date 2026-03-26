@@ -21,6 +21,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.datafusion.action.ClearCacheAction;
 import org.opensearch.datafusion.action.DataFusionAction;
 import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
@@ -69,6 +70,8 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_MEMORY_POOL_CONFIGURATION;
 import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_ENABLED;
+import static org.opensearch.datafusion.core.DataFusionRuntimeEnv.DATAFUSION_LIQUID_CACHE_SIZE;
 
 
 /**
@@ -178,7 +181,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionAction());
+        return List.of(new DataFusionAction(), new ClearCacheAction(dataFusionService));
     }
 
     @Override
@@ -187,6 +190,8 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
 
         settingList.add(DATAFUSION_MEMORY_POOL_CONFIGURATION);
         settingList.add(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION);
+        settingList.add(DATAFUSION_LIQUID_CACHE_ENABLED);
+        settingList.add(DATAFUSION_LIQUID_CACHE_SIZE);
         settingList.addAll(Stream.of(
                 CacheSettings.CACHE_SETTINGS,
                 CacheSettings.CACHE_ENABLED)

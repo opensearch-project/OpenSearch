@@ -16,8 +16,8 @@ import org.opensearch.vectorized.execution.jni.NativeHandle;
  */
 public final class GlobalRuntimeHandle extends NativeHandle {
 
-    public GlobalRuntimeHandle(long memoryLimit, long cacheManagerConfigPtr, String spillDir, long spillLimit) {
-        super(NativeBridge.createGlobalRuntime(memoryLimit,cacheManagerConfigPtr, spillDir, spillLimit));
+    public GlobalRuntimeHandle(long memoryLimit, long cacheManagerConfigPtr, String spillDir, long spillLimit, boolean liquidCacheEnabled, long liquidCacheSize) {
+        super(NativeBridge.createGlobalRuntime(memoryLimit, cacheManagerConfigPtr, spillDir, spillLimit, liquidCacheEnabled, liquidCacheSize));
     }
 
     /**
