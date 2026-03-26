@@ -336,6 +336,9 @@ allprojects {
     }
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
     javadoc.options.addStringOption("-release", java.targetCompatibility.majorVersion)
+    if (JavaVersion.current().majorVersion.toInteger() < 25) {
+      javadoc.options.addBooleanOption('-enable-preview', true)
+    }
   }
 
   // support for reproducible builds
