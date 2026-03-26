@@ -357,42 +357,78 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
     // --- Transformation-specific tests ---
 
     /**
-     * RENAME: Rename a field from one name to another.
-     * Uses built-in "rename" processor.
+     * Combined built-in processor transformations: RENAME + COPY + DROP_FIELD + SET in a single pipeline.
      */
-    public void testTransformRename() throws Exception {
-        createPipeline("rename_pipeline2", "{\"processors\": [{\"rename\": {\"field\": \"name\", \"target_field\": \"full_name\"}}]}");
+    public void testCombinedBuiltInTransformations() throws Exception {
+        createPipeline(
+            "combined_pipeline",
+            "{\"processors\": ["
+                + "{\"rename\": {\"field\": \"name\", \"target_field\": \"full_name\"}},"
+                + "{\"copy\": {\"source_field\": \"full_name\", \"target_field\": \"name_copy\"}},"
+                + "{\"remove\": {\"field\": [\"internal_id\", \"debug\"]}},"
+                + "{\"set\": {\"field\": \"processed_by\", \"value\": \"opensearch\"}}"
+                + "]}"
+        );
 
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":25},\"_op_type\":\"index\"}";
+        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":25,\"internal_id\":\"xyz\",\"debug\":true},"
+            + "\"_op_type\":\"index\"}";
         produceData(payload);
-        createIndexWithPipeline("rename_pipeline2", 1, 0);
+        createIndexWithPipeline("combined_pipeline", 1, 0);
 
         waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
             if (response.getHits().getTotalHits().value() < 1) return false;
             Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "alice".equals(source.get("full_name")) && !source.containsKey("name");
+            return "alice".equals(source.get("full_name"))
+                && "alice".equals(source.get("name_copy"))
+                && !source.containsKey("name")
+                && !source.containsKey("internal_id")
+                && !source.containsKey("debug")
+                && "opensearch".equals(source.get("processed_by"))
+                && Integer.valueOf(25).equals(source.get("age"));
         });
     }
 
     /**
-     * COPY: Copy a field value to a new field, keeping the original.
-     * Uses built-in "copy" processor.
+     * Combined Painless script transformations: EXCLUDE_EMPTY_VALUES + NESTED_FIELD_EXTRACT + MAP_KEYS.
      */
-    public void testTransformCopy() throws Exception {
-        createPipeline("copy_pipeline", "{\"processors\": [{\"copy\": {\"source_field\": \"name\", \"target_field\": \"name_copy\"}}]}");
+    public void testCombinedScriptTransformations() throws Exception {
+        createPipeline(
+            "script_combined_pipeline",
+            "{\"processors\": ["
+                + "{\"script\": {\"source\": \"ctx.entrySet().removeIf(e -> e.getValue() == null "
+                + "|| (e.getValue() instanceof String && e.getValue().isEmpty()))\"}},"
+                + "{\"script\": {\"source\": \"ctx.city = ctx.address.city\"}},"
+                + "{\"script\": {\"source\": \"def map = ctx.props; "
+                + "if (map.containsKey('old_key')) { map.put('new_key', map.remove('old_key')); }\"}}"
+                + "]}"
+        );
 
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":25},\"_op_type\":\"index\"}";
+        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"nickname\":\"\",\"bio\":null,\"age\":25,"
+            + "\"address\":{\"city\":\"New York\",\"zip\":\"10001\"},"
+            + "\"props\":{\"old_key\":\"value1\",\"keep_key\":\"value2\"}},"
+            + "\"_op_type\":\"index\"}";
         produceData(payload);
-        createIndexWithPipeline("copy_pipeline", 1, 0);
+        createIndexWithPipeline("script_combined_pipeline", 1, 0);
 
         waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
             if (response.getHits().getTotalHits().value() < 1) return false;
             Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "alice".equals(source.get("name")) && "alice".equals(source.get("name_copy"));
+            // EXCLUDE_EMPTY: nickname and bio removed
+            if (source.containsKey("nickname") || source.containsKey("bio")) return false;
+            // NESTED_EXTRACT: city extracted to top level
+            if (!"New York".equals(source.get("city"))) return false;
+            // MAP_KEYS: old_key renamed to new_key
+            @SuppressWarnings("unchecked")
+            Map<String, Object> props = (Map<String, Object>) source.get("props");
+            return props != null
+                && "value1".equals(props.get("new_key"))
+                && !props.containsKey("old_key")
+                && "alice".equals(source.get("name"))
+                && Integer.valueOf(25).equals(source.get("age"));
         });
     }
 
@@ -422,34 +458,19 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     /**
-     * STRING_TO_LONG: Convert a string field to a long value.
-     * Uses built-in "convert" processor with type "long".
-     */
-    public void testTransformStringToLong() throws Exception {
-        createPipeline("string_to_long_pipeline", "{\"processors\": [{\"convert\": {\"field\": \"timestamp\", \"type\": \"long\"}}]}");
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"timestamp\":\"1739459500000\"},\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("string_to_long_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            Object ts = source.get("timestamp");
-            return ts instanceof Number && ((Number) ts).longValue() == 1739459500000L;
-        });
-    }
-
-    /**
-     * TYPE_CONVERSION: Convert a string field to integer.
-     * Uses built-in "convert" processor with type "integer".
+     * TYPE_CONVERSION: Convert string fields to integer and long using built-in "convert" processor.
      */
     public void testTransformTypeConversion() throws Exception {
-        createPipeline("type_conversion_pipeline", "{\"processors\": [{\"convert\": {\"field\": \"age\", \"type\": \"integer\"}}]}");
+        createPipeline(
+            "type_conversion_pipeline",
+            "{\"processors\": ["
+                + "{\"convert\": {\"field\": \"age\", \"type\": \"integer\"}},"
+                + "{\"convert\": {\"field\": \"timestamp\", \"type\": \"long\"}}"
+                + "]}"
+        );
 
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":\"25\"},\"_op_type\":\"index\"}";
+        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":\"25\",\"timestamp\":\"1739459500000\"},"
+            + "\"_op_type\":\"index\"}";
         produceData(payload);
         createIndexWithPipeline("type_conversion_pipeline", 1, 0);
 
@@ -458,7 +479,10 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
             SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
             if (response.getHits().getTotalHits().value() < 1) return false;
             Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return source.get("age") instanceof Integer && (Integer) source.get("age") == 25;
+            return source.get("age") instanceof Integer
+                && (Integer) source.get("age") == 25
+                && source.get("timestamp") instanceof Number
+                && ((Number) source.get("timestamp")).longValue() == 1739459500000L;
         });
     }
 
@@ -506,108 +530,6 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
     }
 
     /**
-     * EXCLUDE_EMPTY_VALUES: Remove fields with null or empty string values.
-     * Uses built-in "script" processor with Painless.
-     */
-    public void testTransformExcludeEmptyValues() throws Exception {
-        createPipeline(
-            "exclude_empty_pipeline",
-            "{\"processors\": [{\"script\": {\"source\": "
-                + "\"ctx.entrySet().removeIf(e -> e.getValue() == null "
-                + "|| (e.getValue() instanceof String && e.getValue().isEmpty()))\"}}]}"
-        );
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"nickname\":\"\",\"bio\":null,\"age\":25},"
-            + "\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("exclude_empty_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "alice".equals(source.get("name"))
-                && !source.containsKey("nickname")
-                && !source.containsKey("bio")
-                && Integer.valueOf(25).equals(source.get("age"));
-        });
-    }
-
-    /**
-     * MAP_KEYS: Rename keys in a nested map object.
-     * Uses built-in "script" processor with Painless.
-     */
-    public void testTransformMapKeys() throws Exception {
-        createPipeline(
-            "map_keys_pipeline",
-            "{\"processors\": [{\"script\": {\"source\": "
-                + "\"def map = ctx.props; if (map.containsKey('old_key')) { map.put('new_key', map.remove('old_key')); }\"}}]}"
-        );
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"props\":{\"old_key\":\"value1\",\"keep_key\":\"value2\"}},"
-            + "\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("map_keys_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> props = (Map<String, Object>) source.get("props");
-            if (props == null) return false;
-            return "value1".equals(props.get("new_key")) && !props.containsKey("old_key") && "value2".equals(props.get("keep_key"));
-        });
-    }
-
-    /**
-     * DROP_FIELD: Remove specific fields from the document.
-     * Uses built-in "remove" processor.
-     */
-    public void testTransformDropField() throws Exception {
-        createPipeline("drop_field_pipeline", "{\"processors\": [{\"remove\": {\"field\": [\"internal_id\", \"debug\"]}}]}");
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":25,\"internal_id\":\"xyz\",\"debug\":true},"
-            + "\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("drop_field_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "alice".equals(source.get("name"))
-                && Integer.valueOf(25).equals(source.get("age"))
-                && !source.containsKey("internal_id")
-                && !source.containsKey("debug");
-        });
-    }
-
-    /**
-     * NESTED_FIELD_EXTRACT: Extract a value from a nested object to a top-level field.
-     * Uses built-in "script" processor with Painless.
-     */
-    public void testTransformNestedFieldExtract() throws Exception {
-        createPipeline("nested_extract_pipeline", "{\"processors\": [{\"script\": {\"source\": \"ctx.city = ctx.address.city\"}}]}");
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"address\":{\"city\":\"New York\",\"zip\":\"10001\"}},"
-            + "\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("nested_extract_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "New York".equals(source.get("city")) && source.containsKey("address");
-        });
-    }
-
-    /**
      * FLATTEN_MAP: Flatten a nested map into dot-notation top-level fields.
      * Uses built-in "script" processor with Painless.
      */
@@ -642,37 +564,6 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
                 && "prod".equals(source.get("metadata.env"))
                 && "value".equals(source.get("metadata.nested.deep"))
                 && !source.containsKey("metadata");
-        });
-    }
-
-    /**
-     * Combined transformations: RENAME + DROP_FIELD + ADD_FIELD in a single pipeline.
-     * Uses built-in "rename", "remove", and "set" processors.
-     */
-    public void testCombinedTransformations() throws Exception {
-        createPipeline(
-            "combined_pipeline",
-            "{\"processors\": ["
-                + "{\"rename\": {\"field\": \"name\", \"target_field\": \"full_name\"}},"
-                + "{\"remove\": {\"field\": \"internal_id\"}},"
-                + "{\"set\": {\"field\": \"processed_by\", \"value\": \"opensearch\"}}"
-                + "]}"
-        );
-
-        String payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\",\"age\":25,\"internal_id\":\"xyz\"}," + "\"_op_type\":\"index\"}";
-        produceData(payload);
-        createIndexWithPipeline("combined_pipeline", 1, 0);
-
-        waitForState(() -> {
-            refresh(indexName);
-            SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
-            if (response.getHits().getTotalHits().value() < 1) return false;
-            Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-            return "alice".equals(source.get("full_name"))
-                && !source.containsKey("name")
-                && !source.containsKey("internal_id")
-                && "opensearch".equals(source.get("processed_by"))
-                && Integer.valueOf(25).equals(source.get("age"));
         });
     }
 
