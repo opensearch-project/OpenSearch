@@ -50,6 +50,8 @@ public class SearchSourceConverter {
      * @param schema Calcite schema with index tables from the analytics engine
      */
     public SearchSourceConverter(SchemaPlus schema) {
+        // TODO: Once Analytics plugin starts providing the RelOptTable, use it directly —
+        //  no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
         RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         this.cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));

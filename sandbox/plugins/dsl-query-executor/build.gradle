@@ -18,6 +18,7 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(':sandbox:libs:analytics-framework')
   compileOnly project(':sandbox:plugins:analytics-engine')
+  // TODO: Consume Calcite dependency from Analytics Framework instead of declaring it separately.
   compileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
 
   testImplementation project(':test:framework')

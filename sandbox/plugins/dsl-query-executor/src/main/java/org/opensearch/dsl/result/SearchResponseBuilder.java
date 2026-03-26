@@ -26,11 +26,14 @@ public class SearchResponseBuilder {
      * Builds a SearchResponse from the given results and timing.
      *
      * @param results execution results from the plan executor
-     * @param tookInMillis total execution time in milliseconds
+     * @param convertTimeNanos time spent in DSL-to-RelNode conversion, in nanoseconds
      * @return a SearchResponse
      */
-    public static SearchResponse build(List<ExecutionResult> results, long tookInMillis) {
+    // TODO: planExecutor.execute() should return execution timing so we can add it here
+    //  and construct tookInMillis = convertTime + executionTime + responseBuildTime.
+    public static SearchResponse build(List<ExecutionResult> results, long convertTimeNanos) {
         // TODO: populate hits and aggregations from results
+        long tookInMillis = convertTimeNanos / 1_000_000;
         SearchHits hits = SearchHits.empty(true);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 0);
         return new SearchResponse(

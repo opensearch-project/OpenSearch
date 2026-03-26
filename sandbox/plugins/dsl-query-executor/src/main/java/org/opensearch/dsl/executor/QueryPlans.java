@@ -33,6 +33,8 @@ public final class QueryPlans {
      * @param type what part of the response this plan produces
      * @param relNode the Calcite logical plan to execute
      */
+    // TODO: Nested aggregations may require multiple RelNodes per aggregation.
+    //  Support linking child query plans for recursive nesting (e.g. nested sub-aggregations).
     public record QueryPlan(Type type, RelNode relNode) {
         /**
          * Creates a query plan.

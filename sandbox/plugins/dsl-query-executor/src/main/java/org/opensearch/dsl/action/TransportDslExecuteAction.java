@@ -78,14 +78,13 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
         try {
             String indexName = resolveToSingleIndex(request);
-            long startTime = System.currentTimeMillis();
 
+            long convertStart = System.nanoTime();
             SearchSourceConverter converter = new SearchSourceConverter(engineContext.getSchema());
             QueryPlans plans = converter.convert(request.source(), indexName);
+            long convertTime = System.nanoTime() - convertStart;
             List<ExecutionResult> results = planExecutor.execute(plans);
-            long tookInMillis = System.currentTimeMillis() - startTime;
-
-            SearchResponse response = SearchResponseBuilder.build(results, tookInMillis);
+            SearchResponse response = SearchResponseBuilder.build(results, convertTime);
             listener.onResponse(response);
         } catch (Exception e) {
             logger.error("DSL execution failed", e);
@@ -93,10 +92,9 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
         }
     }
 
-    // TODO: add multi-index support:
-    //  1. aliases pointing to multiple indices (e.g. my-alias → [index-a, index-b])
-    //  2. comma-separated indices (e.g. GET /index-a,index-b/_search)
-    //  3. wildcard patterns (e.g. GET /index-*/_search)
+    // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
+    //  EngineContext or Schema table lookup) for consistency, and return RelOptTable directly
+    //  so this plugin doesn't need its own resolution logic.
     /**
      * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.
      * Throws if the resolution yields zero or more than one concrete index.

@@ -52,6 +52,8 @@ public class SearchActionFilter implements ActionFilter {
         ActionListener<Response> listener,
         ActionFilterChain<Request, Response> chain
     ) {
+        // TODO: add support for other search-related APIs (_msearch, _count, _search_shards, etc.).
+        //  Consider two categories: APIs that execute search vs APIs that only explain/validate.
         if (SearchAction.NAME.equals(action)) {
             SearchRequest searchRequest = (SearchRequest) request;
             client.execute(DslExecuteAction.INSTANCE, searchRequest, (ActionListener<SearchResponse>) listener);
