@@ -273,11 +273,11 @@ public class ClusterStateObserverTests extends OpenSearchTestCase {
             .build();
         when(clusterApplierService.state()).thenReturn(newerState);
 
-        // Use the ClusterService-based constructor
+        // Use the ClusterApplierService-based constructor
         final ClusterStateObserver observer = new ClusterStateObserver(
             masterNode.getId(),
             1L,
-            clusterService,
+            clusterApplierService,
             TimeValue.timeValueSeconds(30),
             logger,
             new ThreadContext(Settings.EMPTY)

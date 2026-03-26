@@ -120,17 +120,6 @@ public class ClusterStateObserver {
     public ClusterStateObserver(
         String clusterManagerNodeId,
         long version,
-        ClusterService clusterService,
-        @Nullable TimeValue timeout,
-        Logger logger,
-        ThreadContext contextHolder
-    ) {
-        this(clusterManagerNodeId, version, clusterService.getClusterApplierService(), timeout, logger, contextHolder);
-    }
-
-    public ClusterStateObserver(
-        String clusterManagerNodeId,
-        long version,
         ClusterApplierService clusterApplierService,
         @Nullable TimeValue timeout,
         Logger logger,

@@ -312,7 +312,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 this.observer = new ClusterStateObserver(
                     persistentNodeId,
                     stateVersion,
-                    clusterService,
+                    clusterService.getClusterApplierService(),
                     TimeValue.timeValueMillis(remainingTimeoutMS),
                     logger,
                     threadPool.getThreadContext()

@@ -244,7 +244,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                 // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                 // This is done to avoid delete post each refresh.
-                if (isRefreshAfterCommit()) {
+                // Also trigger cleanup if the uploaded segments map exceeds the configured threshold,
+                // to prevent unbounded memory growth when flushes do not happen.
+                if (isRefreshAfterCommit() || uploadedSegmentsMapExceedsThreshold()) {
                     remoteDirectory.deleteStaleSegmentsAsync(indexShard.getRemoteStoreSettings().getMinRemoteSegmentMetadataFiles());
                 }
 
@@ -447,6 +449,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             logger.info("Exception occurred in isRefreshAfterCommitSafe", e);
         }
         return false;
+    }
+
+    private boolean uploadedSegmentsMapExceedsThreshold() {
+        int threshold = indexShard.getRemoteStoreSettings().getUploadedSegmentsCleanupThreshold();
+        return threshold != -1 && remoteDirectory.getSegmentsUploadedToRemoteStoreSize() > threshold;
     }
 
     void uploadMetadata(Collection<String> localSegmentsPostRefresh, SegmentInfos segmentInfos, ReplicationCheckpoint replicationCheckpoint)
