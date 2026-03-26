@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -56,6 +57,13 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
     private static final int MIN_RETRY_COUNT = 2;
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 2000;
+
+    // Deterministic errors that will always fail on retry
+    private static final Set<Class<? extends Exception>> NON_RETRYABLE_EXCEPTIONS = Set.of(
+        IllegalArgumentException.class,
+        MapperParsingException.class,
+        IllegalStateException.class
+    );
 
     private final BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
@@ -183,9 +191,9 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
          * @param messageProcessorMetrics message processor metrics
          * @return the message operation
          */
-        @SuppressWarnings("unchecked")
         protected MessageOperation getOperation(ShardUpdateMessage shardUpdateMessage, MessageProcessorMetrics messageProcessorMetrics)
             throws IOException {
+            @SuppressWarnings("unchecked")
             Map<String, Object> payloadMap = shardUpdateMessage.parsedPayloadMap();
             IngestionShardPointer pointer = shardUpdateMessage.pointer();
 
@@ -254,6 +262,8 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                             return new MessageOperation(operation, opType);
                         }
                         sourceMap = transformedSource;
+                    } catch (IllegalStateException e) {
+                        throw e; // guardrail violations (e.g., _id mutation) — don't wrap, allow skip-retry
                     } catch (Exception e) {
                         throw new RuntimeException("Ingest pipeline execution failed", e);
                     }
@@ -393,8 +403,7 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             return true;
         }
 
-        // Don't retry validation/parsing errors
-        return e instanceof IllegalArgumentException || e instanceof MapperParsingException;
+        return NON_RETRYABLE_EXCEPTIONS.contains(e.getClass());
     }
 
     public MessageProcessorMetrics getMessageProcessorMetrics() {

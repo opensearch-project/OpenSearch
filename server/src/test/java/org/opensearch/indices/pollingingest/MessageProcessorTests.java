@@ -60,7 +60,6 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        // No pipeline configured — executor with null finalPipeline (pre-resolved, skips lazy resolution)
         processor = new MessageProcessorRunnable.MessageProcessor(
             ingestionEngine,
             "index",
@@ -416,15 +415,14 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
         FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
 
-        RuntimeException e = assertThrows(
-            RuntimeException.class,
+        IllegalStateException e = assertThrows(
+            IllegalStateException.class,
             () -> proc.getOperation(
                 new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
                 MessageProcessorRunnable.MessageProcessorMetrics.create()
             )
         );
-        assertTrue(e.getCause() instanceof IllegalStateException);
-        assertTrue(e.getCause().getMessage().contains("_id mutations are not allowed"));
+        assertTrue(e.getMessage().contains("_id mutations are not allowed"));
     }
 
     public void testPipelineFailure() throws Exception {
