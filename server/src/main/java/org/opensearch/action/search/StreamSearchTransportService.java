@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.support.StreamSearchChannelListener;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -45,7 +43,7 @@ import java.util.function.BiFunction;
  * @opensearch.internal
  */
 public class StreamSearchTransportService extends SearchTransportService {
-    private static final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
+    private final Logger logger = LogManager.getLogger(StreamSearchTransportService.class);
 
     private final StreamTransportService transportService;
 
@@ -55,15 +53,6 @@ public class StreamSearchTransportService extends SearchTransportService {
     ) {
         super(transportService, responseWrapper);
         this.transportService = transportService;
-    }
-
-    @Override
-    public Transport.Connection getConnection(@Nullable String clusterAlias, DiscoveryNode node) {
-        if (clusterAlias == null) {
-            return transportService.getConnection(node);
-        } else {
-            return transportService.getRemoteClusterService().getConnection(node, clusterAlias);
-        }
     }
 
     public static final Setting<Boolean> STREAM_SEARCH_ENABLED = Setting.boolSetting(
@@ -82,21 +71,13 @@ public class StreamSearchTransportService extends SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "stream handler for query; isStreamSearch={} listener=StreamSearchChannelListener shard={}",
-                        isStreamSearch,
-                        request.shardId()
-                    );
-                }
                 searchService.executeQueryPhase(
                     request,
                     false,
                     (SearchShardTask) task,
-                    new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME),
+                    new StreamSearchChannelListener<>(channel, QUERY_ACTION_NAME, request),
                     ThreadPool.Names.STREAM_SEARCH,
-                    isStreamSearch
+                    true
                 );
             }
         );
@@ -111,7 +92,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 searchService.executeFetchPhase(
                     request,
                     (SearchShardTask) task,
-                    new StreamSearchChannelListener<>(channel, FETCH_ID_ACTION_NAME),
+                    new StreamSearchChannelListener<>(channel, FETCH_ID_ACTION_NAME, request),
                     ThreadPool.Names.STREAM_SEARCH
                 );
             }
@@ -121,7 +102,7 @@ public class StreamSearchTransportService extends SearchTransportService {
             ThreadPool.Names.SAME,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                searchService.canMatch(request, new StreamSearchChannelListener<>(channel, QUERY_CAN_MATCH_NAME));
+                searchService.canMatch(request, new StreamSearchChannelListener<>(channel, QUERY_CAN_MATCH_NAME, request));
             }
         );
         transportService.registerRequestHandler(
@@ -146,7 +127,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 request,
                 false,
                 (SearchShardTask) task,
-                new StreamSearchChannelListener<>(channel, DFS_ACTION_NAME),
+                new StreamSearchChannelListener<>(channel, DFS_ACTION_NAME, request),
                 ThreadPool.Names.STREAM_SEARCH
             )
         );
@@ -162,39 +143,36 @@ public class StreamSearchTransportService extends SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        final boolean streamingListener = listener instanceof StreamSearchActionListener;
+        final StreamSearchActionListener streamListener = (StreamSearchActionListener) listener;
         StreamTransportResponseHandler<SearchPhaseResult> transportHandler = new StreamTransportResponseHandler<SearchPhaseResult>() {
             @Override
             public void handleStreamResponse(StreamTransportResponse<SearchPhaseResult> response) {
                 try {
+                    // only send previous result if we have a current result
+                    // if current result is null, that means the previous result is the last result
                     SearchPhaseResult currentResult;
                     SearchPhaseResult lastResult = null;
+
+                    // Keep reading results until we reach the end
                     while ((currentResult = response.nextResponse()) != null) {
-                        if (streamingListener) {
-                            if (lastResult != null) {
-                                ((StreamSearchActionListener) listener).onStreamResponse(lastResult, false);
-                            }
-                            lastResult = currentResult;
-                        } else {
-                            // Non-streaming: keep only the last (final) response
-                            lastResult = currentResult;
+                        if (lastResult != null) {
+                            streamListener.onStreamResponse(lastResult, false);
                         }
+                        lastResult = currentResult;
                     }
 
+                    // Send the final result as complete response, or null if no results
                     if (lastResult != null) {
-                        if (streamingListener) {
-                            ((StreamSearchActionListener) listener).onStreamResponse(lastResult, true);
-                            logger.debug("Processed final stream response");
-                        } else {
-                            listener.onResponse(lastResult);
-                        }
+                        streamListener.onStreamResponse(lastResult, true);
+                        logger.debug("Processed final stream response");
                     } else {
-                        logger.debug("Empty stream");
+                        // Empty stream case
+                        logger.error("Empty stream");
                     }
                     response.close();
                 } catch (Exception e) {
                     response.cancel("Client error during search phase", e);
-                    listener.onFailure(e);
+                    streamListener.onFailure(e);
                 }
             }
 
@@ -214,21 +192,12 @@ public class StreamSearchTransportService extends SearchTransportService {
             }
         };
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "coordinator sending QUERY to node={} shard={} via stream transport (fetchDocuments={})",
-                connection.getNode().getId(),
-                request.shardId(),
-                fetchDocuments
-            );
-        }
         transportService.sendChildRequest(
             connection,
             QUERY_ACTION_NAME,
             request,
             task,
-            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
-            transportHandler
+            transportHandler // TODO: wrap with ConnectionCountingHandler
         );
     }
 
@@ -267,14 +236,7 @@ public class StreamSearchTransportService extends SearchTransportService {
                 return new FetchSearchResult(in);
             }
         };
-        transportService.sendChildRequest(
-            connection,
-            FETCH_ID_ACTION_NAME,
-            request,
-            task,
-            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
-            transportHandler
-        );
+        transportService.sendChildRequest(connection, FETCH_ID_ACTION_NAME, request, task, transportHandler);
     }
 
     @Override

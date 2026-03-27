@@ -46,7 +46,6 @@ import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.collapse.CollapseBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescorerBuilder;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -71,10 +70,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder(OpenSearchClient client, StreamSearchAction action) {
         super(client, action, new SearchRequest());
-        // Ensure stream searches actually enable streaming on the request by default
-        // so streaming aggregations and profiling are activated in tests and users of
-        // the programmatic client. Users can still override this later if needed.
-        this.request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
     }
 
     /**
@@ -124,15 +119,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setScroll(String keepAlive) {
         request.scroll(keepAlive);
-        return this;
-    }
-
-    /**
-     * Enables streaming defaults for this search request.
-     * This sets the streaming search mode to NO_SCORING.
-     */
-    public SearchRequestBuilder enableStreamingDefaults() {
-        this.request.setStreamingSearchMode(StreamingSearchMode.NO_SCORING.toString());
         return this;
     }
 

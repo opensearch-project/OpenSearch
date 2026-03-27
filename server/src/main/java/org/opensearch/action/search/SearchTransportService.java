@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -103,7 +101,6 @@ public class SearchTransportService {
     public static final String CREATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[create_context]";
     public static final String UPDATE_READER_CONTEXT_ACTION_NAME = "indices:data/read/search[update_context]";
 
-    private static final Logger logger = LogManager.getLogger(SearchTransportService.class);
     private final TransportService transportService;
     protected final BiFunction<Transport.Connection, SearchActionListener, ActionListener> responseWrapper;
     private final Map<String, Long> clientConnections = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -246,14 +243,6 @@ public class SearchTransportService {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Writeable.Reader<SearchPhaseResult> reader = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
 
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
-                connection.getNode().getId(),
-                request.shardId(),
-                fetchDocuments
-            );
-        }
         final ActionListener handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(
             connection,
@@ -270,14 +259,6 @@ public class SearchTransportService {
         SearchTask task,
         final SearchActionListener<QuerySearchResult> listener
     ) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "coordinator sending QUERY to node={} shard={} via classic transport (fetchDocuments={})",
-                connection.getNode().getId(),
-                request.contextId(),
-                false
-            );
-        }
         transportService.sendChildRequest(
             connection,
             QUERY_ID_ACTION_NAME,
@@ -584,19 +565,11 @@ public class SearchTransportService {
             AdmissionControlActionType.SEARCH,
             ShardSearchRequest::new,
             (request, channel, task) -> {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "classic handler for query; isStreamSearch=false listener=ChannelActionListener shard={} ",
-                        request.shardId()
-                    );
-                }
                 searchService.executeQueryPhase(
                     request,
                     false,
                     (SearchShardTask) task,
-                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request),
-                    ThreadPool.Names.SAME,
-                    false
+                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request)
                 );
             }
         );

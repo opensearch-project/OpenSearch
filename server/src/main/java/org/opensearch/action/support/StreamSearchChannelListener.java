@@ -8,48 +8,57 @@
 
 package org.opensearch.action.support;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/** Streams transport responses through a {@link TransportChannel}. */
+/**
+ * A listener that sends the response back to the channel in streaming fashion.
+ *
+ * - onStreamResponse(): Send streaming responses
+ * - onResponse(): Standard ActionListener method that send last stream response
+ * - onFailure(): Handle errors and complete the stream
+ */
 @ExperimentalApi
-public class StreamSearchChannelListener<Response extends TransportResponse> implements ActionListener<Response> {
+public class StreamSearchChannelListener<Response extends TransportResponse, Request extends TransportRequest>
+    implements
+        ActionListener<Response> {
 
-    private static final Logger logger = LogManager.getLogger(StreamSearchChannelListener.class);
     private final TransportChannel channel;
+    private final Request request;
     private final String actionName;
 
-    private final java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
-
-    public StreamSearchChannelListener(TransportChannel channel, String actionName) {
+    public StreamSearchChannelListener(TransportChannel channel, String actionName, Request request) {
         this.channel = channel;
+        this.request = request;
         this.actionName = actionName;
     }
 
-    /** Sends a streamed response batch and optionally completes the stream. */
+    /**
+     * Send streaming responses
+     * This allows multiple responses to be sent for a single request.
+     *
+     * @param response    the intermediate response to send
+     * @param isLastBatch whether this response is the last one
+     */
     public void onStreamResponse(Response response, boolean isLastBatch) {
         assert response != null;
-        if (completed.get()) {
-            return;
-        }
-        try {
-            channel.sendResponseBatch(response);
-            if (isLastBatch) {
-                channel.completeStream();
-                completed.set(true);
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to send streaming response on channel for action [{}]", actionName, e);
-            throw e;
+        channel.sendResponseBatch(response);
+        if (isLastBatch) {
+            channel.completeStream();
         }
     }
 
+    /**
+     * Reuse ActionListener method to send the last stream response
+     * This maintains compatibility on data node side
+     *
+     * @param response the response to send
+     */
     @Override
     public final void onResponse(Response response) {
         onStreamResponse(response, true);
@@ -57,13 +66,10 @@ public class StreamSearchChannelListener<Response extends TransportResponse> imp
 
     @Override
     public void onFailure(Exception e) {
-        if (completed.getAndSet(true)) {
-            return;
-        }
         try {
             channel.sendResponse(e);
         } catch (IOException exc) {
-            logger.warn("Failed to send error response on streaming channel", exc);
+            channel.completeStream();
             throw new RuntimeException(exc);
         }
     }
