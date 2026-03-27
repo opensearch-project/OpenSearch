@@ -62,7 +62,6 @@ public class SearchSourceConverterTests extends OpenSearchTestCase {
     }
 
     public void testConvertThrowsForMissingIndex() {
-        expectThrows(IllegalArgumentException.class,
-            () -> converter.convert(new SearchSourceBuilder(), "nonexistent-index"));
+        expectThrows(IllegalArgumentException.class, () -> converter.convert(new SearchSourceBuilder(), "nonexistent-index"));
     }
 }

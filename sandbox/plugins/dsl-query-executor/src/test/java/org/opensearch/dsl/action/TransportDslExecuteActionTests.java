@@ -62,10 +62,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
     }
 
     public void testDoExecuteRejectsMultipleConcreteIndices() {
-        TransportDslExecuteAction action = createAction(
-            new Index("index-a", "uuid-a"),
-            new Index("index-b", "uuid-b")
-        );
+        TransportDslExecuteAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
 
         TestListener listener = executeWith(action, "multi-alias");
 
@@ -80,8 +77,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         when(clusterService.state()).thenReturn(mock(ClusterState.class));
 
         IndexNameExpressionResolver resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteIndices(any(), any(SearchRequest.class)))
-            .thenThrow(new IndexNotFoundException("bogus-index"));
+        when(resolver.concreteIndices(any(), any(SearchRequest.class))).thenThrow(new IndexNotFoundException("bogus-index"));
 
         TransportDslExecuteAction action = new TransportDslExecuteAction(
             mock(TransportService.class),
@@ -145,10 +141,7 @@ public class TransportDslExecuteActionTests extends OpenSearchTestCase {
         schema.add("test-index", new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
-                return tf.builder()
-                    .add("name", SqlTypeName.VARCHAR)
-                    .add("price", SqlTypeName.INTEGER)
-                    .build();
+                return tf.builder().add("name", SqlTypeName.VARCHAR).add("price", SqlTypeName.INTEGER).build();
             }
         });
         return schema;

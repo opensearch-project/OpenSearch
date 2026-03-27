@@ -13,7 +13,6 @@ import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.result.ExecutionResult;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Collections;
 import java.util.List;
 
 public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
@@ -27,12 +26,10 @@ public class DslQueryPlanExecutorTests extends OpenSearchTestCase {
     }
 
     public void testExecuteDelegatesEachPlanToExecutor() {
-        List<Object[]> expectedRows = List.<Object[]>of(new Object[]{"laptop", 1200});
+        List<Object[]> expectedRows = List.<Object[]>of(new Object[] { "laptop", 1200 });
 
         DslQueryPlanExecutor executor = new DslQueryPlanExecutor((plan, ctx) -> expectedRows);
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan))
-            .build();
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan)).build();
 
         List<ExecutionResult> results = executor.execute(plans);
 

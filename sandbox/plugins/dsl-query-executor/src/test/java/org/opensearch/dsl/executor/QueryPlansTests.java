@@ -23,9 +23,7 @@ public class QueryPlansTests extends OpenSearchTestCase {
     }
 
     public void testBuilderCreatesSinglePlan() {
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode))
-            .build();
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode)).build();
 
         assertEquals(1, plans.getAll().size());
         assertTrue(plans.has(QueryPlans.Type.HITS));
@@ -33,8 +31,7 @@ public class QueryPlansTests extends OpenSearchTestCase {
     }
 
     public void testBuilderCreatesMultiplePlans() {
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode))
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode))
             .add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode))
             .build();
 
@@ -46,8 +43,7 @@ public class QueryPlansTests extends OpenSearchTestCase {
     }
 
     public void testGetReturnsMultiplePlansOfSameType() {
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode))
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode))
             .add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode))
             .build();
 
@@ -59,20 +55,18 @@ public class QueryPlansTests extends OpenSearchTestCase {
     }
 
     public void testGetReturnsEmptyForMissingType() {
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode))
-            .build();
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode)).build();
 
         assertTrue(plans.get(QueryPlans.Type.AGGREGATION).isEmpty());
     }
 
     public void testPlansAreImmutable() {
-        QueryPlans plans = new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode))
-            .build();
+        QueryPlans plans = new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, relNode)).build();
 
-        expectThrows(UnsupportedOperationException.class,
-            () -> plans.getAll().add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode)));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> plans.getAll().add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, relNode))
+        );
     }
 
     public void testQueryPlanRejectsNullArguments() {

@@ -93,22 +93,17 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
     }
 
     // TODO: Consider delegating index resolution to Analytics Core plugin (e.g. via
-    //  EngineContext or Schema table lookup) for consistency, and return RelOptTable directly
-    //  so this plugin doesn't need its own resolution logic.
+    // EngineContext or Schema table lookup) for consistency, and return RelOptTable directly
+    // so this plugin doesn't need its own resolution logic.
     /**
      * Resolves the request's indices (which may be aliases or wildcards) to a single concrete index.
      * Throws if the resolution yields zero or more than one concrete index.
      */
     private String resolveToSingleIndex(SearchRequest request) {
-        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
-            clusterService.state(),
-            request
-        );
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), request);
         if (concreteIndices.length != 1) {
             throw new IllegalArgumentException(
-                "DSL execution currently supports exactly one concrete index, but resolved to "
-                    + concreteIndices.length
-                    + " indices"
+                "DSL execution currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
             );
         }
         return concreteIndices[0].getName();

@@ -37,12 +37,7 @@ public class DslQueryExecutorPluginTests extends OpenSearchTestCase {
     }
 
     public void testGetActionFiltersAfterCreateComponents() {
-        plugin.createComponents(
-            mock(NodeClient.class),
-            null, null, null, null,
-            null, null, null,
-            null, null, null
-        );
+        plugin.createComponents(mock(NodeClient.class), null, null, null, null, null, null, null, null, null, null);
 
         List<ActionFilter> filters = plugin.getActionFilters();
         assertEquals(1, filters.size());

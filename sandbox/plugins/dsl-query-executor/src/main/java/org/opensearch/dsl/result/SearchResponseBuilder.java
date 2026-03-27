@@ -30,20 +30,12 @@ public class SearchResponseBuilder {
      * @return a SearchResponse
      */
     // TODO: planExecutor.execute() should return execution timing so we can add it here
-    //  and construct tookInMillis = convertTime + executionTime + responseBuildTime.
+    // and construct tookInMillis = convertTime + executionTime + responseBuildTime.
     public static SearchResponse build(List<ExecutionResult> results, long convertTimeNanos) {
         // TODO: populate hits and aggregations from results
         long tookInMillis = convertTimeNanos / 1_000_000;
         SearchHits hits = SearchHits.empty(true);
         SearchResponseSections sections = new SearchResponseSections(hits, null, null, false, null, null, 0);
-        return new SearchResponse(
-            sections,
-            null,
-            0,
-            0,
-            0,
-            tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(sections, null, 0, 0, 0, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 }

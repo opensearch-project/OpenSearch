@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.converter;
 
+import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.jdbc.CalciteSchema;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -18,7 +19,6 @@ import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeSystem;
 import org.apache.calcite.rex.RexBuilder;
-import org.apache.calcite.config.CalciteConnectionConfigImpl;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.apache.logging.log4j.LogManager;
@@ -51,7 +51,7 @@ public class SearchSourceConverter {
      */
     public SearchSourceConverter(SchemaPlus schema) {
         // TODO: Once Analytics plugin starts providing the RelOptTable, use it directly —
-        //  no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
+        // no need to reconstruct typeFactory, CatalogReader, and planning infrastructure here.
         RelDataTypeFactory typeFactory = new SqlTypeFactoryImpl(RelDataTypeSystem.DEFAULT);
         HepPlanner planner = new HepPlanner(HepProgram.builder().build());
         this.cluster = RelOptCluster.create(planner, new RexBuilder(typeFactory));
@@ -82,8 +82,6 @@ public class SearchSourceConverter {
         LogicalTableScan scan = LogicalTableScan.create(cluster, table, List.of());
         // TODO: build full plan: Scan → Filter → Project → Sort / Aggregate
 
-        return new QueryPlans.Builder()
-            .add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan))
-            .build();
+        return new QueryPlans.Builder().add(new QueryPlans.QueryPlan(QueryPlans.Type.HITS, scan)).build();
     }
 }

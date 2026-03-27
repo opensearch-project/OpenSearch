@@ -36,9 +36,7 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
     public void testSearchReturnsEmptyResponse() {
         createTestIndex();
 
-        SearchResponse response = client().search(
-            new SearchRequest(INDEX).source(new SearchSourceBuilder())
-        ).actionGet();
+        SearchResponse response = client().search(new SearchRequest(INDEX).source(new SearchSourceBuilder())).actionGet();
 
         assertNotNull(response);
         assertEquals(200, response.status().getStatus());
@@ -48,10 +46,9 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
     }
 
     public void testSearchFailsForNonexistentIndex() {
-        expectThrows(Exception.class, () ->
-            client().search(
-                new SearchRequest("nonexistent-index").source(new SearchSourceBuilder())
-            ).actionGet()
+        expectThrows(
+            Exception.class,
+            () -> client().search(new SearchRequest("nonexistent-index").source(new SearchSourceBuilder())).actionGet()
         );
     }
 
@@ -60,20 +57,16 @@ public class DslQueryExecutorIT extends OpenSearchIntegTestCase {
         createIndex("test-index-2");
         ensureGreen();
 
-        expectThrows(Exception.class, () ->
-            client().search(
-                new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())
-            ).actionGet()
+        expectThrows(
+            Exception.class,
+            () -> client().search(new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())).actionGet()
         );
     }
 
     private void createTestIndex() {
         createIndex(INDEX);
         ensureGreen();
-        client().prepareIndex(INDEX)
-            .setId("1")
-            .setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON)
-            .get();
+        client().prepareIndex(INDEX).setId("1").setSource("{\"name\":\"laptop\",\"price\":1200}", XContentType.JSON).get();
         refresh(INDEX);
     }
 }

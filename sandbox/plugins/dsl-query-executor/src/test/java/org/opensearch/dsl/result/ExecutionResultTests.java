@@ -18,7 +18,7 @@ public class ExecutionResultTests extends OpenSearchTestCase {
 
     public void testExecutionResultCarriesPlanAndRows() {
         QueryPlans.QueryPlan plan = new QueryPlans.QueryPlan(QueryPlans.Type.HITS, TestUtils.createTestRelNode());
-        List<Object[]> rows = List.<Object[]>of(new Object[]{"laptop", 1200, "brandX", 4.5});
+        List<Object[]> rows = List.<Object[]>of(new Object[] { "laptop", 1200, "brandX", 4.5 });
         ExecutionResult result = new ExecutionResult(plan, rows);
 
         assertSame(plan, result.getPlan());

@@ -18,7 +18,7 @@ import org.opensearch.action.search.SearchResponse;
 public class DslExecuteAction extends ActionType<SearchResponse> {
 
     // TODO: Customers migrating to new indices will need a new Security permission for this action.
-    //  Evaluate whether this can reuse an existing search permission or needs security plugin integration.
+    // Evaluate whether this can reuse an existing search permission or needs security plugin integration.
     /** Action name registered with the transport layer. */
     public static final String NAME = "indices:data/read/dsl/execute";
     /** Singleton instance. */

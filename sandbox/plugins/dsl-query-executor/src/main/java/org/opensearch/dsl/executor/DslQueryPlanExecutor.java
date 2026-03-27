@@ -37,7 +37,7 @@ public class DslQueryPlanExecutor {
     }
 
     // TODO: add per-plan error handling so a failure in one plan
-    //  doesn't prevent returning partial results from other plans (e.g. HITS)
+    // doesn't prevent returning partial results from other plans (e.g. HITS)
     /**
      * Executes all plans and returns results in plan order.
      *
@@ -60,7 +60,7 @@ public class DslQueryPlanExecutor {
     }
 
     // TODO: move plan logging behind a debug flag
-    //  invalidateMetadataQuery() and THREAD_PROVIDERS are only needed for explain() output
+    // invalidateMetadataQuery() and THREAD_PROVIDERS are only needed for explain() output
     private void logPlan(RelNode relNode) {
         if (logger.isInfoEnabled()) {
             org.apache.calcite.rel.metadata.RelMetadataQueryBase.THREAD_PROVIDERS.set(
