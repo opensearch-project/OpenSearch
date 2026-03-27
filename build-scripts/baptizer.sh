@@ -36,6 +36,7 @@ function parse_args() {
         a)
             ARCHITECTURE=$OPTARG
             ;;
+
         d)
             DISTRIBUTION=$OPTARG
             ;;

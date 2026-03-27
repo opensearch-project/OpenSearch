@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Implement SAP Local Maven publisher GHA [(#1304)](https://github.com/wazuh/wazuh-indexer/pull/1304)
 - Enable Wazuh Engine in Docker images and add support for ARM architecture [(#1320)](https://github.com/wazuh/wazuh-indexer/pull/1320) [(#1328)](https://github.com/wazuh/wazuh-indexer/pull/1328)
 - Bundle CTI content snapshots into Wazuh Indexer packages [(#1353)](https://github.com/wazuh/wazuh-indexer/pull/1353)
+- Implement wazuh-indexer-common-utils plugin build process [(#1385)](https://github.com/wazuh/wazuh-indexer/pull/1385)
 
 ### Fixed
 - Set secure permissions (750) for engine sockets directory [(#1330)](https://github.com/wazuh/wazuh-indexer/pull/1330)

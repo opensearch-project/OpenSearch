@@ -5,6 +5,10 @@ permissions:
   contents: read
   packages: read
 
+env:
+  M2_CACHE_KEY_COMMON: .m2-${{ github.ref_name }}-${{ github.run_id }}-common-utils
+  M2_CACHE_KEY_FULL: .m2-${{ github.ref_name }}-${{ github.run_id }}-with-security-analytics
+
 # This workflow runs when any of the following occur:
 # - Run manually
 # - Invoked from another workflow
@@ -119,13 +123,14 @@ on:
 jobs:
   branches:
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       wazuh_plugins_ref: ${{ steps.branches.outputs.wazuh_indexer_plugins_branch }}
       reporting_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_reporting_branch }}
       security_analytics_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_security_analytics_branch }}
       notifications_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_notifications_branch }}
+      common_utils_plugin_ref: ${{ steps.branches.outputs.wazuh_indexer_common_utils_branch }}
       wazuh_ref: ${{ steps.branches.outputs.wazuh_branch }}
     steps:
       - uses: actions/checkout@v6
@@ -137,29 +142,32 @@ jobs:
 
   get-versions-wazuh-indexer:
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       version: ${{ steps.version.outputs.version }}
       opensearch_version: ${{ steps.version.outputs.opensearch_version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            build-scripts/product_version.sh
+            build-scripts/opensearch_version.sh
+            buildSrc/version.properties
 
-      - name: Get Wazuh Indexer version
+      - name: Read versions
         id: version
         run: |
-          # Get the Wazuh Indexer version using the product_version.sh script
           echo "version=$(bash ./build-scripts/product_version.sh)" >> "$GITHUB_OUTPUT"
-
-          # Extracts the Opensearch version using the upstream-version.sh script
-          opensearch_version=$(bash ./build-scripts/upstream-version.sh)
-          echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+          echo "opensearch_version=$(bash ./build-scripts/opensearch_version.sh)" >> "$GITHUB_OUTPUT"
 
   get-versions-wazuh-indexer-plugins:
     needs: [branches]
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       version: ${{ steps.plugins_version.outputs.version }}
       opensearch_version: ${{ steps.plugins_version.outputs.opensearch_version }}
@@ -168,21 +176,24 @@ jobs:
         with:
           repository: wazuh/wazuh-indexer-plugins
           ref: ${{ needs.branches.outputs.wazuh_plugins_ref }}
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            tools/product_version.sh
+            tools/opensearch_version.sh
+            plugins/setup/build.gradle
 
-      - name: Read versions from wazuh-indexer-plugins
+      - name: Read versions
         id: plugins_version
         run: |
           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
-
-          # Extracts the Opensearch version
-          opensearch_version=$(bash ./tools/opensearch_version.sh "setup")
-          echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+          echo "opensearch_version=$(bash ./tools/opensearch_version.sh setup)" >> "$GITHUB_OUTPUT"
 
   get-versions-wazuh-indexer-reporting:
     needs: [branches]
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       version: ${{ steps.reporting_version.outputs.version }}
       opensearch_version: ${{ steps.reporting_version.outputs.opensearch_version }}
@@ -191,21 +202,24 @@ jobs:
         with:
           repository: wazuh/wazuh-indexer-reporting
           ref: ${{ needs.branches.outputs.reporting_plugin_ref }}
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            tools/product_version.sh
+            tools/opensearch_version.sh
+            build.gradle
 
-      - name: Read versions from wazuh-indexer-reporting
+      - name: Read versions
         id: reporting_version
         run: |
-           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
-
-            # Extracts the Opensearch version
-            opensearch_version=$(bash tools/opensearch_version.sh)
-            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+          echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+           echo "opensearch_version=$(bash ./tools/opensearch_version.sh)" >> "$GITHUB_OUTPUT"
 
   get-versions-wazuh-indexer-security-analytics:
     needs: [branches]
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       version: ${{ steps.security_analytics_version.outputs.version }}
       opensearch_version: ${{ steps.security_analytics_version.outputs.opensearch_version }}
@@ -214,21 +228,24 @@ jobs:
         with:
           repository: wazuh/wazuh-indexer-security-analytics
           ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            tools/product_version.sh
+            tools/opensearch_version.sh
+            build.gradle
 
-      - name: Read versions from wazuh-indexer-security-analytics
+      - name: Read versions
         id: security_analytics_version
         run: |
-           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
-
-            # Extracts the Opensearch version
-            opensearch_version=$(bash tools/opensearch_version.sh)
-            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+          echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+          echo "opensearch_version=$(bash ./tools/opensearch_version.sh)" >> "$GITHUB_OUTPUT"
 
   get-versions-wazuh-indexer-notifications:
     needs: [branches]
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       version: ${{ steps.notifications_version.outputs.version }}
       opensearch_version: ${{ steps.notifications_version.outputs.opensearch_version }}
@@ -237,41 +254,84 @@ jobs:
         with:
           repository: wazuh/wazuh-indexer-notifications
           ref: ${{ needs.branches.outputs.notifications_plugin_ref }}
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            tools/product_version.sh
+            tools/opensearch_version.sh
+            build.gradle
+            notifications/build.gradle
 
-      - name: Read versions from wazuh-indexer-notifications
+      - name: Read versions
         id: notifications_version
         run: |
-           echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+          echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+           echo "opensearch_version=$(bash ./tools/opensearch_version.sh)" >> "$GITHUB_OUTPUT"
 
-            # Extracts the Opensearch version
-            opensearch_version=$(bash tools/opensearch_version.sh)
-            echo "opensearch_version=$opensearch_version" >> "$GITHUB_OUTPUT"
+  get-versions-wazuh-indexer-common-utils:
+    needs: [branches]
+    runs-on:
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
+    outputs:
+      version: ${{ steps.common_utils_version.outputs.version }}
+      opensearch_version: ${{ steps.common_utils_version.outputs.opensearch_version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wazuh/wazuh-indexer-common-utils
+          ref: ${{ needs.branches.outputs.common_utils_plugin_ref }}
+          fetch-depth: 1
+          sparse-checkout: |
+            VERSION.json
+            tools/product_version.sh
+            tools/opensearch_version.sh
+            build.gradle
+
+      - name: Read versions
+        id: common_utils_version
+        run: |
+          echo "version=$(bash ./tools/product_version.sh)" >> "$GITHUB_OUTPUT"
+           echo "opensearch_version=$(bash ./tools/opensearch_version.sh)" >> "$GITHUB_OUTPUT"
 
   compatibility-check:
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
-    needs: [get-versions-wazuh-indexer, get-versions-wazuh-indexer-plugins, get-versions-wazuh-indexer-reporting, get-versions-wazuh-indexer-security-analytics, get-versions-wazuh-indexer-notifications]
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
+    needs:
+      [
+        get-versions-wazuh-indexer,
+        get-versions-wazuh-indexer-plugins,
+        get-versions-wazuh-indexer-reporting,
+        get-versions-wazuh-indexer-security-analytics,
+        get-versions-wazuh-indexer-notifications,
+        get-versions-wazuh-indexer-common-utils,
+      ]
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            build-scripts/check_compatibility_versions.sh
+
       - name: Check version compatibility
+        env:
+          INDEXER_VERSION: ${{ needs.get-versions-wazuh-indexer.outputs.version }}
+          OPENSEARCH_VERSION: ${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}
+          PLUGIN_VERSIONS: |
+            wazuh-indexer-plugins|${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}|${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}
+            wazuh-indexer-reporting|${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}|${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}
+            wazuh-indexer-security-analytics|${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}|${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.opensearch_version }}
+            wazuh-indexer-notifications|${{ needs.get-versions-wazuh-indexer-notifications.outputs.version }}|${{ needs.get-versions-wazuh-indexer-notifications.outputs.opensearch_version }}
+            wazuh-indexer-common-utils|${{ needs.get-versions-wazuh-indexer-common-utils.outputs.version }}|${{ needs.get-versions-wazuh-indexer-common-utils.outputs.opensearch_version }}
         run: |
-          if [[ ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.version }}" != "${{ needs.get-versions-wazuh-indexer-notifications.outputs.version }}") ]]; then
-            echo "The Wazuh Indexer version is not compatible with the plugins, reporting, security analytics, or notifications version."
-            exit 1
-          elif [[ ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-plugins.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-reporting.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.opensearch_version }}") || ("${{ needs.get-versions-wazuh-indexer.outputs.opensearch_version }}" != "${{ needs.get-versions-wazuh-indexer-notifications.outputs.opensearch_version }}") ]]; then
-            echo "The Wazuh Indexer Opensearch version is not compatible with the plugins, reporting, security analytics, or notifications Opensearch version."
-            exit 1
-          else
-            echo "The Wazuh Indexer version and the plugins version are compatible."
-            exit 0
-          fi
+          bash build-scripts/check_compatibility_versions.sh
 
   setup:
-    needs: [compatibility-check]
     name: Set up variables
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       previous_version: ${{ steps.previous_release.outputs.previous_version }}
@@ -289,51 +349,110 @@ jobs:
         name: Get latest Wazuh release from GitHub
         run: |
           CURRENT="$(bash build-scripts/product_version.sh)"
-          PREVIOUS=$(curl -s https://api.github.com/repos/wazuh/wazuh-indexer/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | grep -E '^4\.[0-9]+\.[0-9]+$' | \
+          PREVIOUS=$(curl -fsSL \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/wazuh/wazuh-indexer/releases | jq -r '.[].tag_name' | grep -vE 'alpha|beta|rc' | sed 's/^v//' | grep -E '^4\.[0-9]+\.[0-9]+$' | \
           grep -v "^${CURRENT}$" | sort -V | awk -v current="$CURRENT" '$0 < current' | tail -n1)
 
           echo "Current version: $CURRENT"
           echo "Latest release detected: $PREVIOUS"
           echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
 
-  # Publish security-analytics-plugin and its commons to Local Maven
-  sap-maven-local-publication:
+  publish-common-utils:
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
-    needs: [compatibility-check, branches, get-versions-wazuh-indexer-security-analytics]
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
+    needs: [compatibility-check, branches]
     steps:
-      - name: Publish SAP to Local Maven
+      - name: Publish common-utils to Maven Local
+        uses: wazuh/wazuh-indexer-common-utils/.github/actions/5_local_maven_publisher@main
+        with:
+          reference: ${{ needs.branches.outputs.common_utils_plugin_ref }}
+      - name: Cache Maven Local
+        uses: actions/cache/save@v5
+        with:
+          path: ~/.m2/repository
+          key: ${{ env.M2_CACHE_KEY_COMMON }}
+
+  publish-security-analytics:
+    runs-on:
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
+    timeout-minutes: 60
+    needs:
+      [
+        compatibility-check,
+        branches,
+        get-versions-wazuh-indexer-security-analytics,
+        publish-common-utils,
+      ]
+    outputs:
+      hash: ${{ steps.save-hash.outputs.hash }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: wazuh/wazuh-indexer-security-analytics
+          ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore Maven Local cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.m2/repository
+          key: ${{ env.M2_CACHE_KEY_COMMON }}
+
+      - name: Publish security-analytics(+commons) to Maven Local
         uses: wazuh/wazuh-indexer-security-analytics/.github/actions/5_local_maven_publisher@main
         with:
           version: ${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}
           revision: ${{ inputs.revision }}
           reference: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
+
+      - name: Save commit hash
+        id: save-hash
+        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wazuh-indexer-security-analytics-${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}.${{ inputs.revision }}.zip
+          path: build/distributions/wazuh-indexer-security-analytics-${{ needs.get-versions-wazuh-indexer-security-analytics.outputs.version }}.${{ inputs.revision }}.zip
+          if-no-files-found: error
+
       - name: Cache Maven Local
         uses: actions/cache/save@v5
         with:
           path: ~/.m2/repository
-          key: maven-sap-${{ github.run_id }}
+          key: ${{ env.M2_CACHE_KEY_FULL }}
 
   build-wazuh-engine:
     needs: [compatibility-check, branches]
     uses: wazuh/wazuh/.github/workflows/5_builderpackage_engine-standalone.yml@main
-    secrets: inherit
     with:
       wazuh-branch: ${{ needs.branches.outputs.wazuh_ref }}
-      build-type: 'release'
+      build-type: "release"
       arch: ${{ inputs.architecture }}
 
   build-wazuh-plugins:
-    needs: [compatibility-check, branches, sap-maven-local-publication]
+    needs: [compatibility-check, branches, publish-security-analytics]
     if: ${{ needs.branches.outputs.wazuh_plugins_ref != '' }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         plugins: ["setup", "content-manager"]
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     env:
       plugin_name: wazuh-indexer-${{ matrix.plugins }}
     outputs:
@@ -356,7 +475,9 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ~/.m2/repository
-          key: maven-sap-${{ github.run_id }}
+          key: ${{ env.M2_CACHE_KEY_FULL }}
+          restore-keys: |
+            ${{ env.M2_CACHE_KEY_COMMON }}
 
       - name: Get version
         id: version
@@ -381,11 +502,12 @@ jobs:
           if-no-files-found: error
 
   build-reporting-plugin:
-    needs: [compatibility-check, branches]
+    needs: [compatibility-check, branches, publish-common-utils]
     if: ${{ needs.branches.outputs.reporting_plugin_ref != '' }}
+    timeout-minutes: 60
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     env:
@@ -403,6 +525,14 @@ jobs:
 
       - name: Setup Gradle # Used for caching
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore Maven Local cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.m2/repository
+          key: ${{ env.M2_CACHE_KEY_FULL }}
+          restore-keys: |
+            ${{ env.M2_CACHE_KEY_COMMON }}
 
       - name: Get version
         id: version
@@ -424,63 +554,13 @@ jobs:
           path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
           if-no-files-found: error
 
-  build-security-analytics-plugin:
-    needs: [compatibility-check, branches]
-    if: ${{ needs.branches.outputs.security_analytics_plugin_ref != '' }}
-    runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
-    outputs:
-      hash: ${{ steps.save-hash.outputs.hash }}
-    env:
-      plugin_name: wazuh-indexer-security-analytics
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          repository: wazuh/wazuh-indexer-security-analytics
-          ref: ${{ needs.branches.outputs.security_analytics_plugin_ref }}
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 25
-
-      - name: Setup Gradle # Used for caching
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Get version
-        id: version
-        run: echo "version=$(jq .version -r VERSION.json)" >> "$GITHUB_OUTPUT"
-
-      - name: Publish commons library to mavenLocal
-        run: |
-          cd commons
-          ../gradlew publishToMavenLocal -x check \
-            -Dversion=${{ steps.version.outputs.version }} \
-            -Drevision=${{ inputs.revision }}
-
-      - name: Build with Gradle
-        run: ./gradlew build -x integTest -Dversion=${{ steps.version.outputs.version }} -Drevision=${{ inputs.revision }}
-
-      - run: ls -lR build/distributions
-
-      - name: Save commit hash
-        id: save-hash
-        run: echo "hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
-          path: build/distributions/${{ env.plugin_name }}-${{ steps.version.outputs.version }}.${{ inputs.revision }}.zip
-          if-no-files-found: error
-
   build-notifications-plugin:
-    needs: [compatibility-check, branches]
+    needs: [compatibility-check, branches, publish-common-utils]
     if: ${{ needs.branches.outputs.notifications_plugin_ref != '' }}
+    timeout-minutes: 60
     runs-on:
-      group: 'wz-linux-amd64'
-      labels: 'wz-linux-amd64'
+      group: "wz-linux-amd64"
+      labels: "wz-linux-amd64"
     outputs:
       hash: ${{ steps.save-hash.outputs.hash }}
     env:
@@ -498,6 +578,14 @@ jobs:
 
       - name: Setup Gradle # Used for caching
         uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore Maven Local Cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ~/.m2/repository
+          key: ${{ env.M2_CACHE_KEY_FULL }}
+          restore-keys: |
+            ${{ env.M2_CACHE_KEY_COMMON }}
 
       - name: Get version
         id: version
@@ -528,7 +616,16 @@ jobs:
           if-no-files-found: error
 
   build:
-    needs: [setup, build-wazuh-plugins, build-reporting-plugin, build-security-analytics-plugin, build-notifications-plugin, build-wazuh-engine]
+    needs:
+      [
+        setup,
+        build-wazuh-plugins,
+        build-reporting-plugin,
+        publish-security-analytics,
+        build-notifications-plugin,
+        build-wazuh-engine,
+      ]
+    timeout-minutes: 60
     runs-on:
       group: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64' || 'wz-linux-amd64' }}
       labels: ${{ matrix.architecture == 'arm64' && 'wz-linux-arm64-2' || 'wz-linux-amd64' }}
@@ -579,7 +676,7 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
-            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -s ${{ needs.publish-security-analytics.outputs.hash }} \
             -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
@@ -594,7 +691,7 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
-            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -s ${{ needs.publish-security-analytics.outputs.hash }} \
             -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             ${{ inputs.is_stage && '-x' || '' }} \
           )
@@ -608,9 +705,9 @@ jobs:
             -d ${{ matrix.distribution }} \
             -n ${{ steps.min_package.outputs.name }}
 
-      # Download CTI snapshots so assemble.sh can install them
+      # Download snapshots so assemble.sh can install them
       # alongside the content-manager plugin.
-      - name: Download CTI snapshots
+      - name: Download snapshots
         if: ${{ vars.CTI_API_URL != '' }}
         run: |
           bash build-scripts/download_snapshots.sh \
@@ -625,7 +722,7 @@ jobs:
             -r ${{ inputs.revision }} \
             -l ${{ needs.build-wazuh-plugins.outputs.hash }} \
             -e ${{ needs.build-reporting-plugin.outputs.hash }} \
-            -s ${{ needs.build-security-analytics-plugin.outputs.hash }} \
+            -s ${{ needs.publish-security-analytics.outputs.hash }} \
             -n ${{ needs.build-notifications-plugin.outputs.hash }} \
             -o ${{ github.workspace }}/artifacts
 
@@ -690,6 +787,20 @@ jobs:
           sudo bash build-scripts/indexer_node_install.sh ${{ needs.setup.outputs.previous_version }}
           sudo DEBIAN_FRONTEND=noninteractive dpkg -i --force-confnew "artifacts/dist/${{ steps.package.outputs.name }}"
 
+      - name: Clean up DEB test environment
+        if: ${{ always() && matrix.distribution == 'deb' }}
+        run: |
+          if systemctl list-unit-files | grep -q '^wazuh-indexer\.service'; then
+            sudo systemctl stop wazuh-indexer || true
+            sudo systemctl disable wazuh-indexer || true
+          fi
+
+          sudo DEBIAN_FRONTEND=noninteractive apt-get remove --purge wazuh-indexer -y || true
+          sudo DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
+          sudo rm -f /etc/apt/sources.list.d/wazuh.list
+          sudo rm -f /usr/share/keyrings/wazuh.gpg
+          sudo apt-get update || true
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -709,7 +820,7 @@ jobs:
         if: ${{ inputs.upload }}
         run: |
           src="artifacts/dist/${{ steps.package.outputs.name }}"
-          dest="s3://xdrsiem-packages-dev-internal/development/wazuh/5.x/main/packages/"
+          dest="${{ vars.S3_PACKAGES_URI }}"
           aws s3 cp "$src" "$dest"
           s3uri="${dest}${{ steps.package.outputs.name }}"
           echo "::notice::S3 URI: ${s3uri}"
@@ -718,7 +829,7 @@ jobs:
         if: ${{ inputs.upload && inputs.checksum }}
         run: |
           src="artifacts/dist/${{ steps.package.outputs.name }}.sha512"
-          dest="s3://xdrsiem-packages-dev-internal/development/wazuh/5.x/main/packages/"
+          dest="${{ vars.S3_PACKAGES_URI }}"
           aws s3 cp "$src" "$dest"
           s3uri="${dest}${{ steps.package.outputs.name }}.sha512"
           echo "::notice::S3 sha512 URI: ${s3uri}"

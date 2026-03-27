@@ -17,6 +17,9 @@ outputs:
   wazuh_indexer_notifications_branch:
     description: "Branch to use in wazuh-indexer-notifications repository."
     value: ${{ steps.resolve.outputs.wazuh_indexer_notifications_branch }}
+  wazuh_indexer_common_utils_branch:
+    description: "Branch to use in wazuh-indexer-common-utils repository."
+    value: ${{ steps.resolve.outputs.wazuh_indexer_common_utils_branch }}
   wazuh_branch:
     description: "Branch to use in wazuh repository."
     value: ${{ steps.resolve.outputs.wazuh_branch }}
@@ -25,10 +28,40 @@ runs:
   steps:
     - id: resolve
       run: |
-        eval $(${{ github.action_path }}/resolve_branches.sh "${{ inputs.branch }}" | awk -F= '{gsub("-", "_", $1); print toupper($1)"_BRANCH="$2}')
-        echo "wazuh_indexer_plugins_branch=$WAZUH_INDEXER_PLUGINS_BRANCH" >> $GITHUB_OUTPUT
-        echo "wazuh_indexer_reporting_branch=$WAZUH_INDEXER_REPORTING_BRANCH" >> $GITHUB_OUTPUT
-        echo "wazuh_indexer_security_analytics_branch=$WAZUH_INDEXER_SECURITY_ANALYTICS_BRANCH" >> $GITHUB_OUTPUT
-        echo "wazuh_indexer_notifications_branch=$WAZUH_INDEXER_NOTIFICATIONS_BRANCH" >> $GITHUB_OUTPUT
-        echo "wazuh_branch=$WAZUH_BRANCH" >> $GITHUB_OUTPUT
+        wazuh_indexer_plugins_branch=""
+        wazuh_indexer_reporting_branch=""
+        wazuh_indexer_security_analytics_branch=""
+        wazuh_indexer_notifications_branch=""
+        wazuh_indexer_common_utils_branch=""
+        wazuh_branch=""
+
+        while IFS='=' read -r repo branch; do
+          case "$repo" in
+            wazuh-indexer-plugins)
+              wazuh_indexer_plugins_branch="$branch"
+              ;;
+            wazuh-indexer-reporting)
+              wazuh_indexer_reporting_branch="$branch"
+              ;;
+            wazuh-indexer-security-analytics)
+              wazuh_indexer_security_analytics_branch="$branch"
+              ;;
+            wazuh-indexer-notifications)
+              wazuh_indexer_notifications_branch="$branch"
+              ;;
+            wazuh-indexer-common-utils)
+              wazuh_indexer_common_utils_branch="$branch"
+              ;;
+            wazuh)
+              wazuh_branch="$branch"
+              ;;
+          esac
+        done < <(${{ github.action_path }}/resolve_branches.sh "${{ inputs.branch }}")
+
+        echo "wazuh_indexer_plugins_branch=$wazuh_indexer_plugins_branch" >> "$GITHUB_OUTPUT"
+        echo "wazuh_indexer_reporting_branch=$wazuh_indexer_reporting_branch" >> "$GITHUB_OUTPUT"
+        echo "wazuh_indexer_security_analytics_branch=$wazuh_indexer_security_analytics_branch" >> "$GITHUB_OUTPUT"
+        echo "wazuh_indexer_notifications_branch=$wazuh_indexer_notifications_branch" >> "$GITHUB_OUTPUT"
+        echo "wazuh_indexer_common_utils_branch=$wazuh_indexer_common_utils_branch" >> "$GITHUB_OUTPUT"
+        echo "wazuh_branch=$wazuh_branch" >> "$GITHUB_OUTPUT"
       shell: bash

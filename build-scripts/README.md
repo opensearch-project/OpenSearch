@@ -44,6 +44,7 @@ Arguments:
 -r INDEXER_REPORTING_BRANCH     [Optional] wazuh-indexer-reporting repo branch, default is 'main'.
 -s SECURITY_ANALYTICS_BRANCH    [Optional] wazuh-indexer-security-analytics repo branch, default is 'main'.
 -n INDEXER_NOTIFICATIONS_BRANCH [Optional] wazuh-indexer-notifications repo branch, default is 'main'.
+-c COMMON_UTILS_BRANCH          [Optional] wazuh-indexer-common-utils repo branch, default is 'main'.
 -R REVISION     [Optional] Package revision, default is '0'.
 -S STAGE        [Optional] Staging build, default is 'false'.
 -d DISTRIBUTION [Optional] Distribution, default is 'rpm'.

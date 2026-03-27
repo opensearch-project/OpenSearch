@@ -18,12 +18,18 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+VERSION="$1"
+MAJOR_VERSION=$(printf '%s' "$VERSION" | sed -E 's/^v?([0-9]+).*/\1/')
 
+if ! [[ "$MAJOR_VERSION" =~ ^[0-9]+$ ]]; then
+  echo "Error: Unable to extract major version from '$VERSION'."
+  exit 1
+fi
 
-VERSION=${1%.*}
+VERSION_SERIES="${MAJOR_VERSION}.x"
 
-curl -sO https://packages.wazuh.com/$VERSION/wazuh-certs-tool.sh
-curl -sO https://packages.wazuh.com/$VERSION/config.yml
+curl -sO https://packages.wazuh.com/$VERSION_SERIES/wazuh-certs-tool.sh
+curl -sO https://packages.wazuh.com/$VERSION_SERIES/config.yml
 
 # =====
 # Write to config.yml
@@ -50,14 +56,14 @@ if command -v apt-get &> /dev/null; then
     apt-get install -y debconf adduser procps
     apt-get install -y gnupg apt-transport-https
     curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg
-    echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
+    echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/${VERSION_SERIES}/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
     apt-get update
     apt-get -y install wazuh-indexer=$1-1
 else
   yum install coreutils -y
 
   rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
-  echo -e '[wazuh]\ngpgcheck=1\ngpgkey=https://packages.wazuh.com/key/GPG-KEY-WAZUH\nenabled=1\nname=EL-$releasever - Wazuh\nbaseurl=https://packages.wazuh.com/4.x/yum/\nprotect=1' | tee /etc/yum.repos.d/wazuh.repo
+  echo -e '[wazuh]\ngpgcheck=1\ngpgkey=https://packages.wazuh.com/key/GPG-KEY-WAZUH\nenabled=1\nname=EL-$releasever - Wazuh\nbaseurl=https://packages.wazuh.com/'"$VERSION_SERIES"'/yum/\nprotect=1' | tee /etc/yum.repos.d/wazuh.repo
 
   yum -y install wazuh-indexer-$1-1
 
