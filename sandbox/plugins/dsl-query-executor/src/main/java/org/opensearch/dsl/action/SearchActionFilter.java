@@ -26,6 +26,9 @@ import org.opensearch.transport.client.node.NodeClient;
  */
 public class SearchActionFilter implements ActionFilter {
 
+    /** Runs after the Security plugin's authorization filter (order 0). */
+    static final int FILTER_ORDER = 1;
+
     private final NodeClient client;
 
     /**
@@ -39,7 +42,7 @@ public class SearchActionFilter implements ActionFilter {
 
     @Override
     public int order() {
-        return Integer.MAX_VALUE;
+        return FILTER_ORDER;
     }
 
     @Override
