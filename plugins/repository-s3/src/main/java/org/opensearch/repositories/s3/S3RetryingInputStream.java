@@ -106,7 +106,8 @@ class S3RetryingInputStream extends InputStream {
             final GetObjectRequest.Builder getObjectRequest = GetObjectRequest.builder()
                 .bucket(blobStore.bucket())
                 .key(blobKey)
-                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getObjectMetricPublisher));
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().getObjectMetricPublisher))
+                .expectedBucketOwner(blobStore.expectedBucketOwner());
             if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                 assert start + currentOffset <= end : "requesting beyond end, start = "
                     + start
