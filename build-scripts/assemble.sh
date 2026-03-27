@@ -2,6 +2,10 @@
 
 set -ex
 
+# Source shared retry utility
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
+source "${LIB_DIR}/retry.sh"
+
 ### The $TEST variable determines whether we include a minimalistic
 ### or the full set of OpenSearch plugins
 
@@ -203,9 +207,9 @@ function add_wazuh_tools() {
     local download_url
     download_url="https://packages-dev.wazuh.com/${version}"
 
-    curl -sL "${download_url}/config.yml" -o "$PATH_PLUGINS"/opensearch-security/tools/config.yml
-    curl -sL "${download_url}/wazuh-passwords-tool.sh" -o "$PATH_PLUGINS"/opensearch-security/tools/wazuh-passwords-tool.sh
-    curl -sL "${download_url}/wazuh-certs-tool.sh" -o "$PATH_PLUGINS"/opensearch-security/tools/wazuh-certs-tool.sh
+    retry 3 5 curl -sL --connect-timeout 10 --max-time 60 "${download_url}/config.yml" -o "$PATH_PLUGINS"/opensearch-security/tools/config.yml
+    retry 3 5 curl -sL --connect-timeout 10 --max-time 60 "${download_url}/wazuh-passwords-tool.sh" -o "$PATH_PLUGINS"/opensearch-security/tools/wazuh-passwords-tool.sh
+    retry 3 5 curl -sL --connect-timeout 10 --max-time 60 "${download_url}/wazuh-certs-tool.sh" -o "$PATH_PLUGINS"/opensearch-security/tools/wazuh-certs-tool.sh
 }
 
 # ====
@@ -223,7 +227,7 @@ function install_plugins() {
     local maven_repo_local="$HOME/.m2"
     for plugin in "${plugins[@]}"; do
         local plugin_from_maven="org.opensearch.plugin:${plugin}:${UPSTREAM_VERSION}.0"
-        mvn -Dmaven.repo.local="${maven_repo_local}" org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact="${plugin_from_maven}:zip"
+        retry 3 5 mvn -Dmaven.repo.local="${maven_repo_local}" org.apache.maven.plugins:maven-dependency-plugin:2.1:get -DrepoUrl=https://repo1.maven.org/maven2 -Dartifact="${plugin_from_maven}:zip"
         OPENSEARCH_PATH_CONF=$PATH_CONF "${PATH_BIN}/opensearch-plugin" install --batch --verbose "file:${maven_repo_local}/org/opensearch/plugin/${plugin}/${UPSTREAM_VERSION}.0/${plugin}-${UPSTREAM_VERSION}.0.zip"
     done
 

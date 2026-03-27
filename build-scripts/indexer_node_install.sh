@@ -18,6 +18,10 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+# Source shared retry utility
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/lib/retry.sh"
+
 VERSION="$1"
 MAJOR_VERSION=$(printf '%s' "$VERSION" | sed -E 's/^v?([0-9]+).*/\1/')
 
@@ -28,8 +32,8 @@ fi
 
 VERSION_SERIES="${MAJOR_VERSION}.x"
 
-curl -sO https://packages.wazuh.com/$VERSION_SERIES/wazuh-certs-tool.sh
-curl -sO https://packages.wazuh.com/$VERSION_SERIES/config.yml
+retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$VERSION_SERIES/wazuh-certs-tool.sh
+retry 3 5 curl -sO --connect-timeout 10 --max-time 120 https://packages.wazuh.com/$VERSION_SERIES/config.yml
 
 # =====
 # Write to config.yml
@@ -53,19 +57,19 @@ bash ./wazuh-certs-tool.sh -A
 tar -cvf ./wazuh-certificates.tar -C ./wazuh-certificates/ .
 
 if command -v apt-get &> /dev/null; then
-    apt-get install -y debconf adduser procps
-    apt-get install -y gnupg apt-transport-https
-    curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg
+    retry 3 10 apt-get install -y debconf adduser procps
+    retry 3 10 apt-get install -y gnupg apt-transport-https
+    retry 3 5 bash -c 'set -o pipefail; curl -fsSL --connect-timeout 10 --max-time 60 https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg'
     echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/${VERSION_SERIES}/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
-    apt-get update
-    apt-get -y install wazuh-indexer=$1-1
+    retry 3 10 apt-get update
+    retry 3 10 apt-get -y install wazuh-indexer=$1-1
 else
-  yum install coreutils -y
+  retry 3 10 yum install coreutils -y
 
-  rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
+  retry 3 5 rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
   echo -e '[wazuh]\ngpgcheck=1\ngpgkey=https://packages.wazuh.com/key/GPG-KEY-WAZUH\nenabled=1\nname=EL-$releasever - Wazuh\nbaseurl=https://packages.wazuh.com/'"$VERSION_SERIES"'/yum/\nprotect=1' | tee /etc/yum.repos.d/wazuh.repo
 
-  yum -y install wazuh-indexer-$1-1
+  retry 3 10 yum -y install wazuh-indexer-$1-1
 
 fi
 

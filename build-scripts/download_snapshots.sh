@@ -125,7 +125,7 @@ fetch_snapshot_url() {
 
     echo "  Fetching consumer metadata from ${url}" >&2
     local response
-    response=$(curl -fsSL "${url}") || {
+    response=$(curl -fsSL --retry 3 --retry-delay 5 --connect-timeout 10 --max-time 30 "${url}") || {
         echo "ERROR: Failed to fetch consumer ${context}/${consumer}" >&2
         return 1
     }
@@ -163,7 +163,7 @@ download_snapshot() {
     local zip_file="${OUTPUT_DIR}/${label}.zip"
 
     echo "  Downloading ${label} snapshot from ${snapshot_url}" >&2
-    curl -fSL -o "${zip_file}" "${snapshot_url}" || {
+    curl -fSL --retry 3 --retry-delay 5 --connect-timeout 15 --max-time 300 -o "${zip_file}" "${snapshot_url}" || {
         echo "ERROR: Failed to download snapshot for ${label}" >&2
         return 1
     }
