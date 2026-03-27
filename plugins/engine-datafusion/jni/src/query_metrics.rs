@@ -16,7 +16,7 @@
 //! This avoids the need for thread-local tricks or a custom global allocator —
 //! DataFusion's cooperative memory management does the bookkeeping for us.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -166,14 +166,11 @@ impl MemoryPool for QueryMemoryPool {
 // Per-query tracker (metrics + pool reference)
 // ---------------------------------------------------------------------------
 
-/// Holds per-query state: the memory pool, wall-clock start time, and
-/// cancellation flag.
+/// Holds per-query state: the memory pool and wall-clock start time.
 #[derive(Debug)]
 pub struct QueryTracker {
     /// Wall-clock instant when this query started.
     pub start_time: Instant,
-    /// Flag to signal cancellation.
-    pub cancelled: AtomicBool,
     /// The context_id for this query.
     pub context_id: i64,
     /// The per-query memory pool (also installed in the RuntimeEnv).
@@ -208,7 +205,6 @@ pub fn start_query_tracking(
     let query_pool = Arc::new(QueryMemoryPool::new(global_pool));
     let tracker = Arc::new(QueryTracker {
         start_time: Instant::now(),
-        cancelled: AtomicBool::new(false),
         context_id,
         memory_pool: query_pool.clone(),
     });
@@ -237,13 +233,6 @@ pub fn get_query_tracker(context_id: i64) -> Option<Arc<QueryTracker>> {
     QUERY_TRACKERS.get(&context_id).map(|e| e.value().clone())
 }
 
-/// Cancel a query.
-pub fn cancel_query(context_id: i64) {
-    if let Some(t) = QUERY_TRACKERS.get(&context_id) {
-        t.cancelled.store(true, Ordering::Release);
-    }
-}
-
 /// Log a summary of all currently tracked queries. Called from the monitoring loop.
 pub fn log_active_queries() {
     let count = QUERY_TRACKERS.len();
@@ -255,12 +244,11 @@ pub fn log_active_queries() {
         let id = entry.key();
         let t = entry.value();
         log_info!(
-            "  Query ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B, cancelled={}",
+            "  Query ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
             id,
             t.wall_secs(),
             t.memory_pool.current_bytes(),
             t.memory_pool.peak_bytes(),
-            t.cancelled.load(Ordering::Relaxed),
         );
     }
     log_info!("=============================================");
