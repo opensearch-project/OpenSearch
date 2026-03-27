@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -57,13 +56,6 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     private static final Logger logger = LogManager.getLogger(MessageProcessorRunnable.class);
     private static final int MIN_RETRY_COUNT = 2;
     private static final int WAIT_BEFORE_RETRY_DURATION_MS = 2000;
-
-    // Deterministic errors that will always fail on retry
-    private static final Set<Class<? extends Exception>> NON_RETRYABLE_EXCEPTIONS = Set.of(
-        IllegalArgumentException.class,
-        MapperParsingException.class,
-        IllegalStateException.class
-    );
 
     private final BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue;
     private final MessageProcessor messageProcessor;
@@ -403,7 +395,11 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             return true;
         }
 
-        return NON_RETRYABLE_EXCEPTIONS.contains(e.getClass());
+        return isNonRetryable(e);
+    }
+
+    private static boolean isNonRetryable(Exception e) {
+        return e instanceof IllegalArgumentException || e instanceof MapperParsingException || e instanceof IllegalStateException;
     }
 
     public MessageProcessorMetrics getMessageProcessorMetrics() {

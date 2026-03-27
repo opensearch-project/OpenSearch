@@ -128,13 +128,15 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
 
     /**
      * Test that pipeline does NOT execute for delete operations.
+     * Uses a "drop" pipeline — if the pipeline ran on deletes, the drop would prevent deletion
+     * and the document would remain. Successful deletion proves the pipeline was skipped.
      */
     public void testPipelineNotCalledForDeletes() throws Exception {
-        createPipeline("add_field_pipeline", "{\"processors\": [{\"set\": {\"field\": \"processed\", \"value\": true}}]}");
+        createPipeline("drop_pipeline", "{\"processors\": [{\"drop\": {}}]}");
 
-        // Produce an index message, then a delete message
+        // Index a document first (pipeline drops it, so use a different pipeline for indexing)
         produceData("1", "alice", "25", defaultMessageTimestamp, "index");
-        createIndexWithPipeline("add_field_pipeline", 1, 0);
+        createIndexWithDefaultSettings(1, 0);
 
         // Wait for the document to be indexed
         waitForState(() -> {
@@ -143,10 +145,19 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
             return response.getHits().getTotalHits().value() == 1;
         });
 
-        // Now delete the document
+        // Now switch to drop pipeline and send a delete message
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "drop_pipeline"))
+                .get()
+        );
+
         produceData("1", "alice", "25", defaultMessageTimestamp, "delete");
 
-        // Verify document is deleted
+        // If pipeline ran on deletes, the drop would prevent deletion and doc would still exist.
+        // Successful deletion proves the pipeline was skipped for delete operations.
         waitForState(() -> {
             refresh(indexName);
             SearchResponse response = client().prepareSearch(indexName).setQuery(new TermQueryBuilder("_id", "1")).get();
