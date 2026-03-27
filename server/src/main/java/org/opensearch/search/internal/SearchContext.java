@@ -98,10 +98,8 @@ import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PART
 import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY;
 
 /**
- * This class encapsulates the state needed to execute a search. It holds a
- * reference to the
- * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows
- * passing on
+ * This class encapsulates the state needed to execute a search. It holds a reference to the
+ * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
  *
  * @opensearch.api
@@ -169,18 +167,13 @@ public abstract class SearchContext implements Releasable {
     protected abstract void doClose();
 
     /**
-     * Should be called before executing the main query and after all other
-     * parameters have been set.
-     *
-     * @param rewrite if the set query should be rewritten against the searcher
-     *                returned from {@link #searcher()}
+     * Should be called before executing the main query and after all other parameters have been set.
+     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
     public abstract void preProcess(boolean rewrite);
 
-    /**
-     * Automatically apply all required filters to the given query such as
-     * alias filters, types filters, etc.
-     */
+    /** Automatically apply all required filters to the given query such as
+     *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
     public abstract ShardSearchContextId id();
@@ -223,7 +216,7 @@ public abstract class SearchContext implements Releasable {
     public abstract void suggest(SuggestionSearchContext suggest);
 
     /**
-     * @return list of all rescore contexts. empty if there aren't any.
+     * @return list of all rescore contexts.  empty if there aren't any.
      */
     public abstract List<RescoreContext> rescore();
 
@@ -264,8 +257,7 @@ public abstract class SearchContext implements Releasable {
     public abstract ScriptFieldsContext scriptFields();
 
     /**
-     * A shortcut function to see whether there is a fetchSourceContext and it says
-     * the source is requested.
+     * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
      */
     public abstract boolean sourceRequested();
 
@@ -310,13 +302,10 @@ public abstract class SearchContext implements Releasable {
     public abstract void terminateAfter(int terminateAfter);
 
     /**
-     * Indicates if the current index should perform frequent low level search
-     * cancellation check.
+     * Indicates if the current index should perform frequent low level search cancellation check.
      * <p>
-     * Enabling low-level checks will make long running searches to react to the
-     * cancellation request faster. However,
-     * since it will produce more cancellation checks it might slow the search
-     * performance down.
+     * Enabling low-level checks will make long running searches to react to the cancellation request faster. However,
+     * since it will produce more cancellation checks it might slow the search performance down.
      */
     public abstract boolean lowLevelCancellation();
 
@@ -333,18 +322,14 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean trackScores();
 
     /**
-     * Determines whether named queries' scores should be included in the search
-     * results.
-     * By default, this is set to return false, indicating that scores from named
-     * queries are not included.
+     * Determines whether named queries' scores should be included in the search results.
+     * By default, this is set to return false, indicating that scores from named queries are not included.
      *
-     * @param includeNamedQueriesScore true to include scores from named queries,
-     *                                 false otherwise.
+     * @param includeNamedQueriesScore true to include scores from named queries, false otherwise.
      */
     public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
         // Default implementation does nothing and returns this for chaining.
-        // Implementations of SearchContext should override this method to actually
-        // store the value.
+        // Implementations of SearchContext should override this method to actually store the value.
         return this;
     }
 
@@ -355,8 +340,7 @@ public abstract class SearchContext implements Releasable {
      */
     public boolean includeNamedQueriesScore() {
         // Default implementation returns false.
-        // Implementations of SearchContext should override this method to return the
-        // actual value.
+        // Implementations of SearchContext should override this method to return the actual value.
         return false;
     }
 
@@ -404,8 +388,7 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean hasStoredFieldsContext();
 
     /**
-     * A shortcut function to see whether there is a storedFieldsContext and it says
-     * the fields are requested.
+     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
      */
     public abstract boolean storedFieldsRequested();
 
@@ -426,16 +409,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void version(boolean version);
 
-    /**
-     * indicates whether the sequence number and primary term of the last
-     * modification to each hit should be returned
-     */
+    /** indicates whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract boolean seqNoAndPrimaryTerm();
 
-    /**
-     * controls whether the sequence number and primary term of the last
-     * modification to each hit should be returned
-     */
+    /** controls whether the sequence number and primary term of the last modification to each hit should be returned */
     public abstract void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm);
 
     public abstract int[] docIdsToLoad();
@@ -455,8 +432,7 @@ public abstract class SearchContext implements Releasable {
     public abstract FetchSearchResult fetchResult();
 
     /**
-     * Return a handle over the profilers for the current search request, or
-     * {@code null} if profiling is not enabled.
+     * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
 
@@ -468,8 +444,7 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Returns local bucket count thresholds based on concurrent segment search
-     * status
+     * Returns local bucket count thresholds based on concurrent segment search status
      */
     public LocalBucketCountThresholds asLocalBucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
         return new LocalBucketCountThresholds(
@@ -506,16 +481,11 @@ public abstract class SearchContext implements Releasable {
     public abstract long getRelativeTimeInMillis();
 
     /**
-     * Returns time in milliseconds that can be used for relative time calculations.
-     * this method will fall back to
-     * {@link SearchContext#getRelativeTimeInMillis()} (which might be a cached
-     * time) if useCache was set to true else it will be just be a
+     * Returns time in milliseconds that can be used for relative time calculations. this method will fall back to
+     * {@link SearchContext#getRelativeTimeInMillis()} (which might be a cached time) if useCache was set to true else it will be just be a
      * wrapper of {@link System#nanoTime()} converted to milliseconds.
-     *
-     * @param useCache to allow using cached time if true or forcing calling
-     *                 {@link System#nanoTime()} if false
-     * @return Returns time in milliseconds that can be used for relative time
-     *         calculations.
+     * @param useCache to allow using cached time if true or forcing calling {@link System#nanoTime()} if false
+     * @return Returns time in milliseconds that can be used for relative time calculations.
      */
     public long getRelativeTimeInMillis(boolean useCache) {
         if (useCache) {
@@ -524,10 +494,7 @@ public abstract class SearchContext implements Releasable {
         return TimeValue.nsecToMSec(System.nanoTime());
     }
 
-    /**
-     * Return a view of the additional query collector managers that should be run
-     * for this context.
-     */
+    /** Return a view of the additional query collector managers that should be run for this context. */
     public abstract Map<Class<?>, CollectorManager<? extends Collector, ReduceableSearchResult>> queryCollectorManagers();
 
     public abstract QueryShardContext getQueryShardContext();
@@ -624,8 +591,6 @@ public abstract class SearchContext implements Releasable {
         return false;
     }
 
-    // Streaming search support - default no-op implementations for compatibility
-
     public StreamingSearchMode getStreamingMode() {
         return null;
     }
@@ -655,20 +620,35 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Atomically sets the flush mode if not already set. Returns true if
-     * successful.
+     * Atomically sets the flush mode if not already set. Returns true if successful.
      */
     @ExperimentalApi
     public boolean setFlushModeIfAbsent(FlushMode flushMode) {
         return false;
     }
 
-    /**
-     * Checks if the flush mode has been explicitly set in the cache.
-     */
+    @ExperimentalApi
+    public void setFlushMode(FlushMode flushMode) {
+        // no-op
+    }
+
     @ExperimentalApi
     public boolean hasCachedFlushMode() {
         return false;
     }
 
+    public String getPartitionStrategy() {
+        return CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getDefault(Settings.EMPTY);
+    }
+
+    public int getPartitionMinSegmentSize() {
+        return CONCURRENT_SEGMENT_SEARCH_PARTITION_MIN_SEGMENT_SIZE.getDefault(Settings.EMPTY);
+    }
+
+    /**
+     * Evaluates whether this request should use intra-segment search based on query and aggregation analysis.
+     */
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
 }

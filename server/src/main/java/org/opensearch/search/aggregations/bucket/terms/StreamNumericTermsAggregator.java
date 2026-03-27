@@ -32,8 +32,6 @@ import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.LocalBucketCountThresholds;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.StreamingCostEstimable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,9 +45,11 @@ import static java.util.Collections.emptyList;
 import static org.opensearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
- * Stream-search terms aggregator for numeric fields.
+ * Aggregate all docs that contain numeric terms through streaming
+ *
+ * @opensearch.internal
  */
-public class StreamNumericTermsAggregator extends TermsAggregator implements StreamingCostEstimable {
+public class StreamNumericTermsAggregator extends TermsAggregator {
     private static final Logger logger = LogManager.getLogger(StreamNumericTermsAggregator.class);
     private final ResultStrategy<?, ?> resultStrategy;
     private final ValuesSource.Numeric valuesSource;
@@ -75,8 +75,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, metadata);
-        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do
-                                                          // its job.
+        this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
         this.cardinality = cardinality;
@@ -85,21 +84,17 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
 
     @Override
     public void doReset() {
-        // super.doReset(); // Prevent clearing doc counts which explains why we verify
-        // buckets but 0 doc counts
-        // DO NOT close/null bucketOrds - preserve cumulative bucket state for final
-        // reduction
-        // This keeps all bucket mappings intact across batches so final
+        super.doReset();
+        Releasables.close(bucketOrds);
+        bucketOrds = null;
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        preGetSubLeafCollectors(ctx); // Initialize docCountProvider and other standard cleanup
-        // Only create bucketOrds if it doesn't exist (first segment)
-        // Reuse existing bucketOrds for subsequent segments to preserve all buckets
-        if (bucketOrds == null) {
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        if (bucketOrds != null) {
+            bucketOrds.close();
         }
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         SortedNumericDocValues values = resultStrategy.getValues(ctx);
         return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -349,8 +344,7 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
         abstract R buildEmptyResult();
 
         /**
-         * Build a final bucket directly with the provided data, skipping temporary
-         * bucket creation.
+         * Build a final bucket directly with the provided data, skipping temporary bucket creation.
          */
         abstract B buildFinalBucket(long ord, long value, long docCount, long owningBucketOrd) throws IOException;
     }
@@ -724,58 +718,14 @@ public class StreamNumericTermsAggregator extends TermsAggregator implements Str
     }
 
     @Override
-    public void reset() {
-        // Preserve aggregation state across streaming batches.
-    }
-
-    @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
         add.accept("total_buckets", bucketOrds == null ? 0 : bucketOrds.size());
-
-        StreamingCostMetrics metrics = estimateStreamingCost(context);
-        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
-        add.accept("streaming_enabled", metrics.streamable() && enabled);
-        add.accept("streaming_top_n_size", metrics.topNSize());
-        add.accept("streaming_estimated_buckets", metrics.estimatedBucketCount());
-        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
-        add.accept("streaming_segment_count", metrics.segmentCount());
     }
 
     @Override
     public void doClose() {
         Releasables.close(super::doClose, bucketOrds, resultStrategy);
-    }
-
-    @Override
-    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
-        try {
-            // For numeric terms, we can try to estimate if we have a way to know
-            // cardinality.
-            // But often numeric values are high cardinality.
-            // For now, we assume it is streamable if it is being used.
-
-            // We can check doc count at least.
-            java.util.List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-            long totalDocs = 0;
-            for (LeafReaderContext leaf : leaves) {
-                totalDocs += leaf.reader().numDocs();
-            }
-
-            // We don't have an easy way to get cardinality for numeric values without
-            // iterating.
-            // We'll estimate bucket count as 0 (unknown) or a high number?
-            // Since we use this validator to *reject* low selectivity/high cardinality if
-            // configured...
-            // but here we want to enablement.
-            // Let's return a basic streamable metric.
-            // TopN is segmentTopN.
-
-            return new StreamingCostMetrics(true, segmentTopN, 0, leaves.size(), totalDocs);
-
-        } catch (Exception e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
     }
 }

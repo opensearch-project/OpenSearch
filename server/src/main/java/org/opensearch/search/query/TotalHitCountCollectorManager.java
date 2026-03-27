@@ -86,10 +86,7 @@ public class TotalHitCountCollectorManager
                 ? new TopFieldDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, sort.getSort())
                 : new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
 
-            // Only set if not already present
-            if (!result.hasTopDocs()) {
-                result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
-            }
+            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
         };
     }
 
@@ -118,10 +115,7 @@ public class TotalHitCountCollectorManager
                     topDocs = new TopDocs(totalHits, Lucene.EMPTY_SCORE_DOCS);
                 }
 
-                // Only set if not already present
-                if (!result.hasTopDocs()) {
-                    result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
-                }
+                result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
             };
         }
     }

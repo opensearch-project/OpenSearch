@@ -17,22 +17,11 @@ import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.util.Collection;
 
 /**
- * Analyzes collector trees to determine optimal {@link FlushMode} for streaming
- * aggregations.
- *
- * <p>
- * Performs cost-benefit analysis by examining all collectors in the tree.
- * Streaming is only
- * enabled when all collectors implement {@link StreamingCostEstimable} and the combined
- * cost metrics
- * indicate streaming will be beneficial compared to traditional shard-level
- * processing.
+ * Determines optimal {@link FlushMode} for streaming aggregations based on cost metrics.
  *
  * @opensearch.internal
  */
@@ -58,8 +47,7 @@ public final class FlushModeResolver {
      * Maximum estimated bucket count allowed for streaming aggregations.
      * If an aggregation is estimated to produce more buckets than this threshold,
      * traditional shard-level processing will be used instead of streaming.
-     * This prevents coordinator overload from processing too many streaming
-     * buckets.
+     * This prevents coordinator overload from processing too many streaming buckets.
      */
     public static final Setting<Long> STREAMING_MAX_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.max_estimated_bucket_count",
@@ -88,8 +76,7 @@ public final class FlushModeResolver {
     /**
      * Minimum estimated bucket count required for streaming aggregations.
      * If an aggregation is estimated to produce fewer buckets than this threshold,
-     * traditional processing is used to avoid streaming overhead for small result
-     * sets.
+     * traditional processing is used to avoid streaming overhead for small result sets.
      */
     public static final Setting<Long> STREAMING_MIN_ESTIMATED_BUCKET_COUNT = Setting.longSetting(
         "search.aggregations.streaming.min_estimated_bucket_count",
@@ -100,115 +87,22 @@ public final class FlushModeResolver {
     );
 
     /**
-     * Determines the optimal flush mode for the given collector tree.
-     *
-     * @param collector           the root collector to analyze
-     * @param defaultMode         fallback mode if streaming is not supported
-     * @param maxBucketCount      maximum bucket count threshold
-     * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @param minBucketCount      minimum estimated bucket count threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise
-     *         the default mode
-     */
-    public static FlushMode resolve(
-        SearchContext context,
-        Collector collector,
-        FlushMode defaultMode,
-        long maxBucketCount,
-        double minCardinalityRatio,
-        long minBucketCount
-    ) {
-        StreamingCostMetrics metrics = collectMetrics(context, collector);
-        FlushMode decision = decideFlushMode(metrics, defaultMode, maxBucketCount, minCardinalityRatio, minBucketCount);
-        return decision;
-
-    }
-
-    /**
-     * Collects and combines streaming metrics from the collector tree.
-     *
-     * @param collector the collector to analyze
-     * @return combined metrics if all collectors support streaming, nonStreamable
-     *         otherwise
-     */
-    private static StreamingCostMetrics collectMetrics(SearchContext context, Collector collector) {
-        if (!(collector instanceof StreamingCostEstimable
-            || collector instanceof MultiBucketCollector
-            || collector instanceof MultiCollector
-            || collector instanceof ProfilingAggregator
-            || collector instanceof AggregatorBase)) {
-            return StreamingCostMetrics.nonStreamable();
-        }
-
-        StreamingCostMetrics nodeMetrics = null;
-        if (collector instanceof StreamingCostEstimable streamable) {
-            nodeMetrics = streamable.estimateStreamingCost(context);
-            if (!nodeMetrics.streamable()) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-        }
-
-        StreamingCostMetrics childMetrics = null;
-        for (Collector child : getChildren(collector)) {
-            StreamingCostMetrics childResult = collectMetrics(context, child);
-            if (!childResult.streamable()) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-            childMetrics = (childMetrics == null) ? childResult : childMetrics.combineWithSibling(childResult);
-        }
-
-        if (nodeMetrics == null) {
-            return childMetrics == null ? StreamingCostMetrics.nonStreamable() : childMetrics;
-        }
-        return childMetrics != null ? nodeMetrics.combineWithSubAggregation(childMetrics) : nodeMetrics;
-    }
-
-    private static Collector[] getChildren(Collector collector) {
-        if (collector instanceof AggregatorBase) {
-            return ((AggregatorBase) collector).subAggregators();
-        }
-        if (collector instanceof MultiCollector) {
-            return ((MultiCollector) collector).getCollectors();
-        }
-        if (collector instanceof MultiBucketCollector) {
-            return ((MultiBucketCollector) collector).getCollectors();
-        }
-        if (collector instanceof ProfilingAggregator) {
-            return getChildren(((ProfilingAggregator) collector).unwrapAggregator());
-        }
-        return new Collector[0];
-    }
-
-    /**
      * Evaluates cost metrics to determine if streaming is beneficial.
      *
-     * @param metrics             combined cost metrics from the collector tree
-     * @param defaultMode         fallback mode when streaming is not beneficial
-     * @param maxBucketCount      maximum bucket count threshold
-     * @param minCardinalityRatio minimum cardinality ratio threshold
-     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise
-     *         the default mode
+     * @param metrics combined cost metrics from the factory tree
+     * @param defaultMode fallback mode when streaming is not beneficial
+     * @param maxBucketCount maximum bucket count threshold
+     * @return {@link FlushMode#PER_SEGMENT} if streaming is beneficial, otherwise the default mode
      */
     public static FlushMode decideFlushMode(StreamingCostMetrics metrics, FlushMode defaultMode, long maxBucketCount) {
         if (!metrics.streamable()) {
             return defaultMode;
         }
-        if (metrics.estimatedBucketCount() > maxBucketCount) {
-            return defaultMode;
+        // Prevent coordinator overload with too many buckets
+        if (metrics.topNSize() <= maxBucketCount) {
+            return FlushMode.PER_SEGMENT;
         }
-
-        if (metrics.estimatedBucketCount() < minBucketCount) {
-            return defaultMode;
-        }
-
-        if (metrics.estimatedDocCount() > 0) {
-            double cardinalityRatio = (double) metrics.estimatedBucketCount() / metrics.estimatedDocCount();
-            if (cardinalityRatio < minCardinalityRatio) {
-                return defaultMode;
-            }
-        }
-
-        return FlushMode.PER_SEGMENT;
+        return defaultMode;
     }
 
     /**

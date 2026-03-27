@@ -34,7 +34,7 @@ public class NonGlobalAggCollectorManager extends AggregationCollectorManager {
     }
 
     @Override
-    public synchronized Collector newCollector() throws IOException {
+    public Collector newCollector() throws IOException {
         if (collector != null) {
             final Collector toReturn = collector;
             collector = null;
