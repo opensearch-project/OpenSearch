@@ -207,6 +207,8 @@ public class IngestPipelineExecutor {
 
     /**
      * Pipeline execution metrics for pull-based ingestion.
+     * Note: totalExecutionCount includes all pipeline invocations (successful, failed, and dropped).
+     * Success count can be derived as: totalExecutionCount - totalFailedCount - totalDroppedCount.
      */
     @PublicApi(since = "3.6.0")
     public record PipelineMetrics(
