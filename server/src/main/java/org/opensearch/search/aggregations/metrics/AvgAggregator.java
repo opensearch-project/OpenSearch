@@ -31,7 +31,10 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.FixedBitSet;
@@ -127,6 +130,56 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
         }
 
         final BigArrays bigArrays = context.bigArrays();
+
+        // For integer-backed single-valued fields, use NumericDocValues#longValues bulk API
+        if (valuesSource.isFloatingPoint() == false) {
+            final SortedNumericDocValues longValues = valuesSource.longValues(ctx);
+            final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
+            if (singleton != null) {
+                return new LeafBucketCollectorBase(sub, longValues) {
+                    private final long[] valueBuffer = new long[256];
+                    private final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+                    @Override
+                    public void collect(int doc, long bucket) throws IOException {
+                        if (singleton.advanceExact(doc)) {
+                            setKahanSummation(bucket);
+                            counts.increment(bucket, 1);
+                            kahanSummation.add((double) singleton.longValue());
+                            sums.set(bucket, kahanSummation.value());
+                            compensations.set(bucket, kahanSummation.delta());
+                        }
+                    }
+
+                    @Override
+                    public void collect(int[] docs, int count, long bucket) throws IOException {
+                        setKahanSummation(bucket);
+                        singleton.longValues(count, docs, valueBuffer, Long.MIN_VALUE);
+                        int validCount = 0;
+                        for (int i = 0; i < count; i++) {
+                            if (valueBuffer[i] != Long.MIN_VALUE) {
+                                validCount++;
+                                kahanSummation.add((double) valueBuffer[i]);
+                            }
+                        }
+                        counts.increment(bucket, validCount);
+                        sums.set(bucket, kahanSummation.value());
+                        compensations.set(bucket, kahanSummation.delta());
+                    }
+
+                    private void setKahanSummation(long bucket) {
+                        counts = bigArrays.grow(counts, bucket + 1);
+                        sums = bigArrays.grow(sums, bucket + 1);
+                        compensations = bigArrays.grow(compensations, bucket + 1);
+                        double sum = sums.get(bucket);
+                        double compensation = compensations.get(bucket);
+                        kahanSummation.reset(sum, compensation);
+                    }
+                };
+            }
+        }
+
+        // Fallback for floating-point or multi-valued fields
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 

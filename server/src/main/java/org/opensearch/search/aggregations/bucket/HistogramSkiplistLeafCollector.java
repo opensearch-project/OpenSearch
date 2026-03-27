@@ -10,7 +10,6 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.Rounding;
 import org.opensearch.search.aggregations.Aggregator;
@@ -181,40 +180,39 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
     }
 
     @Override
-    public void collect(DocIdStream stream) throws IOException {
-        // This will only be called if its the top agg
-        collect(stream, 0);
-    }
-
-    @Override
-    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
-        for (;;) {
-            int upToExclusive = upToInclusive + 1;
-            if (upToExclusive < 0) { // overflow
-                upToExclusive = Integer.MAX_VALUE;
+    public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
+        int i = 0;
+        while (i < count) {
+            if (docs[i] > upToInclusive) {
+                advanceSkipper(docs[i], owningBucketOrd);
             }
 
             if (upToSameBucket) {
-                if (isSubNoOp) {
-                    // stream.count maybe faster when we don't need to handle sub-aggs
-                    long count = stream.count(upToExclusive);
-                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
-                } else {
-                    final int[] count = { 0 };
-                    stream.forEach(upToExclusive, doc -> {
-                        sub.collect(doc, upToBucketIndex);
-                        count[0]++;
-                    });
-                    aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
+                // Find how many consecutive docs in this batch fall within the same skiplist interval
+                int j = i;
+                while (j < count && docs[j] <= upToInclusive) {
+                    j++;
                 }
+                int batchCount = j - i;
+                if (isSubNoOp) {
+                    aggregator.incrementBucketDocCount(upToBucketIndex, batchCount);
+                } else {
+                    // Pass the sub-array slice to sub-aggregator's collect(int[], int, long)
+                    // We need to copy since the sub-agg expects docs starting at index 0
+                    if (i == 0 && batchCount == count) {
+                        sub.collect(docs, batchCount, upToBucketIndex);
+                    } else {
+                        int[] subDocs = new int[batchCount];
+                        System.arraycopy(docs, i, subDocs, 0, batchCount);
+                        sub.collect(subDocs, batchCount, upToBucketIndex);
+                    }
+                    aggregator.incrementBucketDocCount(upToBucketIndex, batchCount);
+                }
+                i = j;
             } else {
-                stream.forEach(upToExclusive, doc -> collect(doc, owningBucketOrd));
-            }
-
-            if (stream.mayHaveRemaining()) {
-                advanceSkipper(upToExclusive, owningBucketOrd);
-            } else {
-                break;
+                // Per-doc fallback for docs that don't all map to the same bucket
+                collect(docs[i], owningBucketOrd);
+                i++;
             }
         }
     }
