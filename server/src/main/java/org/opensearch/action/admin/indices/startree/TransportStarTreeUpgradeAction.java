@@ -34,6 +34,7 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.action.ActionListener;
@@ -69,7 +70,7 @@ import static org.opensearch.core.xcontent.MediaTypeRegistry.JSON;
  *   <li>Phase 1: Submit a mapping update to add the star tree field configuration to the index mapping,
  *       bypassing the {@code index.composite_index} setting check via {@link MergeReason#STAR_TREE_UPGRADE}.</li>
  *   <li>Phase 2: Per-shard star tree building and SegmentInfos rewrite via the broadcast mechanism, which calls
- *       {@link IndexShard#upgradeToStarTree(StarTreeField)} on each primary shard.</li>
+ *       {@link IndexShard#upgradeToStarTree(StarTreeField)} on each shard.</li>
  * </ol>
  *
  * @opensearch.experimental
@@ -519,6 +520,16 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
                 }
 
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+                // Force-enable append_only — star tree does not support updates or deletes.
+                // After upgrade, the index becomes append-only to protect star tree correctness.
+                if (IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(indexMetadata.getSettings()) == false) {
+                    Settings updatedSettings = Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(IndexMetadata.SETTING_INDEX_APPEND_ONLY_ENABLED, true)
+                        .build();
+                    indexMetadataBuilder.settings(updatedSettings);
+                    indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
+                }
                 DocumentMapper mapper = mapperService.documentMapper();
                 if (mapper != null) {
                     indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));

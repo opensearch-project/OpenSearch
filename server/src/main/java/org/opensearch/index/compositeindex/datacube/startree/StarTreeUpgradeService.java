@@ -58,10 +58,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li><b>Phase 1 - Star tree data generation</b>: Iterates over each segment, reads its doc values
  *       via standard Lucene APIs, and builds star tree data structures using the existing
  *       StarTreesBuilder infrastructure. Writes .cid, .cim, .cidvd, .cidvm files via raw IndexOutput.</li>
- *   <li><b>Phase 2 - Codec switch via direct SegmentInfos rewrite</b>: For each successfully upgraded
- *       segment, constructs a new SegmentCommitInfo with Composite912Codec and the star tree files
- *       added to the file set. Commits segments_N+1 atomically. Follows the same pattern as
- *       Store.commitSegmentInfos().</li>
+ *   <li><b>Phase 2 - Codec switch via SegmentInfos and .si rewrite</b>: For each successfully upgraded
+ *       segment, constructs a new SegmentCommitInfo with Composite912Codec, adds the star tree files
+ *       to the file set, rewrites the .si file to declare the new codec, and commits segments_N+1
+ *       atomically.</li>
  * </ol>
  * <p>
  * The star tree field configuration (dimensions, metrics) is provided directly as a {@link StarTreeField}
@@ -86,8 +86,9 @@ public class StarTreeUpgradeService {
      * Phase 1: Iterates segments, builds star tree files for those not already using Composite912Codec.
      *          Uses standard Lucene doc values APIs to read dimension/metric data.
      *          Writes .cid, .cim, .cidvd, .cidvm files via raw IndexOutput.
-     * Phase 2: Rewrites SegmentInfos directly — creates new SegmentCommitInfo objects with
-     *          Composite912Codec and star tree files in the file set, then commits segments_N+1.
+     * Phase 2: Rewrites SegmentInfos and .si files — creates new SegmentCommitInfo objects with
+     *          Composite912Codec, adds star tree files to the file set, rewrites .si files to
+     *          declare the new codec, then commits segments_N+1.
      *
      * @param directory      the index directory containing the segments to upgrade
      * @param starTreeField  the star tree configuration parsed from the API request body
@@ -345,16 +346,15 @@ public class StarTreeUpgradeService {
     }
 
     /**
-     * Phase 2: Rewrites SegmentInfos to switch upgraded segments to Composite912Codec.
+     * Phase 2: Rewrites SegmentInfos and .si files to switch upgraded segments to Composite912Codec.
      * <p>
      * For each segment in upgradedSegmentNames:
      *   1. Create new SegmentInfo with Composite912Codec (copy all other fields from original)
      *   2. Add star tree files (.cid, .cim, .cidvd, .cidvm) to the file set
      *   3. Create new SegmentCommitInfo preserving delCount/softDelCount/delGen/fieldInfosGen/docValuesGen/id
+     *   4. Rewrite the .si file so Lucene uses Composite912Codec when opening the segment
      * Segments NOT in upgradedSegmentNames are kept unchanged.
      * Commits segments_N+1 atomically.
-     * <p>
-     * Follows the same pattern as Store.commitSegmentInfos() (Store.java line 907).
      *
      * @param directory             the index directory
      * @param upgradedSegmentNames  the set of segment names that were successfully upgraded in Phase 1
@@ -418,10 +418,10 @@ public class StarTreeUpgradeService {
 
                 newSegmentInfos.add(newCommitInfo);
 
-                // Rewrite the .si file with Composite912Codec's SegmentInfoFormat
-                // The original .si was written by the old codec — we need to rewrite it
-                // so it declares Composite912Codec. Without this, the IndexWriter reads
-                // the old codec name from .si and ignores our SegmentInfos codec change.
+                // Rewrite the .si file so it declares Composite912Codec.
+                // The .si file stores the codec name that Lucene uses when opening the segment.
+                // Without rewriting it, Lucene would use the original codec to read the segment
+                // and would not invoke Composite912DocValuesReader for star tree data.
                 String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
                 directory.deleteFile(siFileName);
                 new Composite912Codec().segmentInfoFormat().write(directory, newInfo, IOContext.DEFAULT);

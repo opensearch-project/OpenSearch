@@ -2310,14 +2310,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws TimeoutException if timed out waiting for in-flight operations to finish
      */
     /**
-     * Upgrades this shard's segments to use star tree indexes via per-segment star tree building
+     * Upgrades this shard's segments to use star tree indexes via per-segment building
      * and direct SegmentInfos rewrite. No force merge is needed.
      * <p>
-     * Flow: flush → block operations → swap to read-only engine → build star tree data per segment
-     * → rewrite SegmentInfos with Composite912Codec → resetEngineToGlobalCheckpoint → unblock.
+     * Flow: flush → block operations → close engine → build star tree data per segment
+     * → rewrite SegmentInfos and .si files with Composite912Codec → create new engine → unblock.
      * <p>
-     * Reads remain available during the upgrade via the read-only engine (serving from the
-     * pre-upgrade committed state). Writes are blocked for the duration.
+     * Reads and writes are unavailable during the upgrade. The upgrade builds star tree data
+     * by reading doc values from each segment and writing .cid/.cim/.cidvd/.cidvm files directly.
      *
      * @param starTreeField the star tree configuration (dimensions, metrics, build parameters)
      * @return the number of segments that were upgraded
@@ -2339,9 +2339,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // (catches any writes between first flush and block)
                 flush(new FlushRequest().waitIfOngoing(true));
 
-                // Close the engine — releases all file handles and the IndexWriter.
-                // This is critical: if the IndexWriter is alive when we rewrite SegmentInfos,
-                // the next engine open will flush a new commit that deletes our star tree files.
+                // Close the engine to release all file handles and the IndexWriter's write lock.
+                // We close entirely (rather than swapping to a read-only engine) because the
+                // upgrade writes new files and rewrites SegmentInfos directly on disk. No engine
+                // should be holding the directory open during this process.
+                // Tradeoff: reads are unavailable during the upgrade window.
                 synchronized (engineMutex) {
                     IOUtils.close(currentEngineReference.getAndSet(null));
                 }
@@ -2350,12 +2352,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     int count = StarTreeUpgradeService.upgradeSegments(store().directory(), starTreeField, mapperService);
                     upgradedCount.set(count);
                 } finally {
-                    // Create a fresh engine directly from segments_N+1.
-                    // The new engine's IndexWriter opens segments_N+1 which has Composite912Codec
-                    // and the star tree files in the file set — so it won't delete them.
-                    // Set codecServiceOverride so the new engine uses Composite912Codec for NEW
-                    // segments (flushes/merges after the upgrade). Without this, new segments
-                    // would use the old codec and not build star tree data.
+                    // Create a fresh engine from the upgraded segments_N+1 commit.
+                    // Set codecServiceOverride so the new engine uses Composite912Codec for
+                    // new segments written after the upgrade (flushes and merges). The original
+                    // codecService was created before the mapping update and doesn't include
+                    // the composite codec.
                     codecServiceOverride = engineConfigFactory.newDefaultCodecService(indexSettings, mapperService, logger);
                     synchronized (engineMutex) {
                         Engine newEngine = engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker));
