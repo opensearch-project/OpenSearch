@@ -81,16 +81,6 @@ public abstract class SearchProgressListener {
     protected void onQueryResult(int shardIndex) {}
 
     /**
-     * Executed when a shard returns a query result.
-     *
-     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
-     * @param shardTarget The shard target that returned the result.
-     */
-    protected void onQueryResult(int shardIndex, SearchShardTarget shardTarget) {
-        onQueryResult(shardIndex);
-    }
-
-    /**
      * Executed when a shard reports a query failure.
      *
      * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards})}.
@@ -109,7 +99,6 @@ public abstract class SearchProgressListener {
      * @param reducePhase The version number for this reduce.
      */
     protected void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {}
-
 
     /**
      * Executed once when the final reduce is created.
@@ -157,17 +146,6 @@ public abstract class SearchProgressListener {
         }
     }
 
-    final void notifyQueryResult(int shardIndex, SearchShardTarget shardTarget) {
-        try {
-            onQueryResult(shardIndex, shardTarget);
-        } catch (Exception e) {
-            logger.warn(
-                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
-                e
-            );
-        }
-    }
-
     final void notifyQueryFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
@@ -186,7 +164,6 @@ public abstract class SearchProgressListener {
             logger.warn(() -> new ParameterizedMessage("Failed to execute progress listener on partial reduce"), e);
         }
     }
-
 
     protected final void notifyFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
         try {

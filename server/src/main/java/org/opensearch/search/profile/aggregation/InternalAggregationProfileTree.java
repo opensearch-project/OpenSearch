@@ -49,19 +49,17 @@ public class InternalAggregationProfileTree extends AbstractInternalProfileTree<
 
     @Override
     protected String getTypeFromElement(Aggregator element) {
-        // Unwrap profiling wrapper so profile type reflects the real aggregator class
-        Aggregator actual = element instanceof ProfilingAggregator profilingAggregator ? profilingAggregator.unwrapAggregator() : element;
 
         // Anonymous classes (such as NonCollectingAggregator in TermsAgg) won't have a name,
         // we need to get the super class
-        if (actual.getClass().getSimpleName().isEmpty()) {
-            return actual.getClass().getSuperclass().getSimpleName();
+        if (element.getClass().getSimpleName().isEmpty()) {
+            return element.getClass().getSuperclass().getSimpleName();
         }
-        Class<?> enclosing = actual.getClass().getEnclosingClass();
+        Class<?> enclosing = element.getClass().getEnclosingClass();
         if (enclosing != null) {
-            return enclosing.getSimpleName() + "." + actual.getClass().getSimpleName();
+            return enclosing.getSimpleName() + "." + element.getClass().getSimpleName();
         }
-        return actual.getClass().getSimpleName();
+        return element.getClass().getSimpleName();
     }
 
     /**

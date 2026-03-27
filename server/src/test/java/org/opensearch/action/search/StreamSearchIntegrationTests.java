@@ -18,6 +18,7 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -28,20 +29,22 @@ import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
 import org.opensearch.search.aggregations.metrics.Min;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
-import org.opensearch.test.OpenSearchIntegTestCase.Scope;
+import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.nio.MockStreamNioTransport;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -49,22 +52,29 @@ import java.util.function.Supplier;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 
-/** Integration tests for streaming search. */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 2)
-public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
+/**
+ * Integration tests for streaming search functionality.
+ *
+ * This test suite validates the complete streaming search workflow including:
+ * - StreamTransportSearchAction
+ * - StreamSearchQueryThenFetchAsyncAction
+ * - StreamSearchTransportService
+ * - SearchStreamActionListener
+ */
+public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
 
     private static final String TEST_INDEX = "test_streaming_index";
     private static final int NUM_SHARDS = 3;
     private static final int MIN_SEGMENTS_PER_SHARD = 3;
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
+    protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(MockStreamTransportPlugin.class);
     }
 
     public static class MockStreamTransportPlugin extends Plugin implements NetworkPlugin {
         @Override
-        public Map<String, Supplier<Transport>> getStreamTransports(
+        public Map<String, Supplier<Transport>> getTransports(
             Settings settings,
             ThreadPool threadPool,
             PageCacheRecycler pageCacheRecycler,
@@ -73,9 +83,10 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             NetworkService networkService,
             Tracer tracer
         ) {
+            // Return a mock FLIGHT transport that can handle streaming responses
             return Collections.singletonMap(
-                "mock_stream",
-                () -> new MockStreamNioTransport(
+                "FLIGHT",
+                () -> new MockStreamingTransport(
                     settings,
                     Version.CURRENT,
                     threadPool,
@@ -89,14 +100,28 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         }
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("opensearch.experimental.feature.transport.stream.enabled", true)
-            .put("transport.stream.type.default", "mock_stream")
-            .put("stream.search.enabled", true)
-            .build();
+    // Use MockStreamNioTransport which supports streaming transport channels
+    // This provides the sendResponseBatch functionality needed for streaming search tests
+    private static class MockStreamingTransport extends MockStreamNioTransport {
+
+        public MockStreamingTransport(
+            Settings settings,
+            Version version,
+            ThreadPool threadPool,
+            NetworkService networkService,
+            PageCacheRecycler pageCacheRecycler,
+            NamedWriteableRegistry namedWriteableRegistry,
+            CircuitBreakerService circuitBreakerService,
+            Tracer tracer
+        ) {
+            super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, tracer);
+        }
+
+        @Override
+        protected MockSocketChannel initiateChannel(DiscoveryNode node) throws IOException {
+            InetSocketAddress address = node.getStreamAddress().address();
+            return nioGroup.openChannel(address, clientChannelFactory);
+        }
     }
 
     @Before
@@ -106,46 +131,71 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         createTestIndex();
     }
 
-    public void testBasicSearchSmoke() {
+    /**
+     * Test that StreamSearchAction works correctly with streaming transport.
+     *
+     * This test verifies that:
+     * 1. Node starts successfully with STREAM_TRANSPORT feature flag enabled
+     * 2. MockStreamTransportPlugin provides the required "FLIGHT" transport supplier
+     * 3. StreamSearchAction executes successfully with proper streaming responses
+     * 4. Search results are returned correctly via streaming transport
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testBasicStreamingSearchWorkflow() {
         SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
-        searchRequest.source().query(QueryBuilders.matchAllQuery()).size(10);
+        searchRequest.source().query(QueryBuilders.matchAllQuery()).size(5);
         searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
 
-        SearchResponse response = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
 
-        assertNotNull("Response should not be null", response);
+        // Verify successful response
+        assertNotNull("Response should not be null for successful streaming search", response);
         assertNotNull("Response hits should not be null", response.getHits());
-        assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
-        assertEquals("Should return 10 hits", 10, response.getHits().getHits().length);
+        assertTrue("Should have search hits", response.getHits().getTotalHits().value() > 0);
+        assertEquals("Should return requested number of hits", 5, response.getHits().getHits().length);
 
-        logger.info("Basic search smoke test passed with {} hits", response.getHits().getHits().length);
+        // Verify response structure
+        SearchHits hits = response.getHits();
+        for (SearchHit hit : hits.getHits()) {
+            assertNotNull("Hit should have source", hit.getSourceAsMap());
+            assertTrue("Hit should contain field1", hit.getSourceAsMap().containsKey("field1"));
+            assertTrue("Hit should contain field2", hit.getSourceAsMap().containsKey("field2"));
+        }
     }
 
+    @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingAggregationWithSubAgg() {
         TermsAggregationBuilder termsAgg = AggregationBuilders.terms("field1_terms")
             .field("field1")
             .subAggregation(AggregationBuilders.max("field2_max").field("field2"));
         SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
         searchRequest.source().query(QueryBuilders.matchAllQuery()).aggregation(termsAgg).size(0);
-        SearchResponse response = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
 
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
+
+        // Verify successful response
         assertNotNull("Response should not be null for successful streaming aggregation", response);
         assertNotNull("Response hits should not be null", response.getHits());
         assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
 
+        // Validate aggregation results must be present
         assertNotNull("Aggregations should not be null", response.getAggregations());
         StringTerms termsResult = response.getAggregations().get("field1_terms");
         assertNotNull("Terms aggregation should be present", termsResult);
 
+        // Should have 3 buckets: value1, value2, value3
         assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
 
+        // Each bucket should have 30 documents (10 from each segment)
         for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
 
+            // Check max sub-aggregation
             Max maxAgg = bucket.getAggregations().get("field2_max");
             assertNotNull("Max sub-aggregation should be present", maxAgg);
 
+            // Expected max values: value1=21, value2=22, value3=23
             String expectedMaxMsg = "Max value for " + bucket.getKeyAsString();
             switch (bucket.getKeyAsString()) {
                 case "value1":
@@ -171,23 +221,29 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
 
         SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
 
+        // Verify successful response
         assertNotNull("Response should not be null for successful streaming aggregation", response);
         assertNotNull("Response hits should not be null", response.getHits());
         assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
 
+        // Validate aggregation results must be present
         assertNotNull("Aggregations should not be null", response.getAggregations());
         StringTerms termsResult = response.getAggregations().get("field1_terms");
         assertNotNull("Terms aggregation should be present", termsResult);
 
+        // Should have 3 buckets: value1, value2, value3
         assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
 
+        // Each bucket should have 30 documents
         for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
 
+            // Check min sub-aggregation
             Min minAgg = bucket.getAggregations().get("field2_min");
             assertNotNull("Min sub-aggregation should be present", minAgg);
 
+            // Expected min values: value1=1, value2=2, value3=3 (from segment 1)
             String expectedMinMsg = "Min value for " + bucket.getKeyAsString();
             switch (bucket.getKeyAsString()) {
                 case "value1":
@@ -213,23 +269,32 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
 
         SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
 
+        // Verify successful response
         assertNotNull("Response should not be null for successful streaming aggregation", response);
         assertNotNull("Response hits should not be null", response.getHits());
         assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
 
+        // Validate aggregation results must be present
         assertNotNull("Aggregations should not be null", response.getAggregations());
         StringTerms termsResult = response.getAggregations().get("field1_terms");
         assertNotNull("Terms aggregation should be present", termsResult);
 
+        // Should have 3 buckets: value1, value2, value3
         assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
 
+        // Each bucket should have 30 documents
         for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
 
+            // Check sum sub-aggregation
             org.opensearch.search.aggregations.metrics.Sum sumAgg = bucket.getAggregations().get("field2_sum");
             assertNotNull("Sum sub-aggregation should be present", sumAgg);
 
+            // Expected sum values: value1=330, value2=360, value3=390
+            // value1: 10*1 + 10*11 + 10*21 = 10 + 110 + 210 = 330
+            // value2: 10*2 + 10*12 + 10*22 = 20 + 120 + 220 = 360
+            // value3: 10*3 + 10*13 + 10*23 = 30 + 130 + 230 = 390
             String expectedSumMsg = "Sum value for " + bucket.getKeyAsString();
             switch (bucket.getKeyAsString()) {
                 case "value1":
@@ -246,24 +311,28 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
-
     public void testStreamingAggregationTermsOnly() {
         TermsAggregationBuilder termsAgg = AggregationBuilders.terms("field1_terms").field("field1");
         SearchRequest searchRequest = new SearchRequest(TEST_INDEX).requestCache(false);
         searchRequest.source().aggregation(termsAgg).size(0);
-        SearchResponse response = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
 
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
+
+        // Verify successful response
         assertNotNull("Response should not be null for successful streaming terms aggregation", response);
         assertNotNull("Response hits should not be null", response.getHits());
         assertEquals(NUM_SHARDS, response.getTotalShards());
         assertEquals("Should have 90 total hits", 90, response.getHits().getTotalHits().value());
 
+        // Validate aggregation results must be present
         assertNotNull("Aggregations should not be null", response.getAggregations());
         StringTerms termsResult = response.getAggregations().get("field1_terms");
         assertNotNull("Terms aggregation should be present", termsResult);
 
+        // Should have 3 buckets: value1, value2, value3
         assertEquals("Should have 3 term buckets", 3, termsResult.getBuckets().size());
 
+        // Each bucket should have 30 documents (10 from each segment)
         for (StringTerms.Bucket bucket : termsResult.getBuckets()) {
             assertTrue("Bucket key should be value1, value2, or value3", bucket.getKeyAsString().matches("value[123]"));
             assertEquals("Each bucket should have 30 documents", 30, bucket.getDocCount());
@@ -275,9 +344,9 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             .put("index.number_of_shards", NUM_SHARDS)
             .put("index.number_of_replicas", 0)
             .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.policy.max_merged_segment", "1kb")
-            .put("index.merge.policy.segments_per_tier", "20")
-            .put("index.merge.scheduler.max_thread_count", "1")
+            .put("index.merge.policy.max_merged_segment", "1kb") // Keep segments small
+            .put("index.merge.policy.segments_per_tier", "20") // Allow many segments per tier
+            .put("index.merge.scheduler.max_thread_count", "1") // Limit merge threads
             .build();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(TEST_INDEX).settings(indexSettings);
@@ -296,6 +365,8 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         assertTrue(createIndexResponse.isAcknowledged());
         client().admin().cluster().prepareHealth(TEST_INDEX).setWaitForGreenStatus().setTimeout(TimeValue.timeValueSeconds(30)).get();
 
+        // Create 3 segments by indexing docs into each segment and forcing a flush
+        // Segment 1 - add docs with field2 values in 1-3 range
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < 10; i++) {
             bulkRequest.add(
@@ -309,10 +380,11 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
             );
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertFalse(bulkResponse.hasFailures());
+        assertFalse(bulkResponse.hasFailures()); // Verify ingestion was successful
         client().admin().indices().flush(new FlushRequest(TEST_INDEX).force(true)).actionGet();
         client().admin().indices().refresh(new RefreshRequest(TEST_INDEX)).actionGet();
 
+        // Segment 2 - add docs with field2 values in 11-13 range
         bulkRequest = new BulkRequest();
         for (int i = 0; i < 10; i++) {
             bulkRequest.add(
@@ -330,6 +402,7 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
         client().admin().indices().flush(new FlushRequest(TEST_INDEX).force(true)).actionGet();
         client().admin().indices().refresh(new RefreshRequest(TEST_INDEX)).actionGet();
 
+        // Segment 3 - add docs with field2 values in 21-23 range
         bulkRequest = new BulkRequest();
         for (int i = 0; i < 10; i++) {
             bulkRequest.add(
@@ -349,9 +422,11 @@ public class StreamSearchIntegrationTests extends OpenSearchIntegTestCase {
 
         client().admin().indices().refresh(new RefreshRequest(TEST_INDEX)).actionGet();
 
+        // Verify that we have the expected number of shards and segments
         IndicesSegmentResponse segmentResponse = client().admin().indices().segments(new IndicesSegmentsRequest(TEST_INDEX)).actionGet();
         assertEquals(NUM_SHARDS, segmentResponse.getIndices().get(TEST_INDEX).getShards().size());
 
+        // Verify each shard has at least MIN_SEGMENTS_PER_SHARD segments
         segmentResponse.getIndices().get(TEST_INDEX).getShards().values().forEach(indexShardSegments -> {
             assertTrue(
                 "Expected at least "

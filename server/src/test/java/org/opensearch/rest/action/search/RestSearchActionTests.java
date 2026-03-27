@@ -32,10 +32,10 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.util.Map;
-import java.util.Set;
 import java.util.HashSet;
+import java.util.Set;
 
+import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,19 +61,19 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         };
     }
 
+    private ClusterSettings createClusterSettingsWithStreamSearchEnabled() {
+        Settings settings = Settings.builder().put(STREAM_SEARCH_ENABLED.getKey(), true).build();
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(STREAM_SEARCH_ENABLED);
+        return new ClusterSettings(settings, settingSet);
+    }
+
     private SearchRequest createSearchRequestWithTermsAggregation() {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
         searchRequest.source(source);
         return searchRequest;
-    }
-
-    private ClusterSettings createClusterSettingsWithStreamSearchEnabled() {
-        Settings settings = Settings.builder().put("stream.search.enabled", true).build();
-        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED);
-        return new ClusterSettings(settings, settingSet);
     }
 
     public void testWithSearchStreamDisabled() throws Exception {
@@ -88,41 +88,21 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    public void testWithStreamSearchEnabledButStreamTransportDisabled() {
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("streaming_mode", "no_scoring")).build();
-            FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
 
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RestSearchAction().handleRequest(restRequest, channel, nodeClient)
-            );
-            assertThat(e.getMessage(), equalTo("You need to enable stream transport first to use stream search."));
-        }
-    }
-
-    @LockFeatureFlag(STREAM_TRANSPORT)
-    public void testWithStreamSearchRequestedButClusterSettingDisabled() {
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("streaming_mode", "no_scoring")).build();
-            FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
-
-            Exception e = expectThrows(IllegalArgumentException.class, () -> new RestSearchAction().handleRequest(restRequest, channel, nodeClient));
-            assertThat(e.getMessage(), equalTo("Stream search is disabled. Enable [stream.search.enabled] to use stream search."));
-        }
-    }
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testWithStreamSearchAndTransportEnabled() {
+        ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();
         SearchRequest searchRequest = createSearchRequestWithTermsAggregation();
-        searchRequest.setStreamingSearchMode("no_scoring");
 
         SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
         try (NodeClient nodeClient = createMockNodeClient(capturedActionType)) {
+            // Verify all conditions are met for stream search
+            assertTrue(clusterSettings.get(STREAM_SEARCH_ENABLED));
             assertTrue(FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT));
             assertTrue(RestSearchAction.canUseStreamSearch(searchRequest));
-            assertTrue(createClusterSettingsWithStreamSearchEnabled().get(org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED));
 
+            // Execute the StreamSearchAction directly since we've verified the conditions
             nodeClient.executeLocally(StreamSearchAction.INSTANCE, searchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse response) {}
@@ -135,6 +115,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
+    // Tests for canUseStreamSearch method
     public void testCanUseStreamSearchWithNullSource() {
         SearchRequest searchRequest = new SearchRequest();
         assertFalse(RestSearchAction.canUseStreamSearch(searchRequest));
@@ -230,6 +211,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testCanUseStreamSearchWithThreeLevelTermsNesting() {
+        // 3-level terms nesting should be rejected (max 2 levels supported)
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(
@@ -246,6 +228,7 @@ public class RestSearchActionTests extends OpenSearchTestCase {
     }
 
     public void testCanUseStreamSearchWithTwoLevelTermsAndMetricLeaf() {
+        // 2-level terms with metric leaf should be accepted
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(

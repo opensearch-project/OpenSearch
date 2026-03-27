@@ -10,20 +10,19 @@ package org.opensearch.action.search;
 
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.search.SearchPhaseResult;
+import org.opensearch.search.query.QuerySearchResult;
 
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
- * Query phase result consumer for streaming search.
+ * Streaming query phase result consumer
  *
  * @opensearch.internal
  */
 public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
 
-    /**
-     * Creates a streaming query phase result consumer.
-     */
     public StreamQueryPhaseResultConsumer(
         SearchRequest request,
         Executor executor,
@@ -46,8 +45,20 @@ public class StreamQueryPhaseResultConsumer extends QueryPhaseResultConsumer {
         );
     }
 
+    /**
+     * For stream search, the minBatchReduceSize is set higher than shard number
+     *
+     * @param minBatchReduceSize: pass as number of shard
+     */
     @Override
     int getBatchReduceSize(int requestBatchedReduceSize, int minBatchReduceSize) {
-        return Math.min(requestBatchedReduceSize, 1);
+        return super.getBatchReduceSize(requestBatchedReduceSize, minBatchReduceSize * 10);
+    }
+
+    void consumeStreamResult(SearchPhaseResult result, Runnable next) {
+        // For streaming, we skip the ArraySearchPhaseResults.consumeResult() call
+        // since it doesn't support multiple results from the same shard.
+        QuerySearchResult querySearchResult = result.queryResult();
+        pendingReduces.consume(querySearchResult, next);
     }
 }

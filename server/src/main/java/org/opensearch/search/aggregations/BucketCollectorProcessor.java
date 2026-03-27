@@ -8,8 +8,6 @@
 
 package org.opensearch.search.aggregations;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -35,7 +33,6 @@ import java.util.Queue;
  */
 @PublicApi(since = "2.10.0")
 public class BucketCollectorProcessor {
-    private static final Logger logger = LogManager.getLogger(BucketCollectorProcessor.class);
 
     /**
      * Performs {@link BucketCollector#postCollection()} on all the {@link BucketCollector} in the given {@link Collector} collector tree
@@ -75,11 +72,11 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector bucketCollector) {
+                // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator aggregator) {
+                    // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
                     bucketCollector.postCollection();
-                    if (aggregator.getPostCollectionAggregation() == null) {
-                        aggregator.buildTopLevel();
-                    }
+                    aggregator.buildTopLevel();
                 } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
                     for (Collector innerCollector : multiBucketCollector.getCollectors()) {
                         collectors.offer(innerCollector);
@@ -94,7 +91,8 @@ public class BucketCollectorProcessor {
      */
     @ExperimentalApi
     public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
-        List<InternalAggregation> internalAggregations = new ArrayList<>();
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+
         final Queue<Collector> collectors = new LinkedList<>();
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
@@ -108,12 +106,12 @@ public class BucketCollectorProcessor {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector bucketCollector) {
+                // Perform build aggregation during post collection
                 if (currentCollector instanceof Aggregator aggregator) {
+                    // Call postCollection() before building to ensure collectors finalize their data
+                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
                     bucketCollector.postCollection();
-                    InternalAggregation batch = aggregator.buildTopLevelBatch();
-                    if (batch != null) {
-                        internalAggregations.add(batch);
-                    }
+                    aggregations.add(aggregator.buildTopLevelBatch());
                 } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
                     for (Collector innerCollector : multiBucketCollector.getCollectors()) {
                         collectors.offer(innerCollector);
@@ -121,7 +119,7 @@ public class BucketCollectorProcessor {
                 }
             }
         }
-        return internalAggregations;
+        return aggregations;
     }
 
     /**
@@ -164,44 +162,17 @@ public class BucketCollectorProcessor {
     public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
         List<InternalAggregation> internalAggregations = new ArrayList<>();
 
-        if (collectors == null || collectors.isEmpty()) {
-            return internalAggregations;
-        }
-
-        final Queue<Collector> allCollectors = new LinkedList<>(collectors);
+        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
-            Collector currentCollector = allCollectors.poll();
-
-            if (currentCollector == null) {
-                continue;
-            }
-
+            Collector currentCollector = allCollectors.pop();
             if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                allCollectors.offer(internalProfileCollector.getCollector());
-                continue;
-            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
-                allCollectors.offer(minimumScoreCollector.getCollector());
-                continue;
-            } else if (currentCollector instanceof MultiCollector multiCollector) {
-                for (Collector innerCollector : multiCollector.getCollectors()) {
-                    allCollectors.offer(innerCollector);
-                }
-                continue;
+                currentCollector = internalProfileCollector.getCollector();
             }
 
-            if (currentCollector instanceof BucketCollector bucketCollector) {
-                if (currentCollector instanceof Aggregator aggregator) {
-                    InternalAggregation ia = aggregator.getPostCollectionAggregation();
-                    if (ia == null) {
-                        aggregator.buildTopLevel();
-                        ia = aggregator.getPostCollectionAggregation();
-                    }
-                    if (ia != null) {
-                        internalAggregations.add(ia);
-                    }
-                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
-                }
+            if (currentCollector instanceof Aggregator aggregator) {
+                internalAggregations.add(aggregator.getPostCollectionAggregation());
+            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
             }
         }
         return internalAggregations;

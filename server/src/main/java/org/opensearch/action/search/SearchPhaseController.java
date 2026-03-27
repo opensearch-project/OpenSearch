@@ -424,7 +424,6 @@ public final class SearchPhaseController {
         final List<TopDocs> topDocs = new ArrayList<>();
         for (SearchPhaseResult sortedResult : queryResults) {
             QuerySearchResult queryResult = sortedResult.queryResult();
-            // Consume TopDocs exactly once for merge/reduce phase
             final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
             assert td != null;
             topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
@@ -796,32 +795,40 @@ public final class SearchPhaseController {
         Consumer<Exception> onPartialMergeFailure,
         BooleanSupplier isTaskCancelled
     ) {
-        String streamingMode = request.getStreamingSearchMode();
-        if (streamingMode != null) {
-            return new StreamQueryPhaseResultConsumer(
-                request,
-                executor,
-                circuitBreaker,
-                this,
-                listener,
-                namedWriteableRegistry,
-                numShards,
-                onPartialMergeFailure
-            );
-        } else {
-            // Regular QueryPhaseResultConsumer
-            return new QueryPhaseResultConsumer(
-                request,
-                executor,
-                circuitBreaker,
-                this,
-                listener,
-                namedWriteableRegistry,
-                numShards,
-                onPartialMergeFailure,
-                isTaskCancelled
-            );
-        }
+        return new QueryPhaseResultConsumer(
+            request,
+            executor,
+            circuitBreaker,
+            this,
+            listener,
+            namedWriteableRegistry,
+            numShards,
+            onPartialMergeFailure,
+            isTaskCancelled
+        );
+    }
+
+    /**
+     * Returns a new {@link StreamQueryPhaseResultConsumer} instance that reduces search responses incrementally.
+     */
+    StreamQueryPhaseResultConsumer newStreamSearchPhaseResults(
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchProgressListener listener,
+        SearchRequest request,
+        int numShards,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
+        return new StreamQueryPhaseResultConsumer(
+            request,
+            executor,
+            circuitBreaker,
+            this,
+            listener,
+            namedWriteableRegistry,
+            numShards,
+            onPartialMergeFailure
+        );
     }
 
     /**

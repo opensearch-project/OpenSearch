@@ -20,8 +20,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Common {@link CollectorManager} used by both concurrent and non-concurrent
- * aggregation path and also for global and non-global
+ * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
  * aggregation operators
  *
  * @opensearch.internal
@@ -73,11 +72,8 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
         SearchContext searchContext,
         CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider
     ) throws IOException {
-        Collector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
-        collector = AggregatorTreeEvaluator.evaluateAndRecreateIfNeeded(collector, searchContext, aggProvider);
-        if (collector instanceof BucketCollector) {
-            ((BucketCollector) collector).preCollection();
-        }
+        BucketCollector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
+        collector.preCollection();
         return collector;
     }
 }

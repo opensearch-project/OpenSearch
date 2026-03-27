@@ -10,17 +10,13 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.Collector;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
-import org.opensearch.search.streaming.StreamingCostEstimable;
-import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -29,7 +25,7 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
-public class StreamCardinalityAggregator extends CardinalityAggregator implements StreamingCostEstimable {
+public class StreamCardinalityAggregator extends CardinalityAggregator {
 
     private Collector streamCollector;
 
@@ -84,22 +80,18 @@ public class StreamCardinalityAggregator extends CardinalityAggregator implement
 
     @Override
     public void doReset() {
-        // super.doReset(); // Prevent resetting counts
-        // Clean up the stream collector for the next batch, but preserve cumulative HLL
-        // counts
+        super.doReset();
+        // Clean up the stream collector for the next batch
         if (streamCollector != null) {
             streamCollector.close();
             streamCollector = null;
         }
-        // DO NOT close/recreate counts - preserve cumulative cardinality state for
-        // final reduction
-        // This keeps the HyperLogLog registers intact across batches so final
-        // buildAggregation() is correct
-    }
-
-    @Override
-    public void reset() {
-        // Preserve aggregation state across streaming batches.
+        // Close and recreate the HyperLogLog counts for the next batch
+        // HyperLogLog doesn't have a public reset method, so we need to recreate it
+        if (counts != null) {
+            counts.close();
+            counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        }
     }
 
     @Override
@@ -126,45 +118,5 @@ public class StreamCardinalityAggregator extends CardinalityAggregator implement
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
-        add.accept("total_buckets", 1);
-        StreamingCostMetrics metrics = estimateStreamingCost(context);
-        boolean enabled = context.getFlushMode() == org.opensearch.search.streaming.FlushMode.PER_SEGMENT;
-        add.accept("streaming_enabled", metrics.streamable() && enabled);
-        add.accept("streaming_precision", precision);
-        add.accept("streaming_top_n_size", metrics.topNSize());
-        add.accept("streaming_estimated_cardinality", metrics.estimatedBucketCount());
-        add.accept("streaming_estimated_docs", metrics.estimatedDocCount());
-        add.accept("streaming_segment_count", metrics.segmentCount());
-    }
-
-    @Override
-    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
-        try {
-            // For cardinality, we don't have a fixed topN size like terms aggregations
-            // Instead, we use the precision parameter to estimate memory requirements
-            int topNSize = 1 << precision; // HyperLogLog register count is 2^precision
-
-            // Only support ordinal value sources (strings/keywords)
-            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
-                return StreamingCostMetrics.nonStreamable();
-            }
-
-            ValuesSource.Bytes.WithOrdinals ordinalValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-            List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
-            long maxCardinality = 0;
-            long totalDocsWithField = 0;
-
-            for (LeafReaderContext leaf : leaves) {
-                SortedSetDocValues docValues = ordinalValuesSource.ordinalsValues(leaf);
-                if (docValues != null) {
-                    maxCardinality = Math.max(maxCardinality, docValues.getValueCount());
-                    totalDocsWithField += docValues.cost();
-                }
-            }
-
-            return new StreamingCostMetrics(true, topNSize, maxCardinality, leaves.size(), totalDocsWithField);
-        } catch (IOException e) {
-            return StreamingCostMetrics.nonStreamable();
-        }
     }
 }

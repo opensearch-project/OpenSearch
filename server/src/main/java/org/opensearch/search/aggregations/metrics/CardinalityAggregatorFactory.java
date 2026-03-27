@@ -110,33 +110,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
         builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, CardinalityAggregator::new, true);
     }
 
-    /**
-     * Helper method to determine if streaming aggregator should be used.
-     * Checks if streaming mode is requested and flush mode is compatible.
-     * Note: Ordinal support validation happens later in the aggregator itself.
-     */
-    private boolean shouldUseStreaming(SearchContext ctx) {
-        // Check if streaming mode was requested
-        if (!ctx.isStreamingModeRequested()) {
-            return false;
-        }
-
-        // Check flush mode compatibility
-        FlushMode flushMode = ctx.getFlushMode();
-        return flushMode == null || flushMode == FlushMode.PER_SEGMENT;
-    }
-
     @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        // Check streaming eligibility first
-        if (shouldUseStreaming(searchContext)) {
-            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
-        }
-
-        // Fall back to transport streaming if listener is present
-        if ((searchContext.isStreamSearch() || searchContext.getStreamingMode() != null)
-            && searchContext.getStreamChannelListener() != null
-            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
@@ -160,15 +136,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             }
         }
 
-        // Check streaming eligibility first
-        if (shouldUseStreaming(searchContext)) {
-            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
-        }
-
-        // Fall back to transport streaming if listener is present
-        if ((searchContext.isStreamSearch() || searchContext.getStreamingMode() != null)
-            && searchContext.getStreamChannelListener() != null
-            && (searchContext.getFlushMode() == null || searchContext.getFlushMode() == FlushMode.PER_SEGMENT)) {
+        if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
             return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
         }
         return queryShardContext.getValuesSourceRegistry()
