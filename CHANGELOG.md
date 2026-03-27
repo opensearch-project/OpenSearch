@@ -66,6 +66,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix stale segment cleanup logic for remote store ([#20976](https://github.com/opensearch-project/OpenSearch/pull/20976))
 - Ensure that transient ThreadContext headers with propagators survive restore ([#169373](https://github.com/opensearch-project/OpenSearch/pull/20854))
 - Handle dependencies between analyzers ([#19248](https://github.com/opensearch-project/OpenSearch/pull/19248))
+- Restore default `shard_path_type` to FIXED for snapshot repositories ([#20643](https://github.com/opensearch-project/OpenSearch/issues/20643))
 - Fix `_field_caps` returning empty results and corrupted field names for `disable_objects: true` mappings ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
 
 ### Dependencies
