@@ -44,6 +44,8 @@ dependencies {
   testImplementation "org.apache.commons:commons-lang3:${versions.commonslang}"
   testImplementation "commons-io:commons-io:${versions.commonsio}"
   testImplementation 'org.awaitility:awaitility:4.2.0'
+  testImplementation project(':modules:ingest-common')
+  testImplementation project(':modules:lang-painless')
 }
 
 internalClusterTest{
