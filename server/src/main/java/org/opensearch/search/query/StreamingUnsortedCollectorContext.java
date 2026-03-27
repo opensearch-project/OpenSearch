@@ -159,7 +159,9 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
             }
 
             try {
-                if (searchContext == null || searchContext.getFlushMode() != FlushMode.PER_SEGMENT || searchContext.getStreamChannelListener() == null) {
+                if (searchContext == null
+                    || searchContext.getFlushMode() != FlushMode.PER_SEGMENT
+                    || searchContext.getStreamChannelListener() == null) {
                     return;
                 }
                 QuerySearchResult partial = new QuerySearchResult();

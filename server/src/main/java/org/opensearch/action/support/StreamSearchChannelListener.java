@@ -19,9 +19,7 @@ import java.io.IOException;
 
 /** Streams transport responses through a {@link TransportChannel}. */
 @ExperimentalApi
-public class StreamSearchChannelListener<Response extends TransportResponse>
-    implements
-        ActionListener<Response> {
+public class StreamSearchChannelListener<Response extends TransportResponse> implements ActionListener<Response> {
 
     private static final Logger logger = LogManager.getLogger(StreamSearchChannelListener.class);
     private final TransportChannel channel;

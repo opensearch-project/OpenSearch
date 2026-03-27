@@ -910,8 +910,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TelemetrySettings.METRICS_FEATURE_ENABLED_SETTING
         ),
         List.of(FeatureFlags.STREAM_TRANSPORT),
-        List.of(
-            StreamSearchTransportService.STREAM_SEARCH_ENABLED
-        )
+        List.of(StreamSearchTransportService.STREAM_SEARCH_ENABLED)
     );
 }

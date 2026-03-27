@@ -74,7 +74,6 @@ import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
 import org.opensearch.common.util.CachedSupplier;
-import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
