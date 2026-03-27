@@ -75,19 +75,19 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("0")
         );
-        assertTrue(exception.getMessage().contains("must be positive"));
+        assertTrue(exception.getMessage().contains("must be >= 1"));
 
         exception = expectThrows(
             IllegalArgumentException.class,
             () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("-1")
         );
-        assertTrue(exception.getMessage().contains("must be positive"));
+        assertTrue(exception.getMessage().contains("must be >= 1"));
 
         exception = expectThrows(
             IllegalArgumentException.class,
             () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("abc")
         );
-        assertTrue(exception.getMessage().contains("must be a valid integer"));
+        assertTrue(exception.getMessage().contains("Invalid value"));
     }
 
     public void testValidateSearchSettingsValid() {
@@ -177,6 +177,6 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("abc")
         );
-        assertTrue(exception.getMessage().contains("must be a valid integer"));
+        assertTrue(exception.getMessage().contains("Invalid value"));
     }
 }

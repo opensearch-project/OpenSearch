@@ -148,14 +148,17 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testSearchSettings() throws Exception {
-        // Create with search_settings
+        // Create with all search_settings
         String createJson = """
             {
                 "name": "search_test",
                 "resiliency_mode": "enforced",
                 "resource_limits": {"cpu": 0.3, "memory": 0.3},
                 "search_settings": {
-                    "timeout": "30s"
+                    "timeout": "30s",
+                    "cancel_after_time_interval": "1m",
+                    "max_concurrent_shard_requests": "5",
+                    "batched_reduce_size": "512"
                 }
             }""";
         Response response = performOperation("PUT", "_wlm/workload_group", createJson);
@@ -166,12 +169,18 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         String responseBody = EntityUtils.toString(getResponse.getEntity());
         assertTrue(responseBody.contains("\"search_settings\""));
         assertTrue(responseBody.contains("\"timeout\":\"30s\""));
+        assertTrue(responseBody.contains("\"cancel_after_time_interval\":\"1m\""));
+        assertTrue(responseBody.contains("\"max_concurrent_shard_requests\":\"5\""));
+        assertTrue(responseBody.contains("\"batched_reduce_size\":\"512\""));
 
         // Update search_settings
         String updateJson = """
             {
                 "search_settings": {
-                    "timeout": "1m"
+                    "timeout": "1m",
+                    "cancel_after_time_interval": "5m",
+                    "max_concurrent_shard_requests": "10",
+                    "batched_reduce_size": "256"
                 }
             }""";
         Response updateResponse = performOperation("PUT", "_wlm/workload_group/search_test", updateJson);
@@ -181,6 +190,9 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         Response getResponse2 = performOperation("GET", "_wlm/workload_group/search_test", null);
         String responseBody2 = EntityUtils.toString(getResponse2.getEntity());
         assertTrue(responseBody2.contains("\"timeout\":\"1m\""));
+        assertTrue(responseBody2.contains("\"cancel_after_time_interval\":\"5m\""));
+        assertTrue(responseBody2.contains("\"max_concurrent_shard_requests\":\"10\""));
+        assertTrue(responseBody2.contains("\"batched_reduce_size\":\"256\""));
 
         performOperation("DELETE", "_wlm/workload_group/search_test", null);
     }

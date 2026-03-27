@@ -8,10 +8,11 @@
 
 package org.opensearch.wlm;
 
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
 
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 /**
  * Registry of valid workload group search settings with their validators
@@ -32,18 +33,18 @@ public class WorkloadGroupSearchSettings {
     public enum WlmSearchSetting {
         // Query parameters (applied to SearchRequest)
         /** Setting for batched reduce size */
-        BATCHED_REDUCE_SIZE("batched_reduce_size", WorkloadGroupSearchSettings::validateBatchedReduceSize),
+        BATCHED_REDUCE_SIZE("batched_reduce_size", v -> Setting.parseInt(v, 2, "batched_reduce_size")),
         /** Setting for canceling search requests after a time interval */
-        CANCEL_AFTER_TIME_INTERVAL("cancel_after_time_interval", WorkloadGroupSearchSettings::validateTimeValue),
+        CANCEL_AFTER_TIME_INTERVAL("cancel_after_time_interval", v -> TimeValue.parseTimeValue(v, "cancel_after_time_interval")),
         /** Setting for maximum concurrent shard requests */
-        MAX_CONCURRENT_SHARD_REQUESTS("max_concurrent_shard_requests", WorkloadGroupSearchSettings::validatePositiveInt),
+        MAX_CONCURRENT_SHARD_REQUESTS("max_concurrent_shard_requests", v -> Setting.parseInt(v, 1, "max_concurrent_shard_requests")),
         /** Setting for search request timeout */
-        TIMEOUT("timeout", WorkloadGroupSearchSettings::validateTimeValue);
+        TIMEOUT("timeout", v -> TimeValue.parseTimeValue(v, "timeout"));
 
         private final String settingName;
-        private final Function<String, String> validator;
+        private final Consumer<String> validator;
 
-        WlmSearchSetting(String settingName, Function<String, String> validator) {
+        WlmSearchSetting(String settingName, Consumer<String> validator) {
             this.settingName = settingName;
             this.validator = validator;
         }
@@ -62,9 +63,10 @@ public class WorkloadGroupSearchSettings {
          * @throws IllegalArgumentException if the value is invalid
          */
         void validate(String value) {
-            String error = validator.apply(value);
-            if (error != null) {
-                throw new IllegalArgumentException("Invalid value '" + value + "' for " + settingName + ": " + error);
+            try {
+                validator.accept(value);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid value '" + value + "' for " + settingName + ": " + e.getMessage());
             }
         }
 
@@ -107,51 +109,4 @@ public class WorkloadGroupSearchSettings {
         }
     }
 
-    /**
-     * Validates a time value string.
-     * @param value the string to validate
-     * @return null if valid, error message if invalid
-     */
-    private static String validateTimeValue(String value) {
-        try {
-            TimeValue.parseTimeValue(value, "validation");
-            return null;
-        } catch (Exception e) {
-            return e.getMessage();
-        }
-    }
-
-    /**
-     * Validates a positive integer string.
-     * @param value the string to validate
-     * @return null if valid, error message if invalid
-     */
-    private static String validatePositiveInt(String value) {
-        try {
-            int intValue = Integer.parseInt(value);
-            if (intValue < 1) {
-                return "must be positive";
-            }
-            return null;
-        } catch (NumberFormatException e) {
-            return "must be a valid integer";
-        }
-    }
-
-    /**
-     * Validates batched reduce size (must be >= 2).
-     * @param value the string to validate
-     * @return null if valid, error message if invalid
-     */
-    private static String validateBatchedReduceSize(String value) {
-        try {
-            int intValue = Integer.parseInt(value);
-            if (intValue < 2) {
-                return "must be >= 2";
-            }
-            return null;
-        } catch (NumberFormatException e) {
-            return "must be a valid integer";
-        }
-    }
 }
