@@ -88,8 +88,6 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-
-
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testWithStreamSearchAndTransportEnabled() {
         ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();

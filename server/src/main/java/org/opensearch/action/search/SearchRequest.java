@@ -128,7 +128,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
-
     // Null means no explicit streaming mode on the request.
     private String streamingSearchMode = null;
 

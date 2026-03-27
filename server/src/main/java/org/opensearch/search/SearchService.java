@@ -903,7 +903,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (request.numberOfShards() == 1) {
                 if (isStreamSearch) {
-                    logger.trace("shard [{}] sending final {}", request.shardId(), (request.numberOfShards() == 1 ? "query+fetch" : "query"));
+                    logger.trace(
+                        "shard [{}] sending final {}",
+                        request.shardId(),
+                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
+                    );
                 }
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
@@ -913,7 +917,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.queryResult().setRescoreDocIds(rescoreDocIds);
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 if (isStreamSearch) {
-                    logger.trace("shard [{}] sending final {}", request.shardId(), (request.numberOfShards() == 1 ? "query+fetch" : "query"));
+                    logger.trace(
+                        "shard [{}] sending final {}",
+                        request.shardId(),
+                        (request.numberOfShards() == 1 ? "query+fetch" : "query")
+                    );
                 }
                 return context.queryResult();
             }
