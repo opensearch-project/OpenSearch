@@ -840,16 +840,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         return;
                     }
                 }
-                // fork the execution in the search thread pool
-                final Executor queryExecutor;
-                if (shard.isSystem()) {
-                    queryExecutor = threadPool.executor(Names.SYSTEM_READ);
-                } else if (shard.indexSettings().isSearchThrottled()) {
-                    queryExecutor = threadPool.executor(Names.SEARCH_THROTTLED);
-                } else {
-                    queryExecutor = threadPool.executor(Names.SEARCH);
-                }
-                runAsync(queryExecutor, () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener), listener);
+                // fork the execution in the appropriate search thread pool
+                runAsync(
+                    getExecutor(executorName, shard),
+                    () -> executeQueryPhase(orig, task, keepStatesInContext, isStreamSearch, listener),
+                    listener
+                );
             }
 
             @Override
@@ -885,7 +881,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
             if (isStreamSearch) {
                 assert listener instanceof StreamSearchChannelListener : "Stream search expects StreamSearchChannelListener";
-                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult>) listener);
+                context.setStreamChannelListener((StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest>) listener);
             }
 
             if (request.getStreamingSearchMode() != null) {

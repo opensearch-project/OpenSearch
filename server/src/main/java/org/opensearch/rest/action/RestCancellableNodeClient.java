@@ -95,20 +95,6 @@ public class RestCancellableNodeClient extends FilterClient {
         return listener == null ? 0 : listener.getNumTasks();
     }
 
-    /**
-     * Finishes tracking for the given HttpChannel, removing it from the tracked channels
-     * and clearing its task set to prevent cancellation on close.
-     * This should be called when streaming requests complete normally.
-     *
-     * @param httpChannel the HTTP channel to finish tracking for
-     */
-    public void finishTracking(HttpChannel httpChannel) {
-        CloseListener closeListener = httpChannels.remove(httpChannel);
-        if (closeListener != null) {
-            closeListener.clearTasks();
-        }
-    }
-
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
@@ -181,21 +167,13 @@ public class RestCancellableNodeClient extends FilterClient {
             taskHolder.completed = true;
         }
 
-        synchronized void clearTasks() {
-            tasks.clear();
-        }
-
         @Override
         public void onResponse(Void aVoid) {
             final HttpChannel httpChannel = channel.get();
-            if (httpChannel == null) {
-                return; // Channel not registered, nothing to do
-            }
+            assert httpChannel != null : "channel not registered";
             // when the channel gets closed it won't be reused: we can remove it from the map and forget about it.
             CloseListener closeListener = httpChannels.remove(httpChannel);
-            if (closeListener == null) {
-                return; // Channel already removed (e.g., by finishTracking), nothing to do
-            }
+            assert closeListener != null : "channel not found in the map of tracked channels";
             final List<TaskId> toCancel;
             synchronized (this) {
                 toCancel = new ArrayList<>(tasks);

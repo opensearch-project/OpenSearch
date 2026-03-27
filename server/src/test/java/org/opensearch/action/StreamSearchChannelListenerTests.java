@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportRequest;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,13 +32,16 @@ public class StreamSearchChannelListenerTests extends OpenSearchTestCase {
     @Mock
     private TransportChannel channel;
 
-    private StreamSearchChannelListener<TestResponse> listener;
+    @Mock
+    private TransportRequest request;
+
+    private StreamSearchChannelListener<TestResponse, TransportRequest> listener;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         MockitoAnnotations.openMocks(this);
-        listener = new StreamSearchChannelListener<>(channel, "test-action");
+        listener = new StreamSearchChannelListener<>(channel, "test-action", request);
     }
 
     public void testStreamResponseCall() {
