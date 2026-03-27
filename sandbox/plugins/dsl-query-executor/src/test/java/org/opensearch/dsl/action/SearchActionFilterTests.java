@@ -37,8 +37,8 @@ public class SearchActionFilterTests extends OpenSearchTestCase {
     private final ActionRequestMetadata<ActionRequest, ActionResponse> metadata = mock(ActionRequestMetadata.class);
     private final SearchActionFilter filter = new SearchActionFilter(client);
 
-    public void testOrderIsMinValue() {
-        assertEquals(Integer.MIN_VALUE, filter.order());
+    public void testOrderIsMaxValue() {
+        assertEquals(Integer.MAX_VALUE, filter.order());
     }
 
     public void testPassesThroughNonSearchAction() {
