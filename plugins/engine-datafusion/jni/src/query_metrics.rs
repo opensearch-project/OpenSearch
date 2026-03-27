@@ -208,7 +208,6 @@ pub fn start_query_tracking(
         context_id,
         memory_pool: query_pool.clone(),
     });
-    log_info!("Query memory tracking started: context_id={}", context_id);
     QUERY_TRACKERS.insert(context_id, tracker);
     Some(query_pool)
 }
@@ -216,16 +215,7 @@ pub fn start_query_tracking(
 /// Stop tracking and log final metrics. Call from streamClose or on error.
 /// If a global Monitor is provided, also logs overall memory pool usage.
 pub fn stop_query_tracking(context_id: i64) -> Option<Arc<QueryTracker>> {
-    QUERY_TRACKERS.remove(&context_id).map(|(_, tracker)| {
-        log_info!(
-            "Query ctx={} completed: wall={:.3}s, mem_current={}B, mem_peak={}B",
-            context_id,
-            tracker.wall_secs(),
-            tracker.memory_pool.current_bytes(),
-            tracker.memory_pool.peak_bytes(),
-        );
-        tracker
-    })
+    QUERY_TRACKERS.remove(&context_id).map(|(_, tracker)| tracker)
 }
 
 /// Look up a running query's tracker.

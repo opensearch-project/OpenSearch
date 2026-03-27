@@ -127,36 +127,27 @@ pub async fn execute_query_with_cross_rt_stream(
 
     let runtimeEnv = &runtime.runtime_env;
 
-    let runtime_env = match RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
+    let mut builder = RuntimeEnvBuilder::from_runtime_env(runtimeEnv)
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache.clone()))
                 .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache()))
                 .with_files_statistics_cache(runtimeEnv.cache_manager.get_file_statistic_cache()),
         )
-        .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
-        .build() {
+        .with_metadata_cache_limit(250 * 1024 * 1024); // 250 MB
+
+    // If a per-query memory pool is provided, set it on the same builder
+    // The per-query pool wraps the global pool, so global limits are still enforced
+    if let Some(pool) = query_memory_pool {
+        builder = builder.with_memory_pool(pool);
+    }
+
+    let runtime_env = match builder.build() {
         Ok(env) => env,
         Err(e) => {
             error!("Failed to build runtime env: {}", e);
             return Err(e);
         }
-    };
-
-    // If a per-query memory pool is provided, override the memory pool in the runtime env
-    // The per-query pool wraps the global pool, so global limits are still enforced
-    let runtime_env = if let Some(pool) = query_memory_pool {
-        match RuntimeEnvBuilder::from_runtime_env(&runtime_env)
-            .with_memory_pool(pool)
-            .build() {
-            Ok(env) => env,
-            Err(e) => {
-                error!("Failed to build runtime env with per-query pool: {}", e);
-                return Err(e);
-            }
-        }
-    } else {
-        runtime_env
     };
 
     let mut config = SessionConfig::new();
@@ -382,24 +373,21 @@ pub async fn execute_fetch_phase(
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
     list_file_cache.put(table_path.prefix(), object_meta);
 
-    let runtime_env = RuntimeEnvBuilder::new()
+    let mut builder = RuntimeEnvBuilder::new()
         .with_cache_manager(
             CacheManagerConfig::default().with_list_files_cache(Some(list_file_cache))
                          .with_metadata_cache_limit(runtime.runtime_env.cache_manager.get_file_metadata_cache().cache_limit())
                 .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache().clone()))
                 .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache()),
 
-        )
-        .build()?;
+        );
 
-    // If a per-query memory pool is provided, override the memory pool in the runtime env
-    let runtime_env = if let Some(pool) = query_memory_pool {
-        RuntimeEnvBuilder::from_runtime_env(&runtime_env)
-            .with_memory_pool(pool)
-            .build()?
-    } else {
-        runtime_env
-    };
+    // If a per-query memory pool is provided, set it on the same builder
+    if let Some(pool) = query_memory_pool {
+        builder = builder.with_memory_pool(pool);
+    }
+
+    let runtime_env = builder.build()?;
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = true;
