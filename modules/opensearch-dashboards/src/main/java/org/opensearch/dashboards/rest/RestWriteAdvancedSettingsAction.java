@@ -8,12 +8,7 @@
 
 package org.opensearch.dashboards.rest;
 
-import org.opensearch.OpenSearchStatusException;
-import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.dashboards.action.GetAdvancedSettingsAction;
-import org.opensearch.dashboards.action.GetAdvancedSettingsRequest;
 import org.opensearch.dashboards.action.WriteAdvancedSettingsAction;
 import org.opensearch.dashboards.action.WriteAdvancedSettingsRequest;
 import org.opensearch.rest.BaseRestHandler;
@@ -24,6 +19,7 @@ import org.opensearch.transport.client.node.NodeClient;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.opensearch.rest.RestRequest.Method.PUT;
@@ -37,57 +33,27 @@ public class RestWriteAdvancedSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_opensearch_dashboards/advanced_settings/{index}"));
+        return List.of(new Route(PUT, "/_opensearch_dashboards/advanced_settings/{index}/{id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String index = request.param("index");
+        String documentId = request.param("id");
+        String operation = request.param("operation", WriteAdvancedSettingsRequest.OperationType.UPDATE.name());
 
-        final Map<String, Object> newSettings = new HashMap<>();
+        final Map<String, Object> document = new HashMap<>();
         if (request.hasContent()) {
             try (XContentParser parser = request.contentParser()) {
-                newSettings.putAll(parser.map());
+                document.putAll(parser.map());
             }
         }
 
-        return channel -> {
-            GetAdvancedSettingsRequest getRequest = new GetAdvancedSettingsRequest(index);
+        WriteAdvancedSettingsRequest.OperationType operationType = WriteAdvancedSettingsRequest.OperationType.valueOf(
+            operation.toUpperCase(Locale.ROOT)
+        );
+        WriteAdvancedSettingsRequest writeRequest = new WriteAdvancedSettingsRequest(index, documentId, document, operationType);
 
-            client.execute(GetAdvancedSettingsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
-                Map<String, Object> updatedSettings = new HashMap<>();
-
-                Object config = getResponse.getSettings().get("config");
-                if (config instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> configMap = (Map<String, Object>) config;
-                    updatedSettings.putAll(configMap);
-                }
-                updatedSettings.putAll(newSettings);
-
-                // Document exists, use UPDATE operation
-                WriteAdvancedSettingsRequest writeRequest = new WriteAdvancedSettingsRequest(
-                    index,
-                    updatedSettings,
-                    WriteAdvancedSettingsRequest.OperationType.UPDATE
-                );
-                client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
-            }, e -> {
-                if (e instanceof OpenSearchStatusException && ((OpenSearchStatusException) e).status() == RestStatus.NOT_FOUND) {
-                    WriteAdvancedSettingsRequest writeRequest = new WriteAdvancedSettingsRequest(
-                        index,
-                        newSettings,
-                        WriteAdvancedSettingsRequest.OperationType.CREATE
-                    );
-                    client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
-                } else {
-                    try {
-                        channel.sendResponse(new org.opensearch.rest.BytesRestResponse(channel, e));
-                    } catch (IOException ioException) {
-                        throw new RuntimeException(ioException);
-                    }
-                }
-            }));
-        };
+        return channel -> client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
     }
 }

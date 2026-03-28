@@ -11,7 +11,6 @@ package org.opensearch.dashboards.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.Version;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
@@ -31,19 +30,17 @@ public class TransportGetAdvancedSettingsAction extends HandledTransportAction<G
     private static final Logger log = LogManager.getLogger(TransportGetAdvancedSettingsAction.class);
 
     private final Client client;
-    private final String configKey;
 
     @Inject
     public TransportGetAdvancedSettingsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(GetAdvancedSettingsAction.NAME, transportService, actionFilters, GetAdvancedSettingsRequest::new);
         this.client = client;
-        this.configKey = "config:" + Version.CURRENT.toString();
     }
 
     @Override
     protected void doExecute(Task task, GetAdvancedSettingsRequest request, ActionListener<AdvancedSettingsResponse> listener) {
         try (final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext()) {
-            GetRequest getRequest = new GetRequest(request.getIndex(), configKey);
+            GetRequest getRequest = new GetRequest(request.getIndex(), request.getDocumentId());
 
             client.get(getRequest, ActionListener.wrap(getResponse -> {
                 ctx.restore();

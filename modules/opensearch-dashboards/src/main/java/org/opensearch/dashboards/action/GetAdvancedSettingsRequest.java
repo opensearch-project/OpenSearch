@@ -22,22 +22,26 @@ import static org.opensearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS
 public class GetAdvancedSettingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private String index;
+    private String documentId;
 
     public GetAdvancedSettingsRequest() {}
 
-    public GetAdvancedSettingsRequest(String index) {
+    public GetAdvancedSettingsRequest(String index, String documentId) {
         this.index = index;
+        this.documentId = documentId;
     }
 
     public GetAdvancedSettingsRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readString();
+        this.documentId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
+        out.writeString(documentId);
     }
 
     @Override
@@ -47,6 +51,10 @@ public class GetAdvancedSettingsRequest extends ActionRequest implements Indices
 
     public String getIndex() {
         return index;
+    }
+
+    public String getDocumentId() {
+        return documentId;
     }
 
     @Override

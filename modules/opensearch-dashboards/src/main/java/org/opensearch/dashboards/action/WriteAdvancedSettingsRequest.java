@@ -28,29 +28,33 @@ public class WriteAdvancedSettingsRequest extends ActionRequest implements Indic
     }
 
     private String index;
-    private Map<String, Object> settings;
+    private String documentId;
+    private Map<String, Object> document;
     private OperationType operationType;
 
     public WriteAdvancedSettingsRequest() {
         this.operationType = OperationType.UPDATE;
     }
 
-    public WriteAdvancedSettingsRequest(String index, Map<String, Object> settings) {
+    public WriteAdvancedSettingsRequest(String index, String documentId, Map<String, Object> document) {
         this.index = index;
-        this.settings = settings;
+        this.documentId = documentId;
+        this.document = document;
         this.operationType = OperationType.UPDATE;
     }
 
-    public WriteAdvancedSettingsRequest(String index, Map<String, Object> settings, OperationType operationType) {
+    public WriteAdvancedSettingsRequest(String index, String documentId, Map<String, Object> document, OperationType operationType) {
         this.index = index;
-        this.settings = settings;
+        this.documentId = documentId;
+        this.document = document;
         this.operationType = operationType;
     }
 
     public WriteAdvancedSettingsRequest(StreamInput in) throws IOException {
         super(in);
         this.index = in.readString();
-        this.settings = in.readMap();
+        this.documentId = in.readString();
+        this.document = in.readMap();
         this.operationType = in.readEnum(OperationType.class);
     }
 
@@ -58,7 +62,8 @@ public class WriteAdvancedSettingsRequest extends ActionRequest implements Indic
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        out.writeMap(settings);
+        out.writeString(documentId);
+        out.writeMap(document);
         out.writeEnum(operationType);
     }
 
@@ -71,8 +76,12 @@ public class WriteAdvancedSettingsRequest extends ActionRequest implements Indic
         return index;
     }
 
-    public Map<String, Object> getSettings() {
-        return settings;
+    public String getDocumentId() {
+        return documentId;
+    }
+
+    public Map<String, Object> getDocument() {
+        return document;
     }
 
     public OperationType getOperationType() {

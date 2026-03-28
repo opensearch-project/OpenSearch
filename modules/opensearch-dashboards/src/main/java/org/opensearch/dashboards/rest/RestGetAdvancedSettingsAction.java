@@ -29,13 +29,14 @@ public class RestGetAdvancedSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_opensearch_dashboards/advanced_settings/{index}"));
+        return List.of(new Route(GET, "/_opensearch_dashboards/advanced_settings/{index}/{id}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String index = request.param("index");
-        GetAdvancedSettingsRequest getRequest = new GetAdvancedSettingsRequest(index);
+        String documentId = request.param("id");
+        GetAdvancedSettingsRequest getRequest = new GetAdvancedSettingsRequest(index, documentId);
 
         return channel -> client.execute(GetAdvancedSettingsAction.INSTANCE, getRequest, new RestToXContentListener<>(channel));
     }
