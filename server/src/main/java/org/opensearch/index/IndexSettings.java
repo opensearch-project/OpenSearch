@@ -360,6 +360,23 @@ public final class IndexSettings {
     );
 
     /**
+     * Index setting describing the maximum length of the {@code _id} field in bytes.
+     * The default and minimum of 512 preserves backward compatibility. Lucene's maximum
+     * term length of 32766 bytes is the upper bound. Raising this allows workloads with
+     * naturally long identifiers (metric paths, URLs, composite keys) to use them as
+     * {@code _id} directly, avoiding the need to hash and store the original in a
+     * separate field.
+     */
+    public static final Setting<Integer> MAX_DOC_ID_LENGTH_SETTING = Setting.intSetting(
+        "index.max_doc_id_length",
+        512,
+        512,
+        32766,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * Index setting describing the maximum value of allowed `docvalue_fields`that can be retrieved
      * per search request. The default maximum of 100 is defensive for the reason that retrieving
      * doc values might incur a per-field per-document seek.
@@ -1003,6 +1020,7 @@ public final class IndexSettings {
     private volatile int maxTermsCount;
 
     private volatile int maxNestedQueryDepth;
+    private volatile int maxDocIdLength;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
@@ -1203,6 +1221,7 @@ public final class IndexSettings {
         maxNestedQueryDepth = scopedSettings.get(MAX_NESTED_QUERY_DEPTH_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         streamingAggregationMinSegmentSize = scopedSettings.get(FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING);
+        maxDocIdLength = scopedSettings.get(MAX_DOC_ID_LENGTH_SETTING);
         this.tieredMergePolicyProvider = new TieredMergePolicyProvider(logger, this);
         this.logByteSizeMergePolicyProvider = new LogByteSizeMergePolicyProvider(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
@@ -1308,6 +1327,7 @@ public final class IndexSettings {
             INDEX_PUBLISH_REFERENCED_SEGMENTS_INTERVAL_SETTING,
             this::setPublishReferencedSegmentsInterval
         );
+        scopedSettings.addSettingsUpdateConsumer(MAX_DOC_ID_LENGTH_SETTING, this::setMaxDocIdLength);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -1856,6 +1876,17 @@ public final class IndexSettings {
 
     private void setMaxResultWindow(int maxResultWindow) {
         this.maxResultWindow = maxResultWindow;
+    }
+
+    /**
+     * Returns the maximum allowed length of the {@code _id} field in bytes for this index.
+     */
+    public int getMaxDocIdLength() {
+        return maxDocIdLength;
+    }
+
+    private void setMaxDocIdLength(int maxDocIdLength) {
+        this.maxDocIdLength = maxDocIdLength;
     }
 
     /**

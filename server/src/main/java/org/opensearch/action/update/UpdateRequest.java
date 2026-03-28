@@ -236,7 +236,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             validationException = addValidationError("doc must be specified if doc_as_upsert is enabled", validationException);
         }
 
-        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+        validationException = DocWriteRequest.validateDocIdLength(id, DocWriteRequest.MAX_DOC_ID_LENGTH_HARD_LIMIT, validationException);
 
         return validationException;
     }

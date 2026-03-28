@@ -175,6 +175,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 FlushModeResolver.STREAMING_AGGREGATION_MIN_SEGMENT_SIZE_SETTING,
+                IndexSettings.MAX_DOC_ID_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,

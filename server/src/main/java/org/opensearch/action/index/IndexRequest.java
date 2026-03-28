@@ -237,7 +237,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        validationException = DocWriteRequest.validateDocIdLength(id, validationException);
+        validationException = DocWriteRequest.validateDocIdLength(id, DocWriteRequest.MAX_DOC_ID_LENGTH_HARD_LIMIT, validationException);
 
         if (pipeline != null && pipeline.isEmpty()) {
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
