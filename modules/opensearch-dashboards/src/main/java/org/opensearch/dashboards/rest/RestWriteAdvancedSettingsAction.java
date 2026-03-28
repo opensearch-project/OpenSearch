@@ -8,7 +8,9 @@
 
 package org.opensearch.dashboards.rest;
 
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.dashboards.action.GetAdvancedSettingsAction;
 import org.opensearch.dashboards.action.GetAdvancedSettingsRequest;
@@ -71,13 +73,20 @@ public class RestWriteAdvancedSettingsAction extends BaseRestHandler {
                 );
                 client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
             }, e -> {
-                // Document doesn't exist, use CREATE operation
-                WriteAdvancedSettingsRequest writeRequest = new WriteAdvancedSettingsRequest(
-                    index,
-                    newSettings,
-                    WriteAdvancedSettingsRequest.OperationType.CREATE
-                );
-                client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
+                if (e instanceof OpenSearchStatusException && ((OpenSearchStatusException) e).status() == RestStatus.NOT_FOUND) {
+                    WriteAdvancedSettingsRequest writeRequest = new WriteAdvancedSettingsRequest(
+                        index,
+                        newSettings,
+                        WriteAdvancedSettingsRequest.OperationType.CREATE
+                    );
+                    client.execute(WriteAdvancedSettingsAction.INSTANCE, writeRequest, new RestToXContentListener<>(channel));
+                } else {
+                    try {
+                        channel.sendResponse(new org.opensearch.rest.BytesRestResponse(channel, e));
+                    } catch (IOException ioException) {
+                        throw new RuntimeException(ioException);
+                    }
+                }
             }));
         };
     }
