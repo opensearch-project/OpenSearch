@@ -31,9 +31,11 @@ import java.util.function.Supplier;
  */
 public class CompositeDataFormatWriterPool implements Iterable<CompositeWriter>, Closeable {
 
-    private final Set<CompositeWriter> writers;
-    private final LockableConcurrentQueue<CompositeWriter> availableWriters;
+    private volatile Set<CompositeWriter> writers;
+    private volatile LockableConcurrentQueue<CompositeWriter> availableWriters;
     private final Supplier<CompositeWriter> writerSupplier;
+    private final Supplier<Queue<CompositeWriter>> queueSupplier;
+    private final int concurrency;
     private volatile boolean closed;
 
     /**
@@ -50,6 +52,8 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeWriter>,
     ) {
         this.writers = Collections.newSetFromMap(new IdentityHashMap<>());
         this.writerSupplier = writerSupplier;
+        this.queueSupplier = queueSupplier;
+        this.concurrency = concurrency;
         this.availableWriters = new LockableConcurrentQueue<>(queueSupplier, concurrency);
     }
 
@@ -80,44 +84,59 @@ public class CompositeDataFormatWriterPool implements Iterable<CompositeWriter>,
 
     /**
      * Release the given {@link CompositeWriter} to this pool for reuse if it is currently managed by this
-     * pool.
+     * pool. If the writer belongs to a previous generation (swapped out during {@link #checkoutAll()}),
+     * it is silently discarded since it will be flushed and closed by the refresh thread.
      *
      * @param state {@link CompositeWriter} to release to the pool.
      */
     public void releaseAndUnlock(CompositeWriter state) {
-        assert !state.isFlushPending() && !state.isAborted() : "CompositeWriter has pending flush: "
+        assert state.isFlushPending() == false && state.isAborted() == false : "CompositeWriter has pending flush: "
             + state.isFlushPending()
             + " aborted="
             + state.isAborted();
-        assert isRegistered(state) : "CompositeDocumentWriterPool doesn't know about this CompositeWriter";
+        if (isRegistered(state) == false) {
+            // Writer belongs to a previous generation that was swapped out during checkoutAll().
+            // Just unlock it — the refresh thread owns it now.
+            state.unlock();
+            return;
+        }
         availableWriters.addAndUnlock(state);
     }
 
     /**
-     * Lock and checkout all CompositeWriters from the pool for flush.
+     * Atomically swaps the pool's writer set and queue with fresh instances, then waits for
+     * any in-flight writes on the old writers to complete. This minimizes the time the pool
+     * lock is held — indexing threads see the new empty pool immediately and can create fresh
+     * writers without waiting for the flush to finish.
+     * <p>
+     * This approach mirrors the proven rotation pattern from
+     * {@code CompositeIndexWriter.LiveIndexWriterDeletesMap.buildTransitionMap()}.
      *
-     * @return Unmodifiable list of all CompositeWriters locked by current thread.
+     * @return Unmodifiable list of all CompositeWriters ready for flush.
      */
     public List<CompositeWriter> checkoutAll() {
         ensureOpen();
-        List<CompositeWriter> lockedWriters = new ArrayList<>();
-        List<CompositeWriter> checkedOutWriters = new ArrayList<>();
-        for (CompositeWriter writer : this) {
-            writer.lock();
-            lockedWriters.add(writer);
-        }
+
+        // Step 1: Atomic swap — hold pool lock only for the reference swap.
+        // After this, indexing threads immediately use the new empty pool.
+        Set<CompositeWriter> oldWriters;
         synchronized (this) {
-            for (CompositeWriter writer : lockedWriters) {
-                try {
-                    // Release this writer if it's no longer managed by this pool; otherwise, check it out.
-                    if (isRegistered(writer) && writers.remove(writer)) {
-                        availableWriters.remove(writer);
-                        writer.setFlushPending();
-                        checkedOutWriters.add(writer);
-                    }
-                } finally {
-                    writer.unlock();
-                }
+            oldWriters = this.writers;
+            this.writers = Collections.newSetFromMap(new IdentityHashMap<>());
+            this.availableWriters = new LockableConcurrentQueue<>(queueSupplier, concurrency);
+        }
+        // Pool lock released — indexing threads can proceed immediately with fresh writers.
+
+        // Step 2: Wait for in-flight writes on old writers to complete, then mark for flush.
+        // No pool lock held here, so no contention with indexing threads.
+        List<CompositeWriter> checkedOutWriters = new ArrayList<>(oldWriters.size());
+        for (CompositeWriter writer : oldWriters) {
+            writer.lock();
+            try {
+                writer.setFlushPending();
+                checkedOutWriters.add(writer);
+            } finally {
+                writer.unlock();
             }
         }
         return Collections.unmodifiableList(checkedOutWriters);
