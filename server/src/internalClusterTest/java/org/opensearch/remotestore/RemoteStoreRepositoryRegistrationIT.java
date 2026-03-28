@@ -280,4 +280,29 @@ public class RemoteStoreRepositoryRegistrationIT extends RemoteStoreBaseIntegTes
         ensureStableCluster(1);
     }
 
+    /**
+     * Test that node join fails when repository creation fails due to missing repository configuration.
+     * This verifies that a node referencing a repository name with no corresponding type or settings
+     * is rejected during the join process.
+     */
+    public void testNodeJoinFailureWithRepositoryCreationFailure() throws Exception {
+        internalCluster().startNode();
+        ensureStableCluster(1);
+
+        String nonExistentRepo = "non-existent-repo";
+
+        // Attempt to start a node that references a repository name with no type or settings configured.
+        // This should fail because the repository cannot be created without valid configuration.
+        expectThrows(Exception.class, () -> {
+            internalCluster().startNode(
+                Settings.builder()
+                    .put("node.attr.remote_store.segment.repository", nonExistentRepo)
+                    .put("node.attr.remote_store.translog.repository", nonExistentRepo)
+                    .build()
+            );
+        });
+
+        ensureStableCluster(1);
+    }
+
 }
