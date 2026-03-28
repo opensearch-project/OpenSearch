@@ -64,12 +64,18 @@ public class TermsLookup implements Writeable, ToXContentFragment {
     private final String path;
     private String routing;
     private QueryBuilder query;
+    private int from = 0;
+    private Integer size;
 
     public TermsLookup(String index, String id, String path) {
         this(index, id, path, null);
     }
 
     public TermsLookup(String index, String id, String path, QueryBuilder query) {
+        this(index, id, path, query, 0, null);
+    }
+
+    public TermsLookup(String index, String id, String path, QueryBuilder query, int from, Integer size) {
         if (index == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] index cannot be null or empty for TermsLookup");
         }
@@ -90,6 +96,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         this.id = id;
         this.path = path;
         this.query = query;
+        this.from = from;
+        this.size = size;
     }
 
     public String index() {
@@ -117,6 +125,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
             query = in.readOptionalWriteable(inStream -> inStream.readNamedWriteable(QueryBuilder.class));
         }
+        if (in.getVersion().onOrAfter(Version.V_3_5_0)) {
+            from = in.readInt();
+            size = in.readOptionalInt();
+        }
     }
 
     @Override
@@ -133,6 +145,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
             out.writeOptionalWriteable(query);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_5_0)) {
+            out.writeInt(from);
+            out.writeOptionalInt(size);
         }
     }
 
@@ -176,6 +192,30 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         this.query = query;
     }
 
+    public int from() {
+        return from;
+    }
+
+    public TermsLookup from(int from) {
+        if (from < 0) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] from cannot be negative.");
+        }
+        this.from = from;
+        return this;
+    }
+
+    public Integer size() {
+        return size;
+    }
+
+    public TermsLookup size(Integer size) {
+        if (size != null && size < 0) {
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] size cannot be negative.");
+        }
+        this.size = size;
+        return this;
+    }
+
     public TermsLookup id(String id) {
         if (this.query != null && id != null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
@@ -189,6 +229,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         String id = (String) args[1]; // Optional id or query but not both
         String path = (String) args[2];
         QueryBuilder query = (QueryBuilder) args[3]; // Optional id or query but not both
+        Integer from = (Integer) args[4]; // Optional
+        Integer size = (Integer) args[5]; // Optional
 
         // Validation: Either id or query must be present, but not both
         if (id == null && query == null) {
@@ -199,7 +241,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         if (id != null && query != null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element cannot specify both id and query.");
         }
-        return new TermsLookup(index, id, path, query);
+        return new TermsLookup(index, id, path, query, from != null ? from : 0, size);
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index")); // Required
@@ -212,6 +254,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
                 throw new RuntimeException("Error parsing inner query builder", e);
             }
         }, new ParseField("query")); // Optional
+        PARSER.declareInt(optionalConstructorArg(), new ParseField("from")); // Optional
+        PARSER.declareInt(optionalConstructorArg(), new ParseField("size")); // Optional
         PARSER.declareString(TermsLookup::routing, new ParseField("routing")); // Optional
         PARSER.declareBoolean(TermsLookup::store, new ParseField("store")); // Optional
     }
@@ -239,6 +283,12 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             builder.field("query");
             query.toXContent(builder, params);
         }
+        if (from > 0) {
+            builder.field("from", from);
+        }
+        if (size != null) {
+            builder.field("size", size);
+        }
         if (store) {
             builder.field("store", true);
         }
@@ -247,7 +297,7 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, id, path, routing, store, query);
+        return Objects.hash(index, id, path, routing, store, query, from, size);
     }
 
     @Override
@@ -264,6 +314,8 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             && Objects.equals(path, other.path)
             && Objects.equals(routing, other.routing)
             && Objects.equals(store, other.store)
-            && Objects.equals(query, other.query);
+            && Objects.equals(query, other.query)
+            && from == other.from
+            && Objects.equals(size, other.size);
     }
 }
