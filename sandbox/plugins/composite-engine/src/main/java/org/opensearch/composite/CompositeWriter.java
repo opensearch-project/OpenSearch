@@ -21,8 +21,8 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.LinkedHashMap;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,7 +44,8 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     private static final Logger logger = LogManager.getLogger(CompositeWriter.class);
 
-    private final Map.Entry<DataFormat, Writer<DocumentInput<?>>> primaryWriter;
+    private final DataFormat primaryFormat;
+    private final Writer<DocumentInput<?>> primaryWriter;
     private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
     private final ReentrantLock lock;
     private final long writerGeneration;
@@ -87,16 +88,14 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
         this.writerGeneration = writerGeneration;
 
         IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
-        this.primaryWriter = new AbstractMap.SimpleImmutableEntry<>(
-            primaryDelegate.getDataFormat(),
-            (Writer<DocumentInput<?>>) primaryDelegate.createWriter(writerGeneration)
-        );
+        this.primaryFormat = primaryDelegate.getDataFormat();
+        this.primaryWriter = (Writer<DocumentInput<?>>) primaryDelegate.createWriter(writerGeneration);
 
-        Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new LinkedHashMap<>();
+        Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new IdentityHashMap<>();
         for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
             secondaries.put(delegate.getDataFormat(), (Writer<DocumentInput<?>>) delegate.createWriter(writerGeneration));
         }
-        this.secondaryWritersByFormat = Map.copyOf(secondaries);
+        this.secondaryWritersByFormat = Collections.unmodifiableMap(secondaries);
         this.rowIdGenerator = new RowIdGenerator(CompositeWriter.class.getName());
     }
 
@@ -106,11 +105,11 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
         // Write to primary first
-        WriteResult primaryResult = primaryWriter.getValue().addDoc(doc.getPrimaryInput());
+        WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
         switch (primaryResult) {
-            case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryWriter.getKey().name());
+            case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
             case WriteResult.Failure f -> {
-                logger.debug("Failed to add document in primary format [{}]", primaryWriter.getKey().name());
+                logger.debug("Failed to add document in primary format [{}]", primaryFormat.name());
                 return primaryResult;
             }
         }
@@ -141,8 +140,8 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
     public FileInfos flush() throws IOException {
         FileInfos.Builder builder = FileInfos.builder();
         // Flush primary
-        Optional<WriterFileSet> primaryWfs = primaryWriter.getValue().flush().getWriterFileSet(primaryWriter.getKey());
-        primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryWriter.getKey(), writerFileSet));
+        Optional<WriterFileSet> primaryWfs = primaryWriter.flush().getWriterFileSet(primaryFormat);
+        primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
         // Flush secondaries
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             FileInfos fileInfos = writer.flush();
@@ -156,7 +155,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     @Override
     public void sync() throws IOException {
-        primaryWriter.getValue().sync();
+        primaryWriter.sync();
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             writer.sync();
         }
@@ -164,7 +163,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput>, Lockable {
 
     @Override
     public void close() throws IOException {
-        primaryWriter.getValue().close();
+        primaryWriter.close();
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             writer.close();
         }

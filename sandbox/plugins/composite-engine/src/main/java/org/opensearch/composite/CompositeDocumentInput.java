@@ -13,6 +13,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MappedFieldType;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,7 +48,7 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
     ) {
         this.primaryFormat = Objects.requireNonNull(primaryFormat, "primaryFormat must not be null");
         this.primaryDocumentInput = Objects.requireNonNull(primaryDocumentInput, "primaryDocumentInput must not be null");
-        this.secondaryDocumentInputs = Map.copyOf(
+        this.secondaryDocumentInputs = Collections.unmodifiableMap(
             Objects.requireNonNull(secondaryDocumentInputs, "secondaryDocumentInputs must not be null")
         );
     }

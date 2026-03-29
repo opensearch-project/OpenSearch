@@ -31,7 +31,7 @@ import org.opensearch.index.shard.ShardPath;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -275,7 +275,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     @Override
     public CompositeDocumentInput newDocumentInput() {
         DocumentInput<?> primaryInput = primaryEngine.newDocumentInput();
-        Map<DataFormat, DocumentInput<?>> secondaryInputMap = new LinkedHashMap<>();
+        Map<DataFormat, DocumentInput<?>> secondaryInputMap = new IdentityHashMap<>();
         for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
             secondaryInputMap.put(engine.getDataFormat(), engine.newDocumentInput());
         }
