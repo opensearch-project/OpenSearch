@@ -177,7 +177,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
     }
 
-    static class MockDataFormat implements DataFormat {
+    static class MockDataFormat extends DataFormat {
         @Override
         public String name() {
             return "mock-columnar";
