@@ -8,6 +8,13 @@
 
 package org.opensearch.nativebridge.spi;
 
+import org.opensearch.common.SuppressForbidden;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Locale;
 
 /**
@@ -99,6 +106,34 @@ public class PlatformHelper {
         if (isWindows()) return ".dll";
         if (isMac()) return ".dylib";
         return ".so";
+    }
+
+    /**
+     * Loads a native library by name, using the given class to locate the resource on the classpath.
+     *
+     * @param libName        base library name (e.g. "parquet_dataformat_jni")
+     * @param resourceAnchor a class from the plugin JAR that bundles the native library
+     */
+    @SuppressForbidden(reason = "Needs temp directory to extract native library from classpath")
+    public static void loadNativeLibrary(String libName, Class<?> resourceAnchor) {
+        String platformDir = getPlatformDirectory();
+        String libFileName = getPlatformLibraryName(libName);
+        String resourcePath = "/native/" + platformDir + "/" + libFileName;
+
+        try (InputStream is = resourceAnchor.getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                System.loadLibrary(libName);
+                return;
+            }
+            Path tempDir = Files.createTempDirectory("opensearch-native-");
+            Path tempLib = tempDir.resolve(libFileName);
+            Files.copy(is, tempLib, StandardCopyOption.REPLACE_EXISTING);
+            System.load(tempLib.toAbsolutePath().toString());
+            tempLib.toFile().deleteOnExit();
+            tempDir.toFile().deleteOnExit();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load native library: " + libFileName, e);
+        }
     }
 
     private PlatformHelper() {}

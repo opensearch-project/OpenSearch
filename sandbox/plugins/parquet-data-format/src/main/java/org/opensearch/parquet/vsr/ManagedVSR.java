@@ -44,7 +44,7 @@ public class ManagedVSR implements AutoCloseable {
     private final String id;
     private final VectorSchemaRoot vsr;
     private final BufferAllocator allocator;
-    private VSRState state;
+    private volatile VSRState state;
     private final Map<String, Field> fields = new HashMap<>();
 
     /**
@@ -152,6 +152,7 @@ public class ManagedVSR implements AutoCloseable {
         if (state == VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot close VSR " + id + ": must freeze first");
         }
+        assert state == VSRState.FROZEN : "Expected FROZEN state before closing VSR " + id + " but was " + state;
         state = VSRState.CLOSED;
         logger.debug("State transition: FROZEN -> CLOSED for VSR {}", id);
         if (vsr != null) {

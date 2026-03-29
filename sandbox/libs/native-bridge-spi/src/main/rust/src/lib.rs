@@ -30,8 +30,21 @@ impl LogLevel {
 
 /// Initialize the logger from a JNIEnv reference.
 pub fn init_logger_from_env(env: &JNIEnv) {
-    if let Ok(jvm) = env.get_java_vm() {
-        JAVA_VM.set(jvm).ok();
+    if JAVA_VM.get().is_some() {
+        // return early as env has already been initialized
+        return;
+    }
+    match env.get_java_vm() {
+        Ok(jvm) => {
+            if let Err(_) = JAVA_VM.set(jvm) {
+                // Another thread initialized it between our check and set; that's fine.
+            } else {
+                // Log through the Java bridge to confirm end-to-end setup;
+                // absence of this message indicates a logger initialization failure.
+                log(LogLevel::Info, "Native logger initialized successfully");
+            }
+        }
+        Err(e) => eprintln!("[RUST_LOG_FALLBACK] Failed to get JavaVM: {}", e),
     }
 }
 

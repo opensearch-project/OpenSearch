@@ -10,6 +10,8 @@ package org.opensearch.parquet.fields;
 
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
@@ -27,6 +29,8 @@ import java.util.Objects;
  */
 public final class ArrowSchemaBuilder {
 
+    private static final Logger logger = LogManager.getLogger(ArrowSchemaBuilder.class);
+
     private ArrowSchemaBuilder() {}
 
     /**
@@ -41,11 +45,14 @@ public final class ArrowSchemaBuilder {
         List<Field> fields = new ArrayList<>();
         for (Mapper mapper : mapperService.documentMapper().mappers()) {
             if (isUnsupportedMetadataField(mapper)) {
+                logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
                 continue;
             }
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
             if (parquetField != null) {
                 fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+            } else {
+                logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
             }
         }
         // Add row ID field (long)

@@ -65,7 +65,7 @@ public class VSRRotationBenchmark {
     @Param({ "true", "false" })
     private boolean runAsync;
 
-    @Param({"100000" })
+    @Param({ "100000" })
     private int maxRowsPerVSR;
 
     @Param({ "10000000" })

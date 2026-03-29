@@ -8,14 +8,7 @@
 
 package org.opensearch.parquet.bridge;
 
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.nativebridge.spi.PlatformHelper;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 /**
  * JNI bridge to the native Rust Parquet writer library ({@code parquet_dataformat_jni}).
@@ -35,29 +28,7 @@ public class RustBridge {
     private static final String LIB_NAME = "parquet_dataformat_jni";
 
     static {
-        loadNativeLibrary();
-    }
-
-    @SuppressForbidden(reason = "Needs temp directory to extract native library from classpath at static init time")
-    private static void loadNativeLibrary() {
-        String platformDir = PlatformHelper.getPlatformDirectory();
-        String libFileName = PlatformHelper.getPlatformLibraryName(LIB_NAME);
-        String resourcePath = "/native/" + platformDir + "/" + libFileName;
-
-        try (InputStream is = RustBridge.class.getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                System.loadLibrary(LIB_NAME);
-                return;
-            }
-            Path tempDir = Files.createTempDirectory("opensearch-native-");
-            Path tempLib = tempDir.resolve(libFileName);
-            Files.copy(is, tempLib, StandardCopyOption.REPLACE_EXISTING);
-            System.load(tempLib.toAbsolutePath().toString());
-            tempLib.toFile().deleteOnExit();
-            tempDir.toFile().deleteOnExit();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load native library: " + libFileName, e);
-        }
+        PlatformHelper.loadNativeLibrary(LIB_NAME, RustBridge.class);
     }
 
     /** Initializes the native Rust logger. */

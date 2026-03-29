@@ -48,9 +48,4 @@ public record ParquetFileMetadata(int version, long numRows, String createdBy) {
     public String createdBy() {
         return createdBy;
     }
-
-    @Override
-    public String toString() {
-        return "ParquetFileMetadata{version=" + version + ", numRows=" + numRows + ", createdBy='" + createdBy + "'}";
-    }
 }

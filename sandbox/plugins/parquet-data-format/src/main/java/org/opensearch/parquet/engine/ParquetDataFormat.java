@@ -10,8 +10,10 @@ package org.opensearch.parquet.engine;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.parquet.fields.ArrowFieldRegistry;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Data format descriptor for the Parquet format.
@@ -39,6 +41,10 @@ public class ParquetDataFormat implements DataFormat {
 
     @Override
     public Set<FieldTypeCapabilities> supportedFields() {
-        return Set.of();
+        return ArrowFieldRegistry.getRegisteredFields()
+            .keySet()
+            .stream()
+            .map(type -> new FieldTypeCapabilities(type, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet.engine;
 
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class ParquetDataFormatTests extends OpenSearchTestCase {
@@ -20,7 +21,11 @@ public class ParquetDataFormatTests extends OpenSearchTestCase {
         assertEquals(0L, new ParquetDataFormat().priority());
     }
 
-    public void testSupportedFieldsEmpty() {
-        assertTrue(new ParquetDataFormat().supportedFields().isEmpty());
+    public void testSupportedFieldsContainsColumnarStorage() {
+        var fields = new ParquetDataFormat().supportedFields();
+        assertFalse(fields.isEmpty());
+        for (var ftc : fields) {
+            assertTrue(ftc.capabilities().contains(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE));
+        }
     }
 }
