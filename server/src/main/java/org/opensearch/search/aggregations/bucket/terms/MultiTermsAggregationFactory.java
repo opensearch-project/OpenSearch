@@ -191,17 +191,15 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             }
         }
         int numFields = rawValuesSources.size();
-        // TODO: restore OrdinalPairBucketOrds path after benchmarking PackedOrdinalsBucketOrds in isolation
-        // if (numFields == 2) {
-        //     ValuesSource.Bytes.WithOrdinals vs0 = (ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(0);
-        //     ValuesSource.Bytes.WithOrdinals vs1 = (ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(1);
-        //     long maxOrd0 = vs0.globalMaxOrd(searchContext.searcher());
-        //     long maxOrd1 = vs1.globalMaxOrd(searchContext.searcher());
-        //     if (OrdinalPairBucketOrds.fitsInLong(maxOrd0, maxOrd1)) {
-        //         return new OrdinalPairBucketOrds(searchContext.bigArrays(), cardinality, maxOrd0, maxOrd1);
-        //     }
-        // }
-        return new PackedOrdinalsBucketOrds(searchContext.bigArrays(), cardinality, numFields);
+        long[] maxOrds = new long[numFields];
+        for (int i = 0; i < numFields; i++) {
+            maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(i)).globalMaxOrd(searchContext.searcher());
+        }
+        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds)) {
+            return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
+        }
+        // Ordinals don't fit in 126 bits — fall back to existing bytes-based path
+        return null;
     }
 
     @Override
