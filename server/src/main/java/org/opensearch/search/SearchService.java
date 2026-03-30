@@ -805,7 +805,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<SearchPhaseResult> listener,
         String executorName
     ) {
-        // Determine if this is a streaming search request
         boolean isStreamSearch = request.isStreamingSearch() || request.getStreamingSearchMode() != null;
         executeQueryPhase(request, keepStatesInContext, task, listener, executorName, isStreamSearch);
     }
@@ -1002,12 +1001,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, true);
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
-                // Ensure streaming mode is applied even on classic transport when requested,
-                // so streaming aggregators can be selected and profiled.
                 if (shardSearchRequest.getStreamingSearchMode() != null) {
                     searchContext.setStreamingMode(StreamingSearchMode.fromString(shardSearchRequest.getStreamingSearchMode()));
-                    // Mark as stream search for the purpose of aggregator selection and profiling.
-                    // Note: No StreamSearchChannelListener is set on classic transport.
                     searchContext.setStreamChannelListener(null);
                 }
                 searchContext.searcher().setAggregatedDfs(request.dfs());

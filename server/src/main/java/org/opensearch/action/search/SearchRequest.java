@@ -128,7 +128,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
-    // Null means no explicit streaming mode on the request.
     private String streamingSearchMode = null;
 
     public SearchRequest() {
@@ -148,8 +147,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.absoluteStartMillis,
             searchRequest.finalReduce
         );
-        // Preserve streaming fields when cloning
-
         this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
@@ -239,8 +236,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
-        // Preserve streaming fields for forked/sub-requests
-
         this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
@@ -289,7 +284,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
-        // Read streaming fields - gated on version for BWC
+
         if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
             streamingSearchMode = in.readOptionalString();
         } else {
@@ -329,7 +324,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
         }
-        // Write streaming fields - gated on version for BWC
+
         if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
             out.writeOptionalString(streamingSearchMode);
         }
