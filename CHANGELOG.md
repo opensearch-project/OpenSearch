@@ -97,4 +97,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Removed
 
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.6...main
+[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.7...main
