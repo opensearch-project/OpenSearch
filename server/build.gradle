@@ -65,6 +65,7 @@ sourceSets {
 dependencies {
 
   api project(':libs:opensearch-common')
+  api project(':libs:opensearch-concurrent-queue')
   api project(':libs:opensearch-core')
   api project(":libs:opensearch-compress")
   api project(':libs:opensearch-secure-sm')
