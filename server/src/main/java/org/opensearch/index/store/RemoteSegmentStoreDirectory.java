@@ -893,6 +893,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
     }
 
+    public int getSegmentsUploadedToRemoteStoreSize() {
+        return segmentsUploadedToRemoteStore.size();
+    }
+
     // Visible for testing
     Set<String> getMetadataFilesToFilterActiveSegments(
         final int lastNMetadataFilesToKeep,

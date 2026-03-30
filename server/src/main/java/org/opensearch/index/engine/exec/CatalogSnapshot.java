@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
+import org.opensearch.index.engine.dataformat.DataFormat;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -133,4 +134,6 @@ public abstract class CatalogSnapshot extends AbstractRefCounted {
      * @param b additional boolean parameter for implementation-specific behavior
      */
     public abstract void setUserData(Map<String, String> userData, boolean b);
+
+    public abstract Object getReader(DataFormat dataFormat);
 }
