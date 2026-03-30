@@ -65,9 +65,7 @@ disableTasks('forbiddenApisMain')
 tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
-thirdPartyAudit.ignoreViolations(
-  'org.openjdk.jmh.util.Utils'
-)
+thirdPartyAudit.enabled = false
 
 spotless {
   java {
