@@ -32,8 +32,6 @@
 
 package org.opensearch.search.query;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexOptions;
@@ -101,7 +99,6 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
  * @opensearch.internal
  */
 public abstract class TopDocsCollectorContext extends QueryCollectorContext implements RescoringQueryCollectorContext {
-    private static final Logger logger = LogManager.getLogger(TopDocsCollectorContext.class);
     protected final int numHits;
 
     TopDocsCollectorContext(String profilerName, int numHits) {

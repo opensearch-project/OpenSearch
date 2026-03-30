@@ -239,7 +239,6 @@ final class DefaultSearchContext extends SearchContext {
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
     private StreamingSearchMode streamingMode;
-    private boolean streamingModeRequested;
     private final SetOnce<FlushMode> cachedFlushMode = new SetOnce<>();
 
     DefaultSearchContext(
@@ -308,7 +307,6 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
-        this.streamingModeRequested = request.getStreamingSearchMode() != null;
         if (request.getStreamingSearchMode() != null) {
             this.streamingMode = StreamingSearchMode.fromString(request.getStreamingSearchMode());
         }
@@ -1347,17 +1345,6 @@ final class DefaultSearchContext extends SearchContext {
 
     public void setStreamingMode(StreamingSearchMode mode) {
         this.streamingMode = mode;
-        this.streamingModeRequested = mode != null;
-    }
-
-    @Override
-    public boolean isStreamingModeRequested() {
-        return streamingModeRequested;
-    }
-
-    @Override
-    public int getStreamingBatchSize() {
-        return 10;
     }
 
     /**
