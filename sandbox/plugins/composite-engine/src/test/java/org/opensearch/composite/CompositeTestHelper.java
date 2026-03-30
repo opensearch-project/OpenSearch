@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Shared test utilities for composite engine tests.
@@ -134,6 +135,7 @@ final class CompositeTestHelper {
     static class StubIndexingExecutionEngine implements IndexingExecutionEngine<DataFormat, DocumentInput<?>> {
 
         private final DataFormat dataFormat;
+        private final AtomicLong writerGeneration = new AtomicLong(0);
 
         StubIndexingExecutionEngine(DataFormat dataFormat) {
             this.dataFormat = dataFormat;
@@ -161,6 +163,11 @@ final class CompositeTestHelper {
 
         @Override
         public void deleteFiles(Map<String, Collection<String>> filesToDelete) {}
+
+        @Override
+        public long getNextWriterGeneration() {
+            return writerGeneration.getAndIncrement();
+        }
 
         @Override
         public DocumentInput<?> newDocumentInput() {
