@@ -9,6 +9,6 @@
   },
   "ruleset": {
     "context": "development_0.0.3",
-    "consumer": "development_0.0.3_test"
+    "consumer": "development_0.0.3"
   }
 }
