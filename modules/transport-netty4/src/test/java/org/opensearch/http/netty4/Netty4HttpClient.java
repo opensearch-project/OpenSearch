@@ -32,6 +32,8 @@
 
 package org.opensearch.http.netty4;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -117,7 +119,6 @@ import static org.junit.Assert.fail;
  * Tiny helper to send http requests over netty.
  */
 public class Netty4HttpClient implements Closeable {
-
     static Collection<String> returnHttpResponseBodies(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (FullHttpResponse response : responses) {
@@ -137,6 +138,7 @@ public class Netty4HttpClient implements Closeable {
     private final Bootstrap clientBootstrap;
     private final TriFunction<CountDownLatch, Collection<FullHttpResponse>, Boolean, AwaitableChannelInitializer<?>> handlerFactory;
     private final boolean secure;
+    private Logger logger;
 
     Netty4HttpClient(
         Bootstrap clientBootstrap,
@@ -186,6 +188,11 @@ public class Netty4HttpClient implements Closeable {
             CountDownLatchHandlerHttp3::new,
             true
         );
+    }
+
+    public Netty4HttpClient withLogger(Logger logger) {
+        this.logger = logger;
+        return this;
     }
 
     public List<FullHttpResponse> get(SocketAddress remoteAddress, String... uris) throws InterruptedException {
@@ -244,6 +251,7 @@ public class Netty4HttpClient implements Closeable {
         final List<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
         final AwaitableChannelInitializer<?> handler = handlerFactory.apply(latch, content, secure);
+        handler.logger = logger;
         clientBootstrap.handler(handler);
 
         ChannelFuture channelFuture = null;
@@ -341,6 +349,14 @@ public class Netty4HttpClient implements Closeable {
      *
      */
     private static abstract class AwaitableChannelInitializer<C extends Channel> extends ChannelInitializer<C> {
+        private Logger logger;
+
+        void log(Level level, String message, Object... params) {
+            if (logger != null) {
+                logger.log(level, message, params);
+            }
+        }
+
         void await() {
             // do nothing
         }
@@ -518,6 +534,8 @@ public class Netty4HttpClient implements Closeable {
 
         @Override
         Channel prepare(Bootstrap clientBootstrap, Channel channel) throws InterruptedException {
+            log(Level.INFO, "[QuicChannel] Connecting to: {}", channel.remoteAddress());
+
             final QuicChannel quicChannel = QuicChannel.newBootstrap(channel)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000) // 30 seconds
                 .handler(new Http3ClientConnectionHandler())

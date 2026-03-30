@@ -243,13 +243,18 @@ public class TransferManager {
                         return createIndexInput(fileCache, streamReader, request);
                     } catch (Exception e) {
                         fileCache.remove(request.getFilePath());
-                        throw new CompletionException(e);
+                        throw (e instanceof RuntimeException) ? (RuntimeException) e : new CompletionException(e);
                     }
                 }, executor).handle((indexInput, throwable) -> {
-                    fileCache.decRef(request.getFilePath());
                     if (throwable != null) {
-                        result.completeExceptionally(throwable);
+                        // On failure, the entry was already removed from the cache in the
+                        // catch block above, so we must not decRef here.
+                        Throwable cause = (throwable instanceof CompletionException && throwable.getCause() != null)
+                            ? throwable.getCause()
+                            : throwable;
+                        result.completeExceptionally(cause);
                     } else {
+                        fileCache.decRef(request.getFilePath());
                         result.complete(indexInput);
                     }
                     return null;
