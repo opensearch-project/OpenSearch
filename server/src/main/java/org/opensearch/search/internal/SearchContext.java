@@ -603,14 +603,6 @@ public abstract class SearchContext implements Releasable {
         return getStreamingMode() != null;
     }
 
-    public boolean isStreamingModeRequested() {
-        return getStreamingMode() != null;
-    }
-
-    public int getStreamingBatchSize() {
-        return 10;
-    }
-
     /**
      * Gets the resolved flush mode for this search context.
      */

@@ -32,10 +32,6 @@ public enum StreamingSearchMode {
         this.value = value;
     }
 
-    public String getValue() {
-        return value;
-    }
-
     /**
      * Parse mode from string representation.
      *
@@ -55,22 +51,6 @@ public enum StreamingSearchMode {
         }
 
         throw new IllegalArgumentException("Unknown StreamingSearchMode: " + mode);
-    }
-
-    /**
-     * Helper method to check if this mode requires scoring.
-     * @return true if scoring is required, false otherwise
-     */
-    public boolean requiresScoring() {
-        return this != NO_SCORING;
-    }
-
-    /**
-     * Helper method to check if this mode requires sorting.
-     * @return true if sorting is required, false otherwise
-     */
-    public boolean requiresSorting() {
-        return false; // No sorting is supported in the current mode
     }
 
     @Override

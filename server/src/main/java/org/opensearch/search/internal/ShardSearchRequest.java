@@ -436,13 +436,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.streamingSearchMode = streamingSearchMode;
     }
 
-    public void setStreamingFieldsFromSearchRequest(SearchRequest searchRequest) {
-        if (searchRequest != null) {
-            this.streamingSearch = searchRequest.getStreamingSearchMode() != null;
-            this.streamingSearchMode = searchRequest.getStreamingSearchMode();
-        }
-    }
-
     public long getOutboundNetworkTime() {
         return outboundNetworkTime;
     }
