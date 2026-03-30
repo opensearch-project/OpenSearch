@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
  * capabilities. Registered with OpenSearch's data format framework via
  * {@link org.opensearch.parquet.ParquetDataFormatPlugin#getDataFormat()}.
  */
-public class ParquetDataFormat implements DataFormat {
+public class ParquetDataFormat extends DataFormat {
 
     /** Creates a new ParquetDataFormat. */
     public ParquetDataFormat() {}

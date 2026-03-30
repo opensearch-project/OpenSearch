@@ -20,7 +20,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -89,13 +88,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings
-    ) {
-        return (IndexingExecutionEngine<T, P>) new ParquetIndexingEngine(
+    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+        return new ParquetIndexingEngine(
             settings,
             dataFormat,
             shardPath,
