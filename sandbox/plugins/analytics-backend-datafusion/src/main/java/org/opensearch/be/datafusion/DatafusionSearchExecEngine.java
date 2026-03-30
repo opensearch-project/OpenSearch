@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
@@ -46,7 +47,9 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
     public EngineResultStream execute(ExecutionContext requestContext) throws IOException {
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
-        return new DatafusionResultStream(datafusionContext.getStreamHandle());
+        // Transfer stream handle ownership to the result stream — context will not close it
+        StreamHandle handle = datafusionContext.takeStreamHandle();
+        return new DatafusionResultStream(handle);
     }
 
     @Override

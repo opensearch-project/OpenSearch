@@ -10,63 +10,64 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Node-level service managing the DataFusion native runtime lifecycle.
  * <p>
- * All per-shard {@link DatafusionSearchExecEngine} instances share the single
- * Tokio runtime and memory pool owned by this service. The service loads the
- * native JNI library on start and tears down the runtime on stop/close.
+ * Initializes the Tokio runtime manager (dedicated CPU + IO thread pools)
+ * and the DataFusion global runtime (memory pool, disk spill, cache).
+ * All per-query {@link DatafusionSearchExecEngine} instances share these resources.
+ * <p>
+ * Use {@link #builder()} to construct.
  */
 public class DataFusionService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
-    private static final String NATIVE_LIBRARY_NAME = "opensearch_datafusion_jni";
 
     private final long memoryPoolLimit;
-    private final String spillDirectory;
     private final long spillMemoryLimit;
+    private final String spillDirectory;
+    private final int cpuThreads;
 
-    /** Handle to the native DataFusion global runtime (Tokio + memory pool). */
+    /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
-    /**
-     * Creates a new DataFusionService.
-     *
-     * @param memoryPoolLimit maximum bytes for the DataFusion memory pool
-     * @param spillDirectory  directory for spill files when memory is exceeded
-     * @param spillMemoryLimit maximum bytes before spilling to disk
-     */
-    public DataFusionService(long memoryPoolLimit, String spillDirectory, long spillMemoryLimit) {
-        this.memoryPoolLimit = memoryPoolLimit;
-        this.spillDirectory = spillDirectory;
-        this.spillMemoryLimit = spillMemoryLimit;
+    private DataFusionService(Builder builder) {
+        this.memoryPoolLimit = builder.memoryPoolLimit;
+        this.spillMemoryLimit = builder.spillMemoryLimit;
+        this.spillDirectory = builder.spillDirectory;
+        this.cpuThreads = builder.cpuThreads;
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     @Override
     protected void doStart() {
-        logger.info("Starting DataFusion service — loading native library [{}]", NATIVE_LIBRARY_NAME);
-        try {
-            System.loadLibrary(NATIVE_LIBRARY_NAME);
-        } catch (UnsatisfiedLinkError e) {
-            logger.warn("Native library [{}] not found — DataFusion backend will be unavailable", NATIVE_LIBRARY_NAME);
-            return;
-        }
+        logger.debug("Starting DataFusion service");
+        NativeBridge.initTokioRuntimeManager(cpuThreads);
+        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
-        // TODO: initialize Tokio runtime and memory pool via NativeBridge
-        // long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, spillDirectory, spillMemoryLimit);
-        long ptr = 1L; // placeholder until NativeBridge is wired
+        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, 0L, spillDirectory, spillMemoryLimit);
         this.runtimeHandle = new NativeRuntimeHandle(ptr);
-        logger.info("DataFusion service started");
+        logger.debug("DataFusion service started — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
     }
 
     @Override
     protected void doStop() {
-        logger.info("Stopping DataFusion service");
-        releaseRuntime();
+        logger.debug("Stopping DataFusion service");
+        try {
+            releaseRuntime();
+        } finally {
+            NativeBridge.shutdownTokioRuntimeManager();
+        }
+        logger.debug("DataFusion service stopped");
     }
 
     @Override
@@ -76,8 +77,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Returns the handle to the native DataFusion global runtime.
-     * All consumers should hold this reference and call {@link NativeRuntimeHandle#get()}
-     * at JNI invocation time to obtain the current live pointer.
      *
      * @throws IllegalStateException if the service has not been started
      */
@@ -89,19 +88,74 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return handle;
     }
 
+    // Cache management (node-level, delegates to native runtime)
+
     /**
-     * Returns the cache manager for per-shard cache management.
-     * Used by DatafusionReaderManager to evict stale entries on file deletion.
+     * Notifies the native cache that new files are available for caching.
      */
-    // TODO: uncomment when CacheManager class is available
-    // public CacheManager getCacheManager() { return cacheManager; }
+    public void onFilesAdded(Collection<String> filePaths) {
+        if (filePaths == null || filePaths.isEmpty()) return;
+        try {
+            NativeBridge.cacheManagerAddFiles(runtimeHandle.get(), filePaths.toArray(new String[0]));
+        } catch (Exception e) {
+            logger.warn("Failed to register new files with native cache", e);
+        }
+    }
+
+    /**
+     * Notifies the native cache that files have been deleted and should be evicted.
+     */
+    public void onFilesDeleted(Collection<String> filePaths) {
+        if (filePaths == null || filePaths.isEmpty()) return;
+        try {
+            NativeBridge.cacheManagerRemoveFiles(runtimeHandle.get(), filePaths.toArray(new String[0]));
+        } catch (Exception e) {
+            logger.warn("Failed to evict deleted files from native cache", e);
+        }
+    }
 
     private void releaseRuntime() {
         NativeRuntimeHandle handle = runtimeHandle;
         if (handle != null) {
             handle.close();
             runtimeHandle = null;
-            logger.info("DataFusion native runtime released");
+            logger.debug("DataFusion native runtime released");
+        }
+    }
+
+    /**
+     * Builder for {@link DataFusionService}.
+     */
+    public static class Builder {
+        private long memoryPoolLimit = Runtime.getRuntime().maxMemory() / 4;
+        private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
+        private String spillDirectory = System.getProperty("java.io.tmpdir");
+        private int cpuThreads = Runtime.getRuntime().availableProcessors();
+
+        private Builder() {}
+
+        public Builder memoryPoolLimit(long bytes) {
+            this.memoryPoolLimit = bytes;
+            return this;
+        }
+
+        public Builder spillMemoryLimit(long bytes) {
+            this.spillMemoryLimit = bytes;
+            return this;
+        }
+
+        public Builder spillDirectory(String path) {
+            this.spillDirectory = path;
+            return this;
+        }
+
+        public Builder cpuThreads(int threads) {
+            this.cpuThreads = threads;
+            return this;
+        }
+
+        public DataFusionService build() {
+            return new DataFusionService(this);
         }
     }
 }

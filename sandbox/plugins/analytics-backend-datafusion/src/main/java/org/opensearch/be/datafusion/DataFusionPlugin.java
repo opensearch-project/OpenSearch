@@ -90,11 +90,16 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        // TODO : Get the spill directory from configuration
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
-        dataFusionService = new DataFusionService(memoryPoolLimit, spillDir, spillMemoryLimit);
+        dataFusionService = DataFusionService.builder()
+            .memoryPoolLimit(memoryPoolLimit)
+            .spillMemoryLimit(spillMemoryLimit)
+            .spillDirectory(spillDir)
+            .build();
         dataFusionService.start();
-        logger.info("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
         return Collections.singletonList(dataFusionService);
     }
@@ -116,7 +121,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
 
     @Override
     public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
-        return new DatafusionReaderManager(format, shardPath);
+        return new DatafusionReaderManager(format, shardPath, dataFusionService);
     }
 
     /**
