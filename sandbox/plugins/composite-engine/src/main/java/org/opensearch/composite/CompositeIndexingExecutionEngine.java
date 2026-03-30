@@ -111,7 +111,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
         this.secondaryEngines = Set.copyOf(secondaries);
 
-        this.compositeDataFormat = new CompositeDataFormat(allFormats);
+        this.compositeDataFormat = new CompositeDataFormat(primaryPlugin.getDataFormat(), allFormats);
 
         // Create the writer pool internally, matching the reference code pattern
         writerGenerationCounter = new AtomicLong(0);

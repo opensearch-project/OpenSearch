@@ -43,6 +43,12 @@ public abstract class MergeHandler {
     private final Indexer indexer;
     private final Logger logger;
 
+    /**
+     * Creates a new merge handler.
+     *
+     * @param indexer  the indexer used to acquire catalog snapshots for segment validation
+     * @param shardId  the shard this handler is associated with (used for logging)
+     */
     public MergeHandler(Indexer indexer, ShardId shardId) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.indexer = indexer;
@@ -155,6 +161,12 @@ public abstract class MergeHandler {
      */
     public abstract MergeResult doMerge(OneMerge oneMerge);
 
+    /**
+     * Removes the segments belonging to the given merge from the currently-merging set
+     * and from the pending queue.
+     *
+     * @param oneMerge the merge whose segments should be removed
+     */
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
         mergingSegments.remove(oneMerge);
         oneMerge.getSegmentsToMerge().forEach(currentlyMergingSegments::remove);
