@@ -1,0 +1,72 @@
+name: Nightly Gradle Precommit
+on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 6:00 AM UTC
+
+jobs:
+  # The precommit tasks are run on every PR as a part of `check`. This
+  # nightly workflow exists to ensure OpenSearch remains buildable on
+  # all supported platforms, but runs on a scheduled basis to reduce the
+  # overhead on all pull requests.
+  nightly-precommit:
+    if: github.repository == 'opensearch-project/OpenSearch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        java: [ 21, 25 ]
+        os: [ubuntu-latest, windows-latest, macos-15, macos-15-intel, ubuntu-24.04-arm]
+        include:
+          - java: 21
+            os: 'windows-2025'
+            experimental: true
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+          cache: gradle
+      - name: Run Gradle (precommit)
+        continue-on-error: ${{ matrix.experimental }}
+        shell: bash
+        run: |
+          ./gradlew javadoc precommit --parallel
+
+  open-issue-on-failure:
+    if: failure() && github.event_name == 'schedule'
+    needs: precommit
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Nightly precommit failed';
+            const { data: existing_issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'autocut,CI',
+              per_page: 100
+            });
+            const existing = existing_issues.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `Another nightly failure.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+              console.log('Commented on existing issue.');
+              return;
+            }
+            const body = `The nightly precommit workflow failed.\n\n[View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['autocut', 'CI']
+            });
