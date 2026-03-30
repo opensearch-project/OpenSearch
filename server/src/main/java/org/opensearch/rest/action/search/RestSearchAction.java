@@ -152,9 +152,10 @@ public class RestSearchAction extends BaseRestHandler {
         );
 
         final boolean streamModeRequested = searchRequest.getStreamingSearchMode() != null || request.hasParam("stream_scoring_mode");
-        final boolean streamSearchEnabled = clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED);
+        final boolean streamTransportEnabled = FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean streamSearchEnabled = streamTransportEnabled && clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED);
         if (streamModeRequested || streamSearchEnabled) {
-            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT) == false) {
+            if (streamTransportEnabled == false) {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
             if (streamModeRequested && streamSearchEnabled == false) {
@@ -257,7 +258,6 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
 
-        // Add streaming mode support
         if (request.hasParam("streaming_mode")) {
             searchRequest.setStreamingSearchMode(request.param("streaming_mode"));
         }

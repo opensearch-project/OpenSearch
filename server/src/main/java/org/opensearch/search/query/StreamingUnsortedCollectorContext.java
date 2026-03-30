@@ -79,9 +79,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
         result.topDocs(new org.opensearch.common.lucene.search.TopDocsAndMaxScore(topDocs, Float.NaN), null);
     }
 
-    /**
-     * Collector manager for streaming unsorted collection
-     */
     private class StreamingUnsortedCollectorManager implements CollectorManager<StreamingUnsortedCollector, ReduceableSearchResult> {
 
         @Override
@@ -110,9 +107,6 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
         }
     }
 
-    /**
-     * Collector that actually collects documents without scoring
-     */
     private class StreamingUnsortedCollector implements Collector {
 
         private final List<ScoreDoc> currentSegmentBatch = new ArrayList<>();

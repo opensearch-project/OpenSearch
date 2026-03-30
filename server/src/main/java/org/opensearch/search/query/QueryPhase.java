@@ -161,9 +161,7 @@ public class QueryPhase {
         suggestProcessor.process(searchContext);
         aggregationProcessor.postProcess(searchContext);
 
-        // Ensure topDocs is present for serialization when truly needed.
-        // Only apply for size=0 aggregation-only queries where collectors legitimately don't set TopDocs.
-        // This prevents interfering with legitimate queries (size>0) that should return hits.
+        // Ensure TopDocs for size=0 aggregations.
         if (searchContext.queryResult().hasTopDocs() == false && searchContext.size() == 0) {
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Setting default empty TopDocs for size=0 aggregation query");
@@ -213,8 +211,6 @@ public class QueryPhase {
             queryResult.size(searchContext.size());
             Query query = searchContext.query();
             assert query == searcher.rewrite(query); // already rewritten
-
-            // Streaming search uses the standard query path; collectors/managers decide streaming behavior
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
@@ -321,38 +317,6 @@ public class QueryPhase {
             }
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute main query", e);
-        }
-    }
-
-    /**
-     * Execute streaming query for progressive result emission.
-     * This method handles the streaming search execution path.
-     */
-    private static boolean executeStreamingQuery(SearchContext searchContext, ContextIndexSearcher searcher, Query query)
-        throws IOException {
-        QuerySearchResult queryResult = searchContext.queryResult();
-
-        try {
-            // Create streaming collector context
-            TopDocsCollectorContext streamingCollectorContext = TopDocsCollectorContext.createStreamingTopDocsCollectorContext(
-                searchContext,
-                false // hasFilterCollector - simplified for streaming
-            );
-
-            // Create collector manager for concurrent segment search compatibility
-            CollectorManager<?, ReduceableSearchResult> manager = streamingCollectorContext.createManager(null);
-
-            // Execute search using CollectorManager
-            ReduceableSearchResult reduceResult = searcher.search(query, manager);
-
-            // Process the result
-            reduceResult.reduce(queryResult);
-
-            // For streaming, we don't need rescoring phase
-            return true; // Enable streaming execution
-
-        } catch (Exception e) {
-            throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Failed to execute streaming query", e);
         }
     }
 

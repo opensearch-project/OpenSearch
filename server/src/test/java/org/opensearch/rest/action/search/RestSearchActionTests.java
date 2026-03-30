@@ -32,8 +32,8 @@ import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
-import java.util.Map;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
@@ -91,10 +91,14 @@ public class RestSearchActionTests extends OpenSearchTestCase {
 
     public void testWithStreamScoringModeParamRequiresFeatureFlag() {
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("stream_scoring_mode", "no_scoring")).build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("stream_scoring_mode", "no_scoring"))
+                .build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 
-            Exception e = expectThrows(IllegalArgumentException.class, () -> new RestSearchAction().handleRequest(request, channel, nodeClient));
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RestSearchAction().handleRequest(request, channel, nodeClient)
+            );
             assertThat(e.getMessage(), equalTo("You need to enable stream transport first to use stream search."));
         }
     }
