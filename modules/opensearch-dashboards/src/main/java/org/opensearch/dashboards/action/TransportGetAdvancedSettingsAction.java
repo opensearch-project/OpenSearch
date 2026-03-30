@@ -39,25 +39,22 @@ public class TransportGetAdvancedSettingsAction extends HandledTransportAction<G
 
     @Override
     protected void doExecute(Task task, GetAdvancedSettingsRequest request, ActionListener<AdvancedSettingsResponse> listener) {
-        try (final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext()) {
-            GetRequest getRequest = new GetRequest(request.getIndex(), request.getDocumentId());
+        final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext();
+        GetRequest getRequest = new GetRequest(request.getIndex(), request.getDocumentId());
 
-            client.get(getRequest, ActionListener.wrap(getResponse -> {
-                ctx.restore();
-                if (getResponse.isExists()) {
-                    Map<String, Object> source = getResponse.getSourceAsMap();
-                    listener.onResponse(new AdvancedSettingsResponse(source));
-                } else {
-                    listener.onFailure(new OpenSearchStatusException("Advanced settings not found", RestStatus.NOT_FOUND));
-                }
-            }, (e) -> {
-                ctx.restore();
-                if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new OpenSearchStatusException("Advanced settings not found", RestStatus.NOT_FOUND));
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
-        }
+        client.get(getRequest, ActionListener.runBefore(ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists()) {
+                Map<String, Object> source = getResponse.getSourceAsMap();
+                listener.onResponse(new AdvancedSettingsResponse(source));
+            } else {
+                listener.onFailure(new OpenSearchStatusException("Advanced settings not found", RestStatus.NOT_FOUND));
+            }
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                listener.onFailure(new OpenSearchStatusException("Advanced settings not found", RestStatus.NOT_FOUND));
+            } else {
+                listener.onFailure(e);
+            }
+        }), ctx::restore));
     }
 }

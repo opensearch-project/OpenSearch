@@ -14,6 +14,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -33,6 +34,8 @@ public class TransportWriteAdvancedSettingsAction extends HandledTransportAction
 
     @Override
     protected void doExecute(Task task, WriteAdvancedSettingsRequest request, ActionListener<AdvancedSettingsResponse> listener) {
+        final ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashContext();
+
         IndexRequest indexRequest = new IndexRequest(request.getIndex()).id(request.getDocumentId()).source(request.getDocument());
         if (request.isCreateOperation()) {
             indexRequest.create(true);
@@ -40,9 +43,12 @@ public class TransportWriteAdvancedSettingsAction extends HandledTransportAction
 
         client.index(
             indexRequest,
-            ActionListener.wrap(
-                indexResponse -> listener.onResponse(new AdvancedSettingsResponse(request.getDocument())),
-                listener::onFailure
+            ActionListener.runBefore(
+                ActionListener.wrap(
+                    indexResponse -> listener.onResponse(new AdvancedSettingsResponse(request.getDocument())),
+                    listener::onFailure
+                ),
+                ctx::restore
             )
         );
     }
