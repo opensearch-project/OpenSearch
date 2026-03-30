@@ -29,7 +29,7 @@ pub struct NativeParquetWriter;
 
 impl NativeParquetWriter {
     pub fn create_writer(filename: String, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("create_writer called for file: {}, schema_address: {}", filename, schema_address);
+        log_debug!("create_writer called for file: {}, schema_address: {}", filename, schema_address);
 
         if (schema_address as *mut u8).is_null() {
             log_error!("ERROR: Invalid schema address (null pointer) for file: {}", filename);
@@ -42,7 +42,7 @@ impl NativeParquetWriter {
 
         let arrow_schema = unsafe { FFI_ArrowSchema::from_raw(schema_address as *mut _) };
         let schema = Arc::new(arrow::datatypes::Schema::try_from(&arrow_schema)?);
-        log_info!("Schema created with {} fields", schema.fields().len());
+        log_debug!("Schema created with {} fields", schema.fields().len());
 
         let file = File::create(&filename)?;
         let file_clone = file.try_clone()?;
@@ -60,7 +60,7 @@ impl NativeParquetWriter {
     }
 
     pub fn write_data(filename: String, array_address: i64, schema_address: i64) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("write_data called for file: {}", filename);
+        log_debug!("write_data called for file: {}", filename);
 
         if (array_address as *mut u8).is_null() || (schema_address as *mut u8).is_null() {
             log_error!("ERROR: Invalid FFI addresses for file: {}", filename);
@@ -76,7 +76,7 @@ impl NativeParquetWriter {
             if let Some(struct_array) = array.as_any().downcast_ref::<arrow::array::StructArray>() {
                 let schema = Arc::new(arrow::datatypes::Schema::new(struct_array.fields().clone()));
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
-                log_info!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
+                log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
                 if let Some(writer_arc) = WRITER_MANAGER.get(&filename) {
                     let mut writer = writer_arc.lock().unwrap();
@@ -93,15 +93,15 @@ impl NativeParquetWriter {
         }
     }
 
-    pub fn close_writer(filename: String) -> Result<Option<FormatFileMetaData>, Box<dyn std::error::Error>> {
-        log_info!("close_writer called for file: {}", filename);
+    pub fn finalize_writer(filename: String) -> Result<Option<FormatFileMetaData>, Box<dyn std::error::Error>> {
+        log_debug!("finalize_writer called for file: {}", filename);
 
         if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&filename) {
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
                     let writer = mutex.into_inner().unwrap();
                     let file_metadata = writer.close()?;
-                    log_info!("Successfully closed writer for file: {}, num_rows={}", filename, file_metadata.num_rows);
+                    log_debug!("Successfully closed writer for file: {}, num_rows={}", filename, file_metadata.num_rows);
                     Ok(Some(file_metadata))
                 }
                 Err(_) => {
@@ -115,12 +115,12 @@ impl NativeParquetWriter {
         }
     }
 
-    pub fn flush_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("fsync_file called for file: {}", filename);
+    pub fn sync_to_disk(filename: String) -> Result<(), Box<dyn std::error::Error>> {
+        log_debug!("sync_to_disk called for file: {}", filename);
 
         if let Some(file) = FILE_MANAGER.get_mut(&filename) {
             file.sync_all()?;
-            log_info!("Successfully fsynced file: {}", filename);
+            log_debug!("Successfully fsynced file: {}", filename);
             drop(file);
             FILE_MANAGER.remove(&filename);
             Ok(())

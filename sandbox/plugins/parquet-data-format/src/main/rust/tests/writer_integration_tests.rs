@@ -29,7 +29,7 @@ fn test_complete_writer_lifecycle() {
     assert!(metadata.version > 0);
     assert_eq!(metadata.schema.len(), 3); // root + 2 fields
 
-    assert!(NativeParquetWriter::flush_to_disk(filename.clone()).is_ok());
+    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
     assert!(file_path.exists());
     assert!(file_path.metadata().unwrap().len() > 0);
 
@@ -53,7 +53,7 @@ fn test_concurrent_writer_creation() {
             let (_schema, schema_ptr) = create_test_ffi_schema();
             if NativeParquetWriter::create_writer(filename.clone(), schema_ptr).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
-                let _ = NativeParquetWriter::close_writer(filename);
+                let _ = NativeParquetWriter::finalize_writer(filename);
             }
             cleanup_ffi_schema(schema_ptr);
         });
@@ -77,7 +77,7 @@ fn test_concurrent_close_operations_same_file() {
         let filename = filename.clone();
         let success_count = Arc::clone(&success_count);
         let handle = thread::spawn(move || {
-            if NativeParquetWriter::close_writer(filename).is_ok() {
+            if NativeParquetWriter::finalize_writer(filename).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
             }
         });
@@ -180,9 +180,9 @@ fn test_concurrent_complete_writer_lifecycle() {
                 cleanup_ffi_data(array_ptr, data_schema_ptr);
 
                 if write_ok {
-                    if let Ok(Some(metadata)) = NativeParquetWriter::close_writer(filename.clone()) {
+                    if let Ok(Some(metadata)) = NativeParquetWriter::finalize_writer(filename.clone()) {
                         if metadata.num_rows == 3
-                            && NativeParquetWriter::flush_to_disk(filename.clone()).is_ok()
+                            && NativeParquetWriter::sync_to_disk(filename.clone()).is_ok()
                             && file_path.exists()
                         {
                             success_count.fetch_add(1, Ordering::SeqCst);

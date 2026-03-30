@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class RustLoggerBridge {
 
+    // TODO - Extend logger to include the caller and implement lazy loading as well
     private static final Logger logger = LogManager.getLogger(RustLoggerBridge.class);
 
     /**

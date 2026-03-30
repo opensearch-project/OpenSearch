@@ -79,12 +79,12 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     @Override
     public FileInfos flush() throws IOException {
         ParquetFileMetadata metadata = vsrManager.flush();
-        if (file == null || metadata == null) {
+        if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
         }
         Path filePath = Path.of(file);
         WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(filePath.getParent())
+            .directory(filePath.getParent().getFileName())
             .writerGeneration(writerGeneration)
             .addFile(filePath.getFileName().toString())
             .addNumRows(metadata.numRows())

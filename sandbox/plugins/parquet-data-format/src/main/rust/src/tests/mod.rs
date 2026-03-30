@@ -91,10 +91,10 @@ fn test_write_data_incompatible_schema() {
 }
 
 #[test]
-fn test_close_writer_success() {
+fn test_finalize_writer_success() {
     let (_temp_dir, filename) = get_temp_file_path("test_close.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    let result = NativeParquetWriter::close_writer(filename.clone());
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap();
     assert!(metadata.is_some());
@@ -108,7 +108,7 @@ fn test_close_writer_success() {
 }
 
 #[test]
-fn test_close_writer_with_data_returns_correct_metadata() {
+fn test_finalize_writer_with_data_returns_correct_metadata() {
     let (_temp_dir, filename) = get_temp_file_path("close_with_data.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     for _ in 0..2 {
@@ -116,7 +116,7 @@ fn test_close_writer_with_data_returns_correct_metadata() {
         NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
         cleanup_ffi_data(array_ptr, data_schema_ptr);
     }
-    let result = NativeParquetWriter::close_writer(filename.clone());
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result.is_ok());
     let metadata = result.unwrap().unwrap();
     assert_eq!(metadata.num_rows, 6);
@@ -128,7 +128,7 @@ fn test_close_writer_with_data_returns_correct_metadata() {
 
 #[test]
 fn test_close_nonexistent_writer() {
-    let result = NativeParquetWriter::close_writer("nonexistent.parquet".to_string());
+    let result = NativeParquetWriter::finalize_writer("nonexistent.parquet".to_string());
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Writer not found"));
 }
@@ -137,14 +137,14 @@ fn test_close_nonexistent_writer() {
 fn test_close_multiple_times_same_file() {
     let (_temp_dir, filename) = get_temp_file_path("test.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    let result1 = NativeParquetWriter::close_writer(filename.clone());
+    let result1 = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result1.is_ok());
     let metadata = result1.unwrap();
     assert!(metadata.is_some());
     assert_eq!(metadata.unwrap().num_rows, 0);
     assert!(!WRITER_MANAGER.contains_key(&filename));
     assert!(FILE_MANAGER.contains_key(&filename));
-    let result2 = NativeParquetWriter::close_writer(filename.clone());
+    let result2 = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result2.is_err());
     assert!(result2.unwrap_err().to_string().contains("Writer not found"));
     FILE_MANAGER.remove(&filename);
@@ -152,11 +152,11 @@ fn test_close_multiple_times_same_file() {
 }
 
 #[test]
-fn test_flush_to_disk_success() {
+fn test_sync_to_disk_success() {
     let (_temp_dir, filename) = get_temp_file_path("test_flush.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
     assert!(FILE_MANAGER.contains_key(&filename));
-    let result = NativeParquetWriter::flush_to_disk(filename.clone());
+    let result = NativeParquetWriter::sync_to_disk(filename.clone());
     assert!(result.is_ok());
     assert!(!FILE_MANAGER.contains_key(&filename));
     close_writer_and_cleanup_schema(&filename, schema_ptr);
@@ -164,7 +164,7 @@ fn test_flush_to_disk_success() {
 
 #[test]
 fn test_flush_nonexistent_file() {
-    let result = NativeParquetWriter::flush_to_disk("nonexistent.parquet".to_string());
+    let result = NativeParquetWriter::sync_to_disk("nonexistent.parquet".to_string());
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().to_string(), "File not found");
 }

@@ -71,7 +71,7 @@ pub fn create_writer_and_assert_success(filename: &str) -> (Arc<Schema>, i64) {
 }
 
 pub fn close_writer_and_cleanup_schema(filename: &str, schema_ptr: i64) {
-    let _ = NativeParquetWriter::close_writer(filename.to_string());
+    let _ = NativeParquetWriter::finalize_writer(filename.to_string());
     cleanup_ffi_schema(schema_ptr);
 }
 
@@ -101,7 +101,7 @@ pub fn create_mismatched_ffi_data() -> Result<(i64, i64), Box<dyn std::error::Er
 }
 
 pub fn close_writer_and_get_metadata(filename: &str, schema_ptr: i64) -> parquet::format::FileMetaData {
-    let result = NativeParquetWriter::close_writer(filename.to_string());
+    let result = NativeParquetWriter::finalize_writer(filename.to_string());
     cleanup_ffi_schema(schema_ptr);
     result.unwrap().unwrap()
 }

@@ -10,6 +10,8 @@ package org.opensearch.parquet.bridge;
 
 import org.opensearch.nativebridge.spi.PlatformHelper;
 
+import java.io.IOException;
+
 /**
  * JNI bridge to the native Rust Parquet writer library ({@code parquet_dataformat_jni}).
  *
@@ -18,10 +20,8 @@ import org.opensearch.nativebridge.spi.PlatformHelper;
  * {@code /native/{os}-{arch}/libparquet_dataformat_jni.{so|dylib|dll}}, falling back to
  * {@link System#loadLibrary(String)} if the resource is not found.
  *
- * <p>Writer lifecycle methods ({@link #createWriter}, {@link #write}, {@link #closeWriter},
- * {@link #flushToDisk}) are package-private and should only be called through
- * {@link NativeParquetWriter}. Utility methods ({@link #initLogger}, {@link #getFileMetadata},
- * {@link #getFilteredNativeBytesUsed}) are public.
+ * <p>Writer lifecycle methods are package-private and should only be called through
+ * {@link NativeParquetWriter}.
  */
 public class RustBridge {
 
@@ -35,13 +35,13 @@ public class RustBridge {
     public static native void initLogger();
 
     // Writer lifecycle methods — package-private, controlled by NativeParquetWriter
-    static native int createWriter(String file, long schemaAddress);
+    static native void createWriter(String file, long schemaAddress) throws IOException;
 
-    static native int write(String file, long arrayAddress, long schemaAddress);
+    static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
 
-    static native ParquetFileMetadata closeWriter(String file);
+    static native ParquetFileMetadata finalizeWriter(String file) throws IOException;
 
-    static native int flushToDisk(String file);
+    static native void syncToDisk(String file) throws IOException;
 
     // Public utility methods
     /**
@@ -49,8 +49,9 @@ public class RustBridge {
      *
      * @param file the path to the Parquet file
      * @return the file metadata
+     * @throws IOException if the metadata cannot be read
      */
-    public static native ParquetFileMetadata getFileMetadata(String file);
+    public static native ParquetFileMetadata getFileMetadata(String file) throws IOException;
 
     /**
      * Returns the native memory bytes used by files matching the given path prefix.

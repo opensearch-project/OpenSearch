@@ -8,7 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
-import java.io.Closeable;
+import org.opensearch.common.SetOnce;
+
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -19,18 +20,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <ol>
  *   <li>{@code new NativeParquetWriter(filePath, schemaAddress)} — creates the native writer</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
- *   <li>{@link #close()} — finalizes the Parquet file and captures metadata</li>
- *   <li>{@link #flush()} — fsyncs the file to durable storage (calls close if needed)</li>
+ *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
+ *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
  * </ol>
  *
- * <p>Thread safety: the {@code writerClosed} flag uses {@link java.util.concurrent.atomic.AtomicBoolean}
- * to guard against double-close and write-after-close, but concurrent writes are not supported.
+ * <p>This class is not thread-safe. External synchronization is required
+ * if instances are shared across threads.
  */
-public class NativeParquetWriter implements Closeable {
+public class NativeParquetWriter {
 
-    private final AtomicBoolean writerClosed = new AtomicBoolean(false);
+    private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
     private final String filePath;
-    private ParquetFileMetadata metadata;
+    private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
 
     /**
      * Creates a new NativeParquetWriter.
@@ -41,10 +42,7 @@ public class NativeParquetWriter implements Closeable {
      */
     public NativeParquetWriter(String filePath, long schemaAddress) throws IOException {
         this.filePath = filePath;
-        int result = RustBridge.createWriter(filePath, schemaAddress);
-        if (result != 0) {
-            throw new IOException("Failed to create native Parquet writer for: " + filePath);
-        }
+        RustBridge.createWriter(filePath, schemaAddress);
     }
 
     /**
@@ -52,46 +50,48 @@ public class NativeParquetWriter implements Closeable {
      *
      * @param arrayAddress  the native memory address of the Arrow array
      * @param schemaAddress the native memory address of the Arrow schema
-     * @throws IOException if the write fails or the writer is closed
+     * @throws IOException if the write fails or the writer is flushed
      */
     public void write(long arrayAddress, long schemaAddress) throws IOException {
-        if (writerClosed.get()) {
-            throw new IOException("Cannot write to closed Parquet writer: " + filePath);
+        if (writerFlushed.get()) {
+            throw new IOException("Cannot write to flushed Parquet writer: " + filePath);
         }
-        int result = RustBridge.write(filePath, arrayAddress, schemaAddress);
-        if (result != 0) {
-            throw new IOException("Failed to write data to Parquet file: " + filePath);
-        }
-    }
-
-    @Override
-    public void close() throws IOException {
-        if (writerClosed.compareAndSet(false, true)) {
-            metadata = RustBridge.closeWriter(filePath);
-        }
+        RustBridge.write(filePath, arrayAddress, schemaAddress);
     }
 
     /**
-     * Syncs the Parquet file to disk. Must be called after {@link #close()}.
-     * If close has not been called yet, it will be called first.
-     */
-    public void flush() throws IOException {
-        if (!writerClosed.get()) {
-            close();
-        }
-        int result = RustBridge.flushToDisk(filePath);
-        if (result != 0) {
-            throw new IOException("Failed to flush Parquet file to disk: " + filePath);
-        }
-    }
-
-    /**
-     * Returns the Parquet file metadata captured after closing the writer.
+     * Finalizes the Parquet file and returns metadata.
      *
-     * @return the file metadata, or null if the writer has not been closed
+     * @return the file metadata
+     * @throws IOException if the finalization fails
+     */
+    public ParquetFileMetadata flush() throws IOException {
+        if (writerFlushed.compareAndSet(false, true)) {
+            metadata.set(RustBridge.finalizeWriter(filePath));
+        }
+        return metadata.get();
+    }
+
+    /**
+     * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
+     * If flush has not been called yet, it will be called first.
+     *
+     * @throws IOException if the sync fails
+     */
+    public void sync() throws IOException {
+        if (!writerFlushed.get()) {
+            flush();
+        }
+        RustBridge.syncToDisk(filePath);
+    }
+
+    /**
+     * Returns the Parquet file metadata captured after flushing the writer.
+     *
+     * @return the file metadata, or null if the writer has not been flushed
      */
     public ParquetFileMetadata getMetadata() {
-        return metadata;
+        return metadata.get();
     }
 
 }

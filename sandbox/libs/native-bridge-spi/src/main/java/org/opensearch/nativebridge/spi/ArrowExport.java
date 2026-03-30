@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.parquet.bridge;
+package org.opensearch.nativebridge.spi;
 
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
@@ -16,11 +16,9 @@ import org.apache.arrow.c.ArrowSchema;
  *
  * <p>Wraps an {@link ArrowArray} and {@link ArrowSchema} allocated via the Arrow C Data Interface,
  * providing memory address accessors for JNI handoff and automatic resource cleanup on close.
- * Used by {@link org.opensearch.parquet.vsr.ManagedVSR} to export data and schema to the native
- * Parquet writer without copying.
  *
- * <p>Implements {@link AutoCloseable} to ensure native Arrow memory is released and freed
- * even if an exception occurs during the write path.
+ * @param arrowArray  the Arrow array (may be null for schema-only exports)
+ * @param arrowSchema the Arrow schema
  */
 public record ArrowExport(ArrowArray arrowArray, ArrowSchema arrowSchema) implements AutoCloseable {
 

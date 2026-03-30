@@ -21,6 +21,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -71,11 +72,11 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
-        writer.close();
+        writer.flush();
         assertNotNull(writer.getMetadata());
         assertEquals(3, writer.getMetadata().numRows());
 
-        writer.flush();
+        writer.sync();
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
@@ -93,34 +94,34 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(batch2.getArrayAddress(), batch2.getSchemaAddress());
         }
 
-        writer.close();
-        assertEquals(5, writer.getMetadata().numRows());
         writer.flush();
+        assertEquals(5, writer.getMetadata().numRows());
+        writer.sync();
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
     // --- Close without writes ---
 
-    public void testCloseWithoutWriteOrFlush() throws Exception {
+    public void testFlushWithoutWrite() throws Exception {
         String filePath = createTempDir().resolve("close-only.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
-        writer.close();
+        writer.flush();
         assertNotNull(writer.getMetadata());
         assertEquals(0, writer.getMetadata().numRows());
     }
 
-    public void testCloseIsIdempotent() throws Exception {
+    public void testFlushIsIdempotent() throws Exception {
         String filePath = createTempDir().resolve("idempotent.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
-        writer.close();
+        writer.flush();
         ParquetFileMetadata first = writer.getMetadata();
-        writer.close();
+        writer.flush();
         assertSame(first, writer.getMetadata());
     }
 
     // --- Flush auto-closes if not yet closed ---
 
-    public void testFlushAutoClosesIfNotClosed() throws Exception {
+    public void testSyncAutoFlushesIfNotFlushed() throws Exception {
         String filePath = createTempDir().resolve("auto-close.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
@@ -130,16 +131,16 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
         // flush without explicit close — should auto-close first
         assertNull(writer.getMetadata());
-        writer.flush();
+        writer.sync();
         assertNotNull(writer.getMetadata());
         assertEquals(1, writer.getMetadata().numRows());
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
     }
 
-    public void testWriteAfterCloseThrows() throws Exception {
+    public void testWriteAfterFlushThrows() throws Exception {
         String filePath = createTempDir().resolve("write-after-close.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
-        writer.close();
+        writer.flush();
 
         try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
             expectThrows(IOException.class, () -> writer.write(export.getArrayAddress(), export.getSchemaAddress()));
@@ -179,7 +180,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         }
 
         // Close fails — Parquet ArrowWriter detects row count mismatch between columns
-        expectThrows(IOException.class, writer::close);
+        expectThrows(IOException.class, writer::flush);
     }
 
     public void testCreateDuplicateWriterForSameFile() throws Exception {
@@ -189,10 +190,10 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         // Native side rejects creating a second writer for the same file
         expectThrows(IOException.class, () -> createWriter(filePath));
 
-        writer1.close();
+        writer1.flush();
     }
 
-    public void testFlushCalledTwice() throws Exception {
+    public void testSyncCalledTwice() throws Exception {
         String filePath = createTempDir().resolve("double-flush.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
@@ -200,11 +201,11 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
-        writer.close();
         writer.flush();
+        writer.sync();
         assertTrue("Parquet file should exist after flush", Files.exists(Path.of(filePath)));
-        // Second flush fails — native side removed file from FILE_MANAGER after first fsync
-        expectThrows(IOException.class, writer::flush);
+        // Second sync fails — native side removed file from FILE_MANAGER after first fsync
+        expectThrows(IOException.class, writer::sync);
     }
 
     public void testWriteEmptyBatch() throws Exception {
@@ -215,7 +216,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             writer.write(export.getArrayAddress(), export.getSchemaAddress());
         }
 
-        writer.close();
+        writer.flush();
         assertNotNull(writer.getMetadata());
         assertEquals(0, writer.getMetadata().numRows());
     }
@@ -237,7 +238,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
             expectThrows(IOException.class, () -> writer.write(dataExport.getArrayAddress(), 0L));
         }
 
-        writer.close();
+        writer.flush();
     }
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {

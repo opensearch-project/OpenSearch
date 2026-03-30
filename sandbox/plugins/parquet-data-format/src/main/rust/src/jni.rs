@@ -7,7 +7,7 @@
  */
 
 use jni::objects::{JClass, JObject, JString};
-use jni::sys::{jint, jlong, jobject};
+use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 use parquet::format::FileMetaData as FormatFileMetaData;
 
@@ -28,14 +28,11 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_createWrite
     _class: JClass,
     file: JString,
     schema_address: jlong,
-) -> jint {
+) {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::create_writer(filename, schema_address as i64) {
-        Ok(_) => 0,
-        Err(e) => {
-            log_error!("ERROR: Failed to create writer: {:?}", e);
-            -1
-        }
+    if let Err(e) = NativeParquetWriter::create_writer(filename, schema_address as i64) {
+        log_error!("ERROR: Failed to create writer: {:?}", e);
+        let _ = env.throw_new("java/io/IOException", &format!("Failed to create writer: {}", e));
     }
 }
 
@@ -46,25 +43,22 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_write(
     file: JString,
     array_address: jlong,
     schema_address: jlong,
-) -> jint {
+) {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::write_data(filename, array_address as i64, schema_address as i64) {
-        Ok(_) => 0,
-        Err(e) => {
-            log_error!("ERROR: Failed to write data: {:?}", e);
-            -1
-        }
+    if let Err(e) = NativeParquetWriter::write_data(filename, array_address as i64, schema_address as i64) {
+        log_error!("ERROR: Failed to write data: {:?}", e);
+        let _ = env.throw_new("java/io/IOException", &format!("Failed to write data: {}", e));
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_closeWriter(
+pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_finalizeWriter(
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
 ) -> jobject {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::close_writer(filename) {
+    match NativeParquetWriter::finalize_writer(filename) {
         Ok(Some(metadata)) => {
             match create_java_metadata(&mut env, &metadata) {
                 Ok(java_obj) => java_obj.into_raw(),
@@ -77,26 +71,23 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_closeWriter
         }
         Ok(None) => JObject::null().into_raw(),
         Err(e) => {
-            log_error!("ERROR: Failed to close writer: {:?}", e);
-            let _ = env.throw_new("java/io/IOException", &format!("Failed to close writer: {}", e));
+            log_error!("ERROR: Failed to finalize writer: {:?}", e);
+            let _ = env.throw_new("java/io/IOException", &format!("Failed to finalize writer: {}", e));
             JObject::null().into_raw()
         }
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_flushToDisk(
+pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_syncToDisk(
     mut env: JNIEnv,
     _class: JClass,
     file: JString,
-) -> jint {
+) {
     let filename: String = env.get_string(&file).expect("Couldn't get java string!").into();
-    match NativeParquetWriter::flush_to_disk(filename) {
-        Ok(_) => 0,
-        Err(e) => {
-            log_error!("ERROR: Failed to flush to disk: {:?}", e);
-            -1
-        }
+    if let Err(e) = NativeParquetWriter::sync_to_disk(filename) {
+        log_error!("ERROR: Failed to sync to disk: {:?}", e);
+        let _ = env.throw_new("java/io/IOException", &format!("Failed to sync to disk: {}", e));
     }
 }
 

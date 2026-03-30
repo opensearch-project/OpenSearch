@@ -67,10 +67,12 @@ public class VSRManagerTests extends OpenSearchTestCase {
         manager.flush();
     }
 
-    public void testFlushWithNoDataReturnsNull() throws Exception {
+    public void testFlushWithNoDataReturnsMetadata() throws Exception {
         String filePath = createTempDir().resolve("empty.parquet").toString();
         VSRManager manager = new VSRManager(filePath, schema, bufferPool, 50000, threadPool);
-        assertNull(manager.flush());
+        ParquetFileMetadata metadata = manager.flush();
+        assertNotNull(metadata);
+        assertEquals(0, metadata.numRows());
     }
 
     public void testFlushWithData() throws Exception {
@@ -183,12 +185,15 @@ public class VSRManagerTests extends OpenSearchTestCase {
         ManagedVSR second = manager.getActiveManagedVSR();
         assertNotSame(first, second);
 
-        // Fill second VSR to trigger another rotation — should await pending write then succeed
+        // Fill second VSR — rotation returns false while frozen slot is occupied
         IntVector vec2 = (IntVector) second.getVector("val");
         for (int i = 0; i < 100; i++) {
             vec2.setSafe(i, i + 100);
         }
         second.setRowCount(100);
+
+        // Wait for background write to complete, then rotation should succeed
+        Thread.sleep(500);
         manager.maybeRotateActiveVSR();
 
         ManagedVSR third = manager.getActiveManagedVSR();

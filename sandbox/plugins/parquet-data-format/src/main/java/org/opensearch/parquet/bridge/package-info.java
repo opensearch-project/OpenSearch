@@ -21,7 +21,7 @@
  *       and native library loading. Writer lifecycle methods are package-private.</li>
  *   <li>{@link org.opensearch.parquet.bridge.NativeParquetWriter} — Type-safe handle wrapping
  *       the native writer with lifecycle management (create → write → close → flush).</li>
- *   <li>{@link org.opensearch.parquet.bridge.ArrowExport} — RAII container for exported
+ *   <li>{@link org.opensearch.nativebridge.spi.ArrowExport} — RAII container for exported
  *       Arrow C Data Interface pointers ({@code ArrowArray} + {@code ArrowSchema}).</li>
  *   <li>{@link org.opensearch.parquet.bridge.ParquetFileMetadata} — Immutable record of
  *       metadata returned by the native writer after file finalization.</li>
@@ -31,8 +31,8 @@
  * <pre>
  * createWriter(filePath, schemaAddress)  — initialize native writer with Arrow schema
  * write(arrayAddress, schemaAddress)     — send a batch of Arrow data (repeatable)
- * closeWriter(filePath)                  — finalize Parquet file, returns metadata
- * flushToDisk(filePath)                  — fsync the file to durable storage
+ * finalizeWriter(filePath)                  — finalize Parquet file, returns metadata
+ * syncToDisk(filePath)                  — fsync the file to durable storage
  * </pre>
  *
  * @see org.opensearch.parquet.bridge.NativeParquetWriter

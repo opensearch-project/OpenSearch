@@ -11,7 +11,7 @@ package org.opensearch.parquet.bridge;
 /**
  * Metadata extracted from a Parquet file after the native writer is closed.
  *
- * <p>Returned by {@link RustBridge#closeWriter(String)} and {@link RustBridge#getFileMetadata(String)}.
+ * <p>Returned by {@link RustBridge#finalizeWriter(String)} and {@link RustBridge#getFileMetadata(String)}.
  * Contains the Parquet format version, total row count, and the creator identifier string
  * embedded in the file footer.
  *

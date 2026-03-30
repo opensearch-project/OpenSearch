@@ -18,10 +18,11 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.parquet.bridge.ArrowExport;
+import org.opensearch.nativebridge.spi.ArrowExport;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Managed wrapper around an Apache Arrow {@link VectorSchemaRoot} with strict lifecycle enforcement.
@@ -35,7 +36,8 @@ import java.util.Map;
  * </ul>
  *
  * <p>State transitions are enforced: writing to a frozen VSR or closing an active VSR
- * (without freezing first) throws {@link IllegalStateException}.
+ * <p>This class is NOT Thread-Safe. External synchronization is required
+ * if instances are shared across threads.
  */
 public class ManagedVSR implements AutoCloseable {
 
@@ -44,7 +46,7 @@ public class ManagedVSR implements AutoCloseable {
     private final String id;
     private final VectorSchemaRoot vsr;
     private final BufferAllocator allocator;
-    private volatile VSRState state;
+    private final AtomicReference<VSRState> state = new AtomicReference<>(VSRState.ACTIVE);
     private final Map<String, Field> fields = new HashMap<>();
 
     /**
@@ -58,7 +60,6 @@ public class ManagedVSR implements AutoCloseable {
         this.id = id;
         this.vsr = VectorSchemaRoot.create(schema, allocator);
         this.allocator = allocator;
-        this.state = VSRState.ACTIVE;
         for (Field field : vsr.getSchema().getFields()) {
             fields.put(field.getName(), field);
         }
@@ -75,8 +76,8 @@ public class ManagedVSR implements AutoCloseable {
      * @param rowCount the new row count
      */
     public void setRowCount(int rowCount) {
-        if (state != VSRState.ACTIVE) {
-            throw new IllegalStateException("Cannot modify VSR in state: " + state);
+        if (state.get() != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot modify VSR in state: " + state.get());
         }
         vsr.setRowCount(rowCount);
     }
@@ -87,8 +88,8 @@ public class ManagedVSR implements AutoCloseable {
      * @return the field vector, or null
      */
     public FieldVector getVector(String fieldName) {
-        if (state != VSRState.ACTIVE) {
-            throw new IllegalStateException("Cannot access vector in VSR state: " + state);
+        if (state.get() != VSRState.ACTIVE) {
+            throw new IllegalStateException("Cannot access vector in VSR state: " + state.get());
         }
         Field field = fields.get(fieldName);
         return field != null ? vsr.getVector(field) : null;
@@ -96,10 +97,9 @@ public class ManagedVSR implements AutoCloseable {
 
     /** Transitions this VSR from ACTIVE to FROZEN state. */
     public void moveToFrozen() {
-        if (state != VSRState.ACTIVE) {
-            throw new IllegalStateException("Cannot freeze VSR " + id + ": expected ACTIVE but was " + state);
+        if (state.compareAndSet(VSRState.ACTIVE, VSRState.FROZEN) == false) {
+            throw new IllegalStateException("Cannot freeze VSR " + id + ": expected ACTIVE but was " + state.get());
         }
-        state = VSRState.FROZEN;
         logger.debug("State transition: ACTIVE -> FROZEN for VSR {}", id);
     }
 
@@ -108,8 +108,8 @@ public class ManagedVSR implements AutoCloseable {
      * Only allowed when VSR is FROZEN.
      */
     public ArrowExport exportToArrow() {
-        if (state != VSRState.FROZEN) {
-            throw new IllegalStateException("Cannot export VSR in state: " + state + ". Must be FROZEN.");
+        if (state.get() != VSRState.FROZEN) {
+            throw new IllegalStateException("Cannot export VSR in state: " + state.get() + ". Must be FROZEN.");
         }
         ArrowArray arrowArray = ArrowArray.allocateNew(allocator);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
@@ -120,10 +120,10 @@ public class ManagedVSR implements AutoCloseable {
     /**
      * Exports only the schema to Arrow C Data Interface.
      */
-    public ArrowExport exportSchema() {
+    public ArrowSchema exportSchema() {
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(allocator);
         Data.exportSchema(allocator, vsr.getSchema(), null, arrowSchema);
-        return new ArrowExport(null, arrowSchema);
+        return arrowSchema;
     }
 
     /**
@@ -132,7 +132,7 @@ public class ManagedVSR implements AutoCloseable {
      * @return the VSR state
      */
     public VSRState getState() {
-        return state;
+        return state.get();
     }
 
     /**
@@ -146,14 +146,15 @@ public class ManagedVSR implements AutoCloseable {
 
     @Override
     public void close() {
-        if (state == VSRState.CLOSED) {
+        if (state.get() == VSRState.CLOSED) {
             return;
         }
-        if (state == VSRState.ACTIVE) {
+        if (state.get() == VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot close VSR " + id + ": must freeze first");
         }
-        assert state == VSRState.FROZEN : "Expected FROZEN state before closing VSR " + id + " but was " + state;
-        state = VSRState.CLOSED;
+        if (state.compareAndSet(VSRState.FROZEN, VSRState.CLOSED) == false) {
+            throw new IllegalStateException("Expected VSR to be FROZEN but was " + state.get());
+        }
         logger.debug("State transition: FROZEN -> CLOSED for VSR {}", id);
         if (vsr != null) {
             vsr.close();
@@ -165,6 +166,6 @@ public class ManagedVSR implements AutoCloseable {
 
     @Override
     public String toString() {
-        return "ManagedVSR{id='" + id + "', state=" + state + ", rows=" + getRowCount() + "}";
+        return "ManagedVSR{id='" + id + "', state=" + state.get() + ", rows=" + getRowCount() + "}";
     }
 }

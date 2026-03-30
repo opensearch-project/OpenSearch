@@ -97,39 +97,8 @@ public class ListVsScalarBenchmark {
         int rowInVsr = 0;
 
         for (int row = 0; row < totalRows; row++) {
-            if (useList) {
-                for (int f = 0; f < fieldCount; f++) {
-                    ListVector lv = (ListVector) vsr.getVector(f);
-                    int childIdx = lv.startNewValue(rowInVsr);
-                    switch (f % 3) {
-                        case 0:
-                            ((IntVector) lv.getDataVector()).setSafe(childIdx, row + f);
-                            break;
-                        case 1:
-                            ((BigIntVector) lv.getDataVector()).setSafe(childIdx, (long) row * 100 + f);
-                            break;
-                        default:
-                            byte[] val = ("value_" + row).getBytes(StandardCharsets.UTF_8);
-                            ((VarCharVector) lv.getDataVector()).setSafe(childIdx, val);
-                            break;
-                    }
-                    lv.endValue(rowInVsr, 1);
-                }
-            } else {
-                for (int f = 0; f < fieldCount; f++) {
-                    switch (f % 3) {
-                        case 0:
-                            ((IntVector) vsr.getVector(f)).setSafe(rowInVsr, row + f);
-                            break;
-                        case 1:
-                            ((BigIntVector) vsr.getVector(f)).setSafe(rowInVsr, (long) row * 100 + f);
-                            break;
-                        default:
-                            byte[] val = ("value_" + row).getBytes(StandardCharsets.UTF_8);
-                            ((VarCharVector) vsr.getVector(f)).setSafe(rowInVsr, val);
-                            break;
-                    }
-                }
+            for (int f = 0; f < fieldCount; f++) {
+                writeValue(vsr, f, rowInVsr, row);
             }
             rowInVsr++;
             vsr.setRowCount(rowInVsr);
@@ -146,6 +115,35 @@ public class ListVsScalarBenchmark {
         totalWritten += rowInVsr;
         vsr.close();
         return totalWritten;
+    }
+
+    private void writeValue(VectorSchemaRoot vsr, int f, int rowIdx, int row) {
+        // For list: resolve child vector and child index; for scalar: use vector directly at row index
+        var vector = vsr.getVector(f);
+        int writeIdx;
+        if (useList) {
+            ListVector lv = (ListVector) vector;
+            writeIdx = lv.startNewValue(rowIdx);
+            vector = lv.getDataVector();
+        } else {
+            writeIdx = rowIdx;
+        }
+
+        switch (f % 3) {
+            case 0:
+                ((IntVector) vector).setSafe(writeIdx, row + f);
+                break;
+            case 1:
+                ((BigIntVector) vector).setSafe(writeIdx, (long) row * 100 + f);
+                break;
+            default:
+                ((VarCharVector) vector).setSafe(writeIdx, ("value_" + row).getBytes(StandardCharsets.UTF_8));
+                break;
+        }
+
+        if (useList) {
+            ((ListVector) vsr.getVector(f)).endValue(rowIdx, 1);
+        }
     }
 
     @TearDown(Level.Invocation)

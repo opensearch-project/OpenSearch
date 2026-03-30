@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * can occur; attempting to rotate with an occupied frozen slot throws {@link java.io.IOException}.
  *
  * <p>Each new VSR receives its own child allocator from the shared {@link ArrowBufferPool},
- * ensuring memory isolation between batches.
+ * <p>This class is NOT Thread-Safe. External synchronization is required
+ * if instances are shared across threads.
  */
 public class VSRPool implements AutoCloseable {
 
@@ -90,27 +91,30 @@ public class VSRPool implements AutoCloseable {
             return false;
         }
         if (frozenVSR.get() != null) {
-            throw new IOException("Cannot rotate VSR: frozen slot is occupied");
+            return false;
         }
         if (current.getRowCount() > 0) {
             freezeVSR(current);
         }
-        activeVSR.set(createNewVSR());
+        ManagedVSR newVSR = createNewVSR();
+        if (activeVSR.compareAndSet(current, newVSR) == false) {
+            throw new IOException("Failed to set new active VSR during rotation");
+        }
         return true;
     }
 
     /**
      * Clears the frozen VSR slot after it has been closed.
      *
-     * @throws IOException if the frozen slot is empty or the VSR is not closed
+     * @throws IllegalStateException if the frozen slot is empty or the VSR is not closed
      */
-    public void unsetFrozenVSR() throws IOException {
+    public void unsetFrozenVSR() {
         ManagedVSR frozen = frozenVSR.get();
         if (frozen == null) {
-            throw new IOException("unsetFrozenVSR called when frozen VSR is not set");
+            throw new IllegalStateException("unsetFrozenVSR called on a null VSR");
         }
-        if (!VSRState.CLOSED.equals(frozen.getState())) {
-            throw new IOException("frozenVSR cannot be unset, state is " + frozen.getState());
+        if (VSRState.CLOSED.equals(frozen.getState()) == false) {
+            throw new IllegalStateException("frozenVSR needs to be in CLOSED state, current state is " + frozen.getState());
         }
         frozenVSR.set(null);
     }
@@ -135,7 +139,7 @@ public class VSRPool implements AutoCloseable {
                     active.moveToFrozen();
                 }
                 active.close();
-                activeVSR.set(null);
+                activeVSR.compareAndSet(active, null);
             } catch (Exception e) {
                 firstException = e;
             }
@@ -143,7 +147,7 @@ public class VSRPool implements AutoCloseable {
         if (frozen != null) {
             try {
                 frozen.close();
-                frozenVSR.set(null);
+                frozenVSR.compareAndSet(frozen, null);
             } catch (Exception e) {
                 if (firstException != null) firstException.addSuppressed(e);
                 else firstException = e;

@@ -41,10 +41,16 @@ public class ParquetDataFormat extends DataFormat {
 
     @Override
     public Set<FieldTypeCapabilities> supportedFields() {
+        // TODO - Override FieldRegistry to return capability for each field
         return ArrowFieldRegistry.getRegisteredFields()
             .keySet()
             .stream()
-            .map(type -> new FieldTypeCapabilities(type, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)))
+            .map(
+                type -> new FieldTypeCapabilities(
+                    type,
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER)
+                )
+            )
             .collect(Collectors.toUnmodifiableSet());
     }
 }

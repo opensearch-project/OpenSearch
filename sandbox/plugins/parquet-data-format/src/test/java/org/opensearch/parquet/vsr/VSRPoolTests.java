@@ -75,7 +75,7 @@ public class VSRPoolTests extends OpenSearchTestCase {
         pool.maybeRotateActiveVSR();
 
         pool.getActiveVSR().setRowCount(50000);
-        expectThrows(IOException.class, pool::maybeRotateActiveVSR);
+        assertFalse(pool.maybeRotateActiveVSR());
 
         pool.completeVSR(pool.getFrozenVSR());
         pool.unsetFrozenVSR();
@@ -98,7 +98,7 @@ public class VSRPoolTests extends OpenSearchTestCase {
 
     public void testUnsetFrozenVSRThrowsWhenNoneSet() {
         VSRPool pool = new VSRPool("pool-6", schema, bufferPool, 50000);
-        expectThrows(IOException.class, pool::unsetFrozenVSR);
+        expectThrows(IllegalStateException.class, pool::unsetFrozenVSR);
         pool.close();
     }
 
@@ -108,7 +108,7 @@ public class VSRPoolTests extends OpenSearchTestCase {
         pool.maybeRotateActiveVSR();
 
         // frozen VSR is in FROZEN state, not CLOSED
-        expectThrows(IOException.class, pool::unsetFrozenVSR);
+        expectThrows(IllegalStateException.class, pool::unsetFrozenVSR);
 
         pool.completeVSR(pool.getFrozenVSR());
         pool.unsetFrozenVSR();

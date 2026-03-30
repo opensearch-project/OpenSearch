@@ -21,6 +21,7 @@ base {
 
 test.enabled = false
 javadoc.enabled = false
+tasks.named('missingJavadoc').configure { it.enabled = false }
 
 dependencies {
   api(project(':sandbox:plugins:parquet-data-format')) {

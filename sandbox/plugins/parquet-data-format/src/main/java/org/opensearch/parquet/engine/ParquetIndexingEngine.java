@@ -18,6 +18,8 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -29,8 +31,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -113,7 +116,17 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        return new RefreshResult(Collections.emptyList());
+        List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
+        long gen = segments.stream().mapToLong(Segment::generation).max().orElse(-1) + 1;
+        for (WriterFileSet wfs : refreshInput.writerFiles()) {
+            segments.add(Segment.builder(gen++).addSearchableFiles(dataFormat, wfs).build());
+        }
+        return new RefreshResult(segments);
+    }
+
+    @Override
+    public long getNextWriterGeneration() {
+        return 0;
     }
 
     @Override
@@ -130,7 +143,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         for (String fileName : parquetFiles) {
             Path filePath = Path.of(fileName);
             logger.debug("Deleting parquet file: {}", filePath);
-            Files.deleteIfExists(filePath);
+            boolean deleted = Files.deleteIfExists(filePath);
+            if (deleted == false) {
+                logger.warn("Failed to delete parquet file: {}", filePath);
+            }
         }
     }
 
