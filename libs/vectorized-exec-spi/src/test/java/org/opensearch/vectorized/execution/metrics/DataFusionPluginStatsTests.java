@@ -36,16 +36,15 @@ public class DataFusionPluginStatsTests {
     // --- Arbitraries ---
 
     @Provide
-    Arbitrary<long[]> longArray28() {
+    Arbitrary<long[]> longArray6() {
         return Arbitraries.longs().between(0, Long.MAX_VALUE / 2)
-            .array(long[].class).ofSize(28);
+            .array(long[].class).ofSize(6);
     }
 
     @Provide
     Arbitrary<DataFusionPluginStats.TaskMonitorValues> taskMonitorValues() {
         Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        Arbitrary<Double> ratio = Arbitraries.doubles().between(0.0, 1.0);
-        return Combinators.combine(posLong, posLong, posLong, posLong, posLong, ratio)
+        return Combinators.combine(posLong, posLong, posLong)
             .as(DataFusionPluginStats.TaskMonitorValues::new);
     }
 
@@ -61,8 +60,8 @@ public class DataFusionPluginStatsTests {
      * **Validates: Requirements 4.4**
      */
     @Property(tries = 100)
-    void protobufDecodeRoundTrip(@ForAll("longArray28") long[] ioFields,
-                                  @ForAll("longArray28") long[] cpuFields,
+    void protobufDecodeRoundTrip(@ForAll("longArray6") long[] ioFields,
+                                  @ForAll("longArray6") long[] cpuFields,
                                   @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues qe,
                                   @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues sn,
                                   @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues fp,
@@ -112,7 +111,7 @@ public class DataFusionPluginStatsTests {
      * **Validates: Requirements 4.4**
      */
     @Property(tries = 50)
-    void absentCpuRuntimeDecodesToNull(@ForAll("longArray28") long[] ioFields,
+    void absentCpuRuntimeDecodesToNull(@ForAll("longArray6") long[] ioFields,
                                         @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues qe,
                                         @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues sn,
                                         @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues fp,
@@ -157,33 +156,11 @@ public class DataFusionPluginStatsTests {
     private TokioMetricsProto.RuntimeMetrics buildRuntimeMetricsProto(long[] fields) {
         return TokioMetricsProto.RuntimeMetrics.newBuilder()
             .setWorkersCount(fields[0])
-            .setTotalParkCount(fields[1])
-            .setMaxParkCount(fields[2])
-            .setMinParkCount(fields[3])
-            .setTotalNoopCount(fields[4])
-            .setMaxNoopCount(fields[5])
-            .setMinNoopCount(fields[6])
-            .setTotalStealCount(fields[7])
-            .setMaxStealCount(fields[8])
-            .setMinStealCount(fields[9])
-            .setTotalStealOperations(fields[10])
-            .setTotalLocalScheduleCount(fields[11])
-            .setMaxLocalScheduleCount(fields[12])
-            .setMinLocalScheduleCount(fields[13])
-            .setTotalOverflowCount(fields[14])
-            .setMaxOverflowCount(fields[15])
-            .setMinOverflowCount(fields[16])
-            .setTotalPollsCount(fields[17])
-            .setMaxPollsCount(fields[18])
-            .setMinPollsCount(fields[19])
-            .setTotalBusyDurationMs(fields[20])
-            .setMaxBusyDurationMs(fields[21])
-            .setMinBusyDurationMs(fields[22])
-            .setTotalLocalQueueDepth(fields[23])
-            .setMaxLocalQueueDepth(fields[24])
-            .setMinLocalQueueDepth(fields[25])
-            .setGlobalQueueDepth(fields[26])
-            .setBlockingQueueDepth(fields[27])
+            .setTotalPollsCount(fields[1])
+            .setTotalBusyDurationMs(fields[2])
+            .setTotalOverflowCount(fields[3])
+            .setGlobalQueueDepth(fields[4])
+            .setBlockingQueueDepth(fields[5])
             .build();
     }
 
@@ -193,41 +170,16 @@ public class DataFusionPluginStatsTests {
             .setTotalPollDurationMs(tm.getTotalPollDurationMs())
             .setTotalScheduledDurationMs(tm.getTotalScheduledDurationMs())
             .setTotalIdleDurationMs(tm.getTotalIdleDurationMs())
-            .setTotalSlowPollCount(tm.getTotalSlowPollCount())
-            .setTotalLongDelayCount(tm.getTotalLongDelayCount())
-            .setSlowPollRatio(tm.getSlowPollRatio())
             .build();
     }
 
     private void assertRuntimeValuesMatch(DataFusionPluginStats.RuntimeValues rv, long[] fields) {
         assertEquals(fields[0], rv.getWorkersCount(), "workersCount mismatch");
-        assertEquals(fields[1], rv.getTotalParkCount(), "totalParkCount mismatch");
-        assertEquals(fields[2], rv.getMaxParkCount(), "maxParkCount mismatch");
-        assertEquals(fields[3], rv.getMinParkCount(), "minParkCount mismatch");
-        assertEquals(fields[4], rv.getTotalNoopCount(), "totalNoopCount mismatch");
-        assertEquals(fields[5], rv.getMaxNoopCount(), "maxNoopCount mismatch");
-        assertEquals(fields[6], rv.getMinNoopCount(), "minNoopCount mismatch");
-        assertEquals(fields[7], rv.getTotalStealCount(), "totalStealCount mismatch");
-        assertEquals(fields[8], rv.getMaxStealCount(), "maxStealCount mismatch");
-        assertEquals(fields[9], rv.getMinStealCount(), "minStealCount mismatch");
-        assertEquals(fields[10], rv.getTotalStealOperations(), "totalStealOperations mismatch");
-        assertEquals(fields[11], rv.getTotalLocalScheduleCount(), "totalLocalScheduleCount mismatch");
-        assertEquals(fields[12], rv.getMaxLocalScheduleCount(), "maxLocalScheduleCount mismatch");
-        assertEquals(fields[13], rv.getMinLocalScheduleCount(), "minLocalScheduleCount mismatch");
-        assertEquals(fields[14], rv.getTotalOverflowCount(), "totalOverflowCount mismatch");
-        assertEquals(fields[15], rv.getMaxOverflowCount(), "maxOverflowCount mismatch");
-        assertEquals(fields[16], rv.getMinOverflowCount(), "minOverflowCount mismatch");
-        assertEquals(fields[17], rv.getTotalPollsCount(), "totalPollsCount mismatch");
-        assertEquals(fields[18], rv.getMaxPollsCount(), "maxPollsCount mismatch");
-        assertEquals(fields[19], rv.getMinPollsCount(), "minPollsCount mismatch");
-        assertEquals(fields[20], rv.getTotalBusyDurationMs(), "totalBusyDurationMs mismatch");
-        assertEquals(fields[21], rv.getMaxBusyDurationMs(), "maxBusyDurationMs mismatch");
-        assertEquals(fields[22], rv.getMinBusyDurationMs(), "minBusyDurationMs mismatch");
-        assertEquals(fields[23], rv.getTotalLocalQueueDepth(), "totalLocalQueueDepth mismatch");
-        assertEquals(fields[24], rv.getMaxLocalQueueDepth(), "maxLocalQueueDepth mismatch");
-        assertEquals(fields[25], rv.getMinLocalQueueDepth(), "minLocalQueueDepth mismatch");
-        assertEquals(fields[26], rv.getGlobalQueueDepth(), "globalQueueDepth mismatch");
-        assertEquals(fields[27], rv.getBlockingQueueDepth(), "blockingQueueDepth mismatch");
+        assertEquals(fields[1], rv.getTotalPollsCount(), "totalPollsCount mismatch");
+        assertEquals(fields[2], rv.getTotalBusyDurationMs(), "totalBusyDurationMs mismatch");
+        assertEquals(fields[3], rv.getTotalOverflowCount(), "totalOverflowCount mismatch");
+        assertEquals(fields[4], rv.getGlobalQueueDepth(), "globalQueueDepth mismatch");
+        assertEquals(fields[5], rv.getBlockingQueueDepth(), "blockingQueueDepth mismatch");
     }
 
     private void assertTaskMonitorEquals(DataFusionPluginStats.TaskMonitorValues expected,
@@ -235,8 +187,5 @@ public class DataFusionPluginStatsTests {
         assertEquals(expected.getTotalPollDurationMs(), actual.getTotalPollDurationMs());
         assertEquals(expected.getTotalScheduledDurationMs(), actual.getTotalScheduledDurationMs());
         assertEquals(expected.getTotalIdleDurationMs(), actual.getTotalIdleDurationMs());
-        assertEquals(expected.getTotalSlowPollCount(), actual.getTotalSlowPollCount());
-        assertEquals(expected.getTotalLongDelayCount(), actual.getTotalLongDelayCount());
-        assertEquals(expected.getSlowPollRatio(), actual.getSlowPollRatio(), 1e-10);
     }
 }

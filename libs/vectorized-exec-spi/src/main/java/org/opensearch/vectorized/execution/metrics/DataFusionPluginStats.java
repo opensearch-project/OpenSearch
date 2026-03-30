@@ -164,76 +164,29 @@ public class DataFusionPluginStats implements PluginStats {
     }
 
     /**
-     * Holds all 28 fields from tokio_metrics::RuntimeMetrics for a single runtime.
+     * Holds the 6 actionable fields from tokio RuntimeMetrics for a single runtime.
      */
     public static class RuntimeValues implements Writeable {
 
         private final long workersCount;
-        private final long totalParkCount;
-        private final long maxParkCount;
-        private final long minParkCount;
-        private final long totalNoopCount;
-        private final long maxNoopCount;
-        private final long minNoopCount;
-        private final long totalStealCount;
-        private final long maxStealCount;
-        private final long minStealCount;
-        private final long totalStealOperations;
-        private final long totalLocalScheduleCount;
-        private final long maxLocalScheduleCount;
-        private final long minLocalScheduleCount;
-        private final long totalOverflowCount;
-        private final long maxOverflowCount;
-        private final long minOverflowCount;
         private final long totalPollsCount;
-        private final long maxPollsCount;
-        private final long minPollsCount;
         private final long totalBusyDurationMs;
-        private final long maxBusyDurationMs;
-        private final long minBusyDurationMs;
-        private final long totalLocalQueueDepth;
-        private final long maxLocalQueueDepth;
-        private final long minLocalQueueDepth;
+        private final long totalOverflowCount;
         private final long globalQueueDepth;
         private final long blockingQueueDepth;
 
         public RuntimeValues(
-            long workersCount, long totalParkCount, long maxParkCount, long minParkCount,
-            long totalNoopCount, long maxNoopCount, long minNoopCount,
-            long totalStealCount, long maxStealCount, long minStealCount, long totalStealOperations,
-            long totalLocalScheduleCount, long maxLocalScheduleCount, long minLocalScheduleCount,
-            long totalOverflowCount, long maxOverflowCount, long minOverflowCount,
-            long totalPollsCount, long maxPollsCount, long minPollsCount,
-            long totalBusyDurationMs, long maxBusyDurationMs, long minBusyDurationMs,
-            long totalLocalQueueDepth, long maxLocalQueueDepth, long minLocalQueueDepth,
-            long globalQueueDepth, long blockingQueueDepth
+            long workersCount,
+            long totalPollsCount,
+            long totalBusyDurationMs,
+            long totalOverflowCount,
+            long globalQueueDepth,
+            long blockingQueueDepth
         ) {
             this.workersCount = workersCount;
-            this.totalParkCount = totalParkCount;
-            this.maxParkCount = maxParkCount;
-            this.minParkCount = minParkCount;
-            this.totalNoopCount = totalNoopCount;
-            this.maxNoopCount = maxNoopCount;
-            this.minNoopCount = minNoopCount;
-            this.totalStealCount = totalStealCount;
-            this.maxStealCount = maxStealCount;
-            this.minStealCount = minStealCount;
-            this.totalStealOperations = totalStealOperations;
-            this.totalLocalScheduleCount = totalLocalScheduleCount;
-            this.maxLocalScheduleCount = maxLocalScheduleCount;
-            this.minLocalScheduleCount = minLocalScheduleCount;
-            this.totalOverflowCount = totalOverflowCount;
-            this.maxOverflowCount = maxOverflowCount;
-            this.minOverflowCount = minOverflowCount;
             this.totalPollsCount = totalPollsCount;
-            this.maxPollsCount = maxPollsCount;
-            this.minPollsCount = minPollsCount;
             this.totalBusyDurationMs = totalBusyDurationMs;
-            this.maxBusyDurationMs = maxBusyDurationMs;
-            this.minBusyDurationMs = minBusyDurationMs;
-            this.totalLocalQueueDepth = totalLocalQueueDepth;
-            this.maxLocalQueueDepth = maxLocalQueueDepth;
-            this.minLocalQueueDepth = minLocalQueueDepth;
+            this.totalOverflowCount = totalOverflowCount;
             this.globalQueueDepth = globalQueueDepth;
             this.blockingQueueDepth = blockingQueueDepth;
         }
@@ -243,31 +196,9 @@ public class DataFusionPluginStats implements PluginStats {
          */
         public RuntimeValues(StreamInput in) throws IOException {
             this.workersCount = in.readVLong();
-            this.totalParkCount = in.readVLong();
-            this.maxParkCount = in.readVLong();
-            this.minParkCount = in.readVLong();
-            this.totalNoopCount = in.readVLong();
-            this.maxNoopCount = in.readVLong();
-            this.minNoopCount = in.readVLong();
-            this.totalStealCount = in.readVLong();
-            this.maxStealCount = in.readVLong();
-            this.minStealCount = in.readVLong();
-            this.totalStealOperations = in.readVLong();
-            this.totalLocalScheduleCount = in.readVLong();
-            this.maxLocalScheduleCount = in.readVLong();
-            this.minLocalScheduleCount = in.readVLong();
-            this.totalOverflowCount = in.readVLong();
-            this.maxOverflowCount = in.readVLong();
-            this.minOverflowCount = in.readVLong();
             this.totalPollsCount = in.readVLong();
-            this.maxPollsCount = in.readVLong();
-            this.minPollsCount = in.readVLong();
             this.totalBusyDurationMs = in.readVLong();
-            this.maxBusyDurationMs = in.readVLong();
-            this.minBusyDurationMs = in.readVLong();
-            this.totalLocalQueueDepth = in.readVLong();
-            this.maxLocalQueueDepth = in.readVLong();
-            this.minLocalQueueDepth = in.readVLong();
+            this.totalOverflowCount = in.readVLong();
             this.globalQueueDepth = in.readVLong();
             this.blockingQueueDepth = in.readVLong();
         }
@@ -275,62 +206,18 @@ public class DataFusionPluginStats implements PluginStats {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(workersCount);
-            out.writeVLong(totalParkCount);
-            out.writeVLong(maxParkCount);
-            out.writeVLong(minParkCount);
-            out.writeVLong(totalNoopCount);
-            out.writeVLong(maxNoopCount);
-            out.writeVLong(minNoopCount);
-            out.writeVLong(totalStealCount);
-            out.writeVLong(maxStealCount);
-            out.writeVLong(minStealCount);
-            out.writeVLong(totalStealOperations);
-            out.writeVLong(totalLocalScheduleCount);
-            out.writeVLong(maxLocalScheduleCount);
-            out.writeVLong(minLocalScheduleCount);
-            out.writeVLong(totalOverflowCount);
-            out.writeVLong(maxOverflowCount);
-            out.writeVLong(minOverflowCount);
             out.writeVLong(totalPollsCount);
-            out.writeVLong(maxPollsCount);
-            out.writeVLong(minPollsCount);
             out.writeVLong(totalBusyDurationMs);
-            out.writeVLong(maxBusyDurationMs);
-            out.writeVLong(minBusyDurationMs);
-            out.writeVLong(totalLocalQueueDepth);
-            out.writeVLong(maxLocalQueueDepth);
-            out.writeVLong(minLocalQueueDepth);
+            out.writeVLong(totalOverflowCount);
             out.writeVLong(globalQueueDepth);
             out.writeVLong(blockingQueueDepth);
         }
 
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.field("workers_count", workersCount);
-            builder.field("total_park_count", totalParkCount);
-            builder.field("max_park_count", maxParkCount);
-            builder.field("min_park_count", minParkCount);
-            builder.field("total_noop_count", totalNoopCount);
-            builder.field("max_noop_count", maxNoopCount);
-            builder.field("min_noop_count", minNoopCount);
-            builder.field("total_steal_count", totalStealCount);
-            builder.field("max_steal_count", maxStealCount);
-            builder.field("min_steal_count", minStealCount);
-            builder.field("total_steal_operations", totalStealOperations);
-            builder.field("total_local_schedule_count", totalLocalScheduleCount);
-            builder.field("max_local_schedule_count", maxLocalScheduleCount);
-            builder.field("min_local_schedule_count", minLocalScheduleCount);
-            builder.field("total_overflow_count", totalOverflowCount);
-            builder.field("max_overflow_count", maxOverflowCount);
-            builder.field("min_overflow_count", minOverflowCount);
             builder.field("total_polls_count", totalPollsCount);
-            builder.field("max_polls_count", maxPollsCount);
-            builder.field("min_polls_count", minPollsCount);
             builder.field("total_busy_duration_ms", totalBusyDurationMs);
-            builder.field("max_busy_duration_ms", maxBusyDurationMs);
-            builder.field("min_busy_duration_ms", minBusyDurationMs);
-            builder.field("total_local_queue_depth", totalLocalQueueDepth);
-            builder.field("max_local_queue_depth", maxLocalQueueDepth);
-            builder.field("min_local_queue_depth", minLocalQueueDepth);
+            builder.field("total_overflow_count", totalOverflowCount);
             builder.field("global_queue_depth", globalQueueDepth);
             builder.field("blocking_queue_depth", blockingQueueDepth);
         }
@@ -340,44 +227,19 @@ public class DataFusionPluginStats implements PluginStats {
          */
         static RuntimeValues fromProto(TokioMetricsProto.RuntimeMetrics rm) {
             return new RuntimeValues(
-                rm.getWorkersCount(), rm.getTotalParkCount(), rm.getMaxParkCount(), rm.getMinParkCount(),
-                rm.getTotalNoopCount(), rm.getMaxNoopCount(), rm.getMinNoopCount(),
-                rm.getTotalStealCount(), rm.getMaxStealCount(), rm.getMinStealCount(), rm.getTotalStealOperations(),
-                rm.getTotalLocalScheduleCount(), rm.getMaxLocalScheduleCount(), rm.getMinLocalScheduleCount(),
-                rm.getTotalOverflowCount(), rm.getMaxOverflowCount(), rm.getMinOverflowCount(),
-                rm.getTotalPollsCount(), rm.getMaxPollsCount(), rm.getMinPollsCount(),
-                rm.getTotalBusyDurationMs(), rm.getMaxBusyDurationMs(), rm.getMinBusyDurationMs(),
-                rm.getTotalLocalQueueDepth(), rm.getMaxLocalQueueDepth(), rm.getMinLocalQueueDepth(),
-                rm.getGlobalQueueDepth(), rm.getBlockingQueueDepth()
+                rm.getWorkersCount(),
+                rm.getTotalPollsCount(),
+                rm.getTotalBusyDurationMs(),
+                rm.getTotalOverflowCount(),
+                rm.getGlobalQueueDepth(),
+                rm.getBlockingQueueDepth()
             );
         }
 
         public long getWorkersCount() { return workersCount; }
-        public long getTotalParkCount() { return totalParkCount; }
-        public long getMaxParkCount() { return maxParkCount; }
-        public long getMinParkCount() { return minParkCount; }
-        public long getTotalNoopCount() { return totalNoopCount; }
-        public long getMaxNoopCount() { return maxNoopCount; }
-        public long getMinNoopCount() { return minNoopCount; }
-        public long getTotalStealCount() { return totalStealCount; }
-        public long getMaxStealCount() { return maxStealCount; }
-        public long getMinStealCount() { return minStealCount; }
-        public long getTotalStealOperations() { return totalStealOperations; }
-        public long getTotalLocalScheduleCount() { return totalLocalScheduleCount; }
-        public long getMaxLocalScheduleCount() { return maxLocalScheduleCount; }
-        public long getMinLocalScheduleCount() { return minLocalScheduleCount; }
-        public long getTotalOverflowCount() { return totalOverflowCount; }
-        public long getMaxOverflowCount() { return maxOverflowCount; }
-        public long getMinOverflowCount() { return minOverflowCount; }
         public long getTotalPollsCount() { return totalPollsCount; }
-        public long getMaxPollsCount() { return maxPollsCount; }
-        public long getMinPollsCount() { return minPollsCount; }
         public long getTotalBusyDurationMs() { return totalBusyDurationMs; }
-        public long getMaxBusyDurationMs() { return maxBusyDurationMs; }
-        public long getMinBusyDurationMs() { return minBusyDurationMs; }
-        public long getTotalLocalQueueDepth() { return totalLocalQueueDepth; }
-        public long getMaxLocalQueueDepth() { return maxLocalQueueDepth; }
-        public long getMinLocalQueueDepth() { return minLocalQueueDepth; }
+        public long getTotalOverflowCount() { return totalOverflowCount; }
         public long getGlobalQueueDepth() { return globalQueueDepth; }
         public long getBlockingQueueDepth() { return blockingQueueDepth; }
 
@@ -387,66 +249,41 @@ public class DataFusionPluginStats implements PluginStats {
             if (o == null || getClass() != o.getClass()) return false;
             RuntimeValues that = (RuntimeValues) o;
             return workersCount == that.workersCount
-                && totalParkCount == that.totalParkCount && maxParkCount == that.maxParkCount && minParkCount == that.minParkCount
-                && totalNoopCount == that.totalNoopCount && maxNoopCount == that.maxNoopCount && minNoopCount == that.minNoopCount
-                && totalStealCount == that.totalStealCount && maxStealCount == that.maxStealCount && minStealCount == that.minStealCount
-                && totalStealOperations == that.totalStealOperations
-                && totalLocalScheduleCount == that.totalLocalScheduleCount
-                && maxLocalScheduleCount == that.maxLocalScheduleCount && minLocalScheduleCount == that.minLocalScheduleCount
-                && totalOverflowCount == that.totalOverflowCount
-                && maxOverflowCount == that.maxOverflowCount && minOverflowCount == that.minOverflowCount
-                && totalPollsCount == that.totalPollsCount && maxPollsCount == that.maxPollsCount && minPollsCount == that.minPollsCount
+                && totalPollsCount == that.totalPollsCount
                 && totalBusyDurationMs == that.totalBusyDurationMs
-                && maxBusyDurationMs == that.maxBusyDurationMs && minBusyDurationMs == that.minBusyDurationMs
-                && totalLocalQueueDepth == that.totalLocalQueueDepth
-                && maxLocalQueueDepth == that.maxLocalQueueDepth && minLocalQueueDepth == that.minLocalQueueDepth
-                && globalQueueDepth == that.globalQueueDepth && blockingQueueDepth == that.blockingQueueDepth;
+                && totalOverflowCount == that.totalOverflowCount
+                && globalQueueDepth == that.globalQueueDepth
+                && blockingQueueDepth == that.blockingQueueDepth;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                workersCount, totalParkCount, maxParkCount, minParkCount,
-                totalNoopCount, maxNoopCount, minNoopCount,
-                totalStealCount, maxStealCount, minStealCount, totalStealOperations,
-                totalLocalScheduleCount, maxLocalScheduleCount, minLocalScheduleCount,
-                totalOverflowCount, maxOverflowCount, minOverflowCount,
-                totalPollsCount, maxPollsCount, minPollsCount,
-                totalBusyDurationMs, maxBusyDurationMs, minBusyDurationMs,
-                totalLocalQueueDepth, maxLocalQueueDepth, minLocalQueueDepth,
-                globalQueueDepth, blockingQueueDepth
+                workersCount, totalPollsCount, totalBusyDurationMs,
+                totalOverflowCount, globalQueueDepth, blockingQueueDepth
             );
         }
     }
 
     /**
-     * Holds 6 fields for a single task monitor: 5 longs + 1 double (slowPollRatio).
+     * Holds the 3 actionable duration fields for a single task monitor.
      */
     public static class TaskMonitorValues implements Writeable {
 
-        static final TaskMonitorValues EMPTY = new TaskMonitorValues(0, 0, 0, 0, 0, 0.0);
+        static final TaskMonitorValues EMPTY = new TaskMonitorValues(0, 0, 0);
 
         private final long totalPollDurationMs;
         private final long totalScheduledDurationMs;
         private final long totalIdleDurationMs;
-        private final long totalSlowPollCount;
-        private final long totalLongDelayCount;
-        private final double slowPollRatio;
 
         public TaskMonitorValues(
             long totalPollDurationMs,
             long totalScheduledDurationMs,
-            long totalIdleDurationMs,
-            long totalSlowPollCount,
-            long totalLongDelayCount,
-            double slowPollRatio
+            long totalIdleDurationMs
         ) {
             this.totalPollDurationMs = totalPollDurationMs;
             this.totalScheduledDurationMs = totalScheduledDurationMs;
             this.totalIdleDurationMs = totalIdleDurationMs;
-            this.totalSlowPollCount = totalSlowPollCount;
-            this.totalLongDelayCount = totalLongDelayCount;
-            this.slowPollRatio = slowPollRatio;
         }
 
         /**
@@ -456,9 +293,6 @@ public class DataFusionPluginStats implements PluginStats {
             this.totalPollDurationMs = in.readVLong();
             this.totalScheduledDurationMs = in.readVLong();
             this.totalIdleDurationMs = in.readVLong();
-            this.totalSlowPollCount = in.readVLong();
-            this.totalLongDelayCount = in.readVLong();
-            this.slowPollRatio = in.readDouble();
         }
 
         @Override
@@ -466,18 +300,12 @@ public class DataFusionPluginStats implements PluginStats {
             out.writeVLong(totalPollDurationMs);
             out.writeVLong(totalScheduledDurationMs);
             out.writeVLong(totalIdleDurationMs);
-            out.writeVLong(totalSlowPollCount);
-            out.writeVLong(totalLongDelayCount);
-            out.writeDouble(slowPollRatio);
         }
 
         public void toXContent(XContentBuilder builder) throws IOException {
             builder.field("total_poll_duration_ms", totalPollDurationMs);
             builder.field("total_scheduled_duration_ms", totalScheduledDurationMs);
             builder.field("total_idle_duration_ms", totalIdleDurationMs);
-            builder.field("total_slow_poll_count", totalSlowPollCount);
-            builder.field("total_long_delay_count", totalLongDelayCount);
-            builder.field("slow_poll_ratio", slowPollRatio);
         }
 
         /**
@@ -487,19 +315,13 @@ public class DataFusionPluginStats implements PluginStats {
             return new TaskMonitorValues(
                 tm.getTotalPollDurationMs(),
                 tm.getTotalScheduledDurationMs(),
-                tm.getTotalIdleDurationMs(),
-                tm.getTotalSlowPollCount(),
-                tm.getTotalLongDelayCount(),
-                tm.getSlowPollRatio()
+                tm.getTotalIdleDurationMs()
             );
         }
 
         public long getTotalPollDurationMs() { return totalPollDurationMs; }
         public long getTotalScheduledDurationMs() { return totalScheduledDurationMs; }
         public long getTotalIdleDurationMs() { return totalIdleDurationMs; }
-        public long getTotalSlowPollCount() { return totalSlowPollCount; }
-        public long getTotalLongDelayCount() { return totalLongDelayCount; }
-        public double getSlowPollRatio() { return slowPollRatio; }
 
         @Override
         public boolean equals(Object o) {
@@ -508,18 +330,12 @@ public class DataFusionPluginStats implements PluginStats {
             TaskMonitorValues that = (TaskMonitorValues) o;
             return totalPollDurationMs == that.totalPollDurationMs
                 && totalScheduledDurationMs == that.totalScheduledDurationMs
-                && totalIdleDurationMs == that.totalIdleDurationMs
-                && totalSlowPollCount == that.totalSlowPollCount
-                && totalLongDelayCount == that.totalLongDelayCount
-                && Double.compare(that.slowPollRatio, slowPollRatio) == 0;
+                && totalIdleDurationMs == that.totalIdleDurationMs;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs,
-                totalSlowPollCount, totalLongDelayCount, slowPollRatio
-            );
+            return Objects.hash(totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs);
         }
     }
 }

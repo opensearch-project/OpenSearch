@@ -46,34 +46,14 @@ public class NativeExecutorsStatsTests {
     @Provide
     Arbitrary<DataFusionPluginStats.RuntimeValues> runtimeValues() {
         Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(
-            posLong, posLong, posLong, posLong, posLong, posLong, posLong, posLong
-        ).as((a, b, c, d, e, f, g, h) -> new long[]{a, b, c, d, e, f, g, h})
-        .flatMap(first8 -> Combinators.combine(
-            posLong, posLong, posLong, posLong, posLong, posLong, posLong, posLong
-        ).as((a, b, c, d, e, f, g, h) -> new long[]{a, b, c, d, e, f, g, h})
-        .flatMap(second8 -> Combinators.combine(
-            posLong, posLong, posLong, posLong, posLong, posLong, posLong, posLong
-        ).as((a, b, c, d, e, f, g, h) -> new long[]{a, b, c, d, e, f, g, h})
-        .flatMap(third8 -> Combinators.combine(
-            posLong, posLong, posLong, posLong
-        ).as((a, b, c, d) -> new DataFusionPluginStats.RuntimeValues(
-            first8[0], first8[1], first8[2], first8[3],
-            first8[4], first8[5], first8[6],
-            first8[7], second8[0], second8[1], second8[2],
-            second8[3], second8[4], second8[5],
-            second8[6], second8[7], third8[0],
-            third8[1], third8[2], third8[3],
-            third8[4], third8[5], third8[6],
-            third8[7], a, b, c, d
-        )))));
+        return Combinators.combine(posLong, posLong, posLong, posLong, posLong, posLong)
+            .as(DataFusionPluginStats.RuntimeValues::new);
     }
 
     @Provide
     Arbitrary<DataFusionPluginStats.TaskMonitorValues> taskMonitorValues() {
         Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        Arbitrary<Double> ratio = Arbitraries.doubles().between(0.0, 1.0);
-        return Combinators.combine(posLong, posLong, posLong, posLong, posLong, ratio)
+        return Combinators.combine(posLong, posLong, posLong)
             .as(DataFusionPluginStats.TaskMonitorValues::new);
     }
 
@@ -174,9 +154,9 @@ public class NativeExecutorsStatsTests {
         assertEquals(pluginStats.getQueryExecution().getTotalPollDurationMs(),
             ((Number) queryExec.get("total_poll_duration_ms")).longValue(),
             "total_poll_duration_ms should match for query_execution");
-        assertEquals(pluginStats.getQueryExecution().getSlowPollRatio(),
-            ((Number) queryExec.get("slow_poll_ratio")).doubleValue(), 1e-9,
-            "slow_poll_ratio should match for query_execution");
+        assertEquals(pluginStats.getQueryExecution().getTotalScheduledDurationMs(),
+            ((Number) queryExec.get("total_scheduled_duration_ms")).longValue(),
+            "total_scheduled_duration_ms should match for query_execution");
     }
 
     // --- Property 3: Null handling ---

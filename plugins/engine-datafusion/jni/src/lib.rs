@@ -209,9 +209,6 @@ fn task_monitor_to_proto(monitor: &TaskMonitor) -> datafusion_proto::TaskMonitor
         total_poll_duration_ms: m.total_poll_duration.as_millis() as u64,
         total_scheduled_duration_ms: m.total_scheduled_duration.as_millis() as u64,
         total_idle_duration_ms: m.total_idle_duration.as_millis() as u64,
-        total_slow_poll_count: m.total_slow_poll_count,
-        total_long_delay_count: m.total_long_delay_count,
-        slow_poll_ratio: m.slow_poll_ratio(),
     }
 }
 
@@ -306,21 +303,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_shutdownT
 fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
     log_info!("=== Runtime Metrics ===");
     log_info!("  Workers: {}", metrics.workers_count);
+    log_info!("  Total polls: {}", metrics.total_polls_count);
+    log_info!("  Total busy duration ms: {}", metrics.total_busy_duration.as_millis());
+    log_info!("  Total overflow: {}", metrics.total_overflow_count);
     log_info!("  Global queue depth: {}", metrics.global_queue_depth);
-    /*
-    //unstable tokio causes build failures, uncomment this when monitoring
-
-    log_info!("  Worker overflow: {}", metrics.total_overflow_count);
-    log_info!("  Remote schedule: {}", metrics.max_local_schedule_count);
-    log_info!("  Worker steal ops: {}", metrics.total_steal_operations);
     log_info!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
-    log_info!("  Max local queue depth: {}", metrics.max_local_queue_depth);
-    log_info!("  Min local queue depth: {}", metrics.min_local_queue_depth);
-    log_info!("  Max local schedule count: {}", metrics.max_local_schedule_count);
-    log_info!("  Min local schedule count: {}", metrics.min_local_schedule_count);
-    log_info!("  Queue depth: {}", metrics.total_local_queue_depth);
-    log_info!("  Total schedule count: {}", metrics.total_local_schedule_count);
-    */
     let query_metrics = QUERY_EXECUTION_MONITOR.cumulative();
     log_task_metrics("Query exec (via CrossRtStream)", &query_metrics);
     let stream_metrics = STREAM_NEXT_MONITOR.cumulative();
@@ -332,14 +319,9 @@ fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
 #[allow(dead_code)]
 fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
     log_info!("=== Task Metrics: {} ===", operation);
-    log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
     log_info!("  Poll duration: {:?}", metrics.total_poll_duration);
+    log_info!("  Scheduled duration: {:?}", metrics.total_scheduled_duration);
     log_info!("  Idle duration: {:?}", metrics.total_idle_duration);
-    log_info!("  Mean poll duration: {:?}", metrics.mean_poll_duration());
-    log_info!("  Slow poll ratio: {:.2}%", metrics.slow_poll_ratio() * 100.0);
-    log_info!("  Mean first poll delay: {:?}", metrics.mean_first_poll_delay());
-    log_info!("  Total slow polls: {}", metrics.total_slow_poll_count);
-    log_info!("  Total long delays: {}", metrics.total_long_delay_count);
 }
 
 #[no_mangle]
