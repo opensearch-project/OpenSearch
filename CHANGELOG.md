@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Move pull-based ingestion classes from experimental to publicAPI ([#20704](https://github.com/opensearch-project/OpenSearch/pull/20704))
 - Lazy init stored field reader in SourceLookup ([#20827](https://github.com/opensearch-project/OpenSearch/pull/20827))
 * Improved error message when trying to open an index originally created with Elasticsearch on OpenSearch ([#20512](https://github.com/opensearch-project/OpenSearch/pull/20512))
+- Updated MMapDirectory to use ReadAdviseByContext rather than default readadvise of Lucene([#21031](https://github.com/opensearch-project/OpenSearch/pull/21031))
 
 ### Fixed
 - Relax index template pattern overlap check to use minimum-string heuristic, allowing distinguishable multi-wildcard patterns at the same priority ([#20702](https://github.com/opensearch-project/OpenSearch/pull/20702))
@@ -92,9 +93,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jline:jline` from 3.30.6 to 4.0.0 ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
 - Bump `com.netflix.nebula.ospackage-base` from 12.2.0 to 12.3.0 ([#20799](https://github.com/opensearch-project/OpenSearch/pull/20799))
 - Bump `com.netflix.nebula:gradle-info-plugin` to 16.2.1 ([#20825](https://github.com/opensearch-project/OpenSearch/pull/20825))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.25.3 to 2.25.4 ([#21040](https://github.com/opensearch-project/OpenSearch/pull/21040))
 - Bump `com.sun.xml.bind:jaxb-impl` from 4.0.6 to 4.0.7 ([#20886](https://github.com/opensearch-project/OpenSearch/pull/20886))
 - Bump `lycheeverse/lychee-action` from 2.7.0 to 2.8.0 ([#20888](https://github.com/opensearch-project/OpenSearch/pull/20888))
 - Update Jackson to 2.21.2 ([#20989](https://github.com/opensearch-project/OpenSearch/pull/20989))
+- Bump `org.apache.zookeeper:zookeeper` from 3.9.4 to 3.9.5 ([#20887](https://github.com/opensearch-project/OpenSearch/pull/20887))
+- Bump `actions/github-script` from 7 to 8 ([#21042](https://github.com/opensearch-project/OpenSearch/pull/21042))
 
 ### Removed
 
