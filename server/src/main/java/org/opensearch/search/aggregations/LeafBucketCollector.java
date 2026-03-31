@@ -47,7 +47,7 @@ import java.util.stream.StreamSupport;
  * Per-leaf bucket collector.
  *
  * <p>This collector buffers doc IDs internally and flushes them in batches via
- * {@link #collect(int[], int, long)}. All entry points ({@link #collect(int, long)},
+ * {@link #collect(int[], int, long)}. All entry points ({@link #collect(int)},
  * {@link #collect(DocIdStream, long)}, {@link #collectRange(int, int, long)}) funnel
  * through this batch path, enabling aggregator implementations to perform bulk doc value
  * retrieval using Lucene 10.4 APIs like {@code NumericDocValues#longValues}.
@@ -157,6 +157,11 @@ public abstract class LeafBucketCollector implements LeafCollector {
         }
     }
 
+    /**
+     * Collect a single doc ID into bucket 0 (top-level aggregation).
+     *
+     * <p>The default implementation delegates to {@link #collect(int, long)} with bucket 0.
+     */
     @Override
     public void collect(int doc) throws IOException {
         collect(doc, 0);
