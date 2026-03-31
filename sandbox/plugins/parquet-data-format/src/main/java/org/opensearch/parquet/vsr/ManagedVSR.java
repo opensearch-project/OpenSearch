@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ul>
  *
  * <p>State transitions are enforced: writing to a frozen VSR or closing an active VSR
+ * (without freezing first) throws {@link IllegalStateException}.
+ *
  * <p>This class is NOT Thread-Safe. External synchronization is required
  * if instances are shared across threads.
  */

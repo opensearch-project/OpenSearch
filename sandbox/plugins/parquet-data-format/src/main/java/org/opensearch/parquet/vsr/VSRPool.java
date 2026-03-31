@@ -23,8 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>Handles row-count-based rotation: when the active VSR reaches the configured
  * {@code maxRowsPerVSR} threshold, it is frozen and a new active VSR is created.
- * The frozen slot must be drained (exported and closed) before the next rotation
- * can occur; attempting to rotate with an occupied frozen slot throws {@link java.io.IOException}.
+ * If the frozen slot is still occupied (previous write in progress), rotation is
+ * skipped and the active VSR continues accepting writes beyond the threshold.
  *
  * <p>Each new VSR receives its own child allocator from the shared {@link ArrowBufferPool},
  * <p>This class is NOT Thread-Safe. External synchronization is required
@@ -81,9 +81,11 @@ public class VSRPool implements AutoCloseable {
 
     /**
      * Checks if rotation is needed and performs it if safe.
+     * If the frozen slot is still occupied, rotation is skipped and the active VSR
+     * continues accepting writes beyond the threshold.
      *
-     * @return true if rotation occurred
-     * @throws IOException if rotation needed but frozen slot is occupied
+     * @return true if rotation occurred, false if not needed or skipped
+     * @throws IOException if the active VSR swap fails unexpectedly
      */
     public boolean maybeRotateActiveVSR() throws IOException {
         ManagedVSR current = activeVSR.get();

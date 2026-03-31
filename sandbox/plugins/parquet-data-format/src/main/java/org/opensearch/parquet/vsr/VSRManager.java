@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * </ol>
  *
  * <p>Field values are resolved to their Arrow vector types via {@link ArrowFieldRegistry}
+ * during document ingestion.
+ *
  * <p>This class is NOT Thread-Safe. External synchronization is required
  * if instances are shared across threads.
  */
@@ -129,9 +131,10 @@ public class VSRManager implements AutoCloseable {
     }
 
     /**
-     * Handles VSR rotation after document addition if row threshold is reached.
-     * Submits frozen VSR write to the background thread pool or runs it on the calling thread,
-     * depending on the {@code runAsync} setting.
+     * Checks if VSR rotation is needed before accepting the next document.
+     * If the active VSR has reached the row threshold and the frozen slot is empty,
+     * freezes the active VSR, submits it for background native write, and creates
+     * a new active VSR. If the frozen slot is occupied, rotation is skipped.
      */
     public void maybeRotateActiveVSR() throws IOException {
         boolean rotated = vsrPool.maybeRotateActiveVSR();
@@ -222,6 +225,7 @@ public class VSRManager implements AutoCloseable {
      * Waits for any in-flight background write to complete with an optional timeout.
      *
      * @param timeoutSeconds timeout in seconds (0 means wait indefinitely)
+     * @param ignoreTimeout if true, log a warning on timeout instead of throwing
      */
     private void awaitPendingWrite(long timeoutSeconds, boolean ignoreTimeout) throws IOException {
         if (pendingWrite == null) {

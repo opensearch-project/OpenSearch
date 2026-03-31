@@ -73,7 +73,7 @@ public class NativeParquetWriter {
     }
 
     /**
-     * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
+     * Syncs the Parquet file to disk.
      * If flush has not been called yet, it will be called first.
      *
      * @throws IOException if the sync fails
