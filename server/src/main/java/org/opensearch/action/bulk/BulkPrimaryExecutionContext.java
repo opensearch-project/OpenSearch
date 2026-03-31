@@ -130,19 +130,7 @@ class BulkPrimaryExecutionContext {
     }
 
     public BulkShardRequest getBulkShardRequest() {
-        BulkItemRequest[] newRequests = new BulkItemRequest[request.items().length];
-        for (int i = 0; i < newRequests.length; i++) {
-            BulkItemRequest oldRequest = request.items()[i];
-            newRequests[i] = new BulkItemRequest(oldRequest.id(), oldRequest.request(), primaryResponses[i]);
-        }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), request.getRefreshPolicy(), newRequests);
-        // Clone other properties from primary shard request
-        // See TransportBulkAction.BulkOperation#doRun() for construction of the primary shard request.
-        bulkShardRequest.waitForActiveShards(request.waitForActiveShards());
-        bulkShardRequest.timeout(request.timeout());
-        bulkShardRequest.routedBasedOnClusterVersion(request.routedBasedOnClusterVersion());
-        bulkShardRequest.setParentTask(request.getParentTask());
-        return bulkShardRequest;
+        return request.setPrimaryResponses(primaryResponses);
     }
 
     /** returns the result of the request that has been executed on the shard */

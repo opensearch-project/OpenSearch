@@ -862,7 +862,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.primaryResponse();
             final Engine.Result operationResult;
-            if (item.primaryResponse().isFailed()) {
+            assert response != null;
+            if (response.isFailed()) {
                 if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     continue; // ignore replication as we didn't generate a sequence number for this request.
                 }
@@ -886,7 +887,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
-            assert operationResult != null : "operation result must never be null when primary response has no failure";
+            assert operationResult != null : "operation result must never be null";
             location = syncOperationResultOrThrow(operationResult, location);
         }
         return location;
