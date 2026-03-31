@@ -26,6 +26,11 @@ import java.util.Set;
  * Maintains versioned information about segments, files, and metadata for index operations.
  * Extends AbstractRefCounted to support reference counting for safe concurrent access.
  * Subclasses must implement methods for accessing file metadata, segments, and user data.
+ *
+ * <p><b>Important:</b> Do not call {@code incRef()}, {@code decRef()}, or {@code tryIncRef()} directly.
+ * Use {@link org.opensearch.index.engine.exec.coord.CatalogSnapshotManager#acquireSnapshot()} to obtain
+ * a reference-counted handle, and close the returned {@link org.opensearch.common.concurrent.GatedCloseable}
+ * when done. The manager handles all reference counting internally.</p>
  */
 @ExperimentalApi
 public abstract class CatalogSnapshot extends AbstractRefCounted implements Writeable, Cloneable {

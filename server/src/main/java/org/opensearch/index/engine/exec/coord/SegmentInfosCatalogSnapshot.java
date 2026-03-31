@@ -9,7 +9,12 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
@@ -46,6 +51,23 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     public SegmentInfosCatalogSnapshot(SegmentInfos segmentInfos) {
         super(CATALOG_SNAPSHOT_KEY + segmentInfos.getGeneration(), segmentInfos.getGeneration(), segmentInfos.getVersion());
         this.segmentInfos = segmentInfos;
+    }
+
+    /**
+     * Constructs a SegmentInfosCatalogSnapshot from a {@link StreamInput} by deserializing the
+     * SegmentInfos binary representation.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs
+     */
+    public SegmentInfosCatalogSnapshot(StreamInput in) throws IOException {
+        super(in);
+        byte[] segmentInfosBytes = in.readByteArray();
+        this.segmentInfos = SegmentInfos.readCommit(
+            null,
+            new BufferedChecksumIndexInput(new ByteArrayIndexInput("SegmentInfos", segmentInfosBytes)),
+            0L
+        );
     }
 
     /**
@@ -94,7 +116,12 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support writeTo()");
+        super.writeTo(out);
+        ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();
+        try (ByteBuffersIndexOutput indexOutput = new ByteBuffersIndexOutput(buffer, "", null)) {
+            segmentInfos.write(indexOutput);
+        }
+        out.writeByteArray(buffer.toArrayCopy());
     }
 
     @Override

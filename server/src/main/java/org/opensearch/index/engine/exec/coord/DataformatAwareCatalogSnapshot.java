@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -23,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -76,14 +76,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     public DataformatAwareCatalogSnapshot(StreamInput in) throws IOException {
         super(in);
 
-        // Read userData map
-        int userDataSize = in.readVInt();
-        this.userData = new HashMap<>();
-        for (int i = 0; i < userDataSize; i++) {
-            String key = in.readString();
-            String value = in.readString();
-            userData.put(key, value);
-        }
+        this.userData = in.readMap(StreamInput::readString, StreamInput::readString);
 
         this.id = in.readLong();
         this.lastWriterGeneration = in.readLong();
@@ -91,18 +84,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         int segmentCount = in.readVInt();
         List<Segment> segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
-            long segGeneration = in.readLong();
-            int formatCount = in.readVInt();
-            Map<String, WriterFileSet> dfGrouped = new HashMap<>(formatCount);
-            for (int j = 0; j < formatCount; j++) {
-                String formatName = in.readString();
-                String directory = in.readString();
-                long writerGeneration = in.readLong();
-                List<String> fileList = in.readStringList();
-                long numRows = in.readLong();
-                dfGrouped.put(formatName, new WriterFileSet(directory, writerGeneration, new HashSet<>(fileList), numRows));
-            }
-            segmentList.add(new Segment(segGeneration, dfGrouped));
+            segmentList.add(new Segment(in));
         }
         this.segments = Collections.unmodifiableList(segmentList);
     }
@@ -157,7 +139,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     public String serializeToString() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             this.writeTo(out);
-            return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         }
     }
 
@@ -169,6 +151,9 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * @throws IOException if the data is malformed or missing required fields
      */
     public static DataformatAwareCatalogSnapshot deserializeFromString(String serializedData) throws IOException {
+        if (serializedData == null || serializedData.isEmpty()) {
+            throw new IOException("Cannot deserialize DataformatAwareCatalogSnapshot: input is null or empty");
+        }
         try {
             byte[] bytes = Base64.getDecoder().decode(serializedData);
             try (BytesStreamInput in = new BytesStreamInput(bytes)) {
@@ -184,33 +169,12 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        // Write userData map
-        if (userData == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(userData.size());
-            for (Map.Entry<String, String> entry : userData.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
-        }
-
+        out.writeMap(userData, StreamOutput::writeString, StreamOutput::writeString);
         out.writeLong(id);
         out.writeLong(lastWriterGeneration);
-
         out.writeVInt(segments.size());
         for (Segment seg : segments) {
-            out.writeLong(seg.generation());
-            out.writeVInt(seg.dfGroupedSearchableFiles().size());
-            for (Map.Entry<String, WriterFileSet> dfEntry : seg.dfGroupedSearchableFiles().entrySet()) {
-                out.writeString(dfEntry.getKey());
-                WriterFileSet wfs = dfEntry.getValue();
-                out.writeString(wfs.directory());
-                out.writeLong(wfs.writerGeneration());
-                out.writeStringCollection(wfs.files());
-                out.writeLong(wfs.numRows());
-            }
+            seg.writeTo(out);
         }
     }
 

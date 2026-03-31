@@ -9,15 +9,14 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 
 import java.io.Closeable;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
@@ -34,7 +33,6 @@ import java.util.function.Supplier;
 public class CatalogSnapshotManager implements Closeable {
 
     private volatile CatalogSnapshot latestCatalogSnapshot;
-    private final AtomicLong generation;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
 
@@ -51,18 +49,21 @@ public class CatalogSnapshotManager implements Closeable {
             "initialSnapshotSupplier must not return null"
         );
         this.latestCatalogSnapshot = initialSnapshot;
-        this.generation = new AtomicLong(initialSnapshot.getGeneration());
-        catalogSnapshotMap.put(initialSnapshot.getGeneration(), initialSnapshot);
+        if (catalogSnapshotMap.putIfAbsent(initialSnapshot.getGeneration(), initialSnapshot) != null) {
+            throw new IllegalStateException(
+                "Duplicate snapshot generation [" + initialSnapshot.getGeneration() + "] in catalog snapshot map"
+            );
+        }
     }
 
     /**
-     * Acquires the current snapshot with an incremented reference count, wrapped in a {@link ReleasableRef}
+     * Acquires the current snapshot with an incremented reference count, wrapped in a {@link GatedCloseable}
      * that calls {@link #decRefAndRemove} on close.
      *
-     * @return a {@link ReleasableRef} wrapping the current {@link CatalogSnapshot}
+     * @return a {@link GatedCloseable} wrapping the current {@link CatalogSnapshot}
      * @throws IllegalStateException if the manager or snapshot is already closed
      */
-    public ReleasableRef<CatalogSnapshot> acquireSnapshot() {
+    public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
@@ -70,12 +71,7 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.tryIncRef() == false) {
             throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
         }
-        return new ReleasableRef<>(snapshot) {
-            @Override
-            public void close() {
-                decRefAndRemove(snapshot);
-            }
-        };
+        return new GatedCloseable<>(snapshot, () -> decRefAndRemove(snapshot));
     }
 
     /**
@@ -84,12 +80,13 @@ public class CatalogSnapshotManager implements Closeable {
      *
      * @param newSnapshot the new catalog snapshot to commit
      */
-    public void commitNewSnapshot(CatalogSnapshot newSnapshot) {
+    public synchronized void commitNewSnapshot(CatalogSnapshot newSnapshot) {
         assert closed.get() == false : "Cannot commit to a closed CatalogSnapshotManager";
         assert newSnapshot.getGeneration() > latestCatalogSnapshot.getGeneration() : "New snapshot generation must be greater than current";
 
-        catalogSnapshotMap.put(newSnapshot.getGeneration(), newSnapshot);
-        generation.set(newSnapshot.getGeneration());
+        if (catalogSnapshotMap.putIfAbsent(newSnapshot.getGeneration(), newSnapshot) != null) {
+            throw new IllegalStateException("Duplicate snapshot generation [" + newSnapshot.getGeneration() + "] in catalog snapshot map");
+        }
         CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         latestCatalogSnapshot = newSnapshot;
         decRefAndRemove(oldSnapshot);
@@ -104,24 +101,6 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.decRef()) {
             catalogSnapshotMap.remove(gen);
         }
-    }
-
-    /**
-     * Returns an unmodifiable view of all live snapshots keyed by generation.
-     *
-     * @return unmodifiable map of generation to catalog snapshot
-     */
-    public Map<Long, CatalogSnapshot> getCatalogSnapshotMap() {
-        return Collections.unmodifiableMap(catalogSnapshotMap);
-    }
-
-    /**
-     * Returns the current generation counter value.
-     *
-     * @return the current generation
-     */
-    public long getCurrentGeneration() {
-        return generation.get();
     }
 
     /**
@@ -144,20 +123,4 @@ public class CatalogSnapshotManager implements Closeable {
         }
     }
 
-    /**
-     * A generic reference wrapper for safe resource management via try-with-resources.
-     */
-    @ExperimentalApi
-    public abstract static class ReleasableRef<T> implements AutoCloseable {
-
-        private final T ref;
-
-        public ReleasableRef(T ref) {
-            this.ref = ref;
-        }
-
-        public T getRef() {
-            return ref;
-        }
-    }
 }
