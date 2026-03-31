@@ -116,6 +116,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
+        if (refreshInput == null) {
+            return new RefreshResult(List.of());
+        }
         List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
         long gen = segments.stream().mapToLong(Segment::generation).max().orElse(-1) + 1;
         for (WriterFileSet wfs : refreshInput.writerFiles()) {
@@ -126,7 +129,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public long getNextWriterGeneration() {
-        return 0;
+        throw new UnsupportedOperationException("getNextWriterGeneration not supported");
     }
 
     @Override

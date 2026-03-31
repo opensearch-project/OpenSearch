@@ -23,27 +23,6 @@ import org.apache.arrow.c.ArrowSchema;
 public record ArrowExport(ArrowArray arrowArray, ArrowSchema arrowSchema) implements AutoCloseable {
 
     /**
-     * Creates a new ArrowExport.
-     *
-     * @param arrowArray  the Arrow array to export
-     * @param arrowSchema the Arrow schema to export
-     */
-    public ArrowExport {
-    }
-
-    /** Returns the arrow array. */
-    @Override
-    public ArrowArray arrowArray() {
-        return arrowArray;
-    }
-
-    /** Returns the arrow schema. */
-    @Override
-    public ArrowSchema arrowSchema() {
-        return arrowSchema;
-    }
-
-    /**
      * Returns the memory address of the Arrow array.
      *
      * @return the native memory address of the array

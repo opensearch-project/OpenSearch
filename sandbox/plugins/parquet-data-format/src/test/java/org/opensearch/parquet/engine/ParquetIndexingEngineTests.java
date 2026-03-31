@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.RefreshInput;
+import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -120,12 +121,18 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
         assertTrue(engine.refresh(RefreshInput.builder().build()).refreshedSegments().isEmpty());
     }
 
+    public void testRefreshWithNullInput() throws Exception {
+        RefreshResult result = engine.refresh(null);
+        assertNotNull(result);
+        assertTrue(result.refreshedSegments().isEmpty());
+    }
+
     public void testGetMergerReturnsNull() {
         assertNull(engine.getMerger());
     }
 
-    public void testGetNextWriterGenerationReturnsZero() {
-        assertEquals(0, engine.getNextWriterGeneration());
+    public void testGetNextWriterGenerationThrows() {
+        expectThrows(UnsupportedOperationException.class, () -> engine.getNextWriterGeneration());
     }
 
     public void testDeleteFiles() throws Exception {
