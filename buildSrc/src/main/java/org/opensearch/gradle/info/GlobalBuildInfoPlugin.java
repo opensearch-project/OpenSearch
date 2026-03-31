@@ -133,6 +133,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(FipsBuildParams.isInFipsMode());
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            params.setBuildUnreleasedFromSource(Util.getBooleanProperty("bwc.buildUnreleasedFromSource", true));
             if (isInternal) {
                 params.setBwcVersions(resolveBwcVersions(rootDir));
             }
