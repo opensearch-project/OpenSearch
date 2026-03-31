@@ -25,6 +25,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add new setting property 'Sensitive' for tiering dynamic settings ([#20901](https://github.com/opensearch-project/OpenSearch/pull/20901))
 - Add ref_path support for package-based hunspell dictionary loading ([#20840](https://github.com/opensearch-project/OpenSearch/pull/20840))
 - Add support for enabling pluggable data formats, starting with phase-1 of decoupling shard from engine, and introducing basic abstractions ([#20675](https://github.com/opensearch-project/OpenSearch/pull/20675))
+- Add concurrent queue in libs and composite engine sandbox plugin ([#20909](https://github.com/opensearch-project/OpenSearch/pull/20909))
+- Add interface for the Multi format merge flow ([#20908](https://github.com/opensearch-project/OpenSearch/pull/20908))
 
 - Add warmup phase to wait for lag to catch up in pull-based ingestion before serving ([#20526](https://github.com/opensearch-project/OpenSearch/pull/20526))
 - Add a new static method to IndicesOptions API to expose `STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED` index option ([#20980](https://github.com/opensearch-project/OpenSearch/pull/20980))
@@ -90,10 +92,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.jline:jline` from 3.30.6 to 4.0.0 ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
 - Bump `com.netflix.nebula.ospackage-base` from 12.2.0 to 12.3.0 ([#20799](https://github.com/opensearch-project/OpenSearch/pull/20799))
 - Bump `com.netflix.nebula:gradle-info-plugin` to 16.2.1 ([#20825](https://github.com/opensearch-project/OpenSearch/pull/20825))
+- Bump `org.apache.logging.log4j:log4j-core` from 2.25.3 to 2.25.4 ([#21040](https://github.com/opensearch-project/OpenSearch/pull/21040))
 - Bump `com.sun.xml.bind:jaxb-impl` from 4.0.6 to 4.0.7 ([#20886](https://github.com/opensearch-project/OpenSearch/pull/20886))
 - Bump `lycheeverse/lychee-action` from 2.7.0 to 2.8.0 ([#20888](https://github.com/opensearch-project/OpenSearch/pull/20888))
 - Update Jackson to 2.21.2 ([#20989](https://github.com/opensearch-project/OpenSearch/pull/20989))
+- Bump `org.apache.zookeeper:zookeeper` from 3.9.4 to 3.9.5 ([#20887](https://github.com/opensearch-project/OpenSearch/pull/20887))
+- Bump `actions/github-script` from 7 to 8 ([#21042](https://github.com/opensearch-project/OpenSearch/pull/21042))
 
 ### Removed
 
-[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.6...main
+[Unreleased 3.x]: https://github.com/opensearch-project/OpenSearch/compare/3.7...main
