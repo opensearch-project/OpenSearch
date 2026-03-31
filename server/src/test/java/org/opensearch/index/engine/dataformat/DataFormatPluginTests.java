@@ -14,6 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.dataformat.DataFormatTestUtils.MockDataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
@@ -65,11 +66,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
             .build();
-        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = plugin.indexingEngine(
-            mock(MapperService.class),
-            new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
-            new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)
-        );
+        @SuppressWarnings("unchecked")
+        IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = (IndexingExecutionEngine<DataFormat, MockDocumentInput>) plugin
+            .indexingEngine(
+                mock(MapperService.class),
+                new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
+                new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)
+            );
         assertEquals(format, engine.getDataFormat());
 
         // 2. Create a writer and write documents
@@ -150,7 +153,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
      * Tests DataFormat equality semantics and field capabilities.
      */
     public void testDataFormatCapabilities() {
-        MockDataFormat format = new MockDataFormat();
+        DataFormat format = new MockDataFormat();
         Set<FieldTypeCapabilities> fields = format.supportedFields();
         assertEquals(1, fields.size());
 
@@ -223,28 +226,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         RefreshInput input = RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).existingSegments(List.of(seg)).build();
         assertEquals(2, input.writerFiles().size());
         assertEquals(1, input.existingSegments().size());
-    }
-
-    static class MockDataFormat implements DataFormat {
-        @Override
-        public String name() {
-            return "mock-columnar";
-        }
-
-        @Override
-        public long priority() {
-            return 100L;
-        }
-
-        @Override
-        public Set<FieldTypeCapabilities> supportedFields() {
-            return Set.of(
-                new FieldTypeCapabilities(
-                    "integer",
-                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
-                )
-            );
-        }
     }
 
     static class MockDocumentInput implements DocumentInput<Map<String, Object>> {
@@ -352,6 +333,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         private final MockDataFormat dataFormat;
         private final Path directory;
         private final AtomicLong seqNo = new AtomicLong(0);
+        private final AtomicLong writerGeneration = new AtomicLong(0);
 
         MockIndexingExecutionEngine(MockDataFormat dataFormat) {
             this.dataFormat = dataFormat;
@@ -389,6 +371,11 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         }
 
         @Override
+        public long getNextWriterGeneration() {
+            return writerGeneration.getAndIncrement();
+        }
+
+        @Override
         public MockDocumentInput newDocumentInput() {
             return new MockDocumentInput();
         }
@@ -403,13 +390,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
-            MapperService mapperService,
-            ShardPath shardPath,
-            IndexSettings indexSettings
-        ) {
-            return (IndexingExecutionEngine<T, P>) new MockIndexingExecutionEngine(dataFormat);
+        public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+            return new MockIndexingExecutionEngine(dataFormat);
         }
     }
 
