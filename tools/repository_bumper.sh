@@ -6,10 +6,12 @@
 # This script updates the VERSION.json file and the changelog section of the
 # RPM spec file for a new version release.
 #
-# It takes three arguments:
+# It takes three required arguments and one optional flag:
 # 1. The new version to set (e.g., 4.5.0)
 # 2. The new stage to set (alpha, beta, rc, stable)
-# 3. The date to set in the changelog (e.g., 'Mon Jan 02 2025')
+# 3. The date to set in the changelog (e.g., '2025-04-13')
+# 4. [--set-as-main] Enable main branch mode: bump version values only,
+#    keep branch references pointing to main
 #
 # The changelog entry will be added to the %changelog section of the RPM spec file,
 # and will be formatted as follows:
@@ -22,10 +24,11 @@ set -euo pipefail
 # Print usage instructions
 # ====
 function usage() {
-    echo "Usage: $0 <version> <stage> <date>"
-    echo "  version:  The new version to set in VERSION.json (e.g., 4.5.0)"
-    echo "  stage:    The new stage to set in VERSION.json (alpha, beta, rc, stable)"
-    echo "  date:     The date to set in the changelog (e.g., '2025-04-13')"
+    echo "Usage: $0 <version> <stage> <date> [--set-as-main]"
+    echo "  version:       The new version to set in VERSION.json (e.g., 4.5.0)"
+    echo "  stage:         The new stage to set in VERSION.json (alpha, beta, rc, stable)"
+    echo "  date:          The date to set in the changelog (e.g., '2025-04-13')"
+    echo "  --set-as-main  Enable main branch mode: bump version values only, keep branch references pointing to main"
     exit 1
 }
 
@@ -213,14 +216,32 @@ function update_rpm_changelog() {
 # Main logic
 # ====
 function main() {
-    if [ "$#" -ne 3 ]; then
-        log "Error: Invalid number of arguments. Expected 3, got $#."
+    if [[ $# -lt 3 ]]; then
+        log "Error: Invalid number of arguments. Expected at least 3, got $#."
+        usage
+    fi
+    if [[ $# -gt 4 ]]; then
+        log "Error: Too many arguments. Expected at most 4, got $#."
         usage
     fi
 
     local version="$1"
     local stage="$2"
     local date="$3"
+    local set_as_main=""
+    shift 3
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --set-as-main)
+                set_as_main="yes"
+                shift 1
+                ;;
+            *)
+                log "Error: Unknown argument '$1'."
+                usage
+                ;;
+        esac
+    done
 
     init_logging
     log "Starting update for VERSION.json with version=$version, stage=$stage"
@@ -231,7 +252,6 @@ function main() {
     date=$(normalize_date "$date")
     update_version_file "$version" "$stage"
     update_rpm_changelog "$version" "$date"
-
     log "Update complete."
 }
 

@@ -27,6 +27,11 @@ on:
         description: 'Optional identifier for the run'
         required: false
         type: string
+      set_as_main:
+        description: "Enable main branch mode: bump version values only, keep branch references pointing to main"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   bump:
@@ -108,9 +113,25 @@ jobs:
       - name: Make version bump changes
         run: |
           echo "Running bump script"
-          bash ${{ env.BUMP_SCRIPT_PATH }} ${{ steps.vars.outputs.version }} ${{ steps.vars.outputs.stage }} ${{ steps.vars.outputs.date }}
+          set_as_main=${{ inputs.set_as_main }}
+          script_params=("${{ steps.vars.outputs.version }}" "${{ steps.vars.outputs.stage }}" ${{ steps.vars.outputs.date }})
+          if [[ "$set_as_main" == "true" ]]; then
+            script_params+=("--set-as-main")
+          fi
+          bash "${{ env.BUMP_SCRIPT_PATH }}" "${script_params[@]}"
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes produced by bump script. Exiting without creating PR."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           git add .
           git commit -m "feat: bump ${{ github.ref_name }}"
@@ -118,6 +139,7 @@ jobs:
 
       - name: Create pull request
         id: create_pr
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           gh auth setup-git
           PR_URL=$(gh pr create \
@@ -130,6 +152,7 @@ jobs:
           echo "pull_request_url=${PR_URL}" >> $GITHUB_OUTPUT
 
       - name: Merge pull request
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           # Any checks for the PR are bypassed since the branch is expected to be functional (i.e. the bump process does not introduce any bugs)
           gh pr merge "${{ steps.create_pr.outputs.pull_request_url }}" --squash --admin
@@ -138,6 +161,6 @@ jobs:
         run: |
           echo "Bump complete."
           echo "Branch: ${{ steps.vars.outputs.branch_name }}"
-          echo "PR: ${{ steps.create_pr.outputs.pull_request_url }}"
+          echo "PR: ${{ steps.create_pr.outputs.pull_request_url || 'N/A (no changes)' }}"
           echo "Bumper scripts logs:"
           cat ${BUMP_LOG_PATH}/repository_bumper*log
