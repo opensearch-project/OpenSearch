@@ -123,6 +123,7 @@ dependencies {
   api 'org.jruby.joni:joni:2.2.6'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
   api "org.ajoberstar.grgit:grgit-core:5.3.2"
+  annotationProcessor 'org.networknt:json-schema-validator-annotations:1.2.0'
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
