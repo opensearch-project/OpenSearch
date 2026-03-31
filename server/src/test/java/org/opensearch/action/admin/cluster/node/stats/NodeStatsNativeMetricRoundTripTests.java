@@ -49,14 +49,20 @@ public class NodeStatsNativeMetricRoundTripTests {
     Arbitrary<DataFusionPluginStats.RuntimeValues> runtimeValues() {
         Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
         return Combinators.combine(posLong, posLong, posLong, posLong, posLong, posLong)
-            .as(DataFusionPluginStats.RuntimeValues::new);
+            .as((a, b, c, d, e, f) -> {
+                long[] data = new long[] { a, b, c, d, e, f };
+                return new DataFusionPluginStats.RuntimeValues(data, 0);
+            });
     }
 
     @Provide
     Arbitrary<DataFusionPluginStats.TaskMonitorValues> taskMonitorValues() {
         Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
         return Combinators.combine(posLong, posLong, posLong)
-            .as(DataFusionPluginStats.TaskMonitorValues::new);
+            .as((a, b, c) -> {
+                long[] data = new long[] { a, b, c };
+                return new DataFusionPluginStats.TaskMonitorValues(data, 0);
+            });
     }
 
     @Provide

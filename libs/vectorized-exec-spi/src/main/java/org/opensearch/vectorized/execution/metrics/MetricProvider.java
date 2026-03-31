@@ -15,10 +15,10 @@ import org.opensearch.common.annotation.InternalApi;
  * Lives in SPI; implemented by each plugin in its own classloader.
  */
 @InternalApi
-public interface MetricProvider {
+public interface MetricProvider<T extends PluginStats> {
 
     /**
-     * Returns all plugin metrics as a single {@link PluginStats} object.
+     * Returns all plugin metrics as a single typed {@link PluginStats} object.
      */
-    PluginStats stats();
+    T stats();
 }

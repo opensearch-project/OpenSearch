@@ -21,21 +21,44 @@ import java.util.function.Supplier;
  * @opensearch.internal
  */
 public class ServiceCache<S> {
-    private final SingleObjectCache<S> cache;
+    private final Supplier<S> supplier;
+    private final TimeValue refreshInterval;
+    private volatile SingleObjectCache<S> cache;
 
+    /**
+     * Creates a new ServiceCache. The supplier is NOT called eagerly — the first
+     * call to {@link #getOrRefresh()} triggers the initial load. This avoids
+     * startup failures if the supplier (e.g., JNI native bridge) is not yet ready
+     * when the cache is constructed.
+     */
     public ServiceCache(Supplier<S> supplier, TimeValue refreshInterval) {
-        this.cache = new SingleObjectCache<S>(refreshInterval, supplier.get()) {
-            @Override
-            protected S refresh() {
-                return supplier.get();
-            }
-        };
+        this.supplier = supplier;
+        this.refreshInterval = refreshInterval;
     }
 
     /**
      * Returns the cached value, refreshing it if the interval has expired.
+     * On the first call, initializes the cache from the supplier.
+     *
+     * @return the cached value, or null if the supplier returns null
      */
     public S getOrRefresh() {
+        if (cache == null) {
+            synchronized (this) {
+                if (cache == null) {
+                    S initial = supplier.get();
+                    if (initial == null) {
+                        return null;
+                    }
+                    cache = new SingleObjectCache<S>(refreshInterval, initial) {
+                        @Override
+                        protected S refresh() {
+                            return supplier.get();
+                        }
+                    };
+                }
+            }
+        }
         return cache.getOrRefresh();
     }
 }

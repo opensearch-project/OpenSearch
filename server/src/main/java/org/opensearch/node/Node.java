@@ -1533,7 +1533,9 @@ public class Node implements Closeable {
             );
 
             // Obtain MetricProvider from the DataFusion SearchEnginePlugin
-            final MetricProvider dataFusionMetricProvider = pluginsService.filterPlugins(SearchEnginePlugin.class)
+            @SuppressWarnings("unchecked")
+            final MetricProvider<DataFusionPluginStats> dataFusionMetricProvider =
+                (MetricProvider<DataFusionPluginStats>) pluginsService.filterPlugins(SearchEnginePlugin.class)
                 .stream()
                 .map(SearchEnginePlugin::getMetricProvider)
                 .filter(Objects::nonNull)
@@ -1543,7 +1545,7 @@ public class Node implements Closeable {
             // Construct ServiceCache instance for native metrics if a provider is available
             ServiceCache<DataFusionPluginStats> dataFusionService = null;
             if (dataFusionMetricProvider != null) {
-                dataFusionService = new ServiceCache<>(() -> (DataFusionPluginStats) dataFusionMetricProvider.stats(), TimeValue.timeValueSeconds(1));
+                dataFusionService = new ServiceCache<>(dataFusionMetricProvider::stats, TimeValue.timeValueSeconds(1));
             }
 
             this.nodeService = new NodeService(

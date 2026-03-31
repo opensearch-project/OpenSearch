@@ -9,11 +9,11 @@
 //! MetricsCollector reads cumulative runtime metrics directly from
 //! `tokio::runtime::Handle::metrics()` (requires `tokio_unstable`).
 //!
-//! Returns the prost-generated `RuntimeMetrics` proto struct directly,
-//! avoiding an intermediate Rust type.
+//! Returns a flat `[i64; 6]` array using the layout constants from
+//! `crate::metrics_layout`, ready for embedding into the JNI `jlongArray`.
 
 use tokio::runtime::Handle;
-use crate::datafusion_proto;
+use crate::metrics_layout;
 
 /// Wraps a cloned `Handle` and reads cumulative metrics on demand.
 pub struct MetricsCollector {
@@ -29,19 +29,20 @@ impl MetricsCollector {
     }
 
     /// Reads current cumulative metrics directly from the runtime,
-    /// returning the proto `RuntimeMetrics` ready for serialization.
+    /// returning a `[i64; 6]` array indexed by the `metrics_layout::RUNTIME_*`
+    /// constants, ready for flat-copy into the JNI long array.
     ///
     /// Uses `Handle::metrics()` which returns atomic counter snapshots —
     /// no interval tracking or accumulation needed.
     /// Fallback when `tokio_unstable` is not set — returns zeroed metrics
     /// so the crate still compiles outside the normal Gradle/Cargo pipeline.
     #[cfg(not(tokio_unstable))]
-    pub fn snapshot(&self) -> datafusion_proto::RuntimeMetrics {
-        datafusion_proto::RuntimeMetrics::default()
+    pub fn snapshot(&self) -> [i64; metrics_layout::RUNTIME_SIZE] {
+        [0i64; metrics_layout::RUNTIME_SIZE]
     }
 
     #[cfg(tokio_unstable)]
-    pub fn snapshot(&self) -> datafusion_proto::RuntimeMetrics {
+    pub fn snapshot(&self) -> [i64; metrics_layout::RUNTIME_SIZE] {
         let m = self.handle.metrics();
         let n = m.num_workers();
 
@@ -56,13 +57,15 @@ impl MetricsCollector {
             total_busy_ns += m.worker_total_busy_duration(i).as_nanos();
         }
 
-        datafusion_proto::RuntimeMetrics {
-            workers_count: n as u64,
-            total_overflow_count: total_overflow,
-            total_polls_count: total_polls,
-            total_busy_duration_ms: (total_busy_ns / 1_000_000) as u64,
-            global_queue_depth: m.global_queue_depth() as u64,
-            blocking_queue_depth: m.blocking_queue_depth() as u64,
-        }
+        let mut arr = [0i64; metrics_layout::RUNTIME_SIZE];
+        arr[metrics_layout::RUNTIME_WORKERS_COUNT] = n as i64;
+        arr[metrics_layout::RUNTIME_TOTAL_POLLS_COUNT] = total_polls as i64;
+        // Intentionally truncates sub-ms precision; matches Java-side millisecond granularity.
+        // Overflow after division is not a practical concern (~292M years of cumulative busy time).
+        arr[metrics_layout::RUNTIME_TOTAL_BUSY_DURATION_MS] = (total_busy_ns / 1_000_000) as i64;
+        arr[metrics_layout::RUNTIME_TOTAL_OVERFLOW_COUNT] = total_overflow as i64;
+        arr[metrics_layout::RUNTIME_GLOBAL_QUEUE_DEPTH] = m.global_queue_depth() as i64;
+        arr[metrics_layout::RUNTIME_BLOCKING_QUEUE_DEPTH] = m.blocking_queue_depth() as i64;
+        arr
     }
 }

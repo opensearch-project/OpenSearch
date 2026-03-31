@@ -11,20 +11,19 @@ package org.opensearch.datafusion;
 import org.opensearch.datafusion.jni.NativeBridge;
 import org.opensearch.vectorized.execution.metrics.DataFusionPluginStats;
 import org.opensearch.vectorized.execution.metrics.MetricProvider;
-import org.opensearch.vectorized.execution.metrics.PluginStats;
 
 /**
  * DataFusion implementation of {@link MetricProvider} that delegates to
  * {@link NativeBridge} native JNI methods for collecting runtime and task monitor metrics.
  */
-public class DataFusionMetricProvider implements MetricProvider {
+public class DataFusionMetricProvider implements MetricProvider<DataFusionPluginStats> {
 
     @Override
-    public PluginStats stats() {
-        byte[] bytes = NativeBridge.stats();
-        if (bytes == null) {
+    public DataFusionPluginStats stats() {
+        long[] data = NativeBridge.stats();
+        if (data == null) {
             return null;
         }
-        return DataFusionPluginStats.decode(bytes);
+        return DataFusionPluginStats.decode(data);
     }
 }

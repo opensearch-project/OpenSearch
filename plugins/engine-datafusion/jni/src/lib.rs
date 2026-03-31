@@ -1,4 +1,3 @@
-use prost::Message;
 use std::cell::RefCell;
 
 #[global_allocator]
@@ -15,7 +14,7 @@ use std::num::NonZeroUsize;
 use std::ptr::addr_of_mut;
 use jni::objects::{GlobalRef, JByteArray, JClass, JMap, JObject};
 use jni::objects::JLongArray;
-use jni::sys::{jboolean, jbyteArray, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jlongArray, jstring};
 use jni::{JNIEnv, JavaVM};
 use std::future::Future;
 use std::sync::{Arc, OnceLock};
@@ -48,6 +47,7 @@ mod executor;
 mod io;
 mod runtime_manager;
 mod metrics_collector;
+mod metrics_layout;
 mod cache_jni;
 mod partial_agg_optimizer;
 mod query_executor;
@@ -58,12 +58,6 @@ pub mod logger;
 
 // Import logger macros from shared crate
 use vectorized_exec_spi::{log_info, log_error, log_debug};
-
-// Include prost-generated protobuf types from datafusion_stats.proto
-// Package `vectorized.metrics` → prost generates `vectorized.metrics.rs`
-pub mod datafusion_proto {
-    include!(concat!(env!("OUT_DIR"), "/vectorized.metrics.rs"));
-}
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global, set_action_listener_ok_global_with_map};
@@ -202,49 +196,68 @@ where
     });
 }
 
-/// Helper: TaskMonitor → proto TaskMonitorMetrics (from cumulative metrics)
-fn task_monitor_to_proto(monitor: &TaskMonitor) -> datafusion_proto::TaskMonitorMetrics {
+/// Helper: TaskMonitor → `[i64; 3]` flat array (from cumulative metrics)
+fn task_monitor_to_longs(monitor: &TaskMonitor) -> [i64; metrics_layout::TASK_MONITOR_SIZE] {
     let m = monitor.cumulative();
-    datafusion_proto::TaskMonitorMetrics {
-        total_poll_duration_ms: m.total_poll_duration.as_millis() as u64,
-        total_scheduled_duration_ms: m.total_scheduled_duration.as_millis() as u64,
-        total_idle_duration_ms: m.total_idle_duration.as_millis() as u64,
-    }
+    let mut buf = [0i64; metrics_layout::TASK_MONITOR_SIZE];
+    buf[metrics_layout::TASK_MONITOR_TOTAL_POLL_DURATION_MS] = m.total_poll_duration.as_millis() as i64;
+    buf[metrics_layout::TASK_MONITOR_TOTAL_SCHEDULED_DURATION_MS] = m.total_scheduled_duration.as_millis() as i64;
+    buf[metrics_layout::TASK_MONITOR_TOTAL_IDLE_DURATION_MS] = m.total_idle_duration.as_millis() as i64;
+    buf
 }
 
-// ── Single protobuf-encoded stats JNI function ──
+// ── Flat long[] stats JNI function ──
 
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_stats<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
-) -> jbyteArray {
-    let mut stats = datafusion_proto::DataFusionStats::default();
+) -> jlongArray {
+    let mut buf = [0i64; metrics_layout::TOTAL_SIZE];
 
-    // IO runtime + CPU runtime
+    // IO runtime [0..6] + CPU runtime [6..12]
     if let Some(rm) = TOKIO_RUNTIME_MANAGER.get() {
-        stats.io_runtime = Some(rm.io_metrics.snapshot());
+        let io_snap = rm.io_metrics.snapshot();
+        buf[0..metrics_layout::RUNTIME_SIZE].copy_from_slice(&io_snap);
+
         if let Some(cpu) = rm.cpu_metrics.as_ref() {
-            stats.cpu_runtime = Some(cpu.snapshot());
+            let cpu_snap = cpu.snapshot();
+            buf[metrics_layout::RUNTIME_SIZE..metrics_layout::RUNTIME_SIZE * 2].copy_from_slice(&cpu_snap);
         }
     }
 
-    // Task monitors
-    stats.task_monitors = Some(datafusion_proto::TaskMonitors {
-        query_execution: Some(task_monitor_to_proto(&QUERY_EXECUTION_MONITOR)),
-        stream_next: Some(task_monitor_to_proto(&STREAM_NEXT_MONITOR)),
-        fetch_phase: Some(task_monitor_to_proto(&FETCH_PHASE_MONITOR)),
-        segment_stats: Some(task_monitor_to_proto(&SEGMENT_STATS_MONITOR)),
-        indexed_query_execution: Some(task_monitor_to_proto(&INDEXED_QUERY_EXECUTION_MONITOR)),
-    });
+    // Task monitors [12..27]
+    let base = metrics_layout::RUNTIME_SIZE * 2;
+    let qe = task_monitor_to_longs(&QUERY_EXECUTION_MONITOR);
+    buf[base..base + metrics_layout::TASK_MONITOR_SIZE].copy_from_slice(&qe);
 
-    let bytes = stats.encode_to_vec();
-    match env.byte_array_from_slice(&bytes) {
-        Ok(arr) => arr.into_raw(),
+    let sn = task_monitor_to_longs(&STREAM_NEXT_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE..base + metrics_layout::TASK_MONITOR_SIZE * 2].copy_from_slice(&sn);
+
+    let fp = task_monitor_to_longs(&FETCH_PHASE_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 2..base + metrics_layout::TASK_MONITOR_SIZE * 3].copy_from_slice(&fp);
+
+    let ss = task_monitor_to_longs(&SEGMENT_STATS_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 3..base + metrics_layout::TASK_MONITOR_SIZE * 4].copy_from_slice(&ss);
+
+    let iq = task_monitor_to_longs(&INDEXED_QUERY_EXECUTION_MONITOR);
+    buf[base + metrics_layout::TASK_MONITOR_SIZE * 4..base + metrics_layout::TASK_MONITOR_SIZE * 5].copy_from_slice(&iq);
+
+    match env.new_long_array(metrics_layout::TOTAL_SIZE as i32) {
+        Ok(arr) => {
+            if let Err(e) = env.set_long_array_region(&arr, 0, &buf) {
+                let _ = env.throw_new(
+                    "java/lang/RuntimeException",
+                    format!("Failed to set stats long array region: {:?}", e),
+                );
+                return std::ptr::null_mut();
+            }
+            arr.into_raw()
+        }
         Err(e) => {
             let _ = env.throw_new(
                 "java/lang/RuntimeException",
-                format!("Failed to create stats byte array: {:?}", e),
+                format!("Failed to create stats long array: {:?}", e),
             );
             std::ptr::null_mut()
         }

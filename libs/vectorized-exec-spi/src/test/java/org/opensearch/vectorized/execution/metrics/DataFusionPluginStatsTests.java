@@ -8,12 +8,8 @@
 
 package org.opensearch.vectorized.execution.metrics;
 
-import org.opensearch.vectorized.execution.metrics.proto.DataFusionStatsProto;
-import org.opensearch.vectorized.execution.metrics.proto.TokioMetricsProto;
-
 import net.jqwik.api.Arbitraries;
 import net.jqwik.api.Arbitrary;
-import net.jqwik.api.Combinators;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
@@ -24,168 +20,146 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Property-based tests for DataFusionPluginStats protobuf decode using jqwik.
+ * Property-based tests for DataFusionPluginStats long[] decode using jqwik.
  *
  * Writeable round-trip and XContent tests have moved to NativeExecutorsStatsTests
  * in the server module, since DataFusionPluginStats is now a pure POJO.
  *
- * Feature: native-metrics-stats-wrapper
+ * Feature: proto-to-longarray-migration
  */
 public class DataFusionPluginStatsTests {
 
     // --- Arbitraries ---
 
+    /**
+     * Generates a valid long[27] array with non-zero cpu_runtime workers_count (index 6)
+     * so that cpuRuntime is present after decode.
+     */
     @Provide
-    Arbitrary<long[]> longArray6() {
-        return Arbitraries.longs().between(0, Long.MAX_VALUE / 2)
-            .array(long[].class).ofSize(6);
+    Arbitrary<long[]> validLong27WithCpu() {
+        return Arbitraries.longs().between(1, Long.MAX_VALUE / 2)
+            .array(long[].class).ofSize(27);
     }
-
-    @Provide
-    Arbitrary<DataFusionPluginStats.TaskMonitorValues> taskMonitorValues() {
-        Arbitrary<Long> posLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(posLong, posLong, posLong)
-            .as(DataFusionPluginStats.TaskMonitorValues::new);
-    }
-
-    // --- Property 1: Protobuf decode round-trip ---
 
     /**
-     * Property 1: DataFusionPluginStats protobuf decode round-trip
+     * Generates a valid long[27] array with cpu_runtime workers_count == 0 (index 6)
+     * so that cpuRuntime is null after decode.
+     */
+    @Provide
+    Arbitrary<long[]> validLong27WithoutCpu() {
+        return Arbitraries.longs().between(0, Long.MAX_VALUE / 2)
+            .array(long[].class).ofSize(27)
+            .map(arr -> {
+                // Zero out all cpu_runtime slots [6..11]
+                for (int i = 6; i < 12; i++) {
+                    arr[i] = 0;
+                }
+                return arr;
+            });
+    }
+
+    // --- Property 1: long[] decode round-trip with CPU runtime present ---
+
+    /**
+     * Property 1: For any valid long[27] with non-zero cpu workers_count,
+     * decode(long[]) produces an object whose field values match the input array.
      *
-     * For any valid set of runtime + task monitor metric values, encoding to protobuf
-     * and decoding via DataFusionPluginStats.decode(byte[]) SHALL produce an object
-     * with field values matching the originals.
-     *
-     * **Validates: Requirements 4.4**
+     * **Validates: Requirements 2.1**
      */
     @Property(tries = 100)
-    void protobufDecodeRoundTrip(@ForAll("longArray6") long[] ioFields,
-                                  @ForAll("longArray6") long[] cpuFields,
-                                  @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues qe,
-                                  @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues sn,
-                                  @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues fp,
-                                  @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues ss,
-                                  @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues iqe) {
-        // Build protobuf message
-        TokioMetricsProto.RuntimeMetrics ioProto = buildRuntimeMetricsProto(ioFields);
-        TokioMetricsProto.RuntimeMetrics cpuProto = buildRuntimeMetricsProto(cpuFields);
+    void longArrayDecodeRoundTripWithCpu(@ForAll("validLong27WithCpu") long[] data) {
+        DataFusionPluginStats decoded = DataFusionPluginStats.decode(data);
 
-        DataFusionStatsProto.DataFusionStats proto = DataFusionStatsProto.DataFusionStats.newBuilder()
-            .setIoRuntime(ioProto)
-            .setCpuRuntime(cpuProto)
-            .setTaskMonitors(DataFusionStatsProto.TaskMonitors.newBuilder()
-                .setQueryExecution(buildTaskMonitorProto(qe))
-                .setStreamNext(buildTaskMonitorProto(sn))
-                .setFetchPhase(buildTaskMonitorProto(fp))
-                .setSegmentStats(buildTaskMonitorProto(ss))
-                .setIndexedQueryExecution(buildTaskMonitorProto(iqe))
-                .build())
-            .build();
-
-        byte[] bytes = proto.toByteArray();
-        DataFusionPluginStats decoded = DataFusionPluginStats.decode(bytes);
-
-        // Verify IO runtime fields
+        // IO runtime [0..5]
         assertNotNull(decoded.getIoRuntime());
-        assertRuntimeValuesMatch(decoded.getIoRuntime(), ioFields);
+        assertRuntimeValues(decoded.getIoRuntime(), data, 0);
 
-        // Verify CPU runtime fields
-        assertNotNull(decoded.getCpuRuntime());
-        assertRuntimeValuesMatch(decoded.getCpuRuntime(), cpuFields);
+        // CPU runtime [6..11] — present because workers_count > 0
+        assertNotNull(decoded.getCpuRuntime(), "cpuRuntime should be present when workers_count > 0");
+        assertRuntimeValues(decoded.getCpuRuntime(), data, 6);
 
-        // Verify task monitor fields
-        assertTaskMonitorEquals(qe, decoded.getQueryExecution());
-        assertTaskMonitorEquals(sn, decoded.getStreamNext());
-        assertTaskMonitorEquals(fp, decoded.getFetchPhase());
-        assertTaskMonitorEquals(ss, decoded.getSegmentStats());
-        assertTaskMonitorEquals(iqe, decoded.getIndexedQueryExecution());
+        // Task monitors [12..26]
+        assertTaskMonitorValues(decoded.getQueryExecution(), data, 12);
+        assertTaskMonitorValues(decoded.getStreamNext(), data, 15);
+        assertTaskMonitorValues(decoded.getFetchPhase(), data, 18);
+        assertTaskMonitorValues(decoded.getSegmentStats(), data, 21);
+        assertTaskMonitorValues(decoded.getIndexedQueryExecution(), data, 24);
     }
 
-    // --- Edge case: absent CPU runtime → null cpuRuntime ---
+    // --- Property 2: absent CPU runtime when workers_count == 0 ---
 
     /**
-     * Edge case: When protobuf message has no cpu_runtime field set,
-     * decoded DataFusionPluginStats should have null cpuRuntime.
+     * Property 2: When cpu_runtime workers_count (index 6) is 0 and all cpu slots
+     * are zero, decoded cpuRuntime is null while all other fields decode correctly.
      *
-     * **Validates: Requirements 4.4**
+     * **Validates: Requirements 2.3**
      */
     @Property(tries = 50)
-    void absentCpuRuntimeDecodesToNull(@ForAll("longArray6") long[] ioFields,
-                                        @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues qe,
-                                        @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues sn,
-                                        @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues fp,
-                                        @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues ss,
-                                        @ForAll("taskMonitorValues") DataFusionPluginStats.TaskMonitorValues iqe) {
-        // Build protobuf WITHOUT cpu_runtime
-        DataFusionStatsProto.DataFusionStats proto = DataFusionStatsProto.DataFusionStats.newBuilder()
-            .setIoRuntime(buildRuntimeMetricsProto(ioFields))
-            .setTaskMonitors(DataFusionStatsProto.TaskMonitors.newBuilder()
-                .setQueryExecution(buildTaskMonitorProto(qe))
-                .setStreamNext(buildTaskMonitorProto(sn))
-                .setFetchPhase(buildTaskMonitorProto(fp))
-                .setSegmentStats(buildTaskMonitorProto(ss))
-                .setIndexedQueryExecution(buildTaskMonitorProto(iqe))
-                .build())
-            .build();
+    void absentCpuRuntimeWhenWorkersCountZero(@ForAll("validLong27WithoutCpu") long[] data) {
+        DataFusionPluginStats decoded = DataFusionPluginStats.decode(data);
 
-        DataFusionPluginStats decoded = DataFusionPluginStats.decode(proto.toByteArray());
-        assertNull(decoded.getCpuRuntime(), "cpuRuntime should be null when absent from protobuf");
+        assertNull(decoded.getCpuRuntime(), "cpuRuntime should be null when workers_count == 0");
         assertNotNull(decoded.getIoRuntime(), "ioRuntime should still be present");
+        assertRuntimeValues(decoded.getIoRuntime(), data, 0);
+
+        // Task monitors still decode correctly
+        assertTaskMonitorValues(decoded.getQueryExecution(), data, 12);
+        assertTaskMonitorValues(decoded.getStreamNext(), data, 15);
+        assertTaskMonitorValues(decoded.getFetchPhase(), data, 18);
+        assertTaskMonitorValues(decoded.getSegmentStats(), data, 21);
+        assertTaskMonitorValues(decoded.getIndexedQueryExecution(), data, 24);
     }
 
-    // --- Edge case: invalid bytes → IllegalArgumentException ---
+    // --- Property 3: invalid array length throws ---
 
     /**
-     * Edge case: Passing invalid (non-protobuf) bytes to decode() should throw
+     * Property 3: Passing an array whose length is not 27 to decode() throws
      * IllegalArgumentException.
      *
-     * **Validates: Requirements 4.4**
+     * **Validates: Requirements 2.2**
+     */
+    @Property(tries = 50)
+    void invalidArrayLengthThrows(@ForAll("invalidLength") long[] data) {
+        assertThrows(IllegalArgumentException.class, () -> DataFusionPluginStats.decode(data),
+            "decode() should throw IllegalArgumentException for array length != 27");
+    }
+
+    @Provide
+    Arbitrary<long[]> invalidLength() {
+        // Generate arrays of length 0..50 but exclude 27
+        return Arbitraries.integers().between(0, 50)
+            .filter(len -> len != 27)
+            .flatMap(len -> Arbitraries.longs().between(0, Long.MAX_VALUE / 2)
+                .array(long[].class).ofSize(len));
+    }
+
+    // --- Property 4: null array throws ---
+
+    /**
+     * Edge case: Passing null to decode() throws IllegalArgumentException.
+     *
+     * **Validates: Requirements 2.2**
      */
     @Property(tries = 1)
-    void invalidBytesThrowsIllegalArgumentException() {
-        // A varint that signals "more bytes follow" (high bit set) but is truncated.
-        // Field 1, wire type 0 (varint), then 0x80 means "continuation" with no following byte.
-        byte[] truncatedVarint = new byte[]{0x08, (byte) 0x80};
-        assertThrows(IllegalArgumentException.class, () -> DataFusionPluginStats.decode(truncatedVarint),
-            "decode() should throw IllegalArgumentException for invalid protobuf bytes");
+    void nullArrayThrowsIllegalArgumentException() {
+        assertThrows(IllegalArgumentException.class, () -> DataFusionPluginStats.decode(null),
+            "decode() should throw IllegalArgumentException for null array");
     }
 
     // --- Helper methods ---
 
-    private TokioMetricsProto.RuntimeMetrics buildRuntimeMetricsProto(long[] fields) {
-        return TokioMetricsProto.RuntimeMetrics.newBuilder()
-            .setWorkersCount(fields[0])
-            .setTotalPollsCount(fields[1])
-            .setTotalBusyDurationMs(fields[2])
-            .setTotalOverflowCount(fields[3])
-            .setGlobalQueueDepth(fields[4])
-            .setBlockingQueueDepth(fields[5])
-            .build();
+    private void assertRuntimeValues(DataFusionPluginStats.RuntimeValues rv, long[] data, int offset) {
+        assertEquals(data[offset], rv.getWorkersCount(), "workersCount mismatch at offset " + offset);
+        assertEquals(data[offset + 1], rv.getTotalPollsCount(), "totalPollsCount mismatch");
+        assertEquals(data[offset + 2], rv.getTotalBusyDurationMs(), "totalBusyDurationMs mismatch");
+        assertEquals(data[offset + 3], rv.getTotalOverflowCount(), "totalOverflowCount mismatch");
+        assertEquals(data[offset + 4], rv.getGlobalQueueDepth(), "globalQueueDepth mismatch");
+        assertEquals(data[offset + 5], rv.getBlockingQueueDepth(), "blockingQueueDepth mismatch");
     }
 
-    private TokioMetricsProto.TaskMonitorMetrics buildTaskMonitorProto(
-            DataFusionPluginStats.TaskMonitorValues tm) {
-        return TokioMetricsProto.TaskMonitorMetrics.newBuilder()
-            .setTotalPollDurationMs(tm.getTotalPollDurationMs())
-            .setTotalScheduledDurationMs(tm.getTotalScheduledDurationMs())
-            .setTotalIdleDurationMs(tm.getTotalIdleDurationMs())
-            .build();
-    }
-
-    private void assertRuntimeValuesMatch(DataFusionPluginStats.RuntimeValues rv, long[] fields) {
-        assertEquals(fields[0], rv.getWorkersCount(), "workersCount mismatch");
-        assertEquals(fields[1], rv.getTotalPollsCount(), "totalPollsCount mismatch");
-        assertEquals(fields[2], rv.getTotalBusyDurationMs(), "totalBusyDurationMs mismatch");
-        assertEquals(fields[3], rv.getTotalOverflowCount(), "totalOverflowCount mismatch");
-        assertEquals(fields[4], rv.getGlobalQueueDepth(), "globalQueueDepth mismatch");
-        assertEquals(fields[5], rv.getBlockingQueueDepth(), "blockingQueueDepth mismatch");
-    }
-
-    private void assertTaskMonitorEquals(DataFusionPluginStats.TaskMonitorValues expected,
-                                          DataFusionPluginStats.TaskMonitorValues actual) {
-        assertEquals(expected.getTotalPollDurationMs(), actual.getTotalPollDurationMs());
-        assertEquals(expected.getTotalScheduledDurationMs(), actual.getTotalScheduledDurationMs());
-        assertEquals(expected.getTotalIdleDurationMs(), actual.getTotalIdleDurationMs());
+    private void assertTaskMonitorValues(DataFusionPluginStats.TaskMonitorValues tm, long[] data, int offset) {
+        assertEquals(data[offset], tm.getTotalPollDurationMs(), "totalPollDurationMs mismatch at offset " + offset);
+        assertEquals(data[offset + 1], tm.getTotalScheduledDurationMs(), "totalScheduledDurationMs mismatch");
+        assertEquals(data[offset + 2], tm.getTotalIdleDurationMs(), "totalIdleDurationMs mismatch");
     }
 }

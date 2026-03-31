@@ -49,6 +49,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.datafusion.jni.NativeBridge;
+import org.opensearch.vectorized.execution.metrics.DataFusionPluginStats;
 import org.opensearch.vectorized.execution.metrics.MetricProvider;
 import org.opensearch.vectorized.execution.search.spi.RecordBatchStream;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -294,7 +295,7 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
      * @return The MetricProvider instance.
      */
     @Override
-    public MetricProvider getMetricProvider() {
+    public MetricProvider<DataFusionPluginStats> getMetricProvider() {
         return metricProvider;
     }
 

@@ -10,6 +10,3 @@ crate-type = ["rlib"]
 
 [dependencies]
 jni = "0.21"
-
-[dev-dependencies]
-

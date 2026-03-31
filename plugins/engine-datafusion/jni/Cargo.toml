@@ -90,10 +90,6 @@ mimalloc = { version = "0.1.48", default-features = false }
 [dev-dependencies]
 proptest = "1"
 
-[build-dependencies]
-cbindgen = "0.27"
-prost-build = { workspace = true }
-
 [profile.release]
 lto = true
 codegen-units = 1

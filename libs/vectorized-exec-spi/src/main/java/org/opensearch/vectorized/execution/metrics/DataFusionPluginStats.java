@@ -8,14 +8,11 @@
 
 package org.opensearch.vectorized.execution.metrics;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.vectorized.execution.metrics.proto.DataFusionStatsProto;
-import org.opensearch.vectorized.execution.metrics.proto.TokioMetricsProto;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -71,47 +68,31 @@ public class DataFusionPluginStats implements PluginStats {
     }
 
     /**
-     * Decodes protobuf bytes (from JNI) into a DataFusionPluginStats instance.
+     * Decodes a flat {@code long[]} array (from JNI) into a DataFusionPluginStats instance.
+     * The array must contain exactly 27 elements laid out as:
+     * [0..5] io_runtime, [6..11] cpu_runtime, [12..14] query_execution,
+     * [15..17] stream_next, [18..20] fetch_phase, [21..23] segment_stats,
+     * [24..26] indexed_query_execution.
      *
-     * @param bytes protobuf-encoded DataFusionStats message
+     * @param data flat long array of 27 elements
      * @return a new DataFusionPluginStats instance
-     * @throws IllegalArgumentException if the bytes cannot be decoded
+     * @throws IllegalArgumentException if the array is null or not fully consumed
      */
-    public static DataFusionPluginStats decode(byte[] bytes) {
-        if (bytes == null) {
-            throw new IllegalArgumentException("Cannot decode null bytes for DataFusionStats");
+    public static DataFusionPluginStats decode(long[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("Cannot decode null array for DataFusionStats");
         }
-        try {
-            DataFusionStatsProto.DataFusionStats proto = DataFusionStatsProto.DataFusionStats.parseFrom(bytes);
-
-            RuntimeValues ioRuntime = proto.hasIoRuntime() ? RuntimeValues.fromProto(proto.getIoRuntime()) : null;
-            RuntimeValues cpuRuntime = proto.hasCpuRuntime() ? RuntimeValues.fromProto(proto.getCpuRuntime()) : null;
-
-            TaskMonitorValues queryExecution;
-            TaskMonitorValues streamNext;
-            TaskMonitorValues fetchPhase;
-            TaskMonitorValues segmentStats;
-            TaskMonitorValues indexedQueryExecution;
-
-            if (proto.hasTaskMonitors()) {
-                DataFusionStatsProto.TaskMonitors tm = proto.getTaskMonitors();
-                queryExecution = tm.hasQueryExecution() ? TaskMonitorValues.fromProto(tm.getQueryExecution()) : TaskMonitorValues.EMPTY;
-                streamNext = tm.hasStreamNext() ? TaskMonitorValues.fromProto(tm.getStreamNext()) : TaskMonitorValues.EMPTY;
-                fetchPhase = tm.hasFetchPhase() ? TaskMonitorValues.fromProto(tm.getFetchPhase()) : TaskMonitorValues.EMPTY;
-                segmentStats = tm.hasSegmentStats() ? TaskMonitorValues.fromProto(tm.getSegmentStats()) : TaskMonitorValues.EMPTY;
-                indexedQueryExecution = tm.hasIndexedQueryExecution() ? TaskMonitorValues.fromProto(tm.getIndexedQueryExecution()) : TaskMonitorValues.EMPTY;
-            } else {
-                queryExecution = TaskMonitorValues.EMPTY;
-                streamNext = TaskMonitorValues.EMPTY;
-                fetchPhase = TaskMonitorValues.EMPTY;
-                segmentStats = TaskMonitorValues.EMPTY;
-                indexedQueryExecution = TaskMonitorValues.EMPTY;
-            }
-
-            return new DataFusionPluginStats(ioRuntime, cpuRuntime, queryExecution, streamNext, fetchPhase, segmentStats, indexedQueryExecution);
-        } catch (InvalidProtocolBufferException e) {
-            throw new IllegalArgumentException("Failed to decode DataFusionStats protobuf", e);
-        }
+        ArrayCursor cursor = new ArrayCursor(data);
+        RuntimeValues ioRuntime = cursor.read(RuntimeValues::new);
+        RuntimeValues cpuRuntime = cursor.read(RuntimeValues::new);
+        TaskMonitorValues queryExecution = cursor.read(TaskMonitorValues::new);
+        TaskMonitorValues streamNext = cursor.read(TaskMonitorValues::new);
+        TaskMonitorValues fetchPhase = cursor.read(TaskMonitorValues::new);
+        TaskMonitorValues segmentStats = cursor.read(TaskMonitorValues::new);
+        TaskMonitorValues indexedQueryExecution = cursor.read(TaskMonitorValues::new);
+        cursor.assertFullyConsumed();
+        RuntimeValues cpuOrNull = cpuRuntime.getWorkersCount() == 0 ? null : cpuRuntime;
+        return new DataFusionPluginStats(ioRuntime, cpuOrNull, queryExecution, streamNext, fetchPhase, segmentStats, indexedQueryExecution);
     }
 
     @Nullable
@@ -165,16 +146,33 @@ public class DataFusionPluginStats implements PluginStats {
 
     /**
      * Holds the 6 actionable fields from tokio RuntimeMetrics for a single runtime.
+     * Extends {@link NativeStatsBlock} so it can be decoded from a positional {@code long[]} array.
      */
-    public static class RuntimeValues implements Writeable {
+    public static class RuntimeValues extends NativeStatsBlock implements Writeable {
 
-        private final long workersCount;
-        private final long totalPollsCount;
-        private final long totalBusyDurationMs;
-        private final long totalOverflowCount;
-        private final long globalQueueDepth;
-        private final long blockingQueueDepth;
+        /** Offset constants for positional access within this block. */
+        public static final int WORKERS_COUNT = 0;
+        public static final int TOTAL_POLLS_COUNT = 1;
+        public static final int TOTAL_BUSY_DURATION_MS = 2;
+        public static final int TOTAL_OVERFLOW_COUNT = 3;
+        public static final int GLOBAL_QUEUE_DEPTH = 4;
+        public static final int BLOCKING_QUEUE_DEPTH = 5;
+        public static final int SIZE = 6;
 
+        /**
+         * Creates a RuntimeValues view over a slice of the given array.
+         *
+         * @param data   the source array (typically the full JNI payload)
+         * @param offset start position within {@code data}
+         */
+        public RuntimeValues(long[] data, int offset) {
+            super(data, offset, SIZE);
+        }
+
+        /**
+         * Writeable deserialization constructor — keeps the existing 6-arg shape
+         * so that callers using {@code new RuntimeValues(w, x, y, z, a, b)} still compile.
+         */
         public RuntimeValues(
             long workersCount,
             long totalPollsCount,
@@ -183,159 +181,155 @@ public class DataFusionPluginStats implements PluginStats {
             long globalQueueDepth,
             long blockingQueueDepth
         ) {
-            this.workersCount = workersCount;
-            this.totalPollsCount = totalPollsCount;
-            this.totalBusyDurationMs = totalBusyDurationMs;
-            this.totalOverflowCount = totalOverflowCount;
-            this.globalQueueDepth = globalQueueDepth;
-            this.blockingQueueDepth = blockingQueueDepth;
+            super(
+                new long[] { workersCount, totalPollsCount, totalBusyDurationMs, totalOverflowCount, globalQueueDepth, blockingQueueDepth },
+                0,
+                SIZE
+            );
         }
 
         /**
          * Read from a stream.
          */
         public RuntimeValues(StreamInput in) throws IOException {
-            this.workersCount = in.readVLong();
-            this.totalPollsCount = in.readVLong();
-            this.totalBusyDurationMs = in.readVLong();
-            this.totalOverflowCount = in.readVLong();
-            this.globalQueueDepth = in.readVLong();
-            this.blockingQueueDepth = in.readVLong();
+            super(
+                new long[] { in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong() },
+                0,
+                SIZE
+            );
+        }
+
+        @Override
+        public int size() {
+            return SIZE;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(workersCount);
-            out.writeVLong(totalPollsCount);
-            out.writeVLong(totalBusyDurationMs);
-            out.writeVLong(totalOverflowCount);
-            out.writeVLong(globalQueueDepth);
-            out.writeVLong(blockingQueueDepth);
+            out.writeVLong(get(WORKERS_COUNT));
+            out.writeVLong(get(TOTAL_POLLS_COUNT));
+            out.writeVLong(get(TOTAL_BUSY_DURATION_MS));
+            out.writeVLong(get(TOTAL_OVERFLOW_COUNT));
+            out.writeVLong(get(GLOBAL_QUEUE_DEPTH));
+            out.writeVLong(get(BLOCKING_QUEUE_DEPTH));
         }
 
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field("workers_count", workersCount);
-            builder.field("total_polls_count", totalPollsCount);
-            builder.field("total_busy_duration_ms", totalBusyDurationMs);
-            builder.field("total_overflow_count", totalOverflowCount);
-            builder.field("global_queue_depth", globalQueueDepth);
-            builder.field("blocking_queue_depth", blockingQueueDepth);
+            builder.field("workers_count", get(WORKERS_COUNT));
+            builder.field("total_polls_count", get(TOTAL_POLLS_COUNT));
+            builder.field("total_busy_duration_ms", get(TOTAL_BUSY_DURATION_MS));
+            builder.field("total_overflow_count", get(TOTAL_OVERFLOW_COUNT));
+            builder.field("global_queue_depth", get(GLOBAL_QUEUE_DEPTH));
+            builder.field("blocking_queue_depth", get(BLOCKING_QUEUE_DEPTH));
         }
 
-        /**
-         * Constructs a RuntimeValues from a protobuf RuntimeMetrics message.
-         */
-        static RuntimeValues fromProto(TokioMetricsProto.RuntimeMetrics rm) {
-            return new RuntimeValues(
-                rm.getWorkersCount(),
-                rm.getTotalPollsCount(),
-                rm.getTotalBusyDurationMs(),
-                rm.getTotalOverflowCount(),
-                rm.getGlobalQueueDepth(),
-                rm.getBlockingQueueDepth()
-            );
-        }
-
-        public long getWorkersCount() { return workersCount; }
-        public long getTotalPollsCount() { return totalPollsCount; }
-        public long getTotalBusyDurationMs() { return totalBusyDurationMs; }
-        public long getTotalOverflowCount() { return totalOverflowCount; }
-        public long getGlobalQueueDepth() { return globalQueueDepth; }
-        public long getBlockingQueueDepth() { return blockingQueueDepth; }
+        public long getWorkersCount() { return get(WORKERS_COUNT); }
+        public long getTotalPollsCount() { return get(TOTAL_POLLS_COUNT); }
+        public long getTotalBusyDurationMs() { return get(TOTAL_BUSY_DURATION_MS); }
+        public long getTotalOverflowCount() { return get(TOTAL_OVERFLOW_COUNT); }
+        public long getGlobalQueueDepth() { return get(GLOBAL_QUEUE_DEPTH); }
+        public long getBlockingQueueDepth() { return get(BLOCKING_QUEUE_DEPTH); }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RuntimeValues that = (RuntimeValues) o;
-            return workersCount == that.workersCount
-                && totalPollsCount == that.totalPollsCount
-                && totalBusyDurationMs == that.totalBusyDurationMs
-                && totalOverflowCount == that.totalOverflowCount
-                && globalQueueDepth == that.globalQueueDepth
-                && blockingQueueDepth == that.blockingQueueDepth;
+            return get(WORKERS_COUNT) == that.get(WORKERS_COUNT)
+                && get(TOTAL_POLLS_COUNT) == that.get(TOTAL_POLLS_COUNT)
+                && get(TOTAL_BUSY_DURATION_MS) == that.get(TOTAL_BUSY_DURATION_MS)
+                && get(TOTAL_OVERFLOW_COUNT) == that.get(TOTAL_OVERFLOW_COUNT)
+                && get(GLOBAL_QUEUE_DEPTH) == that.get(GLOBAL_QUEUE_DEPTH)
+                && get(BLOCKING_QUEUE_DEPTH) == that.get(BLOCKING_QUEUE_DEPTH);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                workersCount, totalPollsCount, totalBusyDurationMs,
-                totalOverflowCount, globalQueueDepth, blockingQueueDepth
+                get(WORKERS_COUNT), get(TOTAL_POLLS_COUNT), get(TOTAL_BUSY_DURATION_MS),
+                get(TOTAL_OVERFLOW_COUNT), get(GLOBAL_QUEUE_DEPTH), get(BLOCKING_QUEUE_DEPTH)
             );
         }
     }
 
     /**
      * Holds the 3 actionable duration fields for a single task monitor.
+     * Extends {@link NativeStatsBlock} so it can be decoded from a positional {@code long[]} array.
      */
-    public static class TaskMonitorValues implements Writeable {
+    public static class TaskMonitorValues extends NativeStatsBlock implements Writeable {
+
+        /** Offset constants for positional access within this block. */
+        public static final int TOTAL_POLL_DURATION_MS = 0;
+        public static final int TOTAL_SCHEDULED_DURATION_MS = 1;
+        public static final int TOTAL_IDLE_DURATION_MS = 2;
+        public static final int SIZE = 3;
 
         static final TaskMonitorValues EMPTY = new TaskMonitorValues(0, 0, 0);
 
-        private final long totalPollDurationMs;
-        private final long totalScheduledDurationMs;
-        private final long totalIdleDurationMs;
+        /**
+         * Creates a TaskMonitorValues view over a slice of the given array.
+         *
+         * @param data   the source array (typically the full JNI payload)
+         * @param offset start position within {@code data}
+         */
+        public TaskMonitorValues(long[] data, int offset) {
+            super(data, offset, SIZE);
+        }
 
+        /**
+         * Writeable deserialization constructor — keeps the existing 3-arg shape
+         * so that callers using {@code new TaskMonitorValues(a, b, c)} still compile.
+         */
         public TaskMonitorValues(
             long totalPollDurationMs,
             long totalScheduledDurationMs,
             long totalIdleDurationMs
         ) {
-            this.totalPollDurationMs = totalPollDurationMs;
-            this.totalScheduledDurationMs = totalScheduledDurationMs;
-            this.totalIdleDurationMs = totalIdleDurationMs;
+            super(new long[] { totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs }, 0, SIZE);
         }
 
         /**
          * Read from a stream.
          */
         public TaskMonitorValues(StreamInput in) throws IOException {
-            this.totalPollDurationMs = in.readVLong();
-            this.totalScheduledDurationMs = in.readVLong();
-            this.totalIdleDurationMs = in.readVLong();
+            super(new long[] { in.readVLong(), in.readVLong(), in.readVLong() }, 0, SIZE);
+        }
+
+        @Override
+        public int size() {
+            return SIZE;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(totalPollDurationMs);
-            out.writeVLong(totalScheduledDurationMs);
-            out.writeVLong(totalIdleDurationMs);
+            out.writeVLong(get(TOTAL_POLL_DURATION_MS));
+            out.writeVLong(get(TOTAL_SCHEDULED_DURATION_MS));
+            out.writeVLong(get(TOTAL_IDLE_DURATION_MS));
         }
 
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field("total_poll_duration_ms", totalPollDurationMs);
-            builder.field("total_scheduled_duration_ms", totalScheduledDurationMs);
-            builder.field("total_idle_duration_ms", totalIdleDurationMs);
+            builder.field("total_poll_duration_ms", get(TOTAL_POLL_DURATION_MS));
+            builder.field("total_scheduled_duration_ms", get(TOTAL_SCHEDULED_DURATION_MS));
+            builder.field("total_idle_duration_ms", get(TOTAL_IDLE_DURATION_MS));
         }
 
-        /**
-         * Constructs a TaskMonitorValues from a protobuf TaskMonitorMetrics message.
-         */
-        static TaskMonitorValues fromProto(TokioMetricsProto.TaskMonitorMetrics tm) {
-            return new TaskMonitorValues(
-                tm.getTotalPollDurationMs(),
-                tm.getTotalScheduledDurationMs(),
-                tm.getTotalIdleDurationMs()
-            );
-        }
-
-        public long getTotalPollDurationMs() { return totalPollDurationMs; }
-        public long getTotalScheduledDurationMs() { return totalScheduledDurationMs; }
-        public long getTotalIdleDurationMs() { return totalIdleDurationMs; }
+        public long getTotalPollDurationMs() { return get(TOTAL_POLL_DURATION_MS); }
+        public long getTotalScheduledDurationMs() { return get(TOTAL_SCHEDULED_DURATION_MS); }
+        public long getTotalIdleDurationMs() { return get(TOTAL_IDLE_DURATION_MS); }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TaskMonitorValues that = (TaskMonitorValues) o;
-            return totalPollDurationMs == that.totalPollDurationMs
-                && totalScheduledDurationMs == that.totalScheduledDurationMs
-                && totalIdleDurationMs == that.totalIdleDurationMs;
+            return get(TOTAL_POLL_DURATION_MS) == that.get(TOTAL_POLL_DURATION_MS)
+                && get(TOTAL_SCHEDULED_DURATION_MS) == that.get(TOTAL_SCHEDULED_DURATION_MS)
+                && get(TOTAL_IDLE_DURATION_MS) == that.get(TOTAL_IDLE_DURATION_MS);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(totalPollDurationMs, totalScheduledDurationMs, totalIdleDurationMs);
+            return Objects.hash(get(TOTAL_POLL_DURATION_MS), get(TOTAL_SCHEDULED_DURATION_MS), get(TOTAL_IDLE_DURATION_MS));
         }
     }
 }
