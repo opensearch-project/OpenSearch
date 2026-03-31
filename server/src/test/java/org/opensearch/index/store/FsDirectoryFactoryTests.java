@@ -31,14 +31,18 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -49,11 +53,14 @@ import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
 import static org.opensearch.test.store.MockFSDirectoryFactory.FILE_SYSTEM_BASED_STORE_TYPES;
@@ -173,6 +180,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             switch (type) {
                 case HYBRIDFS:
                     assertTrue(FsDirectoryFactory.isHybridFs(directory));
+                    mMapDirectoryHasReadAdviceByContext(((FsDirectoryFactory.HybridDirectory) directory).getDelegate());
                     break;
                 // simplefs was removed in Lucene 9; support for enum is maintained for bwc
                 case SIMPLEFS:
@@ -181,6 +189,7 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
                     break;
                 case MMAPFS:
                     assertTrue(type + " " + directory.toString(), directory instanceof MMapDirectory);
+                    mMapDirectoryHasReadAdviceByContext((MMapDirectory) directory);
                     break;
                 case FS:
                     if (Constants.JRE_IS_64BIT) {
@@ -194,4 +203,52 @@ public class FsDirectoryFactoryTests extends OpenSearchTestCase {
             }
         }
     }
+
+    @SuppressForbidden(reason = "Need to check the readAdvise as there is no getter on read advise")
+    private void mMapDirectoryHasReadAdviceByContext(MMapDirectory mapDirectory) {
+        try {
+            @SuppressWarnings("unchecked")
+            BiFunction<String, IOContext, Optional<ReadAdvice>> readAdvice = (BiFunction<
+                String,
+                IOContext,
+                Optional<ReadAdvice>>) getReadAdviceField(mapDirectory);
+
+            // Verify the function behaves identically to ADVISE_BY_CONTEXT
+            // ADVISE_BY_CONTEXT returns the ReadAdvice from the IOContext
+            assertEquals(
+                "Advise By context is not set",
+                MMapDirectory.ADVISE_BY_CONTEXT.apply("test.dvd", IOContext.DEFAULT),
+                readAdvice.apply("test.dvd", IOContext.DEFAULT)
+            );
+            assertEquals(
+                "Advise By context is not set",
+                MMapDirectory.ADVISE_BY_CONTEXT.apply("test.tim", IOContext.READONCE),
+                readAdvice.apply("test.tim", IOContext.READONCE)
+            );
+            MergeInfo mergeInfo = new MergeInfo(100, 100L, false, 1);
+            assertEquals(
+                "Advise By context is not set",
+                MMapDirectory.ADVISE_BY_CONTEXT.apply("test.vec", IOContext.merge(mergeInfo)),
+                readAdvice.apply("test.vec", IOContext.merge(mergeInfo).withHints())
+            );
+
+            assertEquals(
+                "Advise By context is not set",
+                MMapDirectory.ADVISE_BY_CONTEXT.apply("test.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM)),
+                readAdvice.apply("test.vec", IOContext.DEFAULT.withHints(DataAccessHint.RANDOM))
+            );
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to verify read advice is set to ADVISE_BY_CONTEXT: ", e);
+        }
+
+    }
+
+    @SuppressForbidden(reason = "need reflection to access private readAdvice field for testing")
+    private Object getReadAdviceField(MMapDirectory mMapDirectory) throws Exception {
+        Field readAdviceField = MMapDirectory.class.getDeclaredField("readAdvice");
+        readAdviceField.setAccessible(true);
+        return readAdviceField.get(mMapDirectory);
+    }
+
 }
