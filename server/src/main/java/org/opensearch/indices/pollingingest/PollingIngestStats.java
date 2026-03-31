@@ -93,7 +93,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             pointerBasedLag
         );
 
-        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
             this.pipelineStats = new PipelineStats(
                 in.readLong(),
                 in.readLong(),
@@ -125,7 +125,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             out.writeLong(consumerStats.pointerBasedLag);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeLong(pipelineStats.totalExecutionCount);
             out.writeLong(pipelineStats.totalExecutionTimeInMillis);
             out.writeLong(pipelineStats.totalFailedCount);
@@ -213,7 +213,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     /**
      * Stats for pipeline execution in pull-based ingestion.
      */
-    @PublicApi(since = "3.6.0")
+    @PublicApi(since = "3.7.0")
     public record PipelineStats(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount, long totalDroppedCount,
         long totalTimeoutCount) {
     }

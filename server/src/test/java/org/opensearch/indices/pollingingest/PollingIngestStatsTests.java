@@ -83,7 +83,7 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test serialization to a pre-3.6.0 node — pipeline stats should be omitted.
+     * Test serialization to a pre-3.7.0 node — pipeline stats should be omitted.
      */
     public void testSerializationToOlderNode() throws IOException {
         PollingIngestStats original = createTestInstance();
@@ -111,19 +111,19 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
     }
 
     /**
-     * Test deserialization from a pre-3.6.0 node — pipeline stats should default to zero.
+     * Test deserialization from a pre-3.7.0 node — pipeline stats should default to zero.
      */
     public void testDeserializationFromOlderNode() throws IOException {
         // Simulate a pre-3.6.0 node writing stats without pipeline fields
         PollingIngestStats original = createTestInstance();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_3_5_0);
+            output.setVersion(Version.V_3_6_0);
             original.writeTo(output);
 
             // Read back as a 3.6.0 node
             try (StreamInput input = output.bytes().streamInput()) {
-                input.setVersion(Version.V_3_5_0);
+                input.setVersion(Version.V_3_6_0);
                 PollingIngestStats deserialized = new PollingIngestStats(input);
 
                 assertEquals(original.getMessageProcessorStats(), deserialized.getMessageProcessorStats());

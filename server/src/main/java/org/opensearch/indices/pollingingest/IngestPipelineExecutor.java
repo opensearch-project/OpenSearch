@@ -210,7 +210,7 @@ public class IngestPipelineExecutor {
      * Note: totalExecutionCount includes all pipeline invocations (successful, failed, and dropped).
      * Success count can be derived as: totalExecutionCount - totalFailedCount - totalDroppedCount.
      */
-    @PublicApi(since = "3.6.0")
+    @PublicApi(since = "3.7.0")
     public record PipelineMetrics(
         long totalExecutionCount,
         long totalExecutionTimeInMillis,
