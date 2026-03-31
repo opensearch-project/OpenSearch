@@ -211,11 +211,7 @@ public class IngestPipelineExecutor {
      * Success count can be derived as: totalExecutionCount - totalFailedCount - totalDroppedCount.
      */
     @PublicApi(since = "3.7.0")
-    public record PipelineMetrics(
-        long totalExecutionCount,
-        long totalExecutionTimeInMillis,
-        long totalFailedCount,
-        long totalDroppedCount,
-        long totalTimeoutCount
-    ) {}
+    public record PipelineMetrics(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount, long totalDroppedCount,
+        long totalTimeoutCount) {
+    }
 }

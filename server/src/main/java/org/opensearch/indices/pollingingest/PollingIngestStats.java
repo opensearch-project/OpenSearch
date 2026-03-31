@@ -94,13 +94,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         );
 
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            this.pipelineStats = new PipelineStats(
-                in.readLong(),
-                in.readLong(),
-                in.readLong(),
-                in.readLong(),
-                in.readLong()
-            );
+            this.pipelineStats = new PipelineStats(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
         } else {
             this.pipelineStats = new PipelineStats(0, 0, 0, 0, 0);
         }
