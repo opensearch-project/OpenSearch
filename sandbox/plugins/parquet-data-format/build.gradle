@@ -161,6 +161,12 @@ tasks.named('forbiddenPatterns').configure {
     exclude '**/native/**'
 }
 
+spotless {
+    format 'misc', {
+        targetExclude '**/src/main/rust/target/**'
+    }
+}
+
 clean {
   doFirst {
     delete "src/main/resources/native"
