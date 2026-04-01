@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * per-shard {@link DatafusionSearchExecEngine} instances via the
  * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, AnalyticsSearchBackendPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -110,17 +110,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     }
 
     @Override
-    public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
-        // TODO: resolve DataFormat properly instead of passing null
-        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().reader(null);
-        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
-        DatafusionSearchExecEngine datafusionSearchExecEngine = new DatafusionSearchExecEngine(context);
-        datafusionSearchExecEngine.prepare(ctx);
-        return datafusionSearchExecEngine;
-    }
-
-    @Override
-    public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
+    public EngineReaderManager<DatafusionReader> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
         return new DatafusionReaderManager(format, shardPath, dataFusionService);
     }
 
@@ -129,6 +119,27 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
      */
     public List<DataFormat> getSupportedFormats() {
         return null; // TODO : List.of("parquet");
+    }
+
+    @Override
+    public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+        DatafusionReader dfReader = null;
+        List<DataFormat> formats = getSupportedFormats();
+        if (formats != null) {
+            for (DataFormat format : formats) {
+                dfReader = ctx.getReader().getReader(format, DatafusionReader.class);
+                if (dfReader != null) {
+                    break;
+                }
+            }
+        }
+        if (dfReader == null) {
+            throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+        }
+        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context);
+        engine.prepare(ctx);
+        return engine;
     }
 
     @Override
