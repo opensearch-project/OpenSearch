@@ -17,6 +17,8 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.index.IndexService;
@@ -62,6 +64,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
+        logicalFragment = PlannerImpl.createPlan(logicalFragment,
+            new PlannerContext(new ArrayList<>(backEnds.values()), clusterService.state()));
         String tableName = extractTableName(logicalFragment);
         AnalyticsSearchBackendPlugin provider = selectBackEnd();
         if (provider == null) {

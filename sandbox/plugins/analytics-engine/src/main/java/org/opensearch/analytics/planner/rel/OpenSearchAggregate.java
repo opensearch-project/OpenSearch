@@ -1,0 +1,114 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.rel;
+
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.core.Aggregate;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.RelNodeUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @opensearch.internal
+ */
+public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
+
+    private final String backend;
+    private final List<String> viableBackends;
+    private final AggregateMode mode;
+
+    public OpenSearchAggregate(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
+                               ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets,
+                               List<AggregateCall> aggCalls, AggregateMode mode,
+                               String backend, List<String> viableBackends) {
+        super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
+        this.mode = mode;
+        this.backend = backend;
+        this.viableBackends = viableBackends;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
+    }
+
+    public AggregateMode getMode() {
+        return mode;
+    }
+
+    @Override
+    public List<String> getViableBackends() {
+        return viableBackends;
+    }
+
+    /**
+     * Aggregate output: group-by fields first (inherited from input), then agg results (derived).
+     * Group-by fields inherit storage info from the input. Agg results are derived columns.
+     */
+    @Override
+    public List<FieldStorageInfo> getOutputFieldStorage() {
+        RelNode input = RelNodeUtils.unwrapHep(getInput());
+        List<FieldStorageInfo> inputStorage = (input instanceof OpenSearchRelNode openSearchInput)
+            ? openSearchInput.getOutputFieldStorage()
+            : List.of();
+
+        List<FieldStorageInfo> outputStorage = new ArrayList<>();
+
+        // Group-by fields: inherit from input
+        for (int groupIdx : getGroupSet()) {
+            if (groupIdx < inputStorage.size()) {
+                outputStorage.add(inputStorage.get(groupIdx));
+            }
+        }
+
+        // Agg results: derived columns with no physical storage
+        for (AggregateCall aggCall : getAggCallList()) {
+            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().toString()));
+        }
+
+        return outputStorage;
+    }
+
+    @Override
+    public Aggregate copy(RelTraitSet traitSet, RelNode input, ImmutableBitSet groupSet,
+                          List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
+        return new OpenSearchAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls, mode, backend, viableBackends);
+    }
+
+    @Override
+    public org.apache.calcite.plan.RelOptCost computeSelfCost(org.apache.calcite.plan.RelOptPlanner planner,
+                                                               org.apache.calcite.rel.metadata.RelMetadataQuery mq) {
+        // SINGLE mode aggregate over partitioned input can't execute without splitting.
+        // Return infinite cost to force Volcano to explore the split rule.
+        // SINGLE over SINGLETON input is fine (single-shard case).
+        if (mode == AggregateMode.SINGLE) {
+            for (int index = 0; index < getInput().getTraitSet().size(); index++) {
+                org.apache.calcite.plan.RelTrait trait = getInput().getTraitSet().getTrait(index);
+                if (trait instanceof OpenSearchDistribution distribution
+                    && distribution.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON
+                    && distribution.getType() != org.apache.calcite.rel.RelDistribution.Type.ANY) {
+                    return planner.getCostFactory().makeInfiniteCost();
+                }
+            }
+        }
+        return planner.getCostFactory().makeTinyCost();
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw).item("mode", mode).item("backend", backend).item("viableBackends", viableBackends);
+    }
+}

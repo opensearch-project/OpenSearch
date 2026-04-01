@@ -1,0 +1,100 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.rel;
+
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.SingleRel;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.opensearch.analytics.planner.FieldStorageInfo;
+
+import java.util.List;
+
+/**
+ * Write side of an exchange boundary. Sits at the top of a child stage's fragment.
+ *
+ * <p>For SINGLETON distribution: streams Arrow batches to coordinator via
+ * Analytics Core transport. {@link #shuffleImpl} is null.
+ * <p>For HASH/RANGE distribution: partitions and writes data between data nodes.
+ * {@link #shuffleImpl} is FILE or STREAM based on backend capability.
+ *
+ * @opensearch.internal
+ */
+public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRelNode {
+
+    private final String backend;
+    private final ShuffleImpl shuffleImpl;  // null for SINGLETON (transport, not shuffle)
+    private final List<Integer> keys;       // empty for SINGLETON
+
+    public OpenSearchExchangeWriter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
+                                    String backend, ShuffleImpl shuffleImpl, List<Integer> keys) {
+        super(cluster, traitSet, input);
+        this.backend = backend;
+        this.shuffleImpl = shuffleImpl;
+        this.keys = keys;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
+    }
+
+    /** Null for SINGLETON (uses Analytics Core transport). FILE or STREAM for shuffle. */
+    public ShuffleImpl getShuffleImpl() {
+        return shuffleImpl;
+    }
+
+    public List<Integer> getKeys() {
+        return keys;
+    }
+
+    public boolean isShuffle() {
+        return shuffleImpl != null;
+    }
+
+    @Override
+    public List<String> getViableBackends() {
+        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+            return openSearchInput.getViableBackends();
+        }
+        return List.of();
+    }
+
+    @Override
+    public List<FieldStorageInfo> getOutputFieldStorage() {
+        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+            return openSearchInput.getOutputFieldStorage();
+        }
+        return List.of();
+    }
+
+    @Override
+    public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        return new OpenSearchExchangeWriter(getCluster(), traitSet, sole(inputs),
+            backend, shuffleImpl, keys);
+    }
+
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        return planner.getCostFactory().makeTinyCost();
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        RelWriter writer = super.explainTerms(pw).item("backend", backend);
+        if (shuffleImpl != null) {
+            writer.item("shuffleImpl", shuffleImpl).item("keys", keys);
+        }
+        return writer;
+    }
+}

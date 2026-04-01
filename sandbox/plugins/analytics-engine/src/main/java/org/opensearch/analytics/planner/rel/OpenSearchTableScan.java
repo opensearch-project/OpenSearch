@@ -1,0 +1,90 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.rel;
+
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
+import org.opensearch.analytics.planner.FieldStorageInfo;
+
+import java.util.List;
+
+/**
+ * @opensearch.internal
+ */
+public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode {
+
+    private final String backend;
+    private final List<String> viableBackends;
+    private final List<FieldStorageInfo> outputFieldStorage;
+
+    public OpenSearchTableScan(RelOptCluster cluster, RelTraitSet traitSet, RelOptTable table,
+                               String backend, List<String> viableBackends,
+                               List<FieldStorageInfo> outputFieldStorage) {
+        super(cluster, traitSet, List.of(), table);
+        this.backend = backend;
+        this.viableBackends = viableBackends;
+        this.outputFieldStorage = outputFieldStorage;
+    }
+
+    /**
+     * Creates an OpenSearchTableScan with distribution trait based on shard count.
+     * Multi-shard → RANDOM (data partitioned across nodes).
+     * Single shard → SINGLETON (all data on one node).
+     */
+    public static OpenSearchTableScan create(RelOptCluster cluster, RelOptTable table,
+                                             String backend, List<String> viableBackends,
+                                             List<FieldStorageInfo> outputFieldStorage,
+                                             int shardCount,
+                                             OpenSearchDistributionTraitDef distTraitDef) {
+        OpenSearchDistribution distribution = shardCount > 1
+            ? distTraitDef.random()
+            : distTraitDef.singleton();
+        RelTraitSet traitSet = RelTraitSet.createEmpty()
+            .plus(OpenSearchConvention.INSTANCE)
+            .plus(distribution);
+        return new OpenSearchTableScan(cluster, traitSet, table, backend, viableBackends, outputFieldStorage);
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
+    }
+
+    @Override
+    public List<String> getViableBackends() {
+        return viableBackends;
+    }
+
+    @Override
+    public List<FieldStorageInfo> getOutputFieldStorage() {
+        return outputFieldStorage;
+    }
+
+    @Override
+    public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), backend, viableBackends, outputFieldStorage);
+    }
+
+    @Override
+    public org.apache.calcite.plan.RelOptCost computeSelfCost(RelOptPlanner planner,
+                                                              RelMetadataQuery mq) {
+        return planner.getCostFactory().makeTinyCost();
+    }
+
+    @Override
+    public RelWriter explainTerms(RelWriter pw) {
+        return super.explainTerms(pw).item("backend", backend).item("viableBackends", viableBackends);
+    }
+}
