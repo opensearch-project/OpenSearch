@@ -387,6 +387,13 @@ public class EngineBackedIndexer implements Indexer {
         throw new UnsupportedOperationException("acquireSnapshot is not supported in EngineBackedIndexer");
     }
 
+    @Override
+    public GatedCloseable<Reader> acquireReader() throws IOException {
+        // TODO: Replace with a reader backed by segment infos catalog snapshot and Lucene's Directory reader.
+        // For now we throw an exception as this is not yet implemented
+        throw new UnsupportedOperationException("acquireReader is not supported in EngineBackedIndexer");
+    }
+
     public Engine getEngine() {
         return engine;
     }

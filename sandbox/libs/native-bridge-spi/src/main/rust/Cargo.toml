@@ -1,0 +1,12 @@
+[package]
+name = "native-bridge-spi"
+version = "0.1.0"
+edition = "2021"
+description = "Shared Rust utilities for OpenSearch sandbox native plugins"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+jni = "0.21"

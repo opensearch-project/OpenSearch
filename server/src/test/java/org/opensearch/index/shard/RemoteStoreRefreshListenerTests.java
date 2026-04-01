@@ -906,4 +906,78 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         }
     }
 
+    public void testCleanupTriggeredWhenMapExceedsThreshold() throws IOException {
+        int threshold = 10;
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = setupDirectoryWithThreshold(threshold);
+
+        indexAndRefreshWithoutFlush(100);
+
+        int mapSize = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStoreSize();
+        assertTrue("Map size should be bounded by threshold cleanup, but was: " + mapSize, mapSize < 100);
+    }
+
+    public void testCleanupNotTriggeredWhenThresholdDisabled() throws IOException {
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = setupDirectoryWithThreshold(-1);
+        int initialMapSize = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStoreSize();
+
+        indexAndRefreshWithoutFlush(100);
+
+        int finalMapSize = remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStoreSize();
+        assertTrue(
+            "Map size should have grown with threshold disabled, initial=" + initialMapSize + " final=" + finalMapSize,
+            finalMapSize > initialMapSize
+        );
+    }
+
+    private RemoteSegmentStoreDirectory setupDirectoryWithThreshold(int threshold) throws IOException {
+        indexShard = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_SEGMENT_STORE_REPOSITORY, "temp-fs")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build(),
+            new InternalEngineFactory()
+        );
+
+        indexDocs(1, 3);
+        indexShard.refresh("test");
+
+        clusterService = ClusterServiceUtils.createClusterService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
+        remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, Settings.EMPTY);
+        remoteStoreStatsTrackerFactory.afterIndexShardCreated(indexShard);
+        RemoteSegmentTransferTracker tracker = remoteStoreStatsTrackerFactory.getRemoteSegmentTransferTracker(indexShard.shardId());
+
+        RemoteStoreSettings mockSettings = mock(RemoteStoreSettings.class);
+        when(mockSettings.getUploadedSegmentsCleanupThreshold()).thenReturn(threshold);
+        when(mockSettings.getMinRemoteSegmentMetadataFiles()).thenReturn(10);
+        when(mockSettings.getClusterRemoteSegmentTransferTimeout()).thenReturn(TimeValue.timeValueMinutes(30));
+
+        IndexShard spyShard = spy(indexShard);
+        when(spyShard.getRemoteStoreSettings()).thenReturn(mockSettings);
+
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            spyShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            tracker,
+            mockSettings
+        );
+
+        return (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+            .getDelegate();
+    }
+
+    private void indexAndRefreshWithoutFlush(int iterations) throws IOException {
+        for (int i = 0; i < iterations; i++) {
+            indexDocs(10 + (i * 5), 5);
+            indexShard.refresh("test");
+            remoteStoreRefreshListener.afterRefresh(true);
+        }
+    }
+
 }

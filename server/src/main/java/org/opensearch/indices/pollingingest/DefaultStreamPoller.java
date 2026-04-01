@@ -117,6 +117,7 @@ public class DefaultStreamPoller implements StreamPoller {
         long pointerBasedLagUpdateIntervalMs,
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
+        IngestPipelineExecutor pipelineExecutor,
         IngestionSource.WarmupConfig warmupConfig
     ) {
         this(
@@ -124,7 +125,14 @@ public class DefaultStreamPoller implements StreamPoller {
             consumerFactory,
             consumerClientId,
             shardId,
-            new PartitionedBlockingQueueContainer(numProcessorThreads, shardId, ingestionEngine, errorStrategy, blockingQueueSize),
+            new PartitionedBlockingQueueContainer(
+                numProcessorThreads,
+                shardId,
+                ingestionEngine,
+                errorStrategy,
+                blockingQueueSize,
+                pipelineExecutor
+            ),
             resetState,
             resetValue,
             errorStrategy,
@@ -754,6 +762,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private long pointerBasedLagUpdateIntervalMs = 10000;
         private IngestionMessageMapper.MapperType mapperType = IngestionMessageMapper.MapperType.DEFAULT;
         private Map<String, Object> mapperSettings = Collections.emptyMap();
+        private IngestPipelineExecutor pipelineExecutor;
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
 
@@ -864,7 +873,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
-         * Set warmup enabled
+         * Set pipeline executor for ingest pipeline execution
+         */
+        public Builder pipelineExecutor(IngestPipelineExecutor pipelineExecutor) {
+            this.pipelineExecutor = pipelineExecutor;
+            return this;
+        }
+
+        /**
          * Set warmup configuration
          */
         public Builder warmupConfig(IngestionSource.WarmupConfig warmupConfig) {
@@ -893,6 +909,7 @@ public class DefaultStreamPoller implements StreamPoller {
                 pointerBasedLagUpdateIntervalMs,
                 mapperType,
                 mapperSettings,
+                pipelineExecutor,
                 warmupConfig
             );
         }

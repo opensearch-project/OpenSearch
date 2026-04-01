@@ -26,6 +26,9 @@ import org.opensearch.index.remote.RemoteStoreEnums;
 @PublicApi(since = "2.14.0")
 public class RemoteStoreSettings {
     private static final int MIN_CLUSTER_REMOTE_MAX_TRANSLOG_READERS = 100;
+    private static final int MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100;
+    private static final int MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 100000;
+    private static final int DEFAULT_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD = 1000;
 
     /**
      * Used to specify the default translog buffer interval for remote store backed indexes.
@@ -175,6 +178,29 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Controls the threshold for the number of segments uploaded to remote store map.
+     * When the map size exceeds this threshold, stale segment cleanup is triggered even without a flush/commit.
+     * {@code -1} disables threshold-based cleanup.
+     */
+    public static final Setting<Integer> CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING = Setting.intSetting(
+        "cluster.remote_store.uploaded_segments_cleanup_threshold",
+        DEFAULT_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD,
+        -1,
+        v -> {
+            if (v != -1 && (v < MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD || v > MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD)) {
+                throw new IllegalArgumentException(
+                    "Value must be -1 or between "
+                        + MIN_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD
+                        + " and "
+                        + MAX_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD
+                );
+            }
+        },
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * Controls the fixed prefix for the segments path on remote store.
      */
     public static final Setting<String> CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX = Setting.simpleString(
@@ -208,6 +234,7 @@ public class RemoteStoreSettings {
     private static volatile TimeValue pinnedTimestampsLookbackInterval;
     private final String translogPathFixedPrefix;
     private final String segmentsPathFixedPrefix;
+    private volatile int uploadedSegmentsCleanupThreshold;
 
     public RemoteStoreSettings(Settings settings, ClusterSettings clusterSettings) {
         clusterRemoteTranslogBufferInterval = CLUSTER_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings);
@@ -255,6 +282,12 @@ public class RemoteStoreSettings {
 
         translogPathFixedPrefix = CLUSTER_REMOTE_STORE_TRANSLOG_PATH_PREFIX.get(settings);
         segmentsPathFixedPrefix = CLUSTER_REMOTE_STORE_SEGMENTS_PATH_PREFIX.get(settings);
+
+        uploadedSegmentsCleanupThreshold = CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING,
+            this::setUploadedSegmentsCleanupThreshold
+        );
     }
 
     public TimeValue getClusterRemoteTranslogBufferInterval() {
@@ -354,5 +387,13 @@ public class RemoteStoreSettings {
 
     public String getSegmentsPathFixedPrefix() {
         return segmentsPathFixedPrefix;
+    }
+
+    public int getUploadedSegmentsCleanupThreshold() {
+        return uploadedSegmentsCleanupThreshold;
+    }
+
+    private void setUploadedSegmentsCleanupThreshold(int uploadedSegmentsCleanupThreshold) {
+        this.uploadedSegmentsCleanupThreshold = uploadedSegmentsCleanupThreshold;
     }
 }

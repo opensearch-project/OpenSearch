@@ -78,8 +78,8 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
 
         SearchShardTask task = null; // TODO : init task
         List<Object[]> rows = new ArrayList<>();
-        try (DataFormatAwareEngine.DataFormatAwareReader dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
-            ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader);
+        try (var dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
+            ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader.get());
             try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = plugin.searcher(ctx)) {
                 logger.info("[DefaultPlanExecutor] Executing via [{}]", plugin.name());
                 try (EngineResultStream resultStream = engine.execute(ctx)) {
