@@ -1572,7 +1572,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.maybeSyncSegments(false);
+            if (shouldRun()) {
+                indexService.maybeSyncSegments(false);
+            }
         }
 
         @Override
@@ -1588,6 +1590,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected boolean mustReschedule() {
             return indexSettings.isSegRepEnabledOrRemoteNode() && super.mustReschedule();
+        }
+
+        // visible for tests
+        protected boolean shouldRun() {
+            return false == indexSettings.getIndexMetadata()
+                .getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
         }
     }
 
