@@ -326,7 +326,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
     private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
-    private final Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier;
+    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -2312,7 +2312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public static Engine.Searcher wrapSearcher(
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
-        Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier
+        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
     ) throws IOException {
         assert readerWrapper != null;
         DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
@@ -2321,11 +2321,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
 
-        NonClosingReaderWrapper nonClosingReaderWrapper;
+        DirectoryReader nonClosingReaderWrapper;
         if (nonClosingReaderWrapperSupplier == null) {
             nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
         } else {
             nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
+            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
         }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
@@ -6091,7 +6092,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // Visible for testing
-    Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier() {
+    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
         return nonClosingReaderWrapperSupplier;
     }
 
