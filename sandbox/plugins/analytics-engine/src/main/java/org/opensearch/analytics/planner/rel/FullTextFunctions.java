@@ -13,12 +13,14 @@ import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
-import org.opensearch.analytics.spi.FilterOperator;
+import org.opensearch.analytics.spi.FullTextOperator;
 
 /**
  * Calcite SqlFunction markers for full-text search operations.
- * The filter rule recognizes these and routes to backends that support
- * the corresponding {@link FilterOperator} of type {@link FilterOperator.Type#FULL_TEXT}.
+ * Used by frontend plugins (DSL converter, SQL, PPL) to represent
+ * full-text queries in the RelNode tree. The filter rule recognizes
+ * these and routes to backends that support the corresponding
+ * {@link FullTextOperator}.
  *
  * @opensearch.internal
  */
@@ -36,15 +38,21 @@ public class FullTextFunctions {
     private FullTextFunctions() {}
 
     private static SqlFunction fullTextFunction(String name) {
-        return new SqlFunction(name, SqlKind.OTHER_FUNCTION, ReturnTypes.BOOLEAN,
-            null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
+        return new SqlFunction(
+            name,
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
     }
 
-    /** Maps a SqlFunction to a FULL_TEXT FilterOperator, or null if not a full-text function. */
-    public static FilterOperator toFilterOperator(SqlFunction function) {
+    /** Maps a SqlFunction to a FullTextOperator, or null if not a full-text function. */
+    public static FullTextOperator toFullTextOperator(SqlFunction function) {
+        String name = function.getName();
         try {
-            FilterOperator op = FilterOperator.valueOf(function.getName());
-            return op.getType() == FilterOperator.Type.FULL_TEXT ? op : null;
+            return FullTextOperator.valueOf(name);
         } catch (IllegalArgumentException ignored) {
             return null;
         }

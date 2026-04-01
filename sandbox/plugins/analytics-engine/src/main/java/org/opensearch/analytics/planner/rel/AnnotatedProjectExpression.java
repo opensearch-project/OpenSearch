@@ -46,25 +46,25 @@ public class AnnotatedProjectExpression extends RexCall {
     };
 
     private final RexNode original;
-    private final List<String> viableBackends;
+    private final String backend;
 
-    public AnnotatedProjectExpression(RelDataType type, RexNode original, List<String> viableBackends) {
+    public AnnotatedProjectExpression(RelDataType type, RexNode original, String backend) {
         super(type, ANNOTATED_PROJECT_EXPR_OP, List.of(original));
         this.original = original;
-        this.viableBackends = viableBackends;
+        this.backend = backend;
     }
 
     public RexNode getOriginal() {
         return original;
     }
 
-    /** Backends that can evaluate this expression. */
-    public List<String> getViableBackends() {
-        return viableBackends;
+    /** The backend that evaluates this expression. */
+    public String getBackend() {
+        return backend;
     }
 
     @Override
     protected String computeDigest(boolean withType) {
-        return "ANNOTATED_PROJECT_EXPR(backends=" + viableBackends + ", " + original + ")";
+        return "ANNOTATED_PROJECT_EXPR(backend=" + backend + ", " + original + ")";
     }
 }

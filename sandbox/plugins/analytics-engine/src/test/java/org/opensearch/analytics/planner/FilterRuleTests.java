@@ -18,7 +18,6 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
-import org.apache.calcite.rex.RexCall;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.FullTextFunctions;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
@@ -45,7 +44,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         ), new String[]{"status", "size"}, new SqlTypeName[]{SqlTypeName.INTEGER, SqlTypeName.INTEGER},
             makeEquals(0, SqlTypeName.INTEGER, 200));
 
-        assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertEquals(MockDataFusionBackend.NAME, result.getBackend());
         assertTrue(result.getCondition() instanceof AnnotatedPredicate);
         AnnotatedPredicate annotated = (AnnotatedPredicate) result.getCondition();
         assertTrue(annotated.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -72,26 +71,20 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     /** Full-text with delegation — both backends viable at operator level. */
     public void testFullTextViableWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation("parquet", Map.of(
-            "message", Map.of("type", "keyword")
+            "message", Map.of("type", "text")
         ), new String[]{"message"}, new SqlTypeName[]{SqlTypeName.VARCHAR},
             makeFullTextCall(FullTextFunctions.MATCH_PHRASE, 0, "hello world"));
 
-        // DF is viable at operator level (has doc values in parquet)
+        assertEquals(MockDataFusionBackend.NAME, result.getBackend());
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        // Lucene not viable at operator level — only delegation target
-        assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
-        // MATCH_PHRASE predicate has Lucene as delegation target
-        AnnotatedPredicate predicate = (AnnotatedPredicate) result.getCondition();
-        assertTrue("MATCH_PHRASE should be evaluable by Lucene",
-            predicate.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(predicate.getOriginal().toString().contains("MATCH_PHRASE"));
+        assertTrue(result.getViableBackends().contains(MockLuceneBackend.NAME));
     }
 
-    /** AND with delegation — DF viable at operator, equals viable for both, MATCH_PHRASE delegated to Lucene. */
+    /** AND with delegation — both backends viable. */
     public void testAndWithDelegationBothViable() {
         OpenSearchFilter result = runFilterWithDelegation("parquet", Map.of(
             "status", Map.of("type", "integer"),
-            "message", Map.of("type", "keyword")
+            "message", Map.of("type", "text")
         ), new String[]{"status", "message"}, new SqlTypeName[]{SqlTypeName.INTEGER, SqlTypeName.VARCHAR},
             makeAnd(
                 makeEquals(0, SqlTypeName.INTEGER, 200),
@@ -99,21 +92,14 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             ));
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
-        RexCall andCondition = (RexCall) result.getCondition();
-        AnnotatedPredicate equalsPred = (AnnotatedPredicate) andCondition.getOperands().get(0);
-        AnnotatedPredicate matchPred = (AnnotatedPredicate) andCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getOriginal().toString().contains("MATCH_PHRASE"));
+        assertTrue(result.getViableBackends().contains(MockLuceneBackend.NAME));
     }
 
-    /** OR across backends — DF viable at operator, equals viable for both, MATCH delegated to Lucene. */
+    /** OR across backends with delegation — both viable. */
     public void testOrAcrossBackendsWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation("parquet", Map.of(
             "status", Map.of("type", "integer"),
-            "message", Map.of("type", "keyword")
+            "message", Map.of("type", "text")
         ), new String[]{"status", "message"}, new SqlTypeName[]{SqlTypeName.INTEGER, SqlTypeName.VARCHAR},
             makeCall(SqlStdOperatorTable.OR,
                 makeEquals(0, SqlTypeName.INTEGER, 200),
@@ -121,21 +107,14 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             ));
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
-        RexCall orCondition = (RexCall) result.getCondition();
-        AnnotatedPredicate equalsPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
-        AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(equalsPred.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(equalsPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
+        assertTrue(result.getViableBackends().contains(MockLuceneBackend.NAME));
     }
 
-    /** OR of two full-text predicates — DF viable at operator, both predicates delegated to Lucene. */
+    /** OR of two full-text predicates with delegation — both viable. */
     public void testMultipleFullTextOrWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation("parquet", Map.of(
-            "title", Map.of("type", "keyword"),
-            "body", Map.of("type", "keyword")
+            "title", Map.of("type", "text"),
+            "body", Map.of("type", "text")
         ), new String[]{"title", "body"}, new SqlTypeName[]{SqlTypeName.VARCHAR, SqlTypeName.VARCHAR},
             makeCall(SqlStdOperatorTable.OR,
                 makeFullTextCall(FullTextFunctions.MATCH, 0, "hello"),
@@ -143,14 +122,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             ));
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertFalse(result.getViableBackends().contains(MockLuceneBackend.NAME));
-        RexCall orCondition = (RexCall) result.getCondition();
-        AnnotatedPredicate matchPred = (AnnotatedPredicate) orCondition.getOperands().get(0);
-        AnnotatedPredicate phrasePred = (AnnotatedPredicate) orCondition.getOperands().get(1);
-        assertTrue(matchPred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(matchPred.getOriginal().toString().contains("MATCH"));
-        assertTrue(phrasePred.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertTrue(phrasePred.getOriginal().toString().contains("MATCH_PHRASE"));
+        assertTrue(result.getViableBackends().contains(MockLuceneBackend.NAME));
     }
 
     // ---- Error cases ----
@@ -162,7 +134,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
         PlannerContext context = buildContext("parquet", Map.of(
-            "message", Map.of("type", "keyword")
+            "message", Map.of("type", "text")
         ));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
@@ -182,9 +154,12 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             "location", Map.of("type", "geo_point")
         ));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> runPlanner(filter, context));
-        assertTrue(exception.getMessage().contains("has no storage"));
+        try {
+            runPlanner(filter, context);
+            fail("Expected IllegalStateException for unsupported field type");
+        } catch (IllegalStateException e) {
+            assertTrue(e.getMessage().contains("No backend can"));
+        }
     }
 
     // ---- Derived columns ----

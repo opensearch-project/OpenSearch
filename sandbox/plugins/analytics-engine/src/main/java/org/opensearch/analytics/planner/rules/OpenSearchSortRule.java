@@ -12,6 +12,7 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Sort;
+import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -54,16 +55,13 @@ public class OpenSearchSortRule extends RelOptRule {
                 "Sort rule encountered unmarked child [" + child.getClass().getSimpleName() + "]");
         }
 
-        List<String> childViableBackends = openSearchChild.getViableBackends();
-        List<String> sortCapable = context.getCapabilityRegistry().operatorBackends(OperatorCapability.SORT);
+        String childBackend = openSearchChild.getBackend();
 
-        List<String> viableBackends = childViableBackends.stream()
-            .filter(sortCapable::contains)
-            .toList();
+        String backend = CapabilityResolutionUtils.resolveBackend(
+            context.getBackends(), childBackend, OperatorCapability.SORT);
 
-        if (viableBackends.isEmpty()) {
-            throw new IllegalStateException(
-                "No backend supports SORT capability among " + childViableBackends);
+        if (!CapabilityResolutionUtils.backendSupports(context.getBackends(), backend, OperatorCapability.SORT)) {
+            throw new IllegalStateException("No backend supports SORT capability");
         }
 
         call.transformTo(new OpenSearchSort(
@@ -73,7 +71,8 @@ public class OpenSearchSortRule extends RelOptRule {
             sort.getCollation(),
             sort.offset,
             sort.fetch,
-            viableBackends
+            backend,
+            List.of(backend)
         ));
     }
 }

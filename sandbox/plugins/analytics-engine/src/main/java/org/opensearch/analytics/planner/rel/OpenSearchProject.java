@@ -17,13 +17,8 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
-import org.opensearch.analytics.planner.RelNodeUtils;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import java.util.List;
 
@@ -32,46 +27,35 @@ import java.util.List;
  */
 public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
-    private final List<String> viableBackends;
+    private final String backend;
 
     public OpenSearchProject(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
                              List<? extends RexNode> projects, RelDataType rowType,
-                             List<String> viableBackends) {
+                             String backend) {
         super(cluster, traitSet, List.of(), input, projects, rowType);
-        this.viableBackends = viableBackends;
+        this.backend = backend;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
     }
 
     @Override
     public List<String> getViableBackends() {
-        return viableBackends;
+        return List.of(backend);
     }
 
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
-        RelNode input = RelNodeUtils.unwrapHep(getInput());
-        if (!(input instanceof OpenSearchRelNode openSearchChild)) {
-            throw new IllegalStateException(
-                "Project child is not OpenSearchRelNode: " + input.getClass().getSimpleName());
-        }
-        List<FieldStorageInfo> inputStorage = openSearchChild.getOutputFieldStorage();
-
-        List<FieldStorageInfo> result = new ArrayList<>(getProjects().size());
-        for (int i = 0; i < getProjects().size(); i++) {
-            RexNode expr = getProjects().get(i);
-            if (expr instanceof RexInputRef ref && ref.getIndex() < inputStorage.size()) {
-                result.add(inputStorage.get(ref.getIndex()));
-            } else {
-                String fieldName = getRowType().getFieldList().get(i).getName();
-                result.add(FieldStorageInfo.derivedColumn(fieldName,
-                    getRowType().getFieldList().get(i).getType().getSqlTypeName()));
-            }
-        }
-        return result;
+        return getRowType().getFieldList().stream()
+            .map(field -> FieldStorageInfo.derivedColumn(field.getName(), field.getType().toString()))
+            .toList();
     }
 
     @Override
     public Project copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects, RelDataType rowType) {
-        return new OpenSearchProject(getCluster(), traitSet, input, projects, rowType, viableBackends);
+        return new OpenSearchProject(getCluster(), traitSet, input, projects, rowType, backend);
     }
 
     @Override
@@ -81,6 +65,6 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("backend", backend);
     }
 }

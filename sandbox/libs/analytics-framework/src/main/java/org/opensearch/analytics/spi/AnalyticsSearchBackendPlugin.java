@@ -8,6 +8,10 @@
 
 package org.opensearch.analytics.spi;
 
+
+import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.backend.ExecutionContext;
+import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 
 import java.util.Collections;
@@ -20,11 +24,25 @@ import java.util.Set;
  */
 public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
 
+    /** Unique engine name (e.g., "lucene", "datafusion"). */
+    String name();
+
+    /**
+     * Creates a searcher bound to the given reader snapshot.
+     * @param ctx the execution context
+     */
+    SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx);
+
     /** Returns the data formats supported by this backend. */
     List<DataFormat> getSupportedFormats();
 
-    /** Filter capabilities scoped to operator, field type, and data format. */
-    default Set<FilterCapability> filterCapabilities() {
+    /** Filter operators this backend can evaluate, scoped by field type family. */
+    default Set<FilterCapability> supportedFilterCapabilities() {
+        return Collections.emptySet();
+    }
+
+    /** Full-text operators this backend can evaluate on indexed fields. */
+    default Set<FullTextOperator> supportedFullTextOperators() {
         return Collections.emptySet();
     }
 
@@ -43,18 +61,22 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
         return Collections.emptySet();
     }
 
-    /** Aggregate capabilities scoped to function, field type, and data format. */
-    default Set<AggregateCapability> aggregateCapabilities() {
+    /** Aggregate functions this backend can evaluate (SUM, AVG, COUNT, etc.). */
+    default Set<AggregateFunction> supportedAggregateFunctions() {
         return Collections.emptySet();
     }
 
-    /** Window capabilities scoped to function, field type, and data format. */
-    default Set<WindowCapability> windowCapabilities() {
+    /** Scalar functions this backend can evaluate in projections (UPPER, CAST, math ops, etc.). */
+    default Set<ScalarFunction> supportedScalarFunctions() {
         return Collections.emptySet();
     }
 
-    /** Project capabilities: scalar functions and opaque operations, scoped to data format. */
-    default Set<ProjectCapability> projectCapabilities() {
+    /**
+     * Names of opaque project operations this backend can handle (e.g. "painless", "highlight", "suggest").
+     * Used to resolve UnresolvedRexNode from frontend plugins to a backend.
+     * Analytics Core is agnostic to what these names mean — backends define and consume them.
+     */
+    default Set<String> supportedOpaqueProjectOperations() {
         return Collections.emptySet();
     }
 
@@ -71,5 +93,4 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
     default byte[] convertFragment(Object fragment) {
         throw new UnsupportedOperationException("convertFragment not yet implemented for " + name());
     }
-
 }

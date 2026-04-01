@@ -23,12 +23,19 @@ import java.util.List;
  */
 public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
+    private final String backend;
     private final List<String> viableBackends;
 
     public OpenSearchFilter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
-                            RexNode condition, List<String> viableBackends) {
+                            RexNode condition, String backend, List<String> viableBackends) {
         super(cluster, traitSet, input, condition);
+        this.backend = backend;
         this.viableBackends = viableBackends;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
     }
 
     @Override
@@ -47,7 +54,7 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public Filter copy(RelTraitSet traitSet, RelNode input, RexNode condition) {
-        return new OpenSearchFilter(getCluster(), traitSet, input, condition, viableBackends);
+        return new OpenSearchFilter(getCluster(), traitSet, input, condition, backend, viableBackends);
     }
 
     @Override
@@ -58,6 +65,6 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("backend", backend).item("viableBackends", viableBackends);
     }
 }

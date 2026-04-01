@@ -19,13 +19,19 @@ import java.util.List;
  * <p>Each node computes {@link #getOutputFieldStorage()} from its input's metadata.
  * Parent operators read this to make backend routing decisions.
  *
- * <p>{@link #getViableBackends()} lists all backends that could execute this operator
- * (including via delegation). The first entry is the default/preferred backend.
- * Consumed during plan forking to generate one complete plan per viable backend.
+ * <p>{@link #getBackend()} is the default/preferred backend chosen by the marking rule.
+ * {@link #getViableBackends()} lists all backends that could execute this operator
+ * (including via delegation). Consumed by {@code BackendResolver.generateCandidatePlans()}
+ * during StagePlan alternative generation.
  *
  * @opensearch.internal
  */
 public interface OpenSearchRelNode {
+
+    String UNRESOLVED = "unresolved";
+
+    /** Default/preferred backend chosen by the marking rule. */
+    String getBackend();
 
     /** All backends that could execute this operator, including via delegation. */
     List<String> getViableBackends();

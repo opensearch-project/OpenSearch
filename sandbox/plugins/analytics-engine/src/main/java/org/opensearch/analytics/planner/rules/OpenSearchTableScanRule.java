@@ -12,16 +12,14 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
-import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
-import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.cluster.metadata.IndexMetadata;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -56,54 +54,20 @@ public class OpenSearchTableScanRule extends RelOptRule {
         }
 
         String primaryFormat = indexMetadata.getSettings().get("index.composite.primary_data_format", "lucene");
-        CapabilityRegistry registry = context.getCapabilityRegistry();
-        FieldStorageResolver fieldStorageResolver = new FieldStorageResolver(indexMetadata,
-            registry.getBackends());
+        List<String> viableBackends = CapabilityResolutionUtils.computeViableBackends(
+            context.getBackends(), OperatorCapability.SCAN, primaryFormat);
+        if (viableBackends.isEmpty()) {
+            throw new IllegalStateException("No backend supports format [" + primaryFormat
+                + "] with SCAN capability for index [" + indexMetadata.getIndex().getName() + "]");
+        }
 
-        // TODO : This expects the FrontEnds to attach the row type with all fields.
-        // TODO : How will they attach if we perform the index resolution
         List<String> fieldNames = scan.getRowType().getFieldList().stream()
             .map(RelDataTypeField::getName)
             .toList();
-        List<FieldStorageInfo> fieldStorage = fieldStorageResolver.resolve(fieldNames);
-
-        // Viable backends: must support SCAN and be able to read ALL requested fields
-        // (natively or via delegation to another backend that can read the field)
-        List<String> scanCapable = registry.operatorBackends(OperatorCapability.SCAN);
-        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.SCAN);
-        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.SCAN);
-        List<String> viableBackends = new ArrayList<>(scanCapable);
-
-        for (FieldStorageInfo field : fieldStorage) {
-            if (field.isDerived()) {
-                continue;
-            }
-            // Backends that can natively scan this field's doc values
-            List<String> fieldBackends = new ArrayList<>();
-            for (String format : field.getDocValueFormats()) {
-                for (String backend : registry.scanBackends(format)) {
-                    if (!fieldBackends.contains(backend)) {
-                        fieldBackends.add(backend);
-                    }
-                }
-            }
-            // Keep candidates that can scan natively or delegate to one that can
-            viableBackends.removeIf(candidate -> {
-                if (fieldBackends.contains(candidate)) {
-                    return false;
-                }
-                return !delegationSupporters.contains(candidate)
-                    || fieldBackends.stream().noneMatch(delegationAcceptors::contains);
-            });
-        }
-
-        if (viableBackends.isEmpty()) {
-            throw new IllegalStateException("No backend can scan all requested fields on index ["
-                + indexMetadata.getIndex().getName() + "]");
-        }
+        List<FieldStorageInfo> fieldStorage = FieldStorageResolver.resolve(indexMetadata, fieldNames);
 
         call.transformTo(OpenSearchTableScan.create(
-            scan.getCluster(), scan.getTable(), viableBackends, fieldStorage,
+            scan.getCluster(), scan.getTable(), viableBackends.getFirst(), viableBackends, fieldStorage,
             indexMetadata.getNumberOfShards(), context.getDistributionTraitDef()
         ));
     }

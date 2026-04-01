@@ -32,17 +32,25 @@ import java.util.List;
  */
 public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRelNode {
 
-    private final List<String> viableBackends;
+    private final String backend;
 
     public OpenSearchExchangeReducer(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
-                                     List<String> viableBackends) {
+                                     String backend) {
         super(cluster, traitSet, input);
-        this.viableBackends = viableBackends;
+        this.backend = backend;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
     }
 
     @Override
     public List<String> getViableBackends() {
-        return viableBackends;
+        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+            return openSearchInput.getViableBackends();
+        }
+        return List.of();
     }
 
     @Override
@@ -55,7 +63,7 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchExchangeReducer(getCluster(), traitSet, sole(inputs), viableBackends);
+        return new OpenSearchExchangeReducer(getCluster(), traitSet, sole(inputs), backend);
     }
 
     @Override
@@ -65,6 +73,6 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("backend", backend).item("viableBackends", getViableBackends());
     }
 }

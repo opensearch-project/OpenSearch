@@ -32,14 +32,19 @@ import java.util.List;
  */
 public class OpenSearchShuffleReader extends SingleRel implements OpenSearchRelNode {
 
-    private final List<String> viableBackends;
+    private final String backend;
     private final ShuffleImpl shuffleImpl;
 
     public OpenSearchShuffleReader(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
-                                   List<String> viableBackends, ShuffleImpl shuffleImpl) {
+                                   String backend, ShuffleImpl shuffleImpl) {
         super(cluster, traitSet, input);
-        this.viableBackends = viableBackends;
+        this.backend = backend;
         this.shuffleImpl = shuffleImpl;
+    }
+
+    @Override
+    public String getBackend() {
+        return backend;
     }
 
     public ShuffleImpl getShuffleImpl() {
@@ -48,7 +53,10 @@ public class OpenSearchShuffleReader extends SingleRel implements OpenSearchRelN
 
     @Override
     public List<String> getViableBackends() {
-        return viableBackends;
+        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
+            return openSearchInput.getViableBackends();
+        }
+        return List.of();
     }
 
     @Override
@@ -61,7 +69,7 @@ public class OpenSearchShuffleReader extends SingleRel implements OpenSearchRelN
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchShuffleReader(getCluster(), traitSet, sole(inputs), viableBackends, shuffleImpl);
+        return new OpenSearchShuffleReader(getCluster(), traitSet, sole(inputs), backend, shuffleImpl);
     }
 
     @Override
@@ -71,6 +79,6 @@ public class OpenSearchShuffleReader extends SingleRel implements OpenSearchRelN
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("viableBackends", viableBackends).item("shuffleImpl", shuffleImpl);
+        return super.explainTerms(pw).item("backend", backend).item("shuffleImpl", shuffleImpl);
     }
 }

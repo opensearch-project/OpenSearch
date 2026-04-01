@@ -50,6 +50,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         OpenSearchAggregate aggregate = call.rel(0);
         RelNode child = call.rel(1);
 
+        String backend = aggregate.getBackend();
+
         // Partial aggregate: runs on each partition, keeps input's traits
         RelTraitSet partialTraits = child.getTraitSet()
             .replace(OpenSearchConvention.INSTANCE);
@@ -61,6 +63,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.PARTIAL,
+            backend,
             aggregate.getViableBackends()
         );
 
@@ -78,6 +81,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.FINAL,
+            backend,
             aggregate.getViableBackends()
         );
 
