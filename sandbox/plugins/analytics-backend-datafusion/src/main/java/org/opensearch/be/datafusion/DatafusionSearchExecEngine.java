@@ -49,7 +49,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
         searcher.search(datafusionContext);
         // Transfer stream handle ownership to the result stream — context will not close it
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        return new DatafusionResultStream(handle);
+        return new DatafusionResultStream(handle, datafusionContext.getAllocator());
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.core.action.ActionListener;
@@ -26,6 +28,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
 
     private long readerPtr;
     private NativeRuntimeHandle runtimeHandle;
+    private RootAllocator testRootAllocator;
 
     private static boolean runtimeInitialized = false;
 
@@ -39,6 +42,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("spill");
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
+        testRootAllocator = new RootAllocator(Long.MAX_VALUE);
 
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
@@ -50,6 +54,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         NativeBridge.closeDatafusionReader(readerPtr);
         runtimeHandle.close();
+        testRootAllocator.close();
         super.tearDown();
     }
 
@@ -180,7 +185,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long streamPtr = future.join();
 
         DatafusionResultStream stream = new DatafusionResultStream(
-            new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, tempRuntime)
+            new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, tempRuntime),
+            testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE)
         );
 
         // Close runtime — streamNext should now fail with IllegalStateException from NativeRuntimeHandle.get()
@@ -220,6 +226,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             }
         });
         long streamPtr = future.join();
-        return new DatafusionResultStream(new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, runtimeHandle));
+        BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
+        return new DatafusionResultStream(new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, runtimeHandle), childAllocator);
     }
 }

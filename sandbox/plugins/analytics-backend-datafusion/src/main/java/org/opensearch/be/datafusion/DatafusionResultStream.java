@@ -13,7 +13,6 @@ import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -53,10 +52,11 @@ public class DatafusionResultStream implements EngineResultStream {
     /**
      * Creates a result stream.
      * @param streamHandle the native stream handle
+     * @param allocator the Arrow buffer allocator for this stream (caller transfers ownership)
      */
-    public DatafusionResultStream(StreamHandle streamHandle) {
+    public DatafusionResultStream(StreamHandle streamHandle, BufferAllocator allocator) {
         this.streamHandle = streamHandle;
-        this.allocator = new RootAllocator(Long.MAX_VALUE);
+        this.allocator = allocator;
         this.dictionaryProvider = new CDataDictionaryProvider();
     }
 

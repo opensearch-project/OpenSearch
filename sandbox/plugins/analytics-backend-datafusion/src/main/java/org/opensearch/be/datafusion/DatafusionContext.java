@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -29,6 +30,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     private final DatafusionSearcher engineSearcher;
     private final NativeRuntimeHandle nativeRuntime;
+    private final BufferAllocator allocator;
     private DatafusionQuery datafusionQuery;
     private IndexFilterTree filterTree;
     private StreamHandle streamHandle;
@@ -39,11 +41,13 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      * @param task the search shard task
      * @param reader the DataFusion reader providing index data
      * @param nativeRuntime handle to the native DataFusion runtime
+     * @param allocator the Arrow buffer allocator for result stream memory
      */
-    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime, BufferAllocator allocator) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
+        this.allocator = allocator;
     }
 
     @Override
@@ -131,5 +135,12 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     @Override
     public DatafusionSearcher getSearcher() {
         return engineSearcher;
+    }
+
+    /**
+     * Returns the Arrow buffer allocator for this execution context.
+     */
+    public BufferAllocator getAllocator() {
+        return allocator;
     }
 }
