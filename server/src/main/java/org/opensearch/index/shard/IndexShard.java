@@ -326,7 +326,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
     private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
-    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
+    private final Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -553,7 +553,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             int[] fromCache = new int[] { 0 };
             try {
                 // To prevent instantiating a new NonClosingReaderWrapper per query/get/update request,
-                // the wrapper can be shared across all uses of the same DirectoryReader.
+                // the wrapper can be shared across all uses of the same NonClosingReaderWrapper.
                 return nonClosingReaderWrapperCache.computeIfAbsent(directoryReader, key -> {
                     try {
                         NonClosingReaderWrapper closingReaderWrapper = new NonClosingReaderWrapper(key);
@@ -2312,7 +2312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public static Engine.Searcher wrapSearcher(
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
-        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
+        Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier
     ) throws IOException {
         assert readerWrapper != null;
         DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
@@ -2321,12 +2321,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
 
-        DirectoryReader nonClosingReaderWrapper;
+        NonClosingReaderWrapper nonClosingReaderWrapper;
         if (nonClosingReaderWrapperSupplier == null) {
             nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
         } else {
             nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
-            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
         }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
@@ -6092,7 +6091,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // Visible for testing
-    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
+    Function<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperSupplier() {
         return nonClosingReaderWrapperSupplier;
     }
 
