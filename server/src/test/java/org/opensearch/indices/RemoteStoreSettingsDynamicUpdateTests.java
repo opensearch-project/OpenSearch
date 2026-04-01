@@ -127,4 +127,67 @@ public class RemoteStoreSettingsDynamicUpdateTests extends OpenSearchTestCase {
         );
         assertEquals(-1, remoteStoreSettings.getMaxRemoteTranslogReaders());
     }
+
+    public void testUploadedSegmentsCleanupThreshold() {
+        // Test default value
+        assertEquals(1000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test override with valid value
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 5000).build()
+        );
+        assertEquals(5000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test disable with -1
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), -1).build()
+        );
+        assertEquals(-1, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test value below -1 should fail
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), -5).build()
+            )
+        );
+        assertEquals(-1, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test value below minimum (but not -1) should fail
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 50).build()
+            )
+        );
+
+        // Test value above maximum should fail
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder()
+                    .put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 200000)
+                    .build()
+            )
+        );
+
+        // Test boundary values
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 100).build()
+        );
+        assertEquals(100, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        clusterSettings.applySettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 100000).build()
+        );
+        assertEquals(100000, remoteStoreSettings.getUploadedSegmentsCleanupThreshold());
+
+        // Test 0 should fail (not -1 and below minimum)
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> clusterSettings.applySettings(
+                Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_UPLOADED_SEGMENTS_CLEANUP_THRESHOLD_SETTING.getKey(), 0).build()
+            )
+        );
+    }
 }

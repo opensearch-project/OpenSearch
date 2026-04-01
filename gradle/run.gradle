@@ -60,7 +60,9 @@ testClusters {
       for (String p : installedPlugins) {
         // check if its a local plugin first
         if (project.findProject(':plugins:' + p) != null) {
-          plugin('plugins:' + p)
+          plugin(':plugins:' + p)
+        } else if (project.findProject(':sandbox:plugins:' + p) != null) {
+          plugin(':sandbox:plugins:' + p)
         } else {
           // attempt to fetch it from maven
           project.repositories.mavenLocal()

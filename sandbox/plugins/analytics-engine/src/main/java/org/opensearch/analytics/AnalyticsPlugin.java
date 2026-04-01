@@ -17,7 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
-import org.opensearch.analytics.spi.AnalyticsBackEndPlugin;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -54,12 +54,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
      */
     public AnalyticsPlugin() {}
 
-    private final List<AnalyticsBackEndPlugin> backEnds = new ArrayList<>();
+    private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        backEnds.addAll(loader.loadExtensions(AnalyticsBackEndPlugin.class));
+        backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));
         operatorTable = aggregateOperatorTables();
     }
 
@@ -77,7 +77,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(new DefaultPlanExecutor(backEnds), new DefaultEngineContext(clusterService, operatorTable));
+        return List.of(
+            new DefaultPlanExecutor(backEnds, null/* TODO: pass indices service */, clusterService),
+            new DefaultEngineContext(clusterService, operatorTable)
+        );
     }
 
     @Override
@@ -91,17 +94,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     }
 
     private SqlOperatorTable aggregateOperatorTables() {
-        List<SqlOperatorTable> tables = new ArrayList<>();
-        for (AnalyticsBackEndPlugin backEnd : backEnds) {
-            SqlOperatorTable table = backEnd.operatorTable();
-            if (table != null) {
-                tables.add(table);
-            }
-        }
-        if (tables.isEmpty()) {
-            return SqlOperatorTables.of();
-        }
-        return SqlOperatorTables.chain(tables.toArray(new SqlOperatorTable[0]));
+        // TODO: re-wire once operatorTable() is added back to AnalyticsSearchBackendPlugin
+        return SqlOperatorTables.of();
     }
 
     /**
