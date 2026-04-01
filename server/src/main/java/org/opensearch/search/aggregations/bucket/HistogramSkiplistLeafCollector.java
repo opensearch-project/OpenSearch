@@ -10,6 +10,7 @@ package org.opensearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.Rounding;
 import org.opensearch.search.aggregations.Aggregator;
@@ -175,6 +176,45 @@ public class HistogramSkiplistLeafCollector extends LeafBucketCollector {
             } else {
                 aggregator.collectBucket(sub, doc, bucketIndex);
                 increaseRoundingIfNeeded.accept(owningBucketOrd, rounded);
+            }
+        }
+    }
+
+    @Override
+    public void collect(DocIdStream stream) throws IOException {
+        collect(stream, 0);
+    }
+
+    @Override
+    public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        for (;;) {
+            int upToExclusive = upToInclusive + 1;
+            if (upToExclusive < 0) { // overflow
+                upToExclusive = Integer.MAX_VALUE;
+            }
+
+            if (upToSameBucket) {
+                if (isSubNoOp) {
+                    // stream.count is significantly faster than materializing doc IDs —
+                    // it can use optimized bit counting on FixedBitSet or range arithmetic
+                    long count = stream.count(upToExclusive);
+                    aggregator.incrementBucketDocCount(upToBucketIndex, count);
+                } else {
+                    final int[] count = { 0 };
+                    stream.forEach(upToExclusive, doc -> {
+                        sub.collect(doc, upToBucketIndex);
+                        count[0]++;
+                    });
+                    aggregator.incrementBucketDocCount(upToBucketIndex, count[0]);
+                }
+            } else {
+                stream.forEach(upToExclusive, doc -> collect(doc, owningBucketOrd));
+            }
+
+            if (stream.mayHaveRemaining()) {
+                advanceSkipper(upToExclusive, owningBucketOrd);
+            } else {
+                break;
             }
         }
     }
