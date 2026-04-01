@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Scorable;
 import org.opensearch.common.lucene.ScorerAware;
 
@@ -42,12 +43,28 @@ import java.io.IOException;
  * aggregator and sets the scorer on its source of values if it implements
  * {@link ScorerAware}.
  *
+ * <p>This class buffers doc IDs from {@link #collect(int)} (top-level bucket 0 path)
+ * and flushes them in batches via {@link #collect(int[], int, long)}, enabling
+ * aggregator implementations to perform bulk doc value retrieval. Aggregators that
+ * need immediate per-doc feedback should use {@link LeafBucketCollector} directly.
+ *
  * @opensearch.internal
  */
 public class LeafBucketCollectorBase extends LeafBucketCollector {
 
+    private static final int BUFFER_SIZE = 256;
+
     private final LeafBucketCollector sub;
     private final ScorerAware values;
+
+    /** Whether a scorer was set — if true, buffering is disabled */
+    private boolean scorerSet;
+
+    /** Buffer for batching doc IDs from collect(int) calls */
+    private final int[] docBuffer = new int[BUFFER_SIZE];
+
+    /** Number of doc IDs currently buffered */
+    private int docCount;
 
     /**
      * @param sub    The leaf collector for sub aggregations.
@@ -64,6 +81,10 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
 
     @Override
     public void setScorer(Scorable s) throws IOException {
+        // Track that a scorer was set — this means someone in the chain needs scores,
+        // so we can't buffer collect(int) calls and flush in finish() because the
+        // scorer won't be in ITERATING state at that point.
+        scorerSet = true;
         sub.setScorer(s);
         if (values != null) {
             values.setScorer(s);
@@ -73,6 +94,43 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
     @Override
     public void collect(int doc, long bucket) throws IOException {
         sub.collect(doc, bucket);
+    }
+
+    /**
+     * Buffers doc IDs for top-level (bucket 0) collection and flushes via
+     * {@link #collect(int[], int, long)} when the buffer is full. This enables
+     * batch doc value retrieval for the per-doc Lucene scorer path.
+     *
+     * <p>When a scorer is set (meaning the aggregation chain needs scores),
+     * falls back to direct collection since finish() cannot safely access the scorer.
+     */
+    @Override
+    public void collect(int doc) throws IOException {
+        if (scorerSet == false) {
+            docBuffer[docCount++] = doc;
+            if (docCount == docBuffer.length) {
+                docCount = 0;
+                collect(docBuffer, docBuffer.length, 0);
+            }
+        } else {
+            collect(doc, 0);
+        }
+    }
+
+    /**
+     * Flush any remaining buffered doc IDs from {@link #collect(int)} calls.
+     */
+    @Override
+    public void finish() throws IOException {
+        if (docCount > 0) {
+            try {
+                int count = docCount;
+                docCount = 0;
+                collect(docBuffer, count, 0);
+            } catch (CollectionTerminatedException e) {
+                // Safe to ignore — some aggregators may throw during finish
+            }
+        }
     }
 
 }
