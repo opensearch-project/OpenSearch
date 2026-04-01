@@ -22,15 +22,25 @@ import java.util.Set;
  */
 public class SegmentTests extends OpenSearchTestCase {
 
+    private static final String TEST_DIRECTORY = "/tmp/test-segment";
+
     public void testCopyWriteable() throws Exception {
         Segment original = randomSegment();
-        Segment copy = copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), Segment::new);
+        Segment copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new Segment(in, key -> TEST_DIRECTORY)
+        );
         assertEquals(original, copy);
     }
 
     public void testCopyWriteableEmpty() throws Exception {
         Segment empty = new Segment(0L, Map.of());
-        Segment copy = copyWriteable(empty, new NamedWriteableRegistry(Collections.emptyList()), Segment::new);
+        Segment copy = copyWriteable(
+            empty,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new Segment(in, key -> TEST_DIRECTORY)
+        );
         assertEquals(empty, copy);
     }
 
@@ -40,7 +50,11 @@ public class SegmentTests extends OpenSearchTestCase {
         dfGrouped.put("parquet", randomWriterFileSet("parquet"));
         Segment original = new Segment(randomNonNegativeLong(), dfGrouped);
 
-        Segment copy = copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), Segment::new);
+        Segment copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new Segment(in, key -> TEST_DIRECTORY)
+        );
         assertEquals(original, copy);
         assertEquals(2, copy.dfGroupedSearchableFiles().size());
     }
@@ -48,14 +62,13 @@ public class SegmentTests extends OpenSearchTestCase {
     // --- helpers ---
 
     private WriterFileSet randomWriterFileSet(String format) {
-        String directory = "/tmp/" + randomAlphaOfLength(8);
         int fileCount = randomIntBetween(1, 5);
         Set<String> files = new HashSet<>();
         String[] extensions = "lucene".equals(format) ? new String[] { "cfs", "si", "dat" } : new String[] { "parquet" };
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(TEST_DIRECTORY, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
     }
 
     private Segment randomSegment() {

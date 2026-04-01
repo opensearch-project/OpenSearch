@@ -22,8 +22,31 @@ public class WriterFileSetTests extends OpenSearchTestCase {
 
     public void testCopyWriteable() throws Exception {
         WriterFileSet original = randomWriterFileSet();
-        WriterFileSet copy = copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), WriterFileSet::new);
+        String directory = original.directory();
+        WriterFileSet copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new WriterFileSet(in, directory)
+        );
         assertEquals(original, copy);
+    }
+
+    public void testDirectoryNotSerialized() throws Exception {
+        String originalDirectory = "/tmp/original";
+        String differentDirectory = "/tmp/different";
+        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10);
+
+        WriterFileSet deserialized = copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            in -> new WriterFileSet(in, differentDirectory)
+        );
+
+        assertEquals(differentDirectory, deserialized.directory());
+        assertNotEquals(originalDirectory, deserialized.directory());
+        assertEquals(original.writerGeneration(), deserialized.writerGeneration());
+        assertEquals(original.files(), deserialized.files());
+        assertEquals(original.numRows(), deserialized.numRows());
     }
 
     // --- helpers ---

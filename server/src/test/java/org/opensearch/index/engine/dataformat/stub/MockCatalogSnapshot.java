@@ -8,11 +8,13 @@
 
 package org.opensearch.index.engine.dataformat.stub;
 
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -73,14 +75,21 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> map) {}
-
-    @Override
-    public void setUserData(Map<String, String> userData, boolean b) {}
+    public void setUserData(Map<String, String> userData) {}
 
     @Override
     public Object getReader(DataFormat dataFormat) {
         return null;
+    }
+
+    @Override
+    public CatalogSnapshot clone() {
+        return new MockCatalogSnapshot(generation, segments, format);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
     }
 
     @Override

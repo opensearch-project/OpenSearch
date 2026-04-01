@@ -17,6 +17,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Represents a segment in the catalog snapshot containing files grouped by data format.
@@ -31,9 +32,23 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
 
     /**
      * Constructs a Segment by deserializing from a {@link StreamInput}.
+     *
+     * @param in the stream input to read from
+     * @param directoryResolver function that maps a data format name to its directory path
      */
-    public Segment(StreamInput in) throws IOException {
-        this(in.readLong(), in.readMap(StreamInput::readString, WriterFileSet::new));
+    public Segment(StreamInput in, Function<String, String> directoryResolver) throws IOException {
+        this(in.readLong(), readWriterFileSets(in, directoryResolver));
+    }
+
+    private static Map<String, WriterFileSet> readWriterFileSets(StreamInput in, Function<String, String> directoryResolver)
+        throws IOException {
+        int size = in.readVInt();
+        Map<String, WriterFileSet> map = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String key = in.readString();
+            map.put(key, new WriterFileSet(in, directoryResolver.apply(key)));
+        }
+        return map;
     }
 
     @Override

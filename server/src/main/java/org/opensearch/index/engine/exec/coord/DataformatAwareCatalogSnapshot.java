@@ -15,7 +15,6 @@ import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -28,6 +27,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 /**
  * Concrete implementation of {@link CatalogSnapshot} for the composite multi-format engine.
@@ -41,6 +42,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final List<Segment> segments;
     private final long lastWriterGeneration;
     private Map<String, String> userData;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Constructs a new DataformatAwareCatalogSnapshot.
@@ -52,7 +54,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * @param lastWriterGeneration the generation of the last writer that contributed to this snapshot
      * @param userData user-defined metadata key-value pairs
      */
-    public DataformatAwareCatalogSnapshot(
+    DataformatAwareCatalogSnapshot(
         long id,
         long generation,
         long version,
@@ -71,9 +73,10 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * Constructs a DataformatAwareCatalogSnapshot from a {@link StreamInput}.
      *
      * @param in the stream input to read from
+     * @param directoryResolver function that maps a data format name to its directory path
      * @throws IOException if an I/O error occurs
      */
-    public DataformatAwareCatalogSnapshot(StreamInput in) throws IOException {
+    DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
         super(in);
 
         this.userData = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -84,7 +87,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         int segmentCount = in.readVInt();
         List<Segment> segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
-            segmentList.add(new Segment(in));
+            segmentList.add(new Segment(in, directoryResolver));
         }
         this.segments = Collections.unmodifiableList(segmentList);
     }
@@ -147,17 +150,19 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * Deserializes a {@link DataformatAwareCatalogSnapshot} from a Base64-encoded binary string.
      *
      * @param serializedData the Base64 string produced by {@link #serializeToString()}
+     * @param directoryResolver function that maps a data format name to its directory path
      * @return a reconstructed {@link DataformatAwareCatalogSnapshot}
      * @throws IOException if the data is malformed or missing required fields
      */
-    public static DataformatAwareCatalogSnapshot deserializeFromString(String serializedData) throws IOException {
+    public static DataformatAwareCatalogSnapshot deserializeFromString(String serializedData, Function<String, String> directoryResolver)
+        throws IOException {
         if (serializedData == null || serializedData.isEmpty()) {
             throw new IOException("Cannot deserialize DataformatAwareCatalogSnapshot: input is null or empty");
         }
         try {
             byte[] bytes = Base64.getDecoder().decode(serializedData);
             try (BytesStreamInput in = new BytesStreamInput(bytes)) {
-                return new DataformatAwareCatalogSnapshot(in);
+                return new DataformatAwareCatalogSnapshot(in, directoryResolver);
             }
         } catch (IOException e) {
             throw e;
@@ -185,7 +190,15 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     protected void closeInternal() {
-        // Subclass-specific resource cleanup. Map removal is handled by CatalogSnapshotManager.decRefAndRemove.
+        closed.set(true);
+    }
+
+    /**
+     * Returns {@code true} if {@link #closeInternal()} has been invoked (ref count reached zero).
+     * This method is intended for testing only.
+     */
+    public boolean isClosed() {
+        return closed.get();
     }
 
     @Override

@@ -32,8 +32,8 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
     /**
      * Constructs a WriterFileSet by deserializing from a {@link StreamInput}.
      */
-    public WriterFileSet(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
+    public WriterFileSet(StreamInput in, String directory) throws IOException {
+        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
     }
 
     public long getTotalSize() {
@@ -55,7 +55,6 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
      * Serializes this WriterFileSet to the given stream output.
      */
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(directory);
         out.writeLong(writerGeneration);
         out.writeStringCollection(files);
         out.writeLong(numRows);

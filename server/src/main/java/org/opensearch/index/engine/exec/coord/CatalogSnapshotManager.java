@@ -10,14 +10,13 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
+import org.opensearch.index.engine.exec.Segment;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine.
@@ -37,23 +36,33 @@ public class CatalogSnapshotManager implements Closeable {
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
 
     /**
-     * Constructs a new CatalogSnapshotManager. The supplier is invoked exactly once to produce the
-     * initial snapshot, which is then tracked in the live snapshot map.
+     * Constructs a new CatalogSnapshotManager with an initial snapshot built from the given parameters.
      *
-     * @param initialSnapshotSupplier supplier for the initial snapshot; must not be null or return null
+     * @param id the unique snapshot identifier
+     * @param generation the initial generation number
+     * @param version the schema version
+     * @param segments the initial segments
+     * @param lastWriterGeneration the last writer generation
+     * @param userData user-defined metadata
      */
-    public CatalogSnapshotManager(Supplier<CatalogSnapshot> initialSnapshotSupplier) {
-        Objects.requireNonNull(initialSnapshotSupplier, "initialSnapshotSupplier must not be null");
-        CatalogSnapshot initialSnapshot = Objects.requireNonNull(
-            initialSnapshotSupplier.get(),
-            "initialSnapshotSupplier must not return null"
+    public CatalogSnapshotManager(
+        long id,
+        long generation,
+        long version,
+        List<Segment> segments,
+        long lastWriterGeneration,
+        Map<String, String> userData
+    ) {
+        DataformatAwareCatalogSnapshot initialSnapshot = new DataformatAwareCatalogSnapshot(
+            id,
+            generation,
+            version,
+            segments,
+            lastWriterGeneration,
+            userData
         );
         this.latestCatalogSnapshot = initialSnapshot;
-        if (catalogSnapshotMap.putIfAbsent(initialSnapshot.getGeneration(), initialSnapshot) != null) {
-            throw new IllegalStateException(
-                "Duplicate snapshot generation [" + initialSnapshot.getGeneration() + "] in catalog snapshot map"
-            );
-        }
+        catalogSnapshotMap.put(initialSnapshot.getGeneration(), initialSnapshot);
     }
 
     /**
@@ -75,18 +84,24 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
-     * Commits a new snapshot, replacing the current one. The old snapshot is decRef'd and removed
-     * from the map if its count reaches zero.
+     * Commits a new snapshot built from the given refreshed segments, replacing the current one.
+     * The new snapshot inherits user data from the current snapshot and increments the generation.
+     * The old snapshot is decRef'd and removed from the map if its count reaches zero.
      *
-     * @param newSnapshot the new catalog snapshot to commit
+     * @param refreshedSegments the segments produced by the latest refresh
      */
-    public synchronized void commitNewSnapshot(CatalogSnapshot newSnapshot) {
+    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
         assert closed.get() == false : "Cannot commit to a closed CatalogSnapshotManager";
-        assert newSnapshot.getGeneration() > latestCatalogSnapshot.getGeneration() : "New snapshot generation must be greater than current";
 
-        if (catalogSnapshotMap.putIfAbsent(newSnapshot.getGeneration(), newSnapshot) != null) {
-            throw new IllegalStateException("Duplicate snapshot generation [" + newSnapshot.getGeneration() + "] in catalog snapshot map");
-        }
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1,
+            latestCatalogSnapshot.getGeneration() + 1,
+            latestCatalogSnapshot.getVersion(),
+            refreshedSegments,
+            latestCatalogSnapshot.getLastWriterGeneration() + 1,
+            latestCatalogSnapshot.getUserData()
+        );
+
         CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         latestCatalogSnapshot = newSnapshot;
         decRefAndRemove(oldSnapshot);
@@ -101,16 +116,6 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.decRef()) {
             catalogSnapshotMap.remove(gen);
         }
-    }
-
-    /**
-     * Returns the current snapshot. Note: this does not increment the reference count.
-     * Use {@link #acquireSnapshot()} for safe concurrent access.
-     *
-     * @return the current {@link CatalogSnapshot}
-     */
-    public CatalogSnapshot getCurrentSnapshot() {
-        return latestCatalogSnapshot;
     }
 
     /**

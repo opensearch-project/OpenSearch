@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 

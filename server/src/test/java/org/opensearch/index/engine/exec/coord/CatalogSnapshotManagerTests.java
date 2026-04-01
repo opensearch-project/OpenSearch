@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.test.OpenSearchTestCase;
@@ -21,33 +20,34 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Tests for {@link CatalogSnapshotManager}.
  */
 public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
-    public void testCommitProducesCorrectNewSnapshot() {
+    public void testCommitProducesCorrectNewSnapshot() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
             CatalogSnapshotManager manager = createRandomManager();
             try {
-                long previousGeneration = manager.getCurrentSnapshot().getGeneration();
+                long previousGeneration;
                 Set<Long> seenIds = new HashSet<>();
-                seenIds.add(manager.getCurrentSnapshot().getId());
+                try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                    previousGeneration = ref.get().getGeneration();
+                    seenIds.add(ref.get().getId());
+                }
 
                 int numCommits = randomIntBetween(1, 10);
                 for (int c = 0; c < numCommits; c++) {
                     List<Segment> newSegments = randomSegments();
-                    long newGeneration = previousGeneration + 1;
+                    manager.commitNewSnapshot(newSegments);
 
-                    manager.commitNewSnapshot(buildSnapshot(newGeneration, newSegments, randomNonNegativeLong(), Map.of()));
-
-                    assertEquals(previousGeneration + 1, manager.getCurrentSnapshot().getGeneration());
-                    assertTrue(seenIds.add(manager.getCurrentSnapshot().getId()));
-                    assertEquals(newSegments, manager.getCurrentSnapshot().getSegments());
-
-                    previousGeneration = manager.getCurrentSnapshot().getGeneration();
+                    try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                        assertEquals(previousGeneration + 1, ref.get().getGeneration());
+                        assertTrue(seenIds.add(ref.get().getId()));
+                        assertEquals(newSegments, ref.get().getSegments());
+                        previousGeneration = ref.get().getGeneration();
+                    }
                 }
             } finally {
                 manager.close();
@@ -55,71 +55,73 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testUserDataPreservationOnCommit() {
+    public void testUserDataPreservationOnCommit() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
             Map<String, String> initialUserData = randomUserData(randomIntBetween(1, 5));
             long initGen = randomIntBetween(0, 100);
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                () -> new DataformatAwareCatalogSnapshot(
-                    randomNonNegativeLong(),
-                    initGen,
-                    randomNonNegativeLong(),
-                    randomSegments(),
-                    randomNonNegativeLong(),
-                    initialUserData
-                )
+                randomNonNegativeLong(),
+                initGen,
+                randomNonNegativeLong(),
+                randomSegments(),
+                randomNonNegativeLong(),
+                initialUserData
             );
             try {
-                long gen1 = initGen + 1;
-                manager.commitNewSnapshot(
-                    buildSnapshot(gen1, randomSegments(), randomNonNegativeLong(), manager.getCurrentSnapshot().getUserData())
-                );
-                assertEquals(initialUserData, manager.getCurrentSnapshot().getUserData());
+                manager.commitNewSnapshot(randomSegments());
+                try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                    assertEquals(initialUserData, ref.get().getUserData());
+                }
 
-                Map<String, String> newUserData = randomUserData(randomIntBetween(1, 5));
-                long gen2 = gen1 + 1;
-                manager.commitNewSnapshot(buildSnapshot(gen2, randomSegments(), randomNonNegativeLong(), newUserData));
-                assertEquals(newUserData, manager.getCurrentSnapshot().getUserData());
+                manager.commitNewSnapshot(randomSegments());
+                try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                    assertEquals(initialUserData, ref.get().getUserData());
+                }
             } finally {
                 manager.close();
             }
         }
     }
 
-    public void testReferenceCountingLifecycle() {
+    public void testReferenceCountingLifecycle() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
-            AtomicBoolean closeInternalCalled = new AtomicBoolean(false);
             long initGen = randomIntBetween(0, 100);
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                () -> new TrackableSnapshot(
-                    randomNonNegativeLong(),
-                    initGen,
-                    randomNonNegativeLong(),
-                    randomSegments(),
-                    randomNonNegativeLong(),
-                    Collections.emptyMap(),
-                    closeInternalCalled
-                )
+                randomNonNegativeLong(),
+                initGen,
+                randomNonNegativeLong(),
+                randomSegments(),
+                randomNonNegativeLong(),
+                Collections.emptyMap()
             );
 
-            CatalogSnapshot initialSnapshot = manager.getCurrentSnapshot();
+            CatalogSnapshot initialSnapshot;
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                initialSnapshot = ref.get();
+                assertEquals(2, initialSnapshot.refCount());
+            }
             assertEquals(1, initialSnapshot.refCount());
 
-            manager.commitNewSnapshot(buildSnapshot(initGen + 1, randomSegments(), randomNonNegativeLong(), Map.of()));
+            manager.commitNewSnapshot(randomSegments());
             assertEquals(0, initialSnapshot.refCount());
-            assertTrue(closeInternalCalled.get());
 
             int numCommits = randomIntBetween(1, 8);
             for (int c = 0; c < numCommits; c++) {
-                CatalogSnapshot prev = manager.getCurrentSnapshot();
+                CatalogSnapshot prev;
+                try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                    prev = ref.get();
+                    assertEquals(2, prev.refCount());
+                }
                 assertEquals(1, prev.refCount());
-                manager.commitNewSnapshot(
-                    buildSnapshot(manager.getCurrentSnapshot().getGeneration() + 1, randomSegments(), randomNonNegativeLong(), Map.of())
-                );
+                manager.commitNewSnapshot(randomSegments());
                 assertEquals(0, prev.refCount());
             }
 
-            CatalogSnapshot finalSnapshot = manager.getCurrentSnapshot();
+            CatalogSnapshot finalSnapshot;
+            try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+                finalSnapshot = ref.get();
+                assertEquals(2, finalSnapshot.refCount());
+            }
             assertEquals(1, finalSnapshot.refCount());
             manager.close();
             assertEquals(0, finalSnapshot.refCount());
@@ -130,7 +132,11 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int iter = 0; iter < 100; iter++) {
             CatalogSnapshotManager manager = createRandomManager();
             try {
-                CatalogSnapshot currentSnap = manager.getCurrentSnapshot();
+                CatalogSnapshot currentSnap;
+                try (GatedCloseable<CatalogSnapshot> initialRef = manager.acquireSnapshot()) {
+                    currentSnap = initialRef.get();
+                    assertEquals(2, currentSnap.refCount());
+                }
                 assertEquals(1, currentSnap.refCount());
 
                 int numAcquires = randomIntBetween(1, 5);
@@ -149,9 +155,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 CatalogSnapshot heldSnapshot = heldRef.get();
                 assertEquals(2, heldSnapshot.refCount());
 
-                manager.commitNewSnapshot(
-                    buildSnapshot(manager.getCurrentSnapshot().getGeneration() + 1, randomSegments(), randomNonNegativeLong(), Map.of())
-                );
+                manager.commitNewSnapshot(randomSegments());
                 assertEquals(1, heldSnapshot.refCount());
 
                 heldRef.close();
@@ -162,13 +166,11 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClosedManagerRejectsAcquisition() {
+    public void testClosedManagerRejectsAcquisition() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
             CatalogSnapshotManager manager = createRandomManager();
             for (int c = 0; c < randomIntBetween(0, 5); c++) {
-                manager.commitNewSnapshot(
-                    buildSnapshot(manager.getCurrentSnapshot().getGeneration() + 1, randomSegments(), randomNonNegativeLong(), Map.of())
-                );
+                manager.commitNewSnapshot(randomSegments());
             }
             manager.close();
             expectThrows(IllegalStateException.class, manager::acquireSnapshot);
@@ -184,9 +186,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             List<Segment> segments = randomIntBetween(1, 5) == 1 ? Collections.emptyList() : randomSegments();
             Map<String, String> userData = randomUserData(randomIntBetween(0, 4));
 
-            CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                () -> new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData)
-            );
+            CatalogSnapshotManager manager = new CatalogSnapshotManager(id, generation, version, segments, lastWriterGeneration, userData);
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
                 CatalogSnapshot acquired = ref.get();
                 assertEquals(id, acquired.getId());
@@ -194,11 +194,56 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 assertEquals(segments, acquired.getSegments());
                 assertEquals(userData, acquired.getUserData());
                 assertEquals(lastWriterGeneration, acquired.getLastWriterGeneration());
-                assertSame(acquired, manager.getCurrentSnapshot());
             } finally {
                 manager.close();
             }
         }
+    }
+
+    public void testCloseInternalInvokedOnCommit() throws Exception {
+        CatalogSnapshotManager manager = createRandomManager();
+
+        CatalogSnapshot initialSnapshot;
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            initialSnapshot = ref.get();
+        }
+        assertFalse(((DataformatAwareCatalogSnapshot) initialSnapshot).isClosed());
+
+        manager.commitNewSnapshot(randomSegments());
+        assertTrue(
+            "snapshot should be closed when commit replaces the last ref",
+            ((DataformatAwareCatalogSnapshot) initialSnapshot).isClosed()
+        );
+        manager.close();
+    }
+
+    public void testCloseInternalInvokedOnManagerClose() throws Exception {
+        CatalogSnapshotManager manager = createRandomManager();
+
+        CatalogSnapshot snapshot;
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            snapshot = ref.get();
+        }
+        assertFalse(((DataformatAwareCatalogSnapshot) snapshot).isClosed());
+
+        manager.close();
+        assertTrue("snapshot should be closed when manager releases the last ref", ((DataformatAwareCatalogSnapshot) snapshot).isClosed());
+    }
+
+    public void testCloseInternalNotInvokedWhileRefsHeld() throws Exception {
+        CatalogSnapshotManager manager = createRandomManager();
+
+        GatedCloseable<CatalogSnapshot> heldRef = manager.acquireSnapshot();
+        CatalogSnapshot heldSnapshot = heldRef.get();
+        assertFalse(((DataformatAwareCatalogSnapshot) heldSnapshot).isClosed());
+
+        manager.commitNewSnapshot(randomSegments());
+        assertFalse("snapshot should not be closed while a ref is still held", ((DataformatAwareCatalogSnapshot) heldSnapshot).isClosed());
+
+        heldRef.close();
+        assertTrue("snapshot should be closed after the last ref is released", ((DataformatAwareCatalogSnapshot) heldSnapshot).isClosed());
+
+        manager.close();
     }
 
     // --- helpers ---
@@ -239,42 +284,14 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         return userData;
     }
 
-    private DataformatAwareCatalogSnapshot buildSnapshot(long gen, List<Segment> segments, long writerGen, Map<String, String> userData) {
-        return new DataformatAwareCatalogSnapshot(gen, gen, 0L, segments, writerGen, userData);
-    }
-
     private CatalogSnapshotManager createRandomManager() {
         return new CatalogSnapshotManager(
-            () -> new DataformatAwareCatalogSnapshot(
-                randomNonNegativeLong(),
-                randomIntBetween(0, 100),
-                randomNonNegativeLong(),
-                randomSegments(),
-                randomNonNegativeLong(),
-                Map.of()
-            )
+            randomNonNegativeLong(),
+            randomIntBetween(0, 100),
+            randomNonNegativeLong(),
+            randomSegments(),
+            randomNonNegativeLong(),
+            Map.of()
         );
-    }
-
-    private static class TrackableSnapshot extends DataformatAwareCatalogSnapshot {
-        private final AtomicBoolean closeInternalCalled;
-
-        TrackableSnapshot(
-            long id,
-            long gen,
-            long version,
-            List<Segment> segments,
-            long writerGen,
-            Map<String, String> userData,
-            AtomicBoolean closeInternalCalled
-        ) {
-            super(id, gen, version, segments, writerGen, userData);
-            this.closeInternalCalled = closeInternalCalled;
-        }
-
-        @Override
-        protected void closeInternal() {
-            closeInternalCalled.set(true);
-        }
     }
 }
