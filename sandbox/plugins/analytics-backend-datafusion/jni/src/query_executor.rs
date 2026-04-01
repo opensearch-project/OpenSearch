@@ -29,8 +29,6 @@ use substrait::proto::Plan;
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
 use crate::DataFusionRuntime;
-/// Vanilla parquet query execution via DataFusion + object store.
-/// TODO: custom optimizers — this uses standard DataFusion ListingTable.
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
 /// File access goes through DataFusion's registered object store.
@@ -50,7 +48,8 @@ pub async fn execute_query(
     };
     list_file_cache.put(&table_scoped_path, object_metas);
 
-    // Build a session-scoped RuntimeEnv sharing the global memory pool + caches
+    // Build a per-query RuntimeEnv sharing the global memory pool + caches,
+    // but with a fresh list-files cache for this query's shard files.
     let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
             CacheManagerConfig::default()
@@ -68,17 +67,11 @@ pub async fn execute_query(
             e
         })?;
 
-    let mut config = SessionConfig::new();
-    // TODO : this is hardcoded, make it dynamic and configuration / planner based
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 4;
-    config.options_mut().execution.batch_size = 8192;
-
-    let state = datafusion::execution::SessionStateBuilder::new()
-        .with_config(config.clone())
-        .with_runtime_env(Arc::from(runtime_env))
-        .with_default_features()
-        .build();
+    // Clone the pre-built session state template (cheap Arc increments for all
+    // registered functions, optimizer rules, and planner rules) and swap in the
+    // per-query RuntimeEnv.
+    let state = runtime.session_state_template.clone()
+        .with_runtime_env(Arc::from(runtime_env));
 
     let ctx = SessionContext::new_with_state(state);
 

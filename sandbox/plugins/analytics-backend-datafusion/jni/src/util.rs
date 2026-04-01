@@ -10,7 +10,36 @@ use jni::objects::{GlobalRef, JObject, JObjectArray, JString, JValue};
 use jni::sys::jlong;
 use jni::JNIEnv;
 use object_store::ObjectMeta;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 // JNI utility functions.
+
+/// Extracts a human-readable message from a panic payload.
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "Unknown Rust panic".to_string()
+    }
+}
+
+/// Catches Rust panics at the JNI boundary and converts them to Java exceptions.
+/// Returns `default` if a panic occurs, after throwing a RuntimeException on the Java side.
+pub fn jni_safe<F, R>(env: &mut JNIEnv, default: R, f: F) -> R
+where
+    F: FnOnce(&mut JNIEnv) -> R,
+{
+    match catch_unwind(AssertUnwindSafe(|| f(env))) {
+        Ok(result) => result,
+        Err(panic) => {
+            let msg = panic_message(panic);
+            let _ = env.throw_new("java/lang/RuntimeException", format!("Native panic: {}", msg));
+            default
+        }
+    }
+}
 /// Parse a Java String[] into Vec<String>.
 pub fn parse_string_arr(env: &mut JNIEnv, arr: JObjectArray) -> Result<Vec<String>, DataFusionError> {
     let len = env.get_array_length(&arr).map_err(|e| DataFusionError::Execution(e.to_string()))?;

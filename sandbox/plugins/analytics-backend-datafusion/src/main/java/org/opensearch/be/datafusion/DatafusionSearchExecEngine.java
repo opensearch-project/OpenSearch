@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -15,6 +16,7 @@ import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 /**
  * DataFusion-backed search execution engine.
@@ -27,13 +29,16 @@ import java.io.IOException;
 public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionContext, EngineResultStream> {
 
     private final DatafusionContext datafusionContext;
+    private final Supplier<BufferAllocator> allocatorFactory;
 
     /**
      * Creates an execution engine backed by the given DataFusion context.
      * @param datafusionContext the DataFusion execution context
+     * @param allocatorFactory factory for creating a child allocator for result stream memory
      */
-    public DatafusionSearchExecEngine(DatafusionContext datafusionContext) {
+    public DatafusionSearchExecEngine(DatafusionContext datafusionContext, Supplier<BufferAllocator> allocatorFactory) {
         this.datafusionContext = datafusionContext;
+        this.allocatorFactory = allocatorFactory;
     }
 
     @Override
@@ -47,9 +52,9 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ExecutionCon
     public EngineResultStream execute(ExecutionContext requestContext) throws IOException {
         DatafusionSearcher searcher = datafusionContext.getSearcher();
         searcher.search(datafusionContext);
-        // Transfer stream handle ownership to the result stream — context will not close it
         StreamHandle handle = datafusionContext.takeStreamHandle();
-        return new DatafusionResultStream(handle, datafusionContext.getAllocator());
+        BufferAllocator allocator = allocatorFactory.get();
+        return new DatafusionResultStream(handle, allocator);
     }
 
     @Override

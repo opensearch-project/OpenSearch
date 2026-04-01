@@ -136,8 +136,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         if (dfReader == null) {
             throw new IllegalStateException("No DatafusionReader available in the acquired reader");
         }
-        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime(), dataFusionService.newChildAllocator());
-        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context);
+        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
         engine.prepare(ctx);
         return engine;
     }

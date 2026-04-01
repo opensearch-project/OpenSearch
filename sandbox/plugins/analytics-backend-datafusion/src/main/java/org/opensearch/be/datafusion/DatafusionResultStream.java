@@ -98,6 +98,8 @@ public class DatafusionResultStream implements EngineResultStream {
         private final CDataDictionaryProvider dictionaryProvider;
         VectorSchemaRoot vectorSchemaRoot;
         private Boolean nextAvailable;
+        /** Incremented each time {@link #next()} is called. Used by {@link ArrowResultBatch} to detect stale access. */
+        long generation;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -144,7 +146,8 @@ public class DatafusionResultStream implements EngineResultStream {
                 throw new NoSuchElementException();
             }
             nextAvailable = null;
-            return new ArrowResultBatch(vectorSchemaRoot);
+            generation++;
+            return new ArrowResultBatch(vectorSchemaRoot, generation, this);
         }
 
         private static long callNativeFn(java.util.function.Consumer<ActionListener<Long>> fn) {
@@ -166,29 +169,49 @@ public class DatafusionResultStream implements EngineResultStream {
 
     /**
      * Adapts an Arrow {@link VectorSchemaRoot} to the engine-agnostic {@link EngineResultBatch}.
+     * <p>
+     * Because the underlying {@code VectorSchemaRoot} is reused across batches,
+     * this view is only valid until the next call to {@link Iterator#next()} on
+     * the parent iterator. A generation counter detects stale access at runtime.
      */
     static class ArrowResultBatch implements EngineResultBatch {
 
         private final VectorSchemaRoot root;
         private final List<String> fieldNames;
+        private final long createdAtGeneration;
+        private final BatchIterator owner;
 
-        ArrowResultBatch(VectorSchemaRoot root) {
+        ArrowResultBatch(VectorSchemaRoot root, long generation, BatchIterator owner) {
             this.root = root;
             this.fieldNames = root.getSchema().getFields().stream().map(Field::getName).collect(Collectors.toUnmodifiableList());
+            this.createdAtGeneration = generation;
+            this.owner = owner;
+        }
+
+        private void checkValid() {
+            if (owner.generation != createdAtGeneration) {
+                throw new IllegalStateException(
+                    "Batch is no longer valid — the iterator has advanced past this batch. "
+                        + "Extract all needed values before calling next()."
+                );
+            }
         }
 
         @Override
         public List<String> getFieldNames() {
+            checkValid();
             return fieldNames;
         }
 
         @Override
         public int getRowCount() {
+            checkValid();
             return root.getRowCount();
         }
 
         @Override
         public Object getFieldValue(String fieldName, int rowIndex) {
+            checkValid();
             FieldVector vector = root.getVector(fieldName);
             if (vector == null) {
                 throw new IllegalArgumentException("Unknown field: " + fieldName);
