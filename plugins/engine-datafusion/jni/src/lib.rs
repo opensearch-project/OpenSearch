@@ -687,7 +687,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             runtime,
             cpu_executor,
         ),
-        |env, lr, ptr| set_action_listener_ok_global(env, lr, ptr),
+        |env, listener_ref, stream_pointer| set_action_listener_ok_global(env, listener_ref, stream_pointer),
     );
 }
 
@@ -728,7 +728,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_fetchSegm
         "fetchSegmentStats",
         listener_ref,
         async move { util::fetch_segment_statistics(files_meta).await },
-        |env, lr, map| set_action_listener_ok_global_with_map(env, lr, &map),
+        |env, listener_ref, stats_map| set_action_listener_ok_global_with_map(env, listener_ref, &stats_map),
     );
 }
 
@@ -798,7 +798,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                 }
             }
         },
-        |env, lr, ptr| set_action_listener_ok_global(env, lr, ptr),
+        |env, listener_ref, data_pointer| set_action_listener_ok_global(env, listener_ref, data_pointer),
     );
     // Function returns immediately to java - async rust work continues in background
 }
