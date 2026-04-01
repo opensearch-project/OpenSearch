@@ -112,17 +112,11 @@ public class IngestPipelineExecutor {
         AtomicBoolean dropped = new AtomicBoolean(false);
 
         // Execute pipeline synchronously on the calling thread — no thread pool dispatch
-        ingestService.executeBulkRequestSync(
-            1,
-            Collections.singletonList(indexRequest),
-            (slot, e) -> failureRef.set(e),
-            (thread, e) -> {
-                if (e != null) {
-                    failureRef.compareAndSet(null, e);
-                }
-            },
-            slot -> dropped.set(true)
-        );
+        ingestService.executeBulkRequestSync(1, Collections.singletonList(indexRequest), (slot, e) -> failureRef.set(e), (thread, e) -> {
+            if (e != null) {
+                failureRef.compareAndSet(null, e);
+            }
+        }, slot -> dropped.set(true));
 
         if (failureRef.get() != null) {
             throw failureRef.get();
