@@ -22,8 +22,10 @@ import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,6 +43,11 @@ public final class RemoteSnapshotDirectory extends Directory {
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;
     private final FSDirectory localStoreDir;
     private final TransferManager transferManager;
+
+    /**
+     * Tracks all master IndexInputs opened during init for unpinning after recovery.
+     */
+    private final List<OnDemandBlockSnapshotIndexInput> inputsToUnpin = new ArrayList<>();
 
     public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager) {
         this.fileInfoMap = snapshot.indexFiles()
@@ -70,7 +77,24 @@ public final class RemoteSnapshotDirectory extends Directory {
         if (fileInfo.name().startsWith(VIRTUAL_FILE_PREFIX)) {
             return new ByteArrayIndexInput(fileInfo.physicalName(), fileInfo.metadata().hash().bytes);
         }
-        return new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
+        OnDemandBlockSnapshotIndexInput master = new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
+        inputsToUnpin.add(master);
+        // compound file need to track their slices for unpinning
+        if (name.endsWith(".cfs")) {
+            master.setInputsToUnpin(new ArrayList<>());
+        }
+        return master;
+    }
+
+    /**
+     * Unpins all file cache blocks held by IndexInputs opened during searchable snapshot restore.
+     * The block data survives on local disk until evicted.
+     */
+    public void unpinBlocksAfterRecovery() {
+        for (OnDemandBlockSnapshotIndexInput master : inputsToUnpin) {
+            master.unpinBlock();
+        }
+        inputsToUnpin.clear();
     }
 
     @Override

@@ -39,6 +39,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
@@ -48,6 +49,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.Translog;
@@ -140,6 +142,7 @@ public class ReadOnlyEngine extends Engine {
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                unpinBlocksAfterRecovery(directory);
                 readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
@@ -218,6 +221,13 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader reader = DirectoryReader.open(commit);
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private static void unpinBlocksAfterRecovery(Directory directory) {
+        Directory unwrapped = FilterDirectory.unwrap(directory);
+        if (unwrapped instanceof RemoteSnapshotDirectory) {
+            ((RemoteSnapshotDirectory) unwrapped).unpinBlocksAfterRecovery();
+        }
     }
 
     @Override

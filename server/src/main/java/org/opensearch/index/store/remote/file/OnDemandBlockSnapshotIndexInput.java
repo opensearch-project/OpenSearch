@@ -58,6 +58,31 @@ public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
      */
     protected final long originalFileSize;
 
+    /**
+     * Optional list for tracking slices created during init compound file.
+     * buildSlice() registers new slices so they can be unpinned after recovery
+     */
+    private List<OnDemandBlockSnapshotIndexInput> inputsToUnpin;
+
+    public void setInputsToUnpin(List<OnDemandBlockSnapshotIndexInput> inputsToUnpin) {
+        this.inputsToUnpin = inputsToUnpin;
+    }
+
+    /**
+     * Releases this input's block and, for CFS masters, all tracked slices' blocks.
+     * Clears the tracking list to prevent search-time buildSlice() from registering.
+     */
+    @Override
+    public void unpinBlock() {
+        if (inputsToUnpin != null) {
+            for (OnDemandBlockSnapshotIndexInput slice : inputsToUnpin) {
+                slice.unpinBlock();
+            }
+            inputsToUnpin = null;
+        }
+        super.unpinBlock();
+    }
+
     public OnDemandBlockSnapshotIndexInput(FileInfo fileInfo, FSDirectory directory, TransferManager transferManager) {
         this(
             "BlockedSnapshotIndexInput(path=\""
@@ -121,7 +146,7 @@ public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
 
     @Override
     protected OnDemandBlockSnapshotIndexInput buildSlice(String sliceDescription, long offset, long length) {
-        return new OnDemandBlockSnapshotIndexInput(
+        OnDemandBlockSnapshotIndexInput slice = new OnDemandBlockSnapshotIndexInput(
             AbstractBlockIndexInput.builder()
                 .blockSizeShift(blockSizeShift)
                 .isClone(true)
@@ -132,6 +157,10 @@ public class OnDemandBlockSnapshotIndexInput extends AbstractBlockIndexInput {
             directory,
             transferManager
         );
+        if (inputsToUnpin != null) {
+            inputsToUnpin.add(slice);
+        }
+        return slice;
     }
 
     @Override

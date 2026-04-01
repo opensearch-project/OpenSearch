@@ -136,6 +136,18 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
         currentBlockId = 0;
     }
 
+    /**
+     * Unpin the currently held block
+     */
+    public void unpinBlock() {
+        if (blockHolder.block == null) return;
+        try {
+            blockHolder.close();
+        } catch (IOException e) {
+            logger.info("Exception thrown while unpin block", e);
+        }
+    }
+
     @Override
     public long getFilePointer() {
         if (blockHolder.block == null) return 0L;
