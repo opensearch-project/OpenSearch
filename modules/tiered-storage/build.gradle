@@ -14,3 +14,8 @@ opensearchplugin {
   description = 'Module for tiered storage and writable warm index support'
   classname = 'org.opensearch.storage.TieredStoragePlugin'
 }
+
+test {
+  include '**/*Tests.class'
+  include '**/*Test.class'
+}
