@@ -14,22 +14,18 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.ingest.IngestService;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Handles ingest pipeline resolution and execution for pull-based ingestion.
  *
  * <p>Resolves configured pipelines from index settings at initialization and executes them
- * synchronously by bridging IngestService's async callback API with CompletableFuture.
+ * synchronously on the calling thread via {@link IngestService#executeBulkRequestSync}.
  * Also registers a dynamic settings listener to pick up runtime changes to {@code final_pipeline}.
  * Only {@code final_pipeline} is supported.
  *
@@ -40,12 +36,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class IngestPipelineExecutor {
 
     private static final Logger logger = LogManager.getLogger(IngestPipelineExecutor.class);
-
-    // TODO: consider making this configurable via index settings if use cases with slow processors arise
-    static final long PIPELINE_EXECUTION_TIMEOUT_SECONDS = 30;
-
-    // TODO: explore synchronous pipeline execution (IngestService.executeBulkRequestSync) to avoid
-    // thread pool dispatch and execute pipelines directly on the processor thread
 
     private final IngestService ingestService;
     private final String index;
@@ -62,6 +52,7 @@ public class IngestPipelineExecutor {
     public IngestPipelineExecutor(IngestService ingestService, String index, IndexSettings indexSettings) {
         this.ingestService = Objects.requireNonNull(ingestService);
         this.index = Objects.requireNonNull(index);
+        Objects.requireNonNull(indexSettings);
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexSettings.FINAL_PIPELINE, this::updateFinalPipeline);
         updateFinalPipeline(IndexSettings.FINAL_PIPELINE.get(indexSettings.getSettings()));
     }
@@ -92,8 +83,7 @@ public class IngestPipelineExecutor {
     }
 
     /**
-     * Executes final_pipeline on the source map synchronously using CompletableFuture to bridge
-     * IngestService's async callback API.
+     * Executes final_pipeline on the source map synchronously on the calling thread.
      *
      * @param id document ID
      * @param sourceMap source map to transform
@@ -118,34 +108,24 @@ public class IngestPipelineExecutor {
         final String originalId = id;
         final String originalRouting = indexRequest.routing();
 
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        AtomicReference<Exception> failureRef = new AtomicReference<>();
         AtomicBoolean dropped = new AtomicBoolean(false);
 
-        ingestService.executeBulkRequest(
+        // Execute pipeline synchronously on the calling thread — no thread pool dispatch
+        ingestService.executeBulkRequestSync(
             1,
             Collections.singletonList(indexRequest),
-            (slot, e) -> future.completeExceptionally(e),
+            (slot, e) -> failureRef.set(e),
             (thread, e) -> {
                 if (e != null) {
-                    future.completeExceptionally(e);
-                } else {
-                    future.complete(null);
+                    failureRef.compareAndSet(null, e);
                 }
             },
-            slot -> dropped.set(true),
-            ThreadPool.Names.WRITE
+            slot -> dropped.set(true)
         );
 
-        // Block until pipeline execution completes (with timeout)
-        try {
-            future.get(PIPELINE_EXECUTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("Ingest pipeline execution timed out after [" + PIPELINE_EXECUTION_TIMEOUT_SECONDS + "] seconds", e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Ingest pipeline execution was interrupted", e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException("Ingest pipeline execution failed", e.getCause());
+        if (failureRef.get() != null) {
+            throw failureRef.get();
         }
 
         if (dropped.get()) {

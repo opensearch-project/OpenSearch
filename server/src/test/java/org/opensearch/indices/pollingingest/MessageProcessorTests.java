@@ -327,7 +327,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
     }
 
     public void testProcessWithFinalPipeline() throws Exception {
@@ -347,7 +347,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         assertTrue(operation.engineOperation() instanceof Engine.Index);
 
         // Verify IngestService was called
-        verify(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        verify(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
     }
 
     public void testProcessWithNoPipelines() throws Exception {
@@ -367,7 +367,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         assertTrue(operation.engineOperation() instanceof Engine.Index);
 
         // IngestService should NOT be called when no pipelines configured
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        verify(ingestService, never()).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
     }
 
     public void testPipelineDropsDocument() throws Exception {
@@ -380,7 +380,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
             onDropped.accept(0);
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "drop-pipeline");
 
@@ -408,7 +408,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
             }
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "mutate-id-pipeline");
 
@@ -435,7 +435,7 @@ public class MessageProcessorTests extends OpenSearchTestCase {
             onFailure.accept(0, new RuntimeException("Pipeline processor failed"));
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "fail-pipeline");
 
@@ -449,7 +449,8 @@ public class MessageProcessorTests extends OpenSearchTestCase {
                 MessageProcessorRunnable.MessageProcessorMetrics.create()
             )
         );
-        assertTrue(e.getCause().getMessage().contains("Ingest pipeline execution failed"));
+        assertTrue(e.getMessage().contains("Ingest pipeline execution failed"));
+        assertTrue(e.getCause().getMessage().contains("Pipeline processor failed"));
     }
 
     public void testPipelineNotCalledForDeleteOperations() throws Exception {
@@ -468,6 +469,6 @@ public class MessageProcessorTests extends OpenSearchTestCase {
         assertTrue(operation.engineOperation() instanceof Engine.Delete);
 
         // Pipeline should NOT be called for delete operations
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        verify(ingestService, never()).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
     }
 }
