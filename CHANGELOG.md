@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add new `cluster.default_number_of_replicas` setting to `opensearch.yml` [(#1292)](https://github.com/wazuh/wazuh-indexer/pull/1292)
 - Bundle engine in wazuh-indexer package [(#1298)](https://github.com/wazuh/wazuh-indexer/pull/1298) [(#1302)](https://github.com/wazuh/wazuh-indexer/pull/1302)
 - Implement SAP Local Maven publisher GHA [(#1304)](https://github.com/wazuh/wazuh-indexer/pull/1304)
-- Enable Wazuh Engine in Docker images and add support for ARM architecture [(#1320)](https://github.com/wazuh/wazuh-indexer/pull/1320) [(#1328)](https://github.com/wazuh/wazuh-indexer/pull/1328)
+- Enable Wazuh Engine in Docker images and add support for ARM architecture [(#1320)](https://github.com/wazuh/wazuh-indexer/pull/1320) [(#1328)](https://github.com/wazuh/wazuh-indexer/pull/1328) [(#1401)](https://github.com/wazuh/wazuh-indexer/pull/1401)
 - Bundle CTI content snapshots into Wazuh Indexer packages [(#1353)](https://github.com/wazuh/wazuh-indexer/pull/1353)
 - Implement wazuh-indexer-common-utils plugin build process [(#1385)](https://github.com/wazuh/wazuh-indexer/pull/1385)
 - Add `--set-as-main` flag support to repository bumper [(#1396)](https://github.com/wazuh/wazuh-indexer/pull/1396)

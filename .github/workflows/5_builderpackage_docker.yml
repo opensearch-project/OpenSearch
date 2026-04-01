@@ -87,8 +87,7 @@ jobs:
       revision: ${{ inputs.revision }}
       is_stage: ${{ inputs.is_stage }}
       distribution: '[ "tar" ]'
-      # In the build process just generate one tarball since both images uses the same .tar
-      architecture: '[ "x64" ]'
+      architecture: ${{ inputs.architecture }}
       id: ${{ inputs.id }}
       plugins_ref: ${{ inputs.plugins_ref }}
     secrets: inherit
@@ -115,7 +114,7 @@ jobs:
           platforms=$(echo '${{ inputs.architecture }}' | jq -r '[.[] | if . == "x64" then "linux/amd64" elif . == "arm64" then "linux/arm64" else empty end] | join(",")')
           echo "platforms=${platforms}" >> "$GITHUB_OUTPUT"
 
-      - name: Download tarball
+      - name: Download tarballs
         uses: actions/download-artifact@v8
         with:
           path: ${{ env.docker_path }}
@@ -125,11 +124,14 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -lR ${{ env.docker_path }}
 
-      - name: Resolve tarball name
-        id: tarball
+      - name: Rename tarballs for multi-arch build
         run: |
-          name=$(ls ${{ env.docker_path }}/wazuh-indexer_*.tar.gz | head -1 | xargs basename)
-          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          cd ${{ env.docker_path }}
+          # Rename tarballs to match Docker's TARGETARCH naming (amd64/arm64)
+          # so the Dockerfile can COPY the correct one per platform.
+          mv wazuh-indexer_*linux-x64*.tar.gz wazuh-indexer-amd64.tar.gz 2>/dev/null || true
+          mv wazuh-indexer_*linux-arm64*.tar.gz wazuh-indexer-arm64.tar.gz 2>/dev/null || true
+          ls -l wazuh-indexer-*.tar.gz
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -154,7 +156,6 @@ jobs:
           docker buildx build \
             --platform ${{ steps.platforms.outputs.platforms }} \
             --build-arg="VERSION=${VERSION}" \
-            --build-arg="INDEXER_TAR_NAME=${{ steps.tarball.outputs.name }}" \
             --tag="${DOCKER_REPOSITORY}:${VERSION}-${REVISION}" \
             --push \
             --progress=plain --no-cache .
