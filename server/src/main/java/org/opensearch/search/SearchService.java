@@ -1905,6 +1905,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     request::nowInMillis,
                     request.getClusterAlias()
                 );
+                DerivedFieldResolver derivedFieldResolver = DerivedFieldResolverFactory.createResolver(
+                    context,
+                    Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFieldsObject).orElse(Collections.emptyMap()),
+                    Optional.ofNullable(request.source()).map(SearchSourceBuilder::getDerivedFields).orElse(Collections.emptyList()),
+                    context.getIndexSettings().isDerivedFieldAllowed() && allowDerivedField
+                );
+                context.setDerivedFieldResolver(derivedFieldResolver);
                 Rewriteable.rewrite(request.getRewriteable(), context, false);
                 final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
