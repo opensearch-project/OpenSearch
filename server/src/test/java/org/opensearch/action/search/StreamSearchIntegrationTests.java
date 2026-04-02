@@ -143,6 +143,7 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testBasicStreamingSearchWorkflow() {
         SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+        searchRequest.setStreamingSearchMode("no_scoring");
         searchRequest.source().query(QueryBuilders.matchAllQuery()).size(5);
         searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
 
@@ -161,6 +162,27 @@ public class StreamSearchIntegrationTests extends OpenSearchSingleNodeTestCase {
             assertTrue("Hit should contain field1", hit.getSourceAsMap().containsKey("field1"));
             assertTrue("Hit should contain field2", hit.getSourceAsMap().containsKey("field2"));
         }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testNoScoringStreamingHitsAndAggsEndToEnd() {
+        TermsAggregationBuilder termsAgg = AggregationBuilders.terms("field1_terms")
+            .field("field1")
+            .subAggregation(AggregationBuilders.max("field2_max").field("field2"));
+        SearchRequest searchRequest = new SearchRequest(TEST_INDEX);
+        searchRequest.setStreamingSearchMode("no_scoring");
+        searchRequest.source().query(QueryBuilders.matchAllQuery()).aggregation(termsAgg).size(5);
+
+        SearchResponse response = client().execute(StreamSearchAction.INSTANCE, searchRequest).actionGet();
+
+        assertNotNull(response);
+        assertNotNull(response.getHits());
+        assertEquals(5, response.getHits().getHits().length);
+        assertEquals(90, response.getHits().getTotalHits().value());
+        assertNotNull(response.getAggregations());
+        StringTerms termsResult = response.getAggregations().get("field1_terms");
+        assertNotNull(termsResult);
+        assertEquals(3, termsResult.getBuckets().size());
     }
 
     @LockFeatureFlag(STREAM_TRANSPORT)

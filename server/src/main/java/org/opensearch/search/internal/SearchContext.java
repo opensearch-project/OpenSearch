@@ -603,6 +603,10 @@ public abstract class SearchContext implements Releasable {
         return getStreamingMode() != null;
     }
 
+    public int getStreamingBatchSize() {
+        return SearchService.STREAMING_SEARCH_BATCH_SIZE.getDefault(Settings.EMPTY);
+    }
+
     /**
      * Gets the resolved flush mode for this search context.
      */
