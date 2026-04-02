@@ -32,6 +32,8 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
@@ -128,6 +130,59 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         // Verify all the chunks related to block are added to the fetchBlob request
         verify(transferManager).fetchBlob(argThat(request -> request.getBlobLength() == blockSize));
+    }
+
+    public void testUnpinBlockCascadesToSlices() throws Exception {
+        final int blockSizeShift = 20; // 1MB blocks
+        OnDemandBlockSnapshotIndexInput master = createOnDemandBlockSnapshotIndexInput(blockSizeShift);
+
+        // Enable slice tracking (simulates what RemoteSnapshotDirectory does for .cfs files)
+        List<OnDemandBlockSnapshotIndexInput> tracked = new ArrayList<>();
+        master.setInputsToUnpin(tracked);
+
+        // Create slices via buildSlice (called internally by slice())
+        IndexInput slice1 = master.slice("slice1", 0, 100);
+        IndexInput slice2 = master.slice("slice2", 100, 100);
+        assertEquals("Two slices should be tracked", 2, tracked.size());
+
+        // Seek to non-zero positions so we can distinguish "block loaded" (filePointer > 0)
+        // from "block released" (getFilePointer returns 0L when blockHolder.block is null)
+        master.seek(50);
+        slice1.seek(10);
+        slice2.seek(20);
+        assertEquals("master should be at position 50", 50L, master.getFilePointer());
+        assertEquals("slice1 should be at position 10", 10L, slice1.getFilePointer());
+        assertEquals("slice2 should be at position 20", 20L, slice2.getFilePointer());
+
+        // unpinBlock on master should cascade to slices and null out the list
+        master.unpinBlock();
+
+        // After unpin, getFilePointer() returns 0L because blockHolder.block is null
+        assertEquals("master block should be released", 0L, master.getFilePointer());
+        assertEquals("slice1 block should be released", 0L, slice1.getFilePointer());
+        assertEquals("slice2 block should be released", 0L, slice2.getFilePointer());
+
+        // After unpin, creating another slice should NOT be tracked (list was nulled)
+        IndexInput slice3 = master.slice("slice3", 200, 100);
+        assertEquals("tracked list should still be size 2 (nulled internally, not cleared)", 2, tracked.size());
+
+        slice3.close();
+        master.close();
+    }
+
+    public void testBuildSliceRegistersWhenInputsToUnpinSet() throws Exception {
+        final int blockSizeShift = 20;
+        OnDemandBlockSnapshotIndexInput master = createOnDemandBlockSnapshotIndexInput(blockSizeShift);
+
+        List<OnDemandBlockSnapshotIndexInput> tracked = new ArrayList<>();
+        master.setInputsToUnpin(tracked);
+
+        master.slice("s1", 0, 50);
+        master.slice("s2", 50, 50);
+        master.slice("s3", 100, 50);
+
+        assertEquals("All three slices should be tracked", 3, tracked.size());
+        master.close();
     }
 
     private void runAllTestsFor(int blockSizeShift) throws Exception {
