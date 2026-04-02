@@ -72,6 +72,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Handle dependencies between analyzers ([#19248](https://github.com/opensearch-project/OpenSearch/pull/19248))
 - Restore default `shard_path_type` to FIXED for snapshot repositories ([#20643](https://github.com/opensearch-project/OpenSearch/issues/20643))
 - Fix `_field_caps` returning empty results and corrupted field names for `disable_objects: true` mappings ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
+- Change shrink request to throw IllegalArgumentException when index not write blocked ([#19415](https://github.com/opensearch-project/OpenSearch/pull/19415))
 
 ### Dependencies
 - Bump shadow-gradle-plugin from 8.3.9 to 9.3.1 ([#20569](https://github.com/opensearch-project/OpenSearch/pull/20569))
