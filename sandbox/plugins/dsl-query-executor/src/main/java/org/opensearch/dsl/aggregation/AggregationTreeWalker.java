@@ -8,6 +8,7 @@
 
 package org.opensearch.dsl.aggregation;
 
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
@@ -18,6 +19,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -119,10 +121,17 @@ public class AggregationTreeWalker {
         RelDataType rowType
     ) throws ConversionException {
         AggregationMetadataBuilder builder = getOrCreateBuilder(currentGroupings, granularities);
-        builder.addAggregateCall(
-            translator.toAggregateCall(aggBuilder, rowType),
-            translator.getAggregateFieldName(aggBuilder)
-        );
+        List<AggregateCall> calls = translator.toAggregateCalls(aggBuilder, rowType);
+        List<String> fieldNames = translator.getAggregateFieldNames(aggBuilder);
+        if (calls.size() != fieldNames.size()) {
+            throw new ConversionException(
+                "Mismatch between aggregate calls (" + calls.size() +
+                ") and field names (" + fieldNames.size() + ") for aggregation: " + aggBuilder.getName()
+            );
+        }
+        for (int i = 0; i < calls.size(); i++) {
+            builder.addAggregateCall(calls.get(i), fieldNames.get(i));
+        }
     }
 
     private AggregationMetadataBuilder getOrCreateBuilder(

@@ -12,6 +12,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -94,7 +95,10 @@ public class AggregationMetadataBuilder {
         boolean noGroupBy = groupings.isEmpty();
         List<AggregateCall> allCalls = new ArrayList<>();
         for (AggregateCall call : aggregateCalls) {
-            if (noGroupBy) {
+            // COUNT is always non-nullable (returns 0 for empty sets), while other aggregations
+            // like AVG, MIN, MAX, SUM return null for empty sets when there's no GROUP BY
+            boolean isCount = call.getAggregation().getKind() == SqlKind.COUNT;
+            if (noGroupBy && !isCount) {
                 RelDataType nullableType = typeFactory.createTypeWithNullability(call.getType(), true);
                 allCalls.add(AggregateCall.create(
                     call.getAggregation(), call.isDistinct(), call.isApproximate(),
@@ -108,6 +112,10 @@ public class AggregationMetadataBuilder {
         List<String> allFieldNames = new ArrayList<>(aggregateFieldNames);
 
         if (implicitCountRequested) {
+            RelDataType bigIntNotNull = typeFactory.createTypeWithNullability(
+                typeFactory.createSqlType(SqlTypeName.BIGINT),
+                false
+            );
             allCalls.add(AggregateCall.create(
                 SqlStdOperatorTable.COUNT,
                 false,
@@ -116,7 +124,7 @@ public class AggregationMetadataBuilder {
                 List.of(),
                 -1,
                 RelCollations.EMPTY,
-                typeFactory.createSqlType(SqlTypeName.BIGINT),
+                bigIntNotNull,
                 IMPLICIT_COUNT_NAME
             ));
             allFieldNames.add(IMPLICIT_COUNT_NAME);
