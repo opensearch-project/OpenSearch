@@ -9,44 +9,20 @@
 package org.opensearch.dsl.aggregation;
 
 import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.opensearch.dsl.converter.ConversionException;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Field-based grouping: GROUP BY field1, field2, ...
- * Used by terms and multi_terms bucket aggregations.
+ * Grouping strategy for field-based bucket aggregations (terms, multi_terms, missing, rare_terms).
+ * Fields already exist in the input schema and can be resolved to column indices.
  */
-public class FieldGrouping implements GroupingInfo {
-
-    private final List<String> fieldNames;
+public interface FieldGrouping extends GroupingInfo {
 
     /**
-     * Creates a field grouping.
-     *
-     * @param fieldNames the field names to group by
+     * Resolves field names to column indices in the input row type.
+     * @param inputRowType the input schema
+     * @return list of column indices corresponding to the grouping fields
      */
-    public FieldGrouping(List<String> fieldNames) {
-        this.fieldNames = List.copyOf(fieldNames);
-    }
-
-    @Override
-    public List<String> getFieldNames() {
-        return fieldNames;
-    }
-
-    @Override
-    public List<Integer> resolveIndices(RelDataType inputRowType) throws ConversionException {
-        List<Integer> indices = new ArrayList<>(fieldNames.size());
-        for (String name : fieldNames) {
-            RelDataTypeField field = inputRowType.getField(name, false, false);
-            if (field == null) {
-                throw new ConversionException("Group-by field '" + name + "' not found in schema");
-            }
-            indices.add(field.getIndex());
-        }
-        return indices;
-    }
+    List<Integer> resolveIndices(RelDataType inputRowType) throws ConversionException;
 }

@@ -49,6 +49,7 @@ public class SearchSourceConverter {
     private final SortConverter sortConverter;
     private final AggregateConverter aggregateConverter;
     private final AggregationTreeWalker treeWalker;
+    private final org.opensearch.dsl.aggregation.AggregationRegistry aggRegistry;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -73,8 +74,13 @@ public class SearchSourceConverter {
         this.sortConverter = new SortConverter();
         this.aggregateConverter = new AggregateConverter();
 
-        var aggRegistry = AggregationRegistryFactory.create();
+        this.aggRegistry = AggregationRegistryFactory.create();
         this.treeWalker = new AggregationTreeWalker(aggRegistry);
+    }
+
+    /** Returns the aggregation registry. */
+    public org.opensearch.dsl.aggregation.AggregationRegistry getAggregationRegistry() {
+        return aggRegistry;
     }
 
     /**
@@ -117,7 +123,7 @@ public class SearchSourceConverter {
                 cluster.getTypeFactory()
             );
             for (AggregationMetadata metadata : metadataList) {
-                RelNode aggs = aggregateConverter.convert(base, metadata);
+                RelNode aggs = aggregateConverter.convert(base, metadata, cluster.getRexBuilder());
                 builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs));
             }
         }

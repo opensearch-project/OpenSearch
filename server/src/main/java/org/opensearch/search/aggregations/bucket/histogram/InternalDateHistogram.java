@@ -233,7 +233,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final long offset;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalDateHistogram(
+    public InternalDateHistogram(
         String name,
         List<Bucket> buckets,
         BucketOrder order,

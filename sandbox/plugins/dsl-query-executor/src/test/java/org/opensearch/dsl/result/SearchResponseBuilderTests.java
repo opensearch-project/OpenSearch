@@ -15,7 +15,7 @@ import java.util.List;
 
 public class SearchResponseBuilderTests extends OpenSearchTestCase {
 
-    public void testBuildReturnsEmptyResponse() {
+    public void testBuildReturnsEmptyResponse() throws Exception {
         SearchResponse response = SearchResponseBuilder.build(List.of(), 42L);
 
         assertNotNull(response);

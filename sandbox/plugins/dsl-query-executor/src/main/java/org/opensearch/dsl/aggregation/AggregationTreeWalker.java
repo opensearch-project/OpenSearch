@@ -14,6 +14,7 @@ import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.BucketOrder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -102,7 +103,11 @@ public class AggregationTreeWalker {
         accumulatedGroupings.add(grouping);
 
         // Ensure builder exists for this granularity
-        getOrCreateBuilder(accumulatedGroupings, granularities);
+        AggregationMetadataBuilder builder = getOrCreateBuilder(accumulatedGroupings, granularities);
+        BucketOrder order = translator.getOrder(aggBuilder);
+        if (order != null) {
+            builder.addBucketOrder(order);
+        }
 
         // Recurse into sub-aggregations
         Collection<AggregationBuilder> subAggs = translator.getSubAggregations(aggBuilder);
@@ -150,8 +155,14 @@ public class AggregationTreeWalker {
         if (groupings.isEmpty()) {
             return "";
         }
-        return groupings.stream()
-            .flatMap(g -> g.getFieldNames().stream())
-            .collect(Collectors.joining(","));
+        List<String> columnNames = new ArrayList<>();
+        for (GroupingInfo g : groupings) {
+            if (g instanceof ExpressionGrouping expr) {
+                columnNames.add(expr.getProjectedColumnName());
+            } else {
+                columnNames.addAll(g.getFieldNames());
+            }
+        }
+        return String.join(",", columnNames);
     }
 }
