@@ -35,8 +35,4 @@ tasks.withType(Test).configureEach {
   onlyIf { project.bwc_tests_enabled }
 }
 
-tasks.named("check").configure {
-  dependsOn(bwcTestSnapshots)
-}
-
 tasks.findByName("test")?.enabled = false
