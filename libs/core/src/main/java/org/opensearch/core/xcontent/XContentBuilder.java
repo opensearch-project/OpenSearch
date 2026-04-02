@@ -309,16 +309,16 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public XContentBuilder prettyPrint() {
+        if (this.prettyPrint == false && generator != null) {
+            throw new IllegalStateException("Cannot change the prettyPrint status, the generator has been initialized already");
+        }
+
         this.prettyPrint = true;
         return this;
     }
 
     public boolean isPrettyPrint() {
-        try {
-            return generatorInstance().isPrettyPrint();
-        } catch (final IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
+        return this.prettyPrint;
     }
 
     /**

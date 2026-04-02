@@ -106,7 +106,7 @@ public class CborXContent implements XContent, XContentConstraints {
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
         throws IOException {
         return new CborXContentGenerator(
-            cborFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            cborFactory.createGenerator(XObjectWriteContext.create(prettyPrint), os, JsonEncoding.UTF8),
             os,
             includes,
             excludes
@@ -116,19 +116,19 @@ public class CborXContent implements XContent, XContentConstraints {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), content));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(XObjectReadContext.create(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), is));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(XObjectReadContext.create(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), data));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(XObjectReadContext.create(), data));
     }
 
     @Override
@@ -142,14 +142,14 @@ public class CborXContent implements XContent, XContentConstraints {
         return new CborXContentParser(
             xContentRegistry,
             deprecationHandler,
-            cborFactory.createParser(new XObjectReadContext(), data, offset, length)
+            cborFactory.createParser(XObjectReadContext.create(), data, offset, length)
         );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(new XObjectReadContext(), reader));
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(XObjectReadContext.create(), reader));
     }
 
 }

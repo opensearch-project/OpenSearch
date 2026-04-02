@@ -108,7 +108,7 @@ public class SmileXContent implements XContent, XContentConstraints {
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
         throws IOException {
         return new SmileXContentGenerator(
-            smileFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            smileFactory.createGenerator(XObjectWriteContext.create(prettyPrint), os, JsonEncoding.UTF8),
             os,
             includes,
             excludes
@@ -118,19 +118,23 @@ public class SmileXContent implements XContent, XContentConstraints {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), content));
+        return new SmileXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            smileFactory.createParser(XObjectReadContext.create(), content)
+        );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), is));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(XObjectReadContext.create(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), data));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(XObjectReadContext.create(), data));
     }
 
     @Override
@@ -144,13 +148,17 @@ public class SmileXContent implements XContent, XContentConstraints {
         return new SmileXContentParser(
             xContentRegistry,
             deprecationHandler,
-            smileFactory.createParser(new XObjectReadContext(), data, offset, length)
+            smileFactory.createParser(XObjectReadContext.create(), data, offset, length)
         );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new XObjectReadContext(), reader));
+        return new SmileXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            smileFactory.createParser(XObjectReadContext.create(), reader)
+        );
     }
 }

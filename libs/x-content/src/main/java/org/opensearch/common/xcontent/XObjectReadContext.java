@@ -11,5 +11,11 @@ package org.opensearch.common.xcontent;
 import tools.jackson.core.ObjectReadContext;
 
 public class XObjectReadContext extends ObjectReadContext.Base {
+    private static final XObjectReadContext DEFAULT_INSTANCE = new XObjectReadContext();
 
+    public static XObjectReadContext create() {
+        return DEFAULT_INSTANCE;
+    }
+
+    private XObjectReadContext() {}
 }

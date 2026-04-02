@@ -22,11 +22,21 @@ import tools.jackson.core.util.DefaultIndenter;
 import tools.jackson.core.util.DefaultPrettyPrinter;
 
 public class XObjectWriteContext extends ObjectWriteContext.Base {
+    private static final XObjectWriteContext DEFAULT_INSTANCE = new XObjectWriteContext(false);
+
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private final PrettyPrinter prettyPrinter;
 
-    public XObjectWriteContext(boolean prettyPrint) {
+    public static XObjectWriteContext create(boolean prettyPrint) {
+        if (prettyPrint == true) {
+            return new XObjectWriteContext(prettyPrint);
+        } else {
+            return DEFAULT_INSTANCE;
+        }
+    }
+
+    private XObjectWriteContext(boolean prettyPrint) {
         this.prettyPrinter = prettyPrint ? new DefaultPrettyPrinter().withObjectIndenter(INDENTER).withArrayIndenter(INDENTER) : null;
     }
 
@@ -37,6 +47,9 @@ public class XObjectWriteContext extends ObjectWriteContext.Base {
 
     @Override
     public void writeValue(JsonGenerator g, Object value) {
+        // Bringing the implementation from Jackson 2.x release line (see please
+        // https://github.com/FasterXML/jackson-core/blob/2.x/src/main/java/com/fasterxml/jackson/core/JsonGenerator.java#L3099).
+
         // 31-Dec-2009, tatu: Actually, we could just handle some basic
         // types even without codec. This can improve interoperability,
         // and specifically help with TokenBuffer.

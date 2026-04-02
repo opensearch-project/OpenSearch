@@ -107,7 +107,7 @@ public class YamlXContent implements XContent, XContentConstraints {
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
         throws IOException {
         return new YamlXContentGenerator(
-            yamlFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            yamlFactory.createGenerator(XObjectWriteContext.create(prettyPrint), os, JsonEncoding.UTF8),
             os,
             includes,
             excludes
@@ -117,13 +117,13 @@ public class YamlXContent implements XContent, XContentConstraints {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new XObjectReadContext(), content));
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(XObjectReadContext.create(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new XObjectReadContext(), is));
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(XObjectReadContext.create(), is));
     }
 
     @Override
@@ -135,7 +135,7 @@ public class YamlXContent implements XContent, XContentConstraints {
             // We use ByteArrayInputStream instead of byte[] for YAML because the parsing
             // will fail if the length of the byte[] array exceeds LoadSettings::bufferSize (which
             // we set to 8000 by default). We cannot predict the how large the buffer should be reliably.
-            yamlFactory.createParser(new XObjectReadContext(), new ByteArrayInputStream(data))
+            yamlFactory.createParser(XObjectReadContext.create(), new ByteArrayInputStream(data))
         );
     }
 
@@ -153,13 +153,13 @@ public class YamlXContent implements XContent, XContentConstraints {
             // We use ByteArrayInputStream instead of byte[] for YAML because the parsing
             // will fail if the length of the byte[] array exceeds LoadSettings::bufferSize (which
             // we set to 8000 by default). We cannot predict the how large the buffer should be reliably.
-            yamlFactory.createParser(new XObjectReadContext(), new ByteArrayInputStream(data, offset, length))
+            yamlFactory.createParser(XObjectReadContext.create(), new ByteArrayInputStream(data, offset, length))
         );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new XObjectReadContext(), reader));
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(XObjectReadContext.create(), reader));
     }
 }

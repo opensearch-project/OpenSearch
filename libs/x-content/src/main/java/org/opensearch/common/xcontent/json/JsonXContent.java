@@ -110,7 +110,7 @@ public class JsonXContent implements XContent, XContentConstraints {
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint)
         throws IOException {
         return new JsonXContentGenerator(
-            jsonFactory.createGenerator(new XObjectWriteContext(prettyPrint), os, JsonEncoding.UTF8),
+            jsonFactory.createGenerator(XObjectWriteContext.create(prettyPrint), os, JsonEncoding.UTF8),
             os,
             includes,
             excludes
@@ -120,19 +120,19 @@ public class JsonXContent implements XContent, XContentConstraints {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new XObjectReadContext(), content));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), content));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new XObjectReadContext(), is));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), is));
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new XObjectReadContext(), data));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), data));
     }
 
     @Override
@@ -146,13 +146,13 @@ public class JsonXContent implements XContent, XContentConstraints {
         return new JsonXContentParser(
             xContentRegistry,
             deprecationHandler,
-            jsonFactory.createParser(new XObjectReadContext(), data, offset, length)
+            jsonFactory.createParser(XObjectReadContext.create(), data, offset, length)
         );
     }
 
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
         throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new XObjectReadContext(), reader));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(XObjectReadContext.create(), reader));
     }
 }
