@@ -10,6 +10,7 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -23,6 +24,9 @@ import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -30,7 +34,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -230,14 +233,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
     /**
      * Search holds snapshot alive while refresh replaces it.
-     * <p>
-     * Timeline:
-     * 1. new s1 → refcount = 1 (construction)
-     * 2. setLatestSnapshot(s1) → refcount = 1 (engine takes over construction ref)
-     * 3. acquireReader() → refcount = 2 (search adds ref)
-     * 4. setLatestSnapshot(s2) → s1 refcount = 1 (engine releases s1)
-     * 5. readerManager.onDeleted(s1) → reader closed, but s1 alive (search ref)
-     * 6. compositeReader.close() → s1 refcount = 0 → dead
+     * CatalogSnapshotManager handles ref counting: acquireReader increments,
+     * commitNewSnapshot replaces the latest, and closing the reader releases the old snapshot.
      */
     public void testSearchHoldsSnapshotAliveWhileRefreshDeletesFiles() throws IOException {
         MockDataFormat format = new MockDataFormat();
@@ -253,20 +250,24 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         w1.close();
 
         RefreshResult rr1 = indexEngine.refresh(RefreshInput.builder().addWriterFileSet(fs1).build());
-        MockCatalogSnapshot snapshot1 = new MockCatalogSnapshot(1L, rr1.refreshedSegments(), format);
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of());
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
-        readerManager.afterRefresh(true, snapshot1);
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            readerManager.afterRefresh(true, ref.get());
+        }
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format, readerManager));
-        dataFormatAwareEngine.setLatestSnapshot(snapshot1); // takes over construction ref, refcount: 1
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format, readerManager), manager);
 
-        // Search acquires reader — refcount: 2
+        // Search acquires reader on snapshot1 — holds a ref
         var dataFormatAwareReader = dataFormatAwareEngine.acquireReader();
+        CatalogSnapshot snapshot1 = dataFormatAwareReader.get().catalogSnapshot();
         MockReader searchReader = (MockReader) dataFormatAwareReader.get().reader(format);
         assertEquals(1, searchReader.totalRows);
+        assertEquals(1L, snapshot1.getGeneration());
 
-        // New refresh arrives — setLatestSnapshot(s2) decRefs s1 → refcount: 1
+        // New refresh arrives — commit replaces snapshot
         Writer<MockDocumentInput> w2 = indexEngine.createWriter(2L);
         MockDocumentInput d2 = indexEngine.newDocumentInput();
         d2.addField(mock(MappedFieldType.class), "Bob");
@@ -276,27 +277,41 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         w2.close();
 
         RefreshResult rr2 = indexEngine.refresh(RefreshInput.builder().addWriterFileSet(fs1).addWriterFileSet(fs2).build());
-        MockCatalogSnapshot snapshot2 = new MockCatalogSnapshot(2L, rr2.refreshedSegments(), format);
-        readerManager.afterRefresh(true, snapshot2);
-        dataFormatAwareEngine.setLatestSnapshot(snapshot2); // s1 refcount: 1 (only search ref)
+        manager.commitNewSnapshot(rr2.refreshedSegments());
 
-        // Old snapshot deleted from reader manager — reader closes
-        readerManager.onDeleted(snapshot1);
-        assertTrue("Reader for snapshot1 closed in reader manager", searchReader.closed);
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            readerManager.afterRefresh(true, ref.get());
+        }
 
-        // But snapshot1 still alive — search holds the last ref
-        assertTrue("Snapshot1 alive while search holds ref", snapshot1.tryIncRef());
-        snapshot1.decRef(); // undo probe
+        // Snapshot1 still alive — search reader still works because the ref is held
+        assertFalse("Snapshot1 should still be alive while search holds ref", ((DataformatAwareCatalogSnapshot) snapshot1).isClosed());
+        assertEquals(1, searchReader.totalRows);
+        assertSame(snapshot1, dataFormatAwareReader.get().catalogSnapshot());
 
-        // Search completes — s1 refcount: 0 → dead
+        // New acquireSnapshot returns snapshot2, not snapshot1
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            assertEquals(2L, ref.get().getGeneration());
+            assertNotSame(snapshot1, ref.get());
+        }
+
+        // Search completes — releases the old snapshot ref
         dataFormatAwareReader.close();
-        assertFalse("Snapshot1 dead after search releases", snapshot1.tryIncRef());
 
-        // Snapshot 2 still works
+        // Snapshot1 is now dead
+        assertTrue(
+            "Snapshot1 should be closed after search releases the last ref",
+            ((DataformatAwareCatalogSnapshot) snapshot1).isClosed()
+        );
+
+        // Snapshot1 is now dead — tryIncRef would fail (verified via new acquire returning snapshot2)
+        // Snapshot 2 works
         try (var cr2 = dataFormatAwareEngine.acquireReader()) {
             MockReader r2 = (MockReader) cr2.get().reader(format);
             assertEquals(2, r2.totalRows);
+            assertEquals(2L, cr2.get().catalogSnapshot().getGeneration());
         }
+
+        manager.close();
     }
 
     /**
@@ -328,24 +343,15 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         WriterFileSet wfs1 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.parquet").addNumRows(10).build();
         WriterFileSet wfs2 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.lucene").addNumRows(10).build();
         Segment seg = Segment.builder(0L).addSearchableFiles(format1, wfs1).addSearchableFiles(format2, wfs2).build();
-        MockCatalogSnapshot snapshot = new MockCatalogSnapshot(1L, List.of(seg), format1) {
-            @Override
-            public Collection<WriterFileSet> getSearchableFiles(String dataFormat) {
-                if ("mock-lucene".equals(dataFormat)) return List.of(wfs2);
-                return super.getSearchableFiles(dataFormat);
-            }
 
-            @Override
-            public Set<String> getDataFormats() {
-                return Set.of(format1.name(), format2.name());
-            }
-        };
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg), 1L, Map.of());
 
-        rm1.afterRefresh(true, snapshot);
-        rm2.afterRefresh(true, snapshot);
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            rm1.afterRefresh(true, ref.get());
+            rm2.afterRefresh(true, ref.get());
+        }
 
-        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format1, rm1, format2, rm2));
-        dataFormatAwareEngine.setLatestSnapshot(snapshot);
+        DataFormatAwareEngine dataFormatAwareEngine = new DataFormatAwareEngine(Map.of(format1, rm1, format2, rm2), manager);
 
         try (var cr = dataFormatAwareEngine.acquireReader()) {
             MockReader r1 = (MockReader) cr.get().reader(format1);
@@ -357,6 +363,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             assertTrue(r1.fileNames.contains("data.parquet"));
             assertTrue(r2.fileNames.contains("data.lucene"));
         }
+
+        manager.close();
     }
 
     /**
