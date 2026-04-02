@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.settings;
 
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.WriteRequest;
@@ -25,6 +26,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
@@ -236,6 +238,49 @@ public class SearchOnlyReplicaIT extends RemoteStoreBaseIntegTestCase {
         String nodeId = response.getHits().getAt(0).getShard().getNodeId();
         IndexShardRoutingTable indexShardRoutingTable = getIndexShardRoutingTable();
         assertEquals(nodeId, indexShardRoutingTable.searchOnlyReplicas().get(0).currentNodeId());
+    }
+
+    public void testSearchReplicaRoutingPreferenceWithoutSearchReplicaShard() throws IOException {
+        int numSearchReplicas = 0;
+        int numWriterReplicas = 1;
+        internalCluster().startClusterManagerOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createIndex(
+            TEST_INDEX,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numWriterReplicas)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, numSearchReplicas)
+                .build()
+        );
+        ensureYellow(TEST_INDEX);
+        client().prepareIndex(TEST_INDEX).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // add 2 nodes for the replicas
+        internalCluster().startDataOnlyNode();
+        internalCluster().startSearchOnlyNode();
+
+        ensureGreen(TEST_INDEX);
+
+        assertActiveShardCounts(numSearchReplicas, numWriterReplicas);
+
+        assertHitCount(client().prepareSearch(TEST_INDEX).setPreference(null).setSize(0).get(), 1);
+
+        Throwable throwable = assertThrows(
+            NoShardAvailableActionException.class,
+            () -> client().prepareSearch(TEST_INDEX)
+                .setPreference(Preference.SEARCH_REPLICA.type())
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get()
+        );
+
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Strictly require querying search only shards, but the number of search only replicas for index %s is 0",
+                TEST_INDEX
+            ),
+            throwable.getMessage()
+        );
     }
 
     public void testSearchReplicaRoutingPreferenceWhenSearchReplicaUnassigned() {
