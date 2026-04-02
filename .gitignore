@@ -1,6 +1,7 @@
 .claude
 CLAUDE.md
 .cursor*
+.kiro*
 
 # intellij files
 .idea/
@@ -68,3 +69,5 @@ testfixtures_shared/
 
 # build files generated
 doc-tools/missing-doclet/bin/
+/sandbox/plugins/engine-datafusion/target/
+**/Cargo.lock

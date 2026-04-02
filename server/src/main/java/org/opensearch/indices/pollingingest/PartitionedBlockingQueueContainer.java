@@ -49,7 +49,8 @@ public class PartitionedBlockingQueueContainer {
         int shardId,
         IngestionEngine ingestionEngine,
         IngestionErrorStrategy errorStrategy,
-        int blockingQueueSize
+        int blockingQueueSize,
+        IngestPipelineExecutor pipelineExecutor
     ) {
         assert numPartitions > 0 : "Number of processor threads / partitions must be greater than 0";
         partitionToQueueMap = new ConcurrentHashMap<>();
@@ -76,7 +77,8 @@ public class PartitionedBlockingQueueContainer {
             MessageProcessorRunnable messageProcessorRunnable = new MessageProcessorRunnable(
                 partitionToQueueMap.get(partition),
                 ingestionEngine,
-                errorStrategy
+                errorStrategy,
+                pipelineExecutor
             );
             partitionToMessageProcessorMap.put(partition, messageProcessorRunnable);
         }
