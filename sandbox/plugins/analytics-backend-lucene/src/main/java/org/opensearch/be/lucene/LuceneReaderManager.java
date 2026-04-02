@@ -12,8 +12,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 import java.util.Collection;

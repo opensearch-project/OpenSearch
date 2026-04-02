@@ -11,10 +11,11 @@ package org.opensearch.index.engine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,14 +36,27 @@ import java.util.Map;
 public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
-    private volatile CatalogSnapshot latestSnapshot;
+    private volatile CatalogSnapshotManager catalogSnapshotManager;
 
     /**
-     * Constructs a new DataFormatAwareEngine with pre-built maps.
+     * Constructs a new DataFormatAwareEngine.
      * Prefer using {@link DataFormatAwareEngineFactory#create()}.
+     */
+    public DataFormatAwareEngine(Map<DataFormat, EngineReaderManager<?>> readerManagers, CatalogSnapshotManager catalogSnapshotManager) {
+        this.readerManagers = readerManagers;
+        this.catalogSnapshotManager = catalogSnapshotManager;
+    }
+
+    /**
+     * Constructs a new DataFormatAwareEngine without a snapshot manager.
+     * The manager must be set via {@link #setCatalogSnapshotManager} before acquiring readers.
      */
     public DataFormatAwareEngine(Map<DataFormat, EngineReaderManager<?>> readerManagers) {
         this.readerManagers = readerManagers;
+    }
+
+    public void setCatalogSnapshotManager(CatalogSnapshotManager catalogSnapshotManager) {
+        this.catalogSnapshotManager = catalogSnapshotManager;
     }
 
     public EngineReaderManager<?> getReaderManager(DataFormat format) {
@@ -50,36 +64,17 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
     }
 
     /**
-     * Called by the catalog snapshot lifecycle listener after a refresh
-     * to update the latest searchable snapshot.
-     */
-    public void setLatestSnapshot(CatalogSnapshot snapshot) {
-        CatalogSnapshot prev = this.latestSnapshot;
-        this.latestSnapshot = snapshot;
-        if (prev != null) {
-            prev.decRef();
-        }
-    }
-
-    /**
      * Acquires a DataFormatAwareReader on the latest catalog snapshot.
-     * The snapshot is incRef'd; the caller MUST close the returned
-     * {@link DataFormatAwareReader} when done, which decRef's the snapshot.
+     * The caller MUST close the returned {@link DataFormatAwareReader} when done,
+     * which releases the snapshot reference.
      */
     public GatedCloseable<Reader> acquireReader() throws IOException {
-        CatalogSnapshot snapshot = latestSnapshot;
-        if (snapshot == null) {
-            throw new IllegalStateException("No catalog snapshot available");
+        if (catalogSnapshotManager == null) {
+            throw new IllegalStateException("CatalogSnapshotManager not set");
         }
-        return acquireReader(snapshot);
-    }
-
-    /**
-     * Acquires a dataFormatAwareReader on a specific catalog snapshot.
-     */
-    private GatedCloseable<Reader> acquireReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        catalogSnapshot.incRef();
+        GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot();
         try {
+            CatalogSnapshot catalogSnapshot = snapshotRef.get();
             Map<DataFormat, Object> readers = new HashMap<>();
             for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
                 Object reader = entry.getValue().getReader(catalogSnapshot);
@@ -87,10 +82,10 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
                     readers.put(entry.getKey(), reader);
                 }
             }
-            DataFormatAwareReader reader = new DataFormatAwareReader(catalogSnapshot, readers);
+            DataFormatAwareReader reader = new DataFormatAwareReader(catalogSnapshot, snapshotRef, readers);
             return new GatedCloseable<>(reader, reader::close);
         } catch (Exception e) {
-            catalogSnapshot.decRef();
+            snapshotRef.close();
             throw e;
         }
     }
@@ -102,10 +97,16 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
     @ExperimentalApi
     public static class DataFormatAwareReader implements IndexReaderProvider.Reader {
         private final CatalogSnapshot catalogSnapshot;
+        private final GatedCloseable<CatalogSnapshot> snapshotRef;
         private final Map<DataFormat, Object> readers;
 
-        DataFormatAwareReader(CatalogSnapshot catalogSnapshot, Map<DataFormat, Object> readers) {
+        DataFormatAwareReader(
+            CatalogSnapshot catalogSnapshot,
+            GatedCloseable<CatalogSnapshot> snapshotRef,
+            Map<DataFormat, Object> readers
+        ) {
             this.catalogSnapshot = catalogSnapshot;
+            this.snapshotRef = snapshotRef;
             this.readers = readers;
         }
 
@@ -121,7 +122,11 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
 
         @Override
         public void close() {
-            catalogSnapshot.decRef();
+            try {
+                snapshotRef.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to release catalog snapshot reference", e);
+            }
         }
     }
 
