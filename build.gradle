@@ -55,7 +55,7 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "8.0.0" apply false
+  id "com.diffplug.spotless" version "8.4.0" apply false
   id "org.gradle.test-retry" version "1.6.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
@@ -426,8 +426,8 @@ gradle.projectsEvaluated {
 
         // Add Java Agent for security sandboxing
         if (!(project.path in [':build-tools', ":libs:agent-sm:bootstrap", ":libs:agent-sm:agent"])) {
-          dependsOn(project(':libs:agent-sm:agent').prepareAgent)
-          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').jar.archiveFile.get()]
+          dependsOn(project(':libs:agent-sm:agent').tasks.named('prepareAgent'))
+          jvmArgs += ["-javaagent:" + project(':libs:agent-sm:agent').tasks.named('jar').get().archiveFile.get()]
         }
         if (BuildParams.isInFipsJvm()) {
           def fipsSecurityFile = project.rootProject.file('distribution/src/config/fips_java.security')

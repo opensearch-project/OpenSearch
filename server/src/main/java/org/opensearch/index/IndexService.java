@@ -78,6 +78,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.MapperService;
@@ -209,6 +210,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile TimeValue refreshInterval;
     private volatile boolean shardLevelRefreshEnabled;
     private final IndexStorePlugin.StoreFactory storeFactory;
+    private final DataFormatRegistry dataFormatRegistry;
 
     @InternalApi
     public IndexService(
@@ -255,7 +257,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
-        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        DataFormatRegistry dataFormatRegistry
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -366,6 +369,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 startIndexLevelRefreshTask();
             }
         }
+        this.dataFormatRegistry = dataFormatRegistry;
     }
 
     @InternalApi
@@ -454,7 +458,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             s -> {},
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            null
         );
     }
 
@@ -813,7 +818,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 refreshMutex,
                 clusterService.getClusterApplierService(),
                 this.indexSettings.isSegRepEnabledOrRemoteNode() ? mergedSegmentPublisher : null,
-                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null
+                this.indexSettings.isSegRepEnabledOrRemoteNode() ? referencedSegmentsPublisher : null,
+                dataFormatRegistry
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

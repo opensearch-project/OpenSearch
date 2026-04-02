@@ -673,8 +673,8 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
 
     public void testProcessLatestCheckpointIfCheckpointAhead() {
         SegmentReplicationTargetService service = spy(sut);
-        doNothing().when(service).startReplication(any());
         doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), any());
+        doReturn(mock(SegmentReplicationTarget.class)).when(service).startReplication(any(), any(), anyBoolean(), any());
         service.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
         service.processLatestReceivedCheckpoint(replicaShard, null);
         verify(service, times(1)).startReplication(eq(replicaShard), eq(aheadCheckpoint), anyBoolean(), any());

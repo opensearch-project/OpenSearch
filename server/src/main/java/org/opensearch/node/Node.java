@@ -199,10 +199,13 @@ import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.NodeRuntimeMetrics;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsProbe;
+import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -626,6 +629,7 @@ public class Node implements Closeable {
             }
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+            final SetOnce<IngestService> ingestServiceReference = new SetOnce<>();
             final RemoteStoreNodeService remoteStoreNodeService = new RemoteStoreNodeService(repositoriesServiceReference::get, threadPool);
             localNodeFactory = new RemoteStoreVerifyingLocalNodeFactory(settings, nodeEnvironment.nodeId(), remoteStoreNodeService);
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
@@ -1001,6 +1005,7 @@ public class Node implements Closeable {
                 searchRequestStats,
                 remoteStoreStatsTrackerFactory,
                 ingestionConsumerFactories,
+                ingestServiceReference::get,
                 recoverySettings,
                 cacheService,
                 remoteStoreSettings,
@@ -1022,6 +1027,7 @@ public class Node implements Closeable {
                 xContentRegistry,
                 new SystemIngestPipelineCache()
             );
+            ingestServiceReference.set(ingestService);
 
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
@@ -1031,6 +1037,14 @@ public class Node implements Closeable {
                 indicesService
             );
             final MonitorService monitorService = new MonitorService(settings, threadPool, fsServiceProvider);
+
+            final NodeRuntimeMetrics nodeRuntimeMetrics = new NodeRuntimeMetrics(
+                metricsRegistry,
+                monitorService.jvmService(),
+                ProcessProbe.getInstance(),
+                OsProbe.getInstance()
+            );
+            resourcesToClose.add(nodeRuntimeMetrics);
 
             final AliasValidator aliasValidator = new AliasValidator();
 

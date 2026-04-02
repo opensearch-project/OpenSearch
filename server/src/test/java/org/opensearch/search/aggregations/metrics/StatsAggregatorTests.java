@@ -55,6 +55,7 @@ import org.opensearch.script.ScriptModule;
 import org.opensearch.script.ScriptService;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
@@ -515,6 +516,24 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
+            }
+        }
+    }
+
+    public void testSupportsIntraSegmentSearch() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.LONG);
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new NumericDocValuesField("value", 1)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(new StatsAggregationBuilder("test").field("value"))
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldType)
+                            .getQueryShardContext(),
+                        null
+                    );
+                assertTrue(factories.allFactoriesSupportIntraSegmentSearch());
             }
         }
     }

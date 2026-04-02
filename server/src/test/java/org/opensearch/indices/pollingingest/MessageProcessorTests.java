@@ -9,6 +9,7 @@
 package org.opensearch.indices.pollingingest;
 
 import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.index.IngestionShardPointer;
 import org.opensearch.index.Message;
 import org.opensearch.index.engine.Engine;
@@ -19,6 +20,7 @@ import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.ingest.IngestService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -27,12 +29,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.IntConsumer;
 
 import org.mockito.ArgumentCaptor;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,7 +60,11 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         documentMapper = mock(DocumentMapper.class);
         when(documentMapperForType.getDocumentMapper()).thenReturn(documentMapper);
-        processor = new MessageProcessorRunnable.MessageProcessor(ingestionEngine, "index");
+        processor = new MessageProcessorRunnable.MessageProcessor(
+            ingestionEngine,
+            "index",
+            new IngestPipelineExecutor(mock(IngestService.class), "index", (String) null)
+        );
     }
 
     public void testGetIndexOperation() throws IOException {
@@ -271,5 +283,191 @@ public class MessageProcessorTests extends OpenSearchTestCase {
 
         messageProcessorRunnable.close();
         thread.interrupt();
+    }
+
+    // --- Pipeline execution tests ---
+
+    /**
+     * Creates a MessageProcessor with a mocked IngestService and index settings that have a final_pipeline configured.
+     */
+    private MessageProcessorRunnable.MessageProcessor createProcessorWithPipeline(IngestService ingestService, String finalPipeline)
+        throws Exception {
+        IngestionEngine engine = mock(IngestionEngine.class);
+        DocumentMapperForType dmft = mock(DocumentMapperForType.class);
+        DocumentMapper dm = mock(DocumentMapper.class);
+        when(engine.getDocumentMapperForType()).thenReturn(dmft);
+        when(dmft.getDocumentMapper()).thenReturn(dm);
+
+        ParsedDocument parsedDoc = mock(ParsedDocument.class);
+        when(parsedDoc.rootDoc()).thenReturn(new ParseContext.Document());
+        when(dm.parse(any())).thenReturn(parsedDoc);
+
+        // Use IngestPipelineExecutor with pre-resolved pipeline name
+        String resolvedPipeline = "_none".equals(finalPipeline) ? null : finalPipeline;
+        IngestPipelineExecutor pipelineExecutor = new IngestPipelineExecutor(ingestService, "test_index", resolvedPipeline);
+        return new MessageProcessorRunnable.MessageProcessor(engine, "test_index", pipelineExecutor);
+    }
+
+    /**
+     * Mocks IngestService.executeBulkRequest to simulate successful pipeline execution
+     * that modifies the document source (adds a field).
+     */
+    private void mockPipelineExecution(IngestService ingestService, String addedField, Object addedValue) {
+        doAnswer(invocation -> {
+            Iterable<DocWriteRequest<?>> requests = invocation.getArgument(1);
+            BiConsumer<Thread, Exception> onCompletion = invocation.getArgument(3);
+
+            // Simulate pipeline adding a field to the source
+            for (DocWriteRequest<?> req : requests) {
+                IndexRequest indexRequest = (IndexRequest) req;
+                java.util.Map<String, Object> sourceMap = indexRequest.sourceAsMap();
+                sourceMap.put(addedField, addedValue);
+                indexRequest.source(sourceMap);
+            }
+
+            onCompletion.accept(Thread.currentThread(), null);
+            return null;
+        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+    }
+
+    public void testProcessWithFinalPipeline() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+        mockPipelineExecution(ingestService, "pipeline_processed", true);
+
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "test-pipeline");
+
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        MessageProcessorRunnable.MessageOperation operation = proc.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        assertTrue(operation.engineOperation() instanceof Engine.Index);
+
+        // Verify IngestService was called
+        verify(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+    }
+
+    public void testProcessWithNoPipelines() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+
+        // final_pipeline = _none → no pipeline configured
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "_none");
+
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        MessageProcessorRunnable.MessageOperation operation = proc.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        assertTrue(operation.engineOperation() instanceof Engine.Index);
+
+        // IngestService should NOT be called when no pipelines configured
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+    }
+
+    public void testPipelineDropsDocument() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+
+        // Mock pipeline that drops the document
+        doAnswer(invocation -> {
+            IntConsumer onDropped = invocation.getArgument(4);
+            BiConsumer<Thread, Exception> onCompletion = invocation.getArgument(3);
+            onDropped.accept(0);
+            onCompletion.accept(Thread.currentThread(), null);
+            return null;
+        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "drop-pipeline");
+
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        MessageProcessorRunnable.MessageOperation operation = proc.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        // Dropped documents should return NoOp
+        assertTrue(operation.engineOperation() instanceof Engine.NoOp);
+    }
+
+    public void testPipelineMutatesId_Throws() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+
+        // Mock pipeline that changes _id
+        doAnswer(invocation -> {
+            Iterable<DocWriteRequest<?>> requests = invocation.getArgument(1);
+            BiConsumer<Thread, Exception> onCompletion = invocation.getArgument(3);
+            for (DocWriteRequest<?> req : requests) {
+                ((IndexRequest) req).id("changed_id");
+            }
+            onCompletion.accept(Thread.currentThread(), null);
+            return null;
+        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "mutate-id-pipeline");
+
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        IllegalStateException e = assertThrows(
+            IllegalStateException.class,
+            () -> proc.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
+        assertTrue(e.getMessage().contains("_id mutations are not allowed"));
+    }
+
+    public void testPipelineFailure() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+
+        // Mock pipeline that fails
+        doAnswer(invocation -> {
+            BiConsumer<Integer, Exception> onFailure = invocation.getArgument(2);
+            BiConsumer<Thread, Exception> onCompletion = invocation.getArgument(3);
+            onFailure.accept(0, new RuntimeException("Pipeline processor failed"));
+            onCompletion.accept(Thread.currentThread(), null);
+            return null;
+        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "fail-pipeline");
+
+        byte[] payload = "{\"_id\":\"1\",\"_source\":{\"name\":\"alice\"}}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        RuntimeException e = assertThrows(
+            RuntimeException.class,
+            () -> proc.getOperation(
+                new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+                MessageProcessorRunnable.MessageProcessorMetrics.create()
+            )
+        );
+        assertTrue(e.getCause().getMessage().contains("Ingest pipeline execution failed"));
+    }
+
+    public void testPipelineNotCalledForDeleteOperations() throws Exception {
+        IngestService ingestService = mock(IngestService.class);
+
+        MessageProcessorRunnable.MessageProcessor proc = createProcessorWithPipeline(ingestService, "test-pipeline");
+
+        byte[] payload = "{\"_id\":\"1\",\"_op_type\":\"delete\"}".getBytes(StandardCharsets.UTF_8);
+        FakeIngestionSource.FakeIngestionShardPointer pointer = new FakeIngestionSource.FakeIngestionShardPointer(0);
+
+        MessageProcessorRunnable.MessageOperation operation = proc.getOperation(
+            new ShardUpdateMessage(pointer, mock(Message.class), IngestionUtils.getParsedPayloadMap(payload), -1),
+            MessageProcessorRunnable.MessageProcessorMetrics.create()
+        );
+
+        assertTrue(operation.engineOperation() instanceof Engine.Delete);
+
+        // Pipeline should NOT be called for delete operations
+        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
     }
 }

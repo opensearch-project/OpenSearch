@@ -18,17 +18,20 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupSearchSettings.WlmSearchSetting;
 import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGroup> {
 
     private static final List<ResiliencyMode> allowedModes = List.of(ResiliencyMode.SOFT, ResiliencyMode.ENFORCED, ResiliencyMode.MONITOR);
+    public static final Map<String, String> TEST_WLM_SEARCH_SETTINGS = Map.of(WlmSearchSetting.TIMEOUT.getSettingName(), "30s");
 
     static WorkloadGroup createRandomWorkloadGroup(String _id) {
         String name = randomAlphaOfLength(10);
@@ -44,7 +47,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      *
-     * @param parser
+     * @param parser the XContentParser
      */
     @Override
     protected WorkloadGroup doParseInstance(XContentParser parser) throws IOException {
@@ -127,7 +130,7 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
     public void testWorkloadGroupInitiation() {
         WorkloadGroup workloadGroup = new WorkloadGroup(
             "analytics",
-            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4))
+            new MutableWorkloadGroupFragment(randomMode(), Map.of(ResourceType.MEMORY, 0.4), TEST_WLM_SEARCH_SETTINGS)
         );
         assertNotNull(workloadGroup.getName());
         assertNotNull(workloadGroup.get_id());
@@ -136,6 +139,8 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         assertEquals(1, workloadGroup.getResourceLimits().size());
         assertTrue(allowedModes.contains(workloadGroup.getResiliencyMode()));
         assertTrue(workloadGroup.getUpdatedAtInMillis() != 0);
+        assertNotNull(workloadGroup.getSearchSettings());
+        assertEquals(TEST_WLM_SEARCH_SETTINGS, workloadGroup.getSearchSettings());
     }
 
     public void testIllegalWorkloadGroupName() {
@@ -224,18 +229,24 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         WorkloadGroup workloadGroup = new WorkloadGroup(
             "TestWorkloadGroup",
             workloadGroupId,
-            new MutableWorkloadGroupFragment(ResiliencyMode.ENFORCED, Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40)),
+            new MutableWorkloadGroupFragment(
+                ResiliencyMode.ENFORCED,
+                Map.of(ResourceType.CPU, 0.30, ResourceType.MEMORY, 0.40),
+                TEST_WLM_SEARCH_SETTINGS
+            ),
             currentTimeInMillis
         );
         XContentBuilder builder = JsonXContent.contentBuilder();
         workloadGroup.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(
-            "{\"_id\":\""
-                + workloadGroupId
-                + "\",\"name\":\"TestWorkloadGroup\",\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},\"updated_at\":"
-                + currentTimeInMillis
-                + "}",
-            builder.toString()
+        String expected = String.format(
+            Locale.ROOT,
+            "{\"_id\":\"%s\",\"name\":\"TestWorkloadGroup\",\"resiliency_mode\":\"enforced\","
+                + "\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},"
+                + "\"search_settings\":{\"timeout\":\"30s\"},"
+                + "\"updated_at\":%d}",
+            workloadGroupId,
+            currentTimeInMillis
         );
+        assertEquals(expected, builder.toString());
     }
 }

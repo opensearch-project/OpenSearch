@@ -41,7 +41,6 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
@@ -105,6 +104,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING,
+                IndexMetadata.INDEX_NUMBER_OF_VIRTUAL_SHARDS_SETTING,
                 IndexMetadata.INDEX_READ_ONLY_SETTING,
                 IndexMetadata.INDEX_BLOCKS_READ_SETTING,
                 IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
@@ -291,6 +291,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INGESTION_SOURCE_POINTER_BASED_LAG_UPDATE_INTERVAL_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING,
                 IndexMetadata.INGESTION_SOURCE_MAPPER_SETTINGS,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_TIMEOUT_SETTING,
+                IndexMetadata.INGESTION_SOURCE_WARMUP_LAG_THRESHOLD_SETTING,
 
                 // Settings for search replica
                 IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING,
@@ -301,6 +303,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 // Setting for derived source feature
                 IndexSettings.INDEX_DERIVED_SOURCE_SETTING,
                 IndexSettings.INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING,
+
+                // Writable warm / tiering settings - always registered so nodes can parse
+                // index metadata even when the feature flag is disabled
+                IndexModule.INDEX_STORE_LOCALITY_SETTING,
+                IndexModule.INDEX_TIERING_STATE,
+                IndexModule.IS_WARM_INDEX_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -324,11 +332,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
-    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG,
-        // TODO: Create a separate feature flag for hot tiering index state.
-        List.of(IndexModule.INDEX_STORE_LOCALITY_SETTING, IndexModule.INDEX_TIERING_STATE, IndexModule.IS_WARM_INDEX_SETTING)
-    );
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of();
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
