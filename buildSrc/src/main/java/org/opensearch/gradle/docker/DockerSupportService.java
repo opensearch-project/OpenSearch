@@ -51,16 +51,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with OpenSearch Docker image build
@@ -287,27 +284,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         });
 
         return values;
-    }
-
-    /**
-     * Visible for testing
-     *
-     * If the system is of Unix family it converts the PATH string to array, combines it with fallback
-     * path removing duplicates and returns it as array.
-     *
-     * @return an array containing PATH locations
-     */
-    static String[] getUnixPath(String pathEnvString, String[] fallbackPath) {
-        if (!Os.isFamily(Os.FAMILY_WINDOWS) && pathEnvString instanceof String) {
-            String[] resolvedUnixPath = pathEnvString.split(":");
-            Stream<String> filteredUnixPath = Arrays.stream(resolvedUnixPath).filter(path -> path.length() > 0);
-            return Stream.concat(filteredUnixPath, Arrays.stream(fallbackPath))
-                // LinkedHashSet removes duplicates and keeps the order
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .toArray(String[]::new);
-        }
-
-        return fallbackPath;
     }
 
     /**

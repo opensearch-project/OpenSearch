@@ -43,6 +43,7 @@ import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
 import org.opensearch.gradle.docker.DockerSupportService.DockerAvailability;
+import org.opensearch.gradle.docker.DockerSupportService.DockerComposeAvailability;
 import org.opensearch.gradle.docker.DockerSupportService.DockerComposeV2Availability;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.TestingConventionsTasks;
@@ -157,7 +158,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
             DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
             if (dockerAvailability.isAvailable) {
-                String dockerComposePath = dockerAvailability.dockerComposeAvailability.getPath();
+                DockerComposeAvailability dockerComposeAvailability = dockerAvailability.dockerComposeAvailability;
+                String dockerComposePath = dockerComposeAvailability != null ? dockerComposeAvailability.getPath() : null;
                 composeExtension.getExecutable().set(dockerComposePath != null ? dockerComposePath : dockerAvailability.path);
             }
 

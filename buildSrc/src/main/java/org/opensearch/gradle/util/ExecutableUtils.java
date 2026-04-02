@@ -67,7 +67,8 @@ public class ExecutableUtils {
         }
 
         String pathEnvString = System.getenv("PATH");
-        cachedPathEnv = parsePathString((pathEnvString));
+
+        cachedPathEnv = pathEnvString != null ? parsePathString(pathEnvString) : new String[0];
         return cachedPathEnv;
     }
 
