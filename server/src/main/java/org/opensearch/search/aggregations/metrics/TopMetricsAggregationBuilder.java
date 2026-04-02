@@ -20,6 +20,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationInitializationException;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
 
@@ -132,11 +133,22 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             throw new ParsingException(null, "[" + SORT_FIELD.getPreferredName() + "] is required for aggregation [" + name + "]");
         }
         final Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, queryShardContext);
+        boolean scoreSortFallback = false;
+        if (optionalSort.isPresent() == false) {
+            scoreSortFallback = sorts.stream().allMatch(sortBuilder -> sortBuilder instanceof ScoreSortBuilder);
+            if (scoreSortFallback == false) {
+                throw new ParsingException(
+                    null,
+                    "[" + SORT_FIELD.getPreferredName() + "] is required for aggregation [" + name + "] and could not be resolved"
+                );
+            }
+        }
         return new TopMetricsAggregatorFactory(
             name,
             List.copyOf(metricFields),
             size,
             optionalSort,
+            scoreSortFallback,
             queryShardContext,
             parent,
             subfactoriesBuilder,

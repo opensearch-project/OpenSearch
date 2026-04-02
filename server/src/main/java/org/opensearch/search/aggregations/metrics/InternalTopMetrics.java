@@ -60,8 +60,14 @@ public class InternalTopMetrics extends InternalAggregation {
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        if (aggregations.isEmpty()) {
+            throw new IllegalStateException("[top_metrics] reduce requires at least one aggregation");
+        }
         List<InternalAggregation> topHitsAggs = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
+            if ((aggregation instanceof InternalTopMetrics) == false) {
+                throw new IllegalStateException("Expected InternalTopMetrics but got [" + aggregation.getClass().getName() + "]");
+            }
             topHitsAggs.add(((InternalTopMetrics) aggregation).topHits);
         }
         InternalTopHits reducedTopHits = (InternalTopHits) topHitsAggs.get(0).reduce(topHitsAggs, reduceContext);
@@ -125,5 +131,13 @@ public class InternalTopMetrics extends InternalAggregation {
         if (super.equals(obj) == false) return false;
         InternalTopMetrics that = (InternalTopMetrics) obj;
         return Objects.equals(topHits, that.topHits) && Objects.equals(metricFields, that.metricFields);
+    }
+
+    InternalTopHits getTopHits() {
+        return topHits;
+    }
+
+    List<String> getMetricFields() {
+        return metricFields;
     }
 }

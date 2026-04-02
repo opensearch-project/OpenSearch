@@ -36,12 +36,14 @@ class TopMetricsAggregatorFactory extends AggregatorFactory {
     private final List<String> metricFields;
     private final int size;
     private final Optional<SortAndFormats> sort;
+    private final boolean scoreSortFallback;
 
     TopMetricsAggregatorFactory(
         String name,
         List<String> metricFields,
         int size,
         Optional<SortAndFormats> sort,
+        boolean scoreSortFallback,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
@@ -51,6 +53,7 @@ class TopMetricsAggregatorFactory extends AggregatorFactory {
         this.metricFields = metricFields;
         this.size = size;
         this.sort = sort;
+        this.scoreSortFallback = scoreSortFallback;
     }
 
     @Override
@@ -68,9 +71,14 @@ class TopMetricsAggregatorFactory extends AggregatorFactory {
         subSearchContext.explain(false);
         subSearchContext.version(false);
         subSearchContext.seqNoAndPrimaryTerm(false);
-        subSearchContext.trackScores(false);
         if (sort.isPresent()) {
-            subSearchContext.sort(sort.get());
+            SortAndFormats sortAndFormats = sort.get();
+            subSearchContext.sort(sortAndFormats);
+            subSearchContext.trackScores(sortAndFormats.sort.needsScores());
+        } else if (scoreSortFallback) {
+            subSearchContext.trackScores(true);
+        } else {
+            throw new IllegalStateException("[top_metrics] requires a valid sort but none could be resolved");
         }
 
         List<FieldAndFormat> docValueFields = new ArrayList<>(metricFields.size());

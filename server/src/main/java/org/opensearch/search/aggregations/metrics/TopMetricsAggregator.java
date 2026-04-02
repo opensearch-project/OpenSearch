@@ -42,7 +42,8 @@ class TopMetricsAggregator extends MetricsAggregator {
     ) throws IOException {
         super(name, context, parent, metadata);
         this.metricFields = List.copyOf(metricFields);
-        this.delegate = new TopHitsAggregator(fetchPhase, subSearchContext, name, context, parent, metadata);
+        // Attach the delegate under this wrapper aggregator to avoid sibling registration on the original parent.
+        this.delegate = new TopHitsAggregator(fetchPhase, subSearchContext, name, context, this, metadata);
     }
 
     @Override
@@ -67,8 +68,4 @@ class TopMetricsAggregator extends MetricsAggregator {
         return new InternalTopMetrics(name, topHits, metricFields, metadata());
     }
 
-    @Override
-    protected void doClose() {
-        delegate.close();
-    }
 }
