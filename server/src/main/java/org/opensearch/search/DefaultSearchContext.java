@@ -1347,6 +1347,14 @@ final class DefaultSearchContext extends SearchContext {
         this.streamingMode = mode;
     }
 
+    @Override
+    public int getStreamingBatchSize() {
+        if (clusterService == null) {
+            return SearchService.STREAMING_SEARCH_BATCH_SIZE.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(SearchService.STREAMING_SEARCH_BATCH_SIZE);
+    }
+
     /**
      * Disables streaming for this search context.
      * Used when streaming cost analysis determines traditional processing is more efficient.

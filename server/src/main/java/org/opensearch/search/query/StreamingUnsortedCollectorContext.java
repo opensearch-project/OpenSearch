@@ -18,6 +18,8 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.streaming.FlushMode;
 
@@ -26,9 +28,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Streaming collector context for NO_SCORING mode.
- */
 public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
     private static final Logger logger = LogManager.getLogger(StreamingUnsortedCollectorContext.class);
@@ -121,6 +120,11 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
         @Override
         public LeafCollector getLeafCollector(org.apache.lucene.index.LeafReaderContext context) throws IOException {
             emitSegmentBatch(false);
+
+            final int batchSize = searchContext != null
+                ? searchContext.getStreamingBatchSize()
+                : SearchService.STREAMING_SEARCH_BATCH_SIZE.getDefault(Settings.EMPTY);
+
             return new LeafCollector() {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {}
@@ -134,6 +138,10 @@ public class StreamingUnsortedCollectorContext extends TopDocsCollectorContext {
 
                     if (firstK.size() < numHits()) {
                         firstK.add(scoreDoc);
+                    }
+
+                    if (currentSegmentBatch.size() >= batchSize) {
+                        emitSegmentBatch(false);
                     }
                 }
             };

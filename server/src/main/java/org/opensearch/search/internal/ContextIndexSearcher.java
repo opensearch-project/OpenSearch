@@ -348,17 +348,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             weight = wrapWeight(weight);
             // See please https://github.com/apache/lucene/pull/964
             collector.setWeight(weight);
-
-            // Ensure previous segment is finalized and aggregators are reset before starting a new segment
-            if (searchContext.isStreamSearch()
-                && searchContext.getFlushMode() == FlushMode.PER_SEGMENT
-                && searchContext.getStreamChannelListener() != null) {
-                List<InternalAggregation> preLeafBatch = searchContext.bucketCollectorProcessor().buildAggBatch(collector);
-                if (!preLeafBatch.isEmpty()) {
-                    sendBatch(preLeafBatch);
-                }
-            }
-
             leafCollector = collector.getLeafCollector(ctx);
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context

@@ -460,6 +460,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    public static final Setting<Integer> STREAMING_SEARCH_BATCH_SIZE = Setting.intSetting(
+        "search.streaming.batch_size",
+        500,
+        1,
+        10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
