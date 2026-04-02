@@ -43,7 +43,6 @@ import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
 import org.opensearch.gradle.docker.DockerSupportService.DockerAvailability;
-import org.opensearch.gradle.docker.DockerSupportService.DockerComposeAvailability;
 import org.opensearch.gradle.docker.DockerSupportService.DockerComposeV2Availability;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.TestingConventionsTasks;
