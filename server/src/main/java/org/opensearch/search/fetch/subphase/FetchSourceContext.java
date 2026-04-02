@@ -196,11 +196,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         includes = parseSourceArray(parser).toArray(new String[0]);
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = parseSourceArray(parser).toArray(new String[0]);
-                    }
-                    else {
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "]."
@@ -209,23 +207,18 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = new String[]{parser.text()};
-                    }
-                    else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = new String[]{parser.text()};
-                    }
-                    else {
+                        includes = new String[] { parser.text() };
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        excludes = new String[] { parser.text() };
+                    } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + currentFieldName + "]."
                         );
                     }
                 }
-                default ->  {
-                    throw new ParsingException(
-                        parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + currentFieldName + "]."
-                    );
+                default -> {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].");
                 }
             }
         }
@@ -237,8 +230,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 sourceArr.add(parser.text());
-            }
-            else {
+            } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),
                     "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "]."
