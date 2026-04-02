@@ -32,24 +32,23 @@ import java.util.List;
  */
 public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRelNode {
 
-    private final String backend;
-    private final ShuffleImpl shuffleImpl;  // null for SINGLETON (transport, not shuffle)
-    private final List<Integer> keys;       // empty for SINGLETON
+    private final List<String> viableBackends;
+    private final ShuffleImpl shuffleImpl;
+    private final List<Integer> keys;
 
     public OpenSearchExchangeWriter(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
-                                    String backend, ShuffleImpl shuffleImpl, List<Integer> keys) {
+                                    List<String> viableBackends, ShuffleImpl shuffleImpl, List<Integer> keys) {
         super(cluster, traitSet, input);
-        this.backend = backend;
+        this.viableBackends = viableBackends;
         this.shuffleImpl = shuffleImpl;
         this.keys = keys;
     }
 
     @Override
-    public String getBackend() {
-        return backend;
+    public List<String> getViableBackends() {
+        return viableBackends;
     }
 
-    /** Null for SINGLETON (uses Analytics Core transport). FILE or STREAM for shuffle. */
     public ShuffleImpl getShuffleImpl() {
         return shuffleImpl;
     }
@@ -63,14 +62,6 @@ public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRel
     }
 
     @Override
-    public List<String> getViableBackends() {
-        if (getInput() instanceof OpenSearchRelNode openSearchInput) {
-            return openSearchInput.getViableBackends();
-        }
-        return List.of();
-    }
-
-    @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
         if (getInput() instanceof OpenSearchRelNode openSearchInput) {
             return openSearchInput.getOutputFieldStorage();
@@ -81,7 +72,7 @@ public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRel
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
         return new OpenSearchExchangeWriter(getCluster(), traitSet, sole(inputs),
-            backend, shuffleImpl, keys);
+            viableBackends, shuffleImpl, keys);
     }
 
     @Override
@@ -91,7 +82,7 @@ public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRel
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        RelWriter writer = super.explainTerms(pw).item("backend", backend);
+        RelWriter writer = super.explainTerms(pw).item("viableBackends", viableBackends);
         if (shuffleImpl != null) {
             writer.item("shuffleImpl", shuffleImpl).item("keys", keys);
         }

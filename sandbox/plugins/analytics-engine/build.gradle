@@ -127,3 +127,44 @@ internalClusterTest {
   systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 }
+
+// ---- JMH benchmark source set ----
+sourceSets {
+  jmh {
+    java.srcDirs = ['src/jmh/java']
+    compileClasspath += sourceSets.main.output + sourceSets.test.output
+    runtimeClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.test.runtimeClasspath
+  }
+}
+
+dependencies {
+  jmhImplementation "org.openjdk.jmh:jmh-core:${versions.jmh}"
+  jmhAnnotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:${versions.jmh}"
+  jmhImplementation project(':sandbox:libs:analytics-framework')
+  jmhImplementation project(':server')
+  jmhImplementation project(':test:framework')
+  jmhImplementation "com.google.guava:guava:${versions.guava}"
+}
+
+// JMH generated code uses forbidden APIs — skip checking
+tasks.matching { it.name == 'forbiddenApisJmh' }.configureEach { enabled = false }
+
+tasks.named('compileJmhJava').configure {
+  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
+}
+
+tasks.register('jmh', JavaExec) {
+  dependsOn jmhClasses
+  mainClass = 'org.openjdk.jmh.Main'
+  classpath = sourceSets.jmh.runtimeClasspath
+  if (project.hasProperty('jmh.includes')) {
+    args project.property('jmh.includes')
+  }
+}
+
+spotless {
+  java {
+    targetExclude 'src/jmh/generated/**/*.java'
+  }
+}

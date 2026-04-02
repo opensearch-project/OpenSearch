@@ -24,20 +24,13 @@ import java.util.List;
  */
 public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
-    private final String backend;
     private final List<String> viableBackends;
 
     public OpenSearchSort(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
                           RelCollation collation, RexNode offset, RexNode fetch,
-                          String backend, List<String> viableBackends) {
+                          List<String> viableBackends) {
         super(cluster, traitSet, input, collation, offset, fetch);
-        this.backend = backend;
         this.viableBackends = viableBackends;
-    }
-
-    @Override
-    public String getBackend() {
-        return backend;
     }
 
     @Override
@@ -56,7 +49,7 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     @Override
     public Sort copy(RelTraitSet traitSet, RelNode input, RelCollation collation, RexNode offset, RexNode fetch) {
-        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, backend, viableBackends);
+        return new OpenSearchSort(getCluster(), traitSet, input, collation, offset, fetch, viableBackends);
     }
 
     @Override
@@ -67,6 +60,6 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("backend", backend).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 }

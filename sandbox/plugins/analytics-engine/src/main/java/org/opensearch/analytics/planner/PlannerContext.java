@@ -9,38 +9,29 @@
 package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.ClusterState;
-
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Shared context available to all planner rules.
- * Holds cluster state and backend plugins. Rules consult this
- * to extract index metadata, mappings, and backend capabilities
- * for whichever tables they encounter.
+ * Holds capability registry (singleton, built at plugin startup) and
+ * per-query cluster state.
  *
  * @opensearch.internal
  */
 public class PlannerContext {
 
-    private final Map<String, AnalyticsSearchBackendPlugin> backends;
+    private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
 
-    public PlannerContext(List<AnalyticsSearchBackendPlugin> backends, ClusterState clusterState) {
-        this.backends = new LinkedHashMap<>();
-        for (AnalyticsSearchBackendPlugin b : backends) {
-            this.backends.put(b.name(), b);
-        }
+    public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
+        this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
     }
 
-    public Map<String, AnalyticsSearchBackendPlugin> getBackends() {
-        return backends;
+    public CapabilityRegistry getCapabilityRegistry() {
+        return capabilityRegistry;
     }
 
     public ClusterState getClusterState() {

@@ -22,24 +22,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.FullTextFunctions;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FieldTypeFamily;
-import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.FullTextOperator;
 import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Converts {@link Filter} → {@link OpenSearchFilter}.
@@ -81,34 +80,31 @@ public class OpenSearchFilterRule extends RelOptRule {
                     + "]. Ensure all child operators are marked before filter.");
         }
 
-        String childBackend = openSearchInput.getBackend();
+        List<String> childViableBackends = openSearchInput.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
         RelDataType inputRowType = child.getRowType();
 
         // Annotate every leaf predicate with viable backends
-        RexNode annotatedCondition = annotateCondition(filter.getCondition(), inputRowType, childFieldStorage);
+        RexNode annotatedCondition = annotateCondition(filter.getCondition(), inputRowType,
+            childFieldStorage, childViableBackends);
 
-        // Compute operator-level viable backends from per-predicate annotations + delegation
-        List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childBackend);
+        // Compute operator-level viable backends: must be viable for child AND handle predicates
+        List<String> viableBackends = computeFilterViableBackends(annotatedCondition, childViableBackends);
 
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException(
-                "No backend can execute filter: child backend [" + childBackend
-                    + "] cannot evaluate all predicates and no delegation path exists");
+                "No backend can execute filter: no viable backend among " + childViableBackends
+                    + " can evaluate all predicates and no delegation path exists");
         }
 
-        // Preferred backend: child if viable, otherwise first viable
-        String filterBackend = viableBackends.contains(childBackend)
-            ? childBackend
-            : viableBackends.getFirst();
+        LOGGER.debug("Filter viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
         call.transformTo(new OpenSearchFilter(
             filter.getCluster(),
             child.getTraitSet(),
             RelNodeUtils.unwrapHep(filter.getInput()),
             annotatedCondition,
-            filterBackend,
             viableBackends
         ));
     }
@@ -121,18 +117,19 @@ public class OpenSearchFilterRule extends RelOptRule {
      * {@link AnnotatedPredicate} with viable backends resolved from child's field storage.
      */
     private RexNode annotateCondition(RexNode condition, RelDataType inputRowType,
-                                      List<FieldStorageInfo> fieldStorage) {
+                                      List<FieldStorageInfo> fieldStorage,
+                                      List<String> childViableBackends) {
         if (!(condition instanceof RexCall rexCall)) {
             return condition;
         }
         if (rexCall.getKind() == SqlKind.AND || rexCall.getKind() == SqlKind.OR || rexCall.getKind() == SqlKind.NOT) {
             List<RexNode> annotatedOperands = new ArrayList<>();
             for (RexNode operand : rexCall.getOperands()) {
-                annotatedOperands.add(annotateCondition(operand, inputRowType, fieldStorage));
+                annotatedOperands.add(annotateCondition(operand, inputRowType, fieldStorage, childViableBackends));
             }
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
-        List<String> viableBackends = resolveViableBackends(rexCall, inputRowType, fieldStorage);
+        List<String> viableBackends = resolveViableBackends(rexCall, inputRowType, fieldStorage, childViableBackends);
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends);
     }
 
@@ -143,82 +140,78 @@ public class OpenSearchFilterRule extends RelOptRule {
      * Intersects across all referenced fields.
      */
     private List<String> resolveViableBackends(RexCall predicate, RelDataType inputRowType,
-                                               List<FieldStorageInfo> fieldStorage) {
-        // TODO : Try collapsing in one pass
+                                               List<FieldStorageInfo> fieldStorage,
+                                               List<String> childViableBackends) {
         Set<Integer> fieldIndices = new HashSet<>();
         collectFieldIndices(predicate, fieldIndices);
+
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+
         if (fieldIndices.isEmpty()) {
-            // No field refs (e.g. literal expression) — all backends with FILTER capability
-            return context.getBackends().values().stream()
-                .filter(backend -> backend.supportedOperators().contains(OperatorCapability.FILTER))
-                .map(AnalyticsSearchBackendPlugin::name)
-                .collect(Collectors.toList());
+            return new ArrayList<>(registry.operatorBackends(OperatorCapability.FILTER));
         }
 
-        FilterOperator filterOp = FilterOperator.fromSqlKind(predicate.getKind());
-
-        // Check if this is a full-text function (MATCH, MATCH_PHRASE, etc.)
-        FullTextOperator fullTextOp = null;
+        FilterOperator operator = null;
         if (predicate.getOperator() instanceof SqlFunction sqlFunction) {
-            fullTextOp = FullTextFunctions.toFullTextOperator(sqlFunction);
+            operator = FullTextFunctions.toFilterOperator(sqlFunction);
+        }
+        if (operator == null) {
+            operator = FilterOperator.fromSqlKind(predicate.getKind());
+        }
+        if (operator == null) {
+            throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
         }
 
-        // Start with all backends that have FILTER capability, intersect per field
-        Set<String> viableSet = new HashSet<>();
-        for (AnalyticsSearchBackendPlugin backend : context.getBackends().values()) {
-            if (backend.supportedOperators().contains(OperatorCapability.FILTER)) {
-                viableSet.add(backend.name());
-            }
-        }
+        Set<String> viableSet = new HashSet<>(registry.operatorBackends(OperatorCapability.FILTER));
 
         for (int fieldIndex : fieldIndices) {
             if (fieldIndex >= fieldStorage.size()) {
                 continue;
             }
             FieldStorageInfo storageInfo = fieldStorage.get(fieldIndex);
-
-            // Derived/expression column — only backends that can filter on expressions
-            if (storageInfo.isDerived()) {
-                viableSet.retainAll(
-                    context.getBackends().values().stream()
-                        .filter(b -> b.supportedOperators().contains(OperatorCapability.FILTER_ON_EXPRESSIONS))
-                        .map(AnalyticsSearchBackendPlugin::name)
-                        .collect(Collectors.toSet())
-                );
-                continue;
+            FieldType fieldType = storageInfo.getFieldType();
+            if (fieldType == null) {
+                throw new IllegalStateException("Unrecognized field type [" + storageInfo.getMappingType()
+                    + "] for field [" + storageInfo.getFieldName() + "]");
             }
-            FieldTypeFamily typeFamily = FieldTypeFamily.fromMappingType(storageInfo.getFieldType());
-            final FullTextOperator finalFullTextOp = fullTextOp;
 
+            // TODO: for FULL_TEXT operators, extract required params from RexCall
+            // and use registry.fullTextFilterBackends() instead
             Set<String> fieldViable = new HashSet<>();
-            for (AnalyticsSearchBackendPlugin backend : context.getBackends().values()) {
-                if (!viableSet.contains(backend.name())) {
-                    continue;
+            if (storageInfo.isDerived()) {
+                // Derived column — only child viable backends + their delegation targets
+                List<String> anyFormat = registry.filterBackendsAnyFormat(operator, fieldType);
+                List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
+                for (String name : childViableBackends) {
+                    if (anyFormat.contains(name)) {
+                        fieldViable.add(name);
+                    }
                 }
-
-                boolean formatMatch = backend.getSupportedFormats().stream().anyMatch(format ->
-                    storageInfo.getDocValueFormats().contains(format.name())
-                        || storageInfo.getIndexFormats().contains(format.name())
-                );
-
-                // Full-text ops require the backend to support that specific operator
-                // AND the field must have an index (full-text needs inverted index)
-                boolean operatorMatch;
-                if (finalFullTextOp != null) {
-                    operatorMatch = backend.supportedFullTextOperators().contains(finalFullTextOp)
-                        && storageInfo.hasIndex();
-                } else if (filterOp != null && typeFamily != null) {
-                    operatorMatch = backend.supportedFilterCapabilities()
-                        .contains(FilterCapability.of(filterOp, typeFamily));
-                } else {
-                    // Unknown operator or unrecognized field type — accept if backend has FILTER
-                    operatorMatch = true;
+                // Delegation targets reachable from child viable backends
+                List<String> delegationSupporters = registry.delegationSupporters(DelegationType.FILTER);
+                if (childViableBackends.stream().anyMatch(delegationSupporters::contains)) {
+                    for (String name : anyFormat) {
+                        if (!fieldViable.contains(name) && delegationAcceptors.contains(name)) {
+                            fieldViable.add(name);
+                        }
+                    }
                 }
-
-                if (formatMatch && operatorMatch) {
-                    fieldViable.add(backend.name());
+            } else {
+                // Format-aware: backends that can access the field's data
+                for (String format : storageInfo.getDocValueFormats()) {
+                    fieldViable.addAll(registry.filterBackends(operator, fieldType, format));
+                }
+                for (String format : storageInfo.getIndexFormats()) {
+                    fieldViable.addAll(registry.filterBackends(operator, fieldType, format));
+                }
+                // Format-agnostic: delegation targets that can evaluate but don't need data access
+                for (String name : registry.filterBackendsAnyFormat(operator, fieldType)) {
+                    if (!fieldViable.contains(name)) {
+                        fieldViable.add(name);
+                    }
                 }
             }
+
             viableSet.retainAll(fieldViable);
         }
 
@@ -226,7 +219,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             throw new IllegalStateException("No backend can evaluate filter predicate ["
                 + predicate.getKind() + "] on fields " + fieldIndices.stream()
                     .filter(i -> i < fieldStorage.size())
-                    .map(i -> fieldStorage.get(i).getFieldName() + ":" + fieldStorage.get(i).getFieldType())
+                    .map(i -> fieldStorage.get(i).getFieldName() + ":" + fieldStorage.get(i).getMappingType())
                     .toList());
         }
         return new ArrayList<>(viableSet);
@@ -254,55 +247,40 @@ public class OpenSearchFilterRule extends RelOptRule {
      *    (child supports FILTER delegation, this backend accepts it, and this backend
      *    can handle all predicates natively).
      */
-    private List<String> computeFilterViableBackends(RexNode annotatedCondition, String childBackend) {
+    private List<String> computeFilterViableBackends(RexNode annotatedCondition,
+                                                     List<String> childViableBackends) {
         List<AnnotatedPredicate> predicates = new ArrayList<>();
         collectAnnotatedPredicates(annotatedCondition, predicates);
 
         if (predicates.isEmpty()) {
-            return new ArrayList<>(context.getBackends().keySet());
+            return new ArrayList<>(childViableBackends);
         }
 
-        AnalyticsSearchBackendPlugin childPlugin = context.getBackends().get(childBackend);
         List<String> viable = new ArrayList<>();
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.FILTER);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.FILTER);
 
-        for (AnalyticsSearchBackendPlugin candidate : context.getBackends().values()) {
-            if (!candidate.supportedOperators().contains(OperatorCapability.FILTER)) {
+        for (String candidateName : childViableBackends) {
+            if (!registry.operatorBackends(OperatorCapability.FILTER).contains(candidateName)) {
                 continue;
-            }
-
-            boolean isChild = candidate.name().equals(childBackend);
-
-            // Non-child backend: only viable if child can delegate entire filter to it
-            // and it accepts delegation and can handle all predicates natively
-            if (!isChild) {
-                if (childPlugin == null
-                    || !childPlugin.supportedDelegations().contains(DelegationType.FILTER)
-                    || !candidate.acceptedDelegations().contains(DelegationType.FILTER)) {
-                    continue;
-                }
             }
 
             boolean canHandleAll = true;
             for (AnnotatedPredicate predicate : predicates) {
                 List<String> predViable = predicate.getViableBackends();
-                if (predViable.contains(candidate.name())) {
+                if (predViable.contains(candidateName)) {
                     continue;
                 }
-                // Child backend can delegate individual predicates
-                if (isChild && candidate.supportedDelegations().contains(DelegationType.FILTER)) {
-                    boolean someoneAccepts = predViable.stream().anyMatch(backendName -> {
-                        AnalyticsSearchBackendPlugin other = context.getBackends().get(backendName);
-                        return other != null && other.acceptedDelegations().contains(DelegationType.FILTER);
-                    });
-                    if (someoneAccepts) {
-                        continue;
-                    }
+                if (delegationSupporters.contains(candidateName)
+                        && predViable.stream().anyMatch(delegationAcceptors::contains)) {
+                    continue;
                 }
                 canHandleAll = false;
                 break;
             }
             if (canHandleAll) {
-                viable.add(candidate.name());
+                viable.add(candidateName);
             }
         }
         return viable;
