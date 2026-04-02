@@ -42,6 +42,7 @@ public final class ReaderHandle extends NativeHandle {
 
     /**
      * Wraps a pre-existing native pointer without taking ownership (test only).
+     * @param existingPtr the native pointer to wrap
      */
     public static ReaderHandle wrap(long existingPtr) {
         return new ReaderHandle(existingPtr);

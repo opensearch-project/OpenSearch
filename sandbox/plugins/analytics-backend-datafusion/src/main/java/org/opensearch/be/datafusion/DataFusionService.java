@@ -53,6 +53,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.cpuThreads = builder.cpuThreads;
     }
 
+    /** Creates a new builder. */
     public static Builder builder() {
         return new Builder();
     }
@@ -124,6 +125,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Notifies the native cache that new files are available for caching.
+     * @param filePaths absolute paths of the new files
      */
     public void onFilesAdded(Collection<String> filePaths) {
         if (filePaths == null || filePaths.isEmpty()) return;
@@ -136,6 +138,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     /**
      * Notifies the native cache that files have been deleted and should be evicted.
+     * @param filePaths absolute paths of the deleted files
      */
     public void onFilesDeleted(Collection<String> filePaths) {
         if (filePaths == null || filePaths.isEmpty()) return;
@@ -166,26 +169,43 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
         private Builder() {}
 
+        /**
+         * Sets the maximum bytes for the DataFusion memory pool.
+         * @param bytes memory limit
+         */
         public Builder memoryPoolLimit(long bytes) {
             this.memoryPoolLimit = bytes;
             return this;
         }
 
+        /**
+         * Sets the maximum bytes before spilling to disk.
+         * @param bytes spill limit
+         */
         public Builder spillMemoryLimit(long bytes) {
             this.spillMemoryLimit = bytes;
             return this;
         }
 
+        /**
+         * Sets the directory for spill files.
+         * @param path spill directory
+         */
         public Builder spillDirectory(String path) {
             this.spillDirectory = path;
             return this;
         }
 
+        /**
+         * Sets the number of CPU threads for the dedicated executor.
+         * @param threads CPU thread count
+         */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
             return this;
         }
 
+        /** Builds the {@link DataFusionService}. */
         public DataFusionService build() {
             return new DataFusionService(this);
         }

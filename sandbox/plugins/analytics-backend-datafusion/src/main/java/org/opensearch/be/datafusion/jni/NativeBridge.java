@@ -156,6 +156,7 @@ public final class NativeBridge {
 
     /**
      * Deliberately panics in native code (test only). Used to verify panic catching.
+     * @param message the panic message
      */
     public static native void testPanic(String message);
 
