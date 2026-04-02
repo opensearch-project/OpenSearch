@@ -156,11 +156,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
             final Integer timeout = ext.has("dockerComposeHttpTimeout") ? (Integer) ext.get("dockerComposeHttpTimeout") : 120;
             composeExtension.getEnvironment().put("COMPOSE_HTTP_TIMEOUT", timeout);
 
-            DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
-            if (dockerAvailability.isAvailable) {
-                DockerComposeAvailability dockerComposeAvailability = dockerAvailability.dockerComposeAvailability;
-                String dockerComposePath = dockerComposeAvailability != null ? dockerComposeAvailability.getPath() : null;
-                composeExtension.getExecutable().set(dockerComposePath != null ? dockerComposePath : dockerAvailability.path);
+            final DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
+            if (dockerAvailability.isAvailable && dockerAvailability.isDockerComposeAvailable()) {
+                composeExtension.getExecutable().set(dockerAvailability.dockerComposeAvailability.getPath());
             }
 
             composeExtension.getUseDockerComposeV2()
