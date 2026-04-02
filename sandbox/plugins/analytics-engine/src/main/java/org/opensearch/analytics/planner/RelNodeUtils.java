@@ -57,20 +57,20 @@ public class RelNodeUtils {
 
         if (node instanceof OpenSearchTableScan scan) {
             return new OpenSearchTableScan(newCluster, newTraits, scan.getTable(),
-                scan.getBackend(), scan.getViableBackends(), scan.getOutputFieldStorage());
+                scan.getViableBackends(), scan.getOutputFieldStorage());
         } else if (node instanceof OpenSearchFilter filter) {
             return new OpenSearchFilter(newCluster, newTraits, newInputs.getFirst(),
-                filter.getCondition(), filter.getBackend(), filter.getViableBackends());
+                filter.getCondition(), filter.getViableBackends());
         } else if (node instanceof OpenSearchAggregate aggregate) {
             return new OpenSearchAggregate(newCluster, newTraits, newInputs.getFirst(),
                 aggregate.getGroupSet(), aggregate.getGroupSets(), aggregate.getAggCallList(),
-                aggregate.getMode(), aggregate.getBackend(), aggregate.getViableBackends());
+                aggregate.getMode(), aggregate.getViableBackends());
         } else if (node instanceof OpenSearchSort sort) {
             return new OpenSearchSort(newCluster, newTraits, newInputs.getFirst(),
-                sort.getCollation(), sort.offset, sort.fetch, sort.getBackend(), sort.getViableBackends());
+                sort.getCollation(), sort.offset, sort.fetch, sort.getViableBackends());
         } else if (node instanceof OpenSearchProject project) {
             return new OpenSearchProject(newCluster, newTraits, newInputs.getFirst(),
-                project.getProjects(), project.getRowType(), project.getBackend());
+                project.getProjects(), project.getRowType(), project.getViableBackends());
         }
 
         throw new UnsupportedOperationException("Cannot copy node type: " + node.getClass().getSimpleName());

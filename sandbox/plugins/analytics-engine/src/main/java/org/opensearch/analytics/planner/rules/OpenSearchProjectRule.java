@@ -15,13 +15,14 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
+import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
@@ -58,11 +59,19 @@ public class OpenSearchProjectRule extends RelOptRule {
                 "Project rule encountered unmarked child [" + child.getClass().getSimpleName() + "]");
         }
 
-        String backend = openSearchChild.getBackend();
+        List<String> childViableBackends = openSearchChild.getViableBackends();
 
+        // TODO: precompute SqlKind → viable backends map to avoid repeated filtering per node
+        // TODO: reuse childViableBackends list when all candidates pass instead of allocating
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
         for (RexNode expr : project.getProjects()) {
-            annotatedExprs.add(annotateExpr(expr, backend));
+            annotatedExprs.add(annotateExpr(expr, childViableBackends));
+        }
+
+        List<String> viableBackends = computeProjectViableBackends(annotatedExprs, childViableBackends);
+        if (viableBackends.isEmpty()) {
+            throw new IllegalStateException(
+                "No backend can execute all project expressions among " + childViableBackends);
         }
 
         call.transformTo(new OpenSearchProject(
@@ -71,49 +80,41 @@ public class OpenSearchProjectRule extends RelOptRule {
             RelNodeUtils.unwrapHep(project.getInput()),
             annotatedExprs,
             project.getRowType(),
-            backend
+            viableBackends
         ));
     }
 
-    private RexNode annotateExpr(RexNode expr, String backend) {
+    private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
         if (!(expr instanceof RexCall rexCall)) {
             return expr;
         }
 
-        AnalyticsSearchBackendPlugin plugin = context.getBackends().get(backend);
-        if (plugin == null) {
-            throw new IllegalStateException("Backend [" + backend + "] not found");
-        }
-
-        // Opaque operations (painless, highlighting, etc.) — no recursion into operands
+        // Opaque operations — no recursion into operands
         if (rexCall.getOperator() instanceof SqlFunction sqlFunction) {
             String funcName = sqlFunction.getName();
             if (isOpaqueOperation(funcName)) {
-                if (plugin.supportedOpaqueProjectOperations().contains(funcName)) {
-                    return new AnnotatedProjectExpression(rexCall.getType(), rexCall, backend);
+                List<String> exprViable = resolveOpaqueViableBackends(funcName, childViableBackends);
+                if (exprViable.isEmpty()) {
+                    throw new IllegalStateException(
+                        "No backend can evaluate [" + funcName + "] and no delegation path exists");
                 }
-                String delegationTarget = canDelegateProject(plugin, funcName);
-                if (delegationTarget != null) {
-                    return new AnnotatedProjectExpression(rexCall.getType(), rexCall, delegationTarget);
-                }
-                throw new IllegalStateException(
-                    "Backend [" + backend + "] cannot evaluate [" + funcName
-                        + "] and no delegation path exists");
+                return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable);
             }
         }
 
-        // Standard scalar function — validate support
-        ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
-        if (scalarFunc != null && !plugin.supportedScalarFunctions().contains(scalarFunc)) {
+        // Standard scalar function
+        List<String> scalarViable = resolveScalarViableBackends(rexCall, childViableBackends);
+        if (scalarViable.isEmpty()) {
             throw new IllegalStateException(
-                "Backend [" + backend + "] does not support scalar function [" + scalarFunc + "]");
+                "No backend supports scalar function [" + ScalarFunction.fromSqlKind(rexCall.getKind())
+                    + "] among " + childViableBackends);
         }
 
-        // Recurse into operands to validate and annotate nested expressions
+        // Recurse into operands
         boolean changed = false;
         List<RexNode> newOperands = new ArrayList<>(rexCall.getOperands().size());
         for (RexNode operand : rexCall.getOperands()) {
-            RexNode annotated = annotateExpr(operand, backend);
+            RexNode annotated = annotateExpr(operand, childViableBackends);
             newOperands.add(annotated);
             if (annotated != operand) {
                 changed = true;
@@ -121,24 +122,98 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         RexCall target = changed ? rexCall.clone(rexCall.getType(), newOperands) : rexCall;
-        return new AnnotatedProjectExpression(target.getType(), target, backend);
+        return new AnnotatedProjectExpression(target.getType(), target, scalarViable);
+    }
+
+    private List<String> resolveOpaqueViableBackends(String funcName, List<String> childViableBackends) {
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> viable = registry.opaqueBackendsAnyFormat(funcName);
+        if (viable.isEmpty()) {
+            return viable;
+        }
+        // At least one child viable backend must be able to reach an evaluator:
+        // either it's in viable itself (native), or it can delegate to one that accepts
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
+        boolean reachable = childViableBackends.stream().anyMatch(candidateName ->
+            viable.contains(candidateName)
+                || (delegationSupporters.contains(candidateName)
+                    && viable.stream().anyMatch(delegationAcceptors::contains)));
+        return reachable ? viable : List.of();
+    }
+
+    private List<String> resolveScalarViableBackends(RexCall rexCall, List<String> childViableBackends) {
+        ScalarFunction scalarFunc = ScalarFunction.fromSqlKind(rexCall.getKind());
+        if (scalarFunc == null) {
+            return List.of();
+        }
+        FieldType fieldType = FieldType.fromSqlTypeName(rexCall.getType().getSqlTypeName());
+        if (fieldType == null) {
+            return List.of();
+        }
+
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> allCapable = registry.scalarBackendsAnyFormat(scalarFunc, fieldType);
+
+        // Prefer child viable backends
+        List<String> viable = new ArrayList<>();
+        for (String candidateName : childViableBackends) {
+            if (allCapable.contains(candidateName)) {
+                viable.add(candidateName);
+            }
+        }
+        if (!viable.isEmpty()) {
+            return viable;
+        }
+        // Fallback: other backends if reachable via delegation
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
+        boolean canDelegate = childViableBackends.stream().anyMatch(delegationSupporters::contains);
+        if (!canDelegate) {
+            return viable;
+        }
+        for (String backendName : allCapable) {
+            if (delegationAcceptors.contains(backendName)) {
+                viable.add(backendName);
+            }
+        }
+        return viable;
+    }
+
+    private List<String> computeProjectViableBackends(List<RexNode> annotatedExprs,
+                                                      List<String> childViableBackends) {
+        // A child viable backend is viable for the project if for every expression it can
+        // either evaluate natively (present in expression's viableBackends) or delegate to
+        // a backend that can (supports PROJECT delegation to an acceptor in expression's viableBackends)
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.PROJECT);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
+
+        List<String> result = new ArrayList<>();
+        for (String candidateName : childViableBackends) {
+            boolean canHandleAll = true;
+            for (RexNode expr : annotatedExprs) {
+                if (!(expr instanceof AnnotatedProjectExpression annotation)) {
+                    continue;
+                }
+                if (annotation.getViableBackends().contains(candidateName)) {
+                    continue;
+                }
+                boolean canDelegate = delegationSupporters.contains(candidateName)
+                    && annotation.getViableBackends().stream().anyMatch(delegationAcceptors::contains);
+                if (!canDelegate) {
+                    canHandleAll = false;
+                    break;
+                }
+            }
+            if (canHandleAll) {
+                result.add(candidateName);
+            }
+        }
+        return result;
     }
 
     private boolean isOpaqueOperation(String funcName) {
-        return context.getBackends().values().stream()
-            .anyMatch(b -> b.supportedOpaqueProjectOperations().contains(funcName));
-    }
-
-    private String canDelegateProject(AnalyticsSearchBackendPlugin plugin, String funcName) {
-        if (!plugin.supportedDelegations().contains(DelegationType.PROJECT)) {
-            return null;
-        }
-        return context.getBackends().values().stream()
-            .filter(other -> !other.name().equals(plugin.name())
-                && other.acceptedDelegations().contains(DelegationType.PROJECT)
-                && other.supportedOpaqueProjectOperations().contains(funcName))
-            .map(AnalyticsSearchBackendPlugin::name)
-            .findFirst()
-            .orElse(null);
+        return context.getCapabilityRegistry().isOpaqueOperation(funcName);
     }
 }

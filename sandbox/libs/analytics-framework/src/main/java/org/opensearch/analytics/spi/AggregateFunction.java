@@ -11,38 +11,55 @@ package org.opensearch.analytics.spi;
 import org.apache.calcite.sql.SqlKind;
 
 /**
- * Aggregate functions that a backend may support.
- * Used by the aggregate rule to verify the backend can handle
- * every {@link org.apache.calcite.rel.core.AggregateCall} in the plan.
+ * Aggregate functions that a backend may support, categorized by {@link Type}.
  *
  * <p>Note: {@code COUNT} covers both {@code COUNT(*)} and {@code COUNT(DISTINCT x)}.
  * The distinction is on {@code AggregateCall.isDistinct()}, not on SqlKind.
- * Backends that only support non-distinct count should check distinctness
- * separately during fragment conversion.
  *
  * @opensearch.internal
  */
 public enum AggregateFunction {
-    SUM(SqlKind.SUM),
-    SUM0(SqlKind.SUM0),
-    MIN(SqlKind.MIN),
-    MAX(SqlKind.MAX),
-    COUNT(SqlKind.COUNT),
-    APPROX_COUNT_DISTINCT(SqlKind.OTHER),
-    AVG(SqlKind.AVG),
-    STDDEV_POP(SqlKind.STDDEV_POP),
-    STDDEV_SAMP(SqlKind.STDDEV_SAMP),
-    VAR_POP(SqlKind.VAR_POP),
-    VAR_SAMP(SqlKind.VAR_SAMP),
-    PERCENTILE_CONT(SqlKind.PERCENTILE_CONT),
-    PERCENTILE_DISC(SqlKind.PERCENTILE_DISC),
-    COLLECT(SqlKind.COLLECT),
-    LISTAGG(SqlKind.LISTAGG);
+    // Simple — fixed-size state per key
+    SUM(Type.SIMPLE, SqlKind.SUM),
+    SUM0(Type.SIMPLE, SqlKind.SUM0),
+    MIN(Type.SIMPLE, SqlKind.MIN),
+    MAX(Type.SIMPLE, SqlKind.MAX),
+    COUNT(Type.SIMPLE, SqlKind.COUNT),
+    AVG(Type.SIMPLE, SqlKind.AVG),
 
+    // Statistical — fixed-size state, multi-pass or running stats
+    STDDEV_POP(Type.STATISTICAL, SqlKind.STDDEV_POP),
+    STDDEV_SAMP(Type.STATISTICAL, SqlKind.STDDEV_SAMP),
+    VAR_POP(Type.STATISTICAL, SqlKind.VAR_POP),
+    VAR_SAMP(Type.STATISTICAL, SqlKind.VAR_SAMP),
+
+    // State-expanding — state grows with input rows per key
+    PERCENTILE_CONT(Type.STATE_EXPANDING, SqlKind.PERCENTILE_CONT),
+    PERCENTILE_DISC(Type.STATE_EXPANDING, SqlKind.PERCENTILE_DISC),
+    COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
+    LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
+
+    // Approximate — probabilistic, fixed-size state
+    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER);
+
+    /** Category of aggregate function. Affects execution strategy (shuffle vs map-reduce). */
+    public enum Type {
+        SIMPLE,
+        STATISTICAL,
+        STATE_EXPANDING,
+        APPROXIMATE
+    }
+
+    private final Type type;
     private final SqlKind sqlKind;
 
-    AggregateFunction(SqlKind sqlKind) {
+    AggregateFunction(Type type, SqlKind sqlKind) {
+        this.type = type;
         this.sqlKind = sqlKind;
+    }
+
+    public Type getType() {
+        return type;
     }
 
     public SqlKind getSqlKind() {

@@ -25,15 +25,13 @@ import java.util.List;
  */
 public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode {
 
-    private final String backend;
     private final List<String> viableBackends;
     private final List<FieldStorageInfo> outputFieldStorage;
 
     public OpenSearchTableScan(RelOptCluster cluster, RelTraitSet traitSet, RelOptTable table,
-                               String backend, List<String> viableBackends,
+                               List<String> viableBackends,
                                List<FieldStorageInfo> outputFieldStorage) {
         super(cluster, traitSet, List.of(), table);
-        this.backend = backend;
         this.viableBackends = viableBackends;
         this.outputFieldStorage = outputFieldStorage;
     }
@@ -44,7 +42,7 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
      * Single shard → SINGLETON (all data on one node).
      */
     public static OpenSearchTableScan create(RelOptCluster cluster, RelOptTable table,
-                                             String backend, List<String> viableBackends,
+                                             List<String> viableBackends,
                                              List<FieldStorageInfo> outputFieldStorage,
                                              int shardCount,
                                              OpenSearchDistributionTraitDef distTraitDef) {
@@ -54,12 +52,7 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         RelTraitSet traitSet = RelTraitSet.createEmpty()
             .plus(OpenSearchConvention.INSTANCE)
             .plus(distribution);
-        return new OpenSearchTableScan(cluster, traitSet, table, backend, viableBackends, outputFieldStorage);
-    }
-
-    @Override
-    public String getBackend() {
-        return backend;
+        return new OpenSearchTableScan(cluster, traitSet, table, viableBackends, outputFieldStorage);
     }
 
     @Override
@@ -74,7 +67,7 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), backend, viableBackends, outputFieldStorage);
+        return new OpenSearchTableScan(getCluster(), traitSet, getTable(), viableBackends, outputFieldStorage);
     }
 
     @Override
@@ -85,6 +78,6 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("backend", backend).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
 }

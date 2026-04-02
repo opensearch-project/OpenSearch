@@ -8,18 +8,37 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.Set;
+
 /**
- * Declares that a backend can evaluate a specific {@link FilterOperator}
- * on a specific {@link FieldTypeFamily}.
- *
- * <p>Example: {@code FilterCapability.of(EQUALS, KEYWORD)} means the backend
- * can evaluate equality predicates on keyword fields.
+ * Declares a backend's ability to evaluate filter predicates, scoped to data formats.
+ * Three variants for the three categories of filter operations.
  *
  * @opensearch.internal
  */
-public record FilterCapability(FilterOperator operator, FieldTypeFamily fieldTypeFamily) {
+public sealed interface FilterCapability {
 
-    public static FilterCapability of(FilterOperator operator, FieldTypeFamily fieldTypeFamily) {
-        return new FilterCapability(operator, fieldTypeFamily);
+    /** Standard comparison filter (EQUALS, GT, IN, LIKE, etc.) on a field type in given formats. */
+    record Standard(FilterOperator operator, FieldType fieldType,
+                    Set<String> formats) implements FilterCapability {
+        public Standard {
+            formats = Set.copyOf(formats);
+        }
+    }
+
+    /** Full-text filter (MATCH, MATCH_PHRASE, FUZZY, etc.) with supported query parameters. */
+    record FullText(FilterOperator operator, FieldType fieldType,
+                    Set<String> formats, Set<String> supportedParams) implements FilterCapability {
+        public FullText {
+            formats = Set.copyOf(formats);
+            supportedParams = Set.copyOf(supportedParams);
+        }
+    }
+
+    /** Expression-based filter on derived columns (e.g., HAVING after aggregate). */
+    record Expression(Set<String> formats) implements FilterCapability {
+        public Expression {
+            formats = Set.copyOf(formats);
+        }
     }
 }

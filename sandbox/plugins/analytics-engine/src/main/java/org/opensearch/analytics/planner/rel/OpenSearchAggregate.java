@@ -26,23 +26,16 @@ import java.util.List;
  */
 public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode {
 
-    private final String backend;
     private final List<String> viableBackends;
     private final AggregateMode mode;
 
     public OpenSearchAggregate(RelOptCluster cluster, RelTraitSet traitSet, RelNode input,
                                ImmutableBitSet groupSet, List<ImmutableBitSet> groupSets,
                                List<AggregateCall> aggCalls, AggregateMode mode,
-                               String backend, List<String> viableBackends) {
+                               List<String> viableBackends) {
         super(cluster, traitSet, List.of(), input, groupSet, groupSets, aggCalls);
         this.mode = mode;
-        this.backend = backend;
         this.viableBackends = viableBackends;
-    }
-
-    @Override
-    public String getBackend() {
-        return backend;
     }
 
     public AggregateMode getMode() {
@@ -76,7 +69,8 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
         // Agg results: derived columns with no physical storage
         for (AggregateCall aggCall : getAggCallList()) {
-            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(), aggCall.getType().toString()));
+            outputStorage.add(FieldStorageInfo.derivedColumn(aggCall.getName(),
+                aggCall.getType().getSqlTypeName()));
         }
 
         return outputStorage;
@@ -85,7 +79,7 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
     @Override
     public Aggregate copy(RelTraitSet traitSet, RelNode input, ImmutableBitSet groupSet,
                           List<ImmutableBitSet> groupSets, List<AggregateCall> aggCalls) {
-        return new OpenSearchAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls, mode, backend, viableBackends);
+        return new OpenSearchAggregate(getCluster(), traitSet, input, groupSet, groupSets, aggCalls, mode, viableBackends);
     }
 
     @Override
@@ -109,6 +103,6 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw).item("mode", mode).item("backend", backend).item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("mode", mode).item("viableBackends", viableBackends);
     }
 }

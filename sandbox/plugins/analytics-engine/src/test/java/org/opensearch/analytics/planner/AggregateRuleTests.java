@@ -22,9 +22,10 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.EnumSet;
@@ -51,7 +52,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     public void testViableBackendsPopulated() {
         OpenSearchAggregate agg = runAggregate(1, sumCall());
 
-        assertEquals(MockDataFusionBackend.NAME, agg.getBackend());
+        assertTrue(agg.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertFalse(agg.getViableBackends().isEmpty());
         assertTrue(agg.getViableBackends().contains(MockDataFusionBackend.NAME));
     }
@@ -99,7 +100,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             "size", Map.of("type", "integer")
         ), List.of(new MockDataFusionBackend() {
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
+            public Set<AggregateCapability> aggregateCapabilities() {
                 return Set.of(); // supports AGGREGATE capability but no functions
             }
         }));
@@ -119,8 +120,10 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
                 return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
             }
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
-                return EnumSet.of(AggregateFunction.SUM, AggregateFunction.COUNT);
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(
+                    AggregateFunction.SUM, Set.of(FieldType.INTEGER),
+                    AggregateFunction.COUNT, Set.of(FieldType.INTEGER)));
             }
         };
 
@@ -134,7 +137,13 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         OpenSearchAggregate agg = (OpenSearchAggregate) result;
 
         assertTrue(agg.getViableBackends().contains(MockDataFusionBackend.NAME));
-        assertTrue(agg.getViableBackends().contains(MockLuceneBackend.NAME));
+        // Lucene not viable at operator level (no doc values for scan)
+        // but per-call annotation shows Lucene as viable for SUM
+        assertFalse(agg.getViableBackends().contains(MockLuceneBackend.NAME));
+        AggregateCallAnnotation annotation = AggregateCallAnnotation.find(agg.getAggCallList().get(0));
+        assertNotNull(annotation);
+        assertTrue(annotation.getViableBackends().contains(MockDataFusionBackend.NAME));
+        assertTrue(annotation.getViableBackends().contains(MockLuceneBackend.NAME));
     }
 
     // ---- Scan ----
@@ -150,7 +159,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
         assertTrue(result instanceof OpenSearchTableScan);
         OpenSearchTableScan scan = (OpenSearchTableScan) result;
-        assertEquals(MockDataFusionBackend.NAME, scan.getBackend());
+        assertTrue(scan.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertEquals(2, scan.getOutputFieldStorage().size());
         assertEquals("status", scan.getOutputFieldStorage().get(0).getFieldName());
         assertFalse(scan.getViableBackends().isEmpty());
@@ -223,8 +232,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
                 return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
             }
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
-                return EnumSet.of(AggregateFunction.SUM);  // no COUNT
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(
+                    AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
             }
         };
 
@@ -276,8 +286,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     public void testAggregateViableWithDelegation() {
         MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
-                return EnumSet.of(AggregateFunction.SUM);
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return aggCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), Map.of(
+                    AggregateFunction.SUM, Set.of(FieldType.INTEGER)));
             }
             @Override
             public Set<DelegationType> supportedDelegations() {
@@ -290,8 +301,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
                 return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
             }
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
-                return EnumSet.of(AggregateFunction.STDDEV_POP);
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(
+                    AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));
             }
             @Override
             public Set<DelegationType> acceptedDelegations() {
@@ -321,8 +333,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
                 return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER, OperatorCapability.AGGREGATE);
             }
             @Override
-            public Set<AggregateFunction> supportedAggregateFunctions() {
-                return EnumSet.of(AggregateFunction.STDDEV_POP);
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return aggCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), Map.of(
+                    AggregateFunction.STDDEV_POP, Set.of(FieldType.INTEGER)));
             }
         };
 
@@ -335,6 +348,17 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> runPlanner(aggregate, context));
-        assertTrue(exception.getMessage().contains("no delegation path exists"));
+        assertTrue(exception.getMessage().contains("not supported by any viable backend"));
+    }
+
+    private static Set<AggregateCapability> aggCaps(Set<String> formats,
+                                                    Map<AggregateFunction, Set<FieldType>> funcToTypes) {
+        Set<AggregateCapability> caps = new java.util.HashSet<>();
+        for (var entry : funcToTypes.entrySet()) {
+            for (FieldType family : entry.getValue()) {
+                caps.add(new AggregateCapability(entry.getKey(), family, formats));
+            }
+        }
+        return caps;
     }
 }

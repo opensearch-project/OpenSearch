@@ -16,6 +16,8 @@ import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateCallAnnotation;
@@ -23,8 +25,8 @@ import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
@@ -70,12 +72,13 @@ public class OpenSearchAggregateRule extends RelOptRule {
                 "Aggregate rule encountered unmarked child [" + child.getClass().getSimpleName() + "]");
         }
 
-        String childBackend = openSearchChild.getBackend();
+        List<String> childViableBackends = openSearchChild.getViableBackends();
+        List<FieldStorageInfo> childFieldStorage = openSearchChild.getOutputFieldStorage();
 
         // Annotate each AggregateCall with per-call viable backends
         List<AggregateCall> annotatedCalls = new ArrayList<>();
         for (AggregateCall aggCall : aggregate.getAggCallList()) {
-            List<String> callViable = resolveViableBackendsForCall(aggCall);
+            List<String> callViable = resolveViableBackendsForCall(aggCall, childFieldStorage);
             if (callViable.isEmpty()) {
                 throw new IllegalStateException(
                     "No backend supports aggregate function [" + aggCall.getAggregation().getName() + "]");
@@ -83,8 +86,8 @@ public class OpenSearchAggregateRule extends RelOptRule {
             annotatedCalls.add(AggregateCallAnnotation.annotate(aggCall, callViable));
         }
 
-        // Compute operator-level viable backends considering delegation
-        List<String> viableBackends = computeAggregateViableBackends(annotatedCalls, childBackend);
+        // Compute operator-level viable backends: must be viable for child AND handle agg calls
+        List<String> viableBackends = computeAggregateViableBackends(annotatedCalls, childViableBackends);
 
         if (viableBackends.isEmpty()) {
             List<String> funcNames = aggregate.getAggCallList().stream()
@@ -92,12 +95,10 @@ public class OpenSearchAggregateRule extends RelOptRule {
                 .toList();
             throw new IllegalStateException(
                 "No backend can execute aggregate: functions " + funcNames
-                    + " are split across backends and no delegation path exists");
+                    + " not supported by any viable backend among " + childViableBackends);
         }
 
-        String backend = viableBackends.contains(childBackend)
-            ? childBackend
-            : viableBackends.getFirst();
+        logger.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
         RelTraitSet aggregateTraits = child.getTraitSet();
         if (aggregateTraits.size() > 0) {
@@ -112,41 +113,78 @@ public class OpenSearchAggregateRule extends RelOptRule {
             aggregate.getGroupSets(),
             annotatedCalls,
             AggregateMode.SINGLE,
-            backend,
             viableBackends
         ));
     }
 
-    private List<String> resolveViableBackendsForCall(AggregateCall aggCall) {
+    private List<String> resolveViableBackendsForCall(AggregateCall aggCall,
+                                                     List<FieldStorageInfo> childFieldStorage) {
         AggregateFunction func = AggregateFunction.fromSqlKind(aggCall.getAggregation().getKind());
         if (func == null) {
             func = AggregateFunction.fromNameOrError(aggCall.getAggregation().getName());
         }
 
-        List<String> viable = new ArrayList<>();
-        for (AnalyticsSearchBackendPlugin plugin : context.getBackends().values()) {
-            if (plugin.supportedOperators().contains(OperatorCapability.AGGREGATE)
-                && plugin.supportedAggregateFunctions().contains(func)) {
-                viable.add(plugin.name());
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+
+        if (aggCall.getArgList().isEmpty()) {
+            return new ArrayList<>(registry.operatorBackends(OperatorCapability.AGGREGATE));
+        }
+
+        List<String> callViable = null;
+        for (int fieldIndex : aggCall.getArgList()) {
+            if (fieldIndex >= childFieldStorage.size()) {
+                continue;
+            }
+            FieldStorageInfo storageInfo = childFieldStorage.get(fieldIndex);
+            FieldType fieldType = storageInfo.getFieldType();
+            if (fieldType == null) {
+                throw new IllegalStateException("Unrecognized field type [" + storageInfo.getMappingType()
+                    + "] for field [" + storageInfo.getFieldName() + "]");
+            }
+
+            List<String> perFieldBackends = new ArrayList<>();
+            if (storageInfo.isDerived()) {
+                perFieldBackends.addAll(registry.aggregateBackendsAnyFormat(func, fieldType));
+            } else {
+                // Format-aware: backends that can read the data and compute
+                for (String format : storageInfo.getDocValueFormats()) {
+                    for (String name : registry.aggregateBackends(func, fieldType, format)) {
+                        if (!perFieldBackends.contains(name)) {
+                            perFieldBackends.add(name);
+                        }
+                    }
+                }
+                // Format-agnostic: delegation targets that can compute but don't need data access
+                for (String name : registry.aggregateBackendsAnyFormat(func, fieldType)) {
+                    if (!perFieldBackends.contains(name)) {
+                        perFieldBackends.add(name);
+                    }
+                }
+            }
+
+            if (callViable == null) {
+                callViable = perFieldBackends;
+            } else {
+                callViable.retainAll(perFieldBackends);
             }
         }
-        return viable;
+
+        return callViable != null ? callViable : new ArrayList<>(registry.operatorBackends(OperatorCapability.AGGREGATE));
     }
 
-    /**
-     * Computes which backends can execute this aggregate, considering delegation.
-     * A backend is viable if for every agg call it can handle natively OR delegate
-     * (supports AGGREGATE delegation AND some other backend accepts it for that call).
-     */
     private List<String> computeAggregateViableBackends(List<AggregateCall> annotatedCalls,
-                                                        String childBackend) {
+                                                        List<String> childViableBackends) {
         if (annotatedCalls.isEmpty()) {
-            return new ArrayList<>(context.getBackends().keySet());
+            return new ArrayList<>(childViableBackends);
         }
 
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.AGGREGATE);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.AGGREGATE);
+
         List<String> viable = new ArrayList<>();
-        for (AnalyticsSearchBackendPlugin candidate : context.getBackends().values()) {
-            if (!candidate.supportedOperators().contains(OperatorCapability.AGGREGATE)) {
+        for (String candidateName : childViableBackends) {
+            if (!registry.operatorBackends(OperatorCapability.AGGREGATE).contains(candidateName)) {
                 continue;
             }
 
@@ -158,24 +196,18 @@ public class OpenSearchAggregateRule extends RelOptRule {
                     break;
                 }
                 List<String> callViable = annotation.getViableBackends();
-                if (callViable.contains(candidate.name())) {
+                if (callViable.contains(candidateName)) {
                     continue;
                 }
-                // Check if candidate can delegate this call
-                if (candidate.supportedDelegations().contains(DelegationType.AGGREGATE)) {
-                    boolean someoneAccepts = callViable.stream().anyMatch(backendName -> {
-                        AnalyticsSearchBackendPlugin other = context.getBackends().get(backendName);
-                        return other != null && other.acceptedDelegations().contains(DelegationType.AGGREGATE);
-                    });
-                    if (someoneAccepts) {
-                        continue;
-                    }
+                if (delegationSupporters.contains(candidateName)
+                        && callViable.stream().anyMatch(delegationAcceptors::contains)) {
+                    continue;
                 }
                 canHandleAll = false;
                 break;
             }
             if (canHandleAll) {
-                viable.add(candidate.name());
+                viable.add(candidateName);
             }
         }
         return viable;

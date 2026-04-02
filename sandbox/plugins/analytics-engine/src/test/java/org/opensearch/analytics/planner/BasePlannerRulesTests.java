@@ -114,7 +114,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        return new PlannerContext(backends, clusterState);
+        return new PlannerContext(new CapabilityRegistry(backends), clusterState);
     }
 
     // ---- Table builders ----

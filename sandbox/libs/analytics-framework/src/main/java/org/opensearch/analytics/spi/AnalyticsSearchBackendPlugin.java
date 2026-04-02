@@ -36,13 +36,8 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
     /** Returns the data formats supported by this backend. */
     List<DataFormat> getSupportedFormats();
 
-    /** Filter operators this backend can evaluate, scoped by field type family. */
-    default Set<FilterCapability> supportedFilterCapabilities() {
-        return Collections.emptySet();
-    }
-
-    /** Full-text operators this backend can evaluate on indexed fields. */
-    default Set<FullTextOperator> supportedFullTextOperators() {
+    /** Filter capabilities scoped to operator, field type, and data format. */
+    default Set<FilterCapability> filterCapabilities() {
         return Collections.emptySet();
     }
 
@@ -61,22 +56,18 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
         return Collections.emptySet();
     }
 
-    /** Aggregate functions this backend can evaluate (SUM, AVG, COUNT, etc.). */
-    default Set<AggregateFunction> supportedAggregateFunctions() {
+    /** Aggregate capabilities scoped to function, field type, and data format. */
+    default Set<AggregateCapability> aggregateCapabilities() {
         return Collections.emptySet();
     }
 
-    /** Scalar functions this backend can evaluate in projections (UPPER, CAST, math ops, etc.). */
-    default Set<ScalarFunction> supportedScalarFunctions() {
+    /** Window capabilities scoped to function, field type, and data format. */
+    default Set<WindowCapability> windowCapabilities() {
         return Collections.emptySet();
     }
 
-    /**
-     * Names of opaque project operations this backend can handle (e.g. "painless", "highlight", "suggest").
-     * Used to resolve UnresolvedRexNode from frontend plugins to a backend.
-     * Analytics Core is agnostic to what these names mean — backends define and consume them.
-     */
-    default Set<String> supportedOpaqueProjectOperations() {
+    /** Project capabilities: scalar functions and opaque operations, scoped to data format. */
+    default Set<ProjectCapability> projectCapabilities() {
         return Collections.emptySet();
     }
 

@@ -15,6 +15,7 @@ import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 
@@ -93,31 +94,32 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             return rel;
         }
 
-        String backend = resolveBackendFromRel(rel);
+        List<String> viableBackends = resolveViableBackendsFromRel(rel);
 
         LOGGER.info("convert(): rel={}#{}, fromTrait={}, toTrait={}, backend={}",
-            rel.getClass().getSimpleName(), rel.getId(), fromTrait, toTrait, backend);
+            rel.getClass().getSimpleName(), rel.getId(), fromTrait, toTrait, viableBackends.getFirst());
+
+        CapabilityRegistry registry = plannerContext.getCapabilityRegistry();
 
         RelNode result;
         if (toTrait.getType() == RelDistribution.Type.SINGLETON) {
-            CapabilityResolutionUtils.validateReduceCapability(
-                plannerContext.getBackends(), backend);
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
+                registry, viableBackends);
             result = new OpenSearchExchangeReducer(
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 rel,
-                backend
+                reduceViable
             );
         } else {
-            // HASH/RANGE: Writer at data node partitions and writes shuffle data.
-            // Reader at target data node reads from source nodes.
-            ShuffleImpl shuffleImpl = CapabilityResolutionUtils.resolveShuffleImpl(
-                plannerContext.getBackends(), backend, toTrait.getType());
+            List<String> shuffleViable = CapabilityResolutionUtils.filterByShuffleCapability(
+                registry, viableBackends);
+            ShuffleImpl shuffleImpl = CapabilityResolutionUtils.bestShuffleImpl(registry, shuffleViable);
             OpenSearchExchangeWriter writer = new OpenSearchExchangeWriter(
                 rel.getCluster(),
                 rel.getTraitSet(),
                 rel,
-                backend,
+                shuffleViable,
                 shuffleImpl,
                 toTrait.getKeys()
             );
@@ -125,7 +127,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 writer,
-                backend,
+                shuffleViable,
                 shuffleImpl
             );
         }
@@ -139,12 +141,12 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
         return true;
     }
 
-    private static String resolveBackendFromRel(RelNode rel) {
+    private static List<String> resolveViableBackendsFromRel(RelNode rel) {
         if (rel instanceof RelSubset subset) {
             rel = subset.getBestOrOriginal();
         }
         if (rel instanceof OpenSearchRelNode openSearchRel) {
-            return openSearchRel.getBackend();
+            return openSearchRel.getViableBackends();
         }
         throw new IllegalStateException(
             "Expected OpenSearchRelNode but got [" + rel.getClass().getSimpleName() + "#" + rel.getId() + "]");
