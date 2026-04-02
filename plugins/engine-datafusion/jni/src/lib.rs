@@ -33,7 +33,7 @@ use datafusion::{
 
 use std::default::Default;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 mod util;
 mod absolute_row_id_optimizer;
@@ -203,25 +203,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
     //
     // println!("Runtime monitoring started");
 
-    // Periodically log global + per-query memory metrics
-    let io_runtime = manager.io_runtime.clone();
-    io_runtime.spawn(async move {
-        loop {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            // Log overall plugin memory usage via mimalloc allocator stats
-            log_mimalloc_stats();
-            // Log DataFusion cooperative pool usage
-            if let Some(monitor) = GLOBAL_MEMORY_MONITOR.get() {
-                log_info!(
-                    "DataFusion memory pool: current={}B, peak={}B",
-                    monitor.value.load(std::sync::atomic::Ordering::Relaxed),
-                    monitor.max.load(std::sync::atomic::Ordering::Relaxed),
-                );
-            }
-            query_metrics::log_active_queries();
-        }
-    });
-    log_info!("Query memory monitoring started");
+    log_info!("Per-query memory tracking enabled (metrics flushed on query completion)");
 }
 
 /// Log runtime metrics with performance analysis
@@ -267,6 +249,7 @@ fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
 
 /// Log overall plugin memory usage from mimalloc's heap stats.
 /// This captures ALL Rust-side allocations (not just DataFusion's cooperative pool).
+#[allow(dead_code)]
 fn log_mimalloc_stats() {
     let mut elapsed_ms: usize = 0;
     let mut user_ms: usize = 0;
@@ -350,7 +333,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         .with_disk_manager_builder(builder)
         .build().unwrap();
 
-    // Store monitor globally so the monitoring loop can log overall memory usage
+    // Store monitor globally for diagnostics (e.g., JMX or on-demand queries)
     GLOBAL_MEMORY_MONITOR.get_or_init(|| monitor.clone());
 
     let runtime = DataFusionRuntime {
@@ -705,7 +688,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
                 });
             }
             Err(e) => {
-                // Stop tracking on error — stream won't be closed by Java
+                // Snapshot stats and mark completed — Java's error handler
+                // (e.g., writeTaskResourceUsage) will call drain_completed_query
+                // to retrieve native memory stats before cleanup.
                 query_metrics::stop_query_tracking(context_id);
                 with_jni_env(|env| {
                     log_error!("Query execution failed: {}", e);
@@ -960,7 +945,8 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
         ).await {
             Ok(stream_ptr) => stream_ptr,
             Err(e) => {
-                // Stop tracking on error — stream won't be closed by Java
+                // Snapshot stats and mark completed — Java's error handler
+                // will call drain_completed_query to retrieve native memory stats.
                 query_metrics::stop_query_tracking(context_id);
                 let _ = env.throw_new(
                     "java/lang/RuntimeException",

@@ -16,7 +16,7 @@
 //! This avoids the need for thread-local tricks or a custom global allocator —
 //! DataFusion's cooperative memory management does the bookkeeping for us.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -166,7 +166,18 @@ impl MemoryPool for QueryMemoryPool {
 // Per-query tracker (metrics + pool reference)
 // ---------------------------------------------------------------------------
 
-/// Holds per-query state: the memory pool and wall-clock start time.
+/// Holds per-query state: the memory pool, wall-clock start time, and
+/// completion status.
+///
+/// Lifecycle (mirrors Java's TaskResourceTrackingService pattern):
+///   1. `start_query_tracking` → inserts tracker with `completed = false`
+///   2. `stop_query_tracking`  → snapshots wall time, sets `completed = true`,
+///      logs final stats, keeps tracker in registry for Java to retrieve via JNI
+///
+/// Stats remain readable after completion:
+///   - `peak_bytes`: high-water mark, immutable once set — the key metric
+///   - `current_bytes`: drifts to ~0 after stream drop (correct — cleanup happened)
+///   - `wall_secs()`: frozen at stop time via `wall_nanos`
 #[derive(Debug)]
 pub struct QueryTracker {
     /// Wall-clock instant when this query started.
@@ -175,11 +186,23 @@ pub struct QueryTracker {
     pub context_id: i64,
     /// The per-query memory pool (also installed in the RuntimeEnv).
     pub memory_pool: Arc<QueryMemoryPool>,
+    /// Whether this query has completed (stop_query_tracking was called).
+    completed: AtomicBool,
+    /// Wall-clock duration snapshotted at completion.
+    /// Stored as nanos in an AtomicU64 (0 = not yet completed).
+    wall_nanos: std::sync::atomic::AtomicU64,
 }
 
 impl QueryTracker {
+    /// Wall-clock duration. Returns the frozen snapshot if completed,
+    /// otherwise returns live elapsed time.
     pub fn wall_secs(&self) -> f64 {
-        self.start_time.elapsed().as_secs_f64()
+        let nanos = self.wall_nanos.load(Ordering::Relaxed);
+        if nanos > 0 {
+            nanos as f64 / 1_000_000_000.0
+        } else {
+            self.start_time.elapsed().as_secs_f64()
+        }
     }
 }
 
@@ -207,39 +230,33 @@ pub fn start_query_tracking(
         start_time: Instant::now(),
         context_id,
         memory_pool: query_pool.clone(),
+        completed: AtomicBool::new(false),
+        wall_nanos: std::sync::atomic::AtomicU64::new(0),
     });
     QUERY_TRACKERS.insert(context_id, tracker);
     Some(query_pool)
 }
 
-/// Stop tracking and log final metrics. Call from streamClose or on error.
-/// If a global Monitor is provided, also logs overall memory pool usage.
-pub fn stop_query_tracking(context_id: i64) -> Option<Arc<QueryTracker>> {
-    QUERY_TRACKERS.remove(&context_id).map(|(_, tracker)| tracker)
-}
-
-/// Look up a running query's tracker.
-pub fn get_query_tracker(context_id: i64) -> Option<Arc<QueryTracker>> {
-    QUERY_TRACKERS.get(&context_id).map(|e| e.value().clone())
-}
-
-/// Log a summary of all currently tracked queries. Called from the monitoring loop.
-pub fn log_active_queries() {
-    let count = QUERY_TRACKERS.len();
-    if count == 0 {
-        return;
-    }
-    log_info!("=== Active Query Metrics ({} queries) ===", count);
-    for entry in QUERY_TRACKERS.iter() {
-        let id = entry.key();
-        let t = entry.value();
+/// Mark a query as completed and log its final metrics.
+/// The tracker stays in the registry so Java can retrieve it via JNI.
+/// This mirrors Java's TaskResourceTrackingService pattern where stats are
+/// snapshotted onto the Task object before removal, and listeners consume
+/// the enriched object.
+///
+/// Called from streamClose or on error paths.
+pub fn stop_query_tracking(context_id: i64) {
+    if let Some(tracker) = QUERY_TRACKERS.get(&context_id) {
+        // Snapshot wall time before marking completed — once set, wall_secs()
+        // returns this frozen value regardless of when drain is called
+        let elapsed_nanos = tracker.start_time.elapsed().as_nanos() as u64;
+        tracker.wall_nanos.store(elapsed_nanos, Ordering::Relaxed);
+        tracker.completed.store(true, Ordering::Release);
         log_info!(
-            "  Query ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
-            id,
-            t.wall_secs(),
-            t.memory_pool.current_bytes(),
-            t.memory_pool.peak_bytes(),
+            "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
+            context_id,
+            tracker.wall_secs(),
+            tracker.memory_pool.current_bytes(),
+            tracker.memory_pool.peak_bytes(),
         );
     }
-    log_info!("=============================================");
 }
