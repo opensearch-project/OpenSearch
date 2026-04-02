@@ -107,7 +107,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     @Override
     public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
         // TODO: resolve DataFormat properly instead of passing null
-        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().getReader(null);
+        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().reader(null);
         DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
         DatafusionSearchExecEngine datafusionSearchExecEngine = new DatafusionSearchExecEngine(context);
         datafusionSearchExecEngine.prepare(ctx);
