@@ -160,6 +160,7 @@ use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use datafusion::execution::RecordBatchStream;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
@@ -168,12 +169,9 @@ use crate::runtime_manager::RuntimeManager;
 use crate::util::create_object_metas;
 
 /// Opaque runtime handle returned to the caller.
-/// Contains the DataFusion RuntimeEnv and a pre-built SessionState template.
+/// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache).
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
-    /// Pre-built session state with all default features registered.
-    /// Cloned per query to avoid re-registering functions and optimizer rules.
-    pub session_state_template: SessionState,
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -181,10 +179,6 @@ pub(crate) struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
 }
-
-// ---------------------------------------------------------------------------
-// Runtime management
-// ---------------------------------------------------------------------------
 
 /// Creates a DataFusion global runtime with the given resource limits.
 ///
@@ -209,18 +203,7 @@ pub fn create_global_runtime(
         .with_disk_manager_builder(disk_manager)
         .build()?;
 
-    let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 4;
-    config.options_mut().execution.batch_size = 8192;
-
-    let session_state_template = SessionStateBuilder::new()
-        .with_config(config)
-        .with_runtime_env(Arc::from(runtime_env.clone()))
-        .with_default_features()
-        .build();
-
-    let runtime = DataFusionRuntime { runtime_env, session_state_template };
+    let runtime = DataFusionRuntime { runtime_env };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
@@ -234,11 +217,6 @@ pub unsafe fn close_global_runtime(ptr: i64) {
     }
 }
 
-
-// ---------------------------------------------------------------------------
-// Reader management
-// ---------------------------------------------------------------------------
-
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
@@ -246,7 +224,7 @@ pub unsafe fn close_global_runtime(ptr: i64) {
 pub fn create_reader(
     table_path: &str,
     mut filenames: Vec<String>,
-    manager: &RuntimeManager,
+    tokio_rt_manager: &RuntimeManager,
 ) -> Result<i64, DataFusionError> {
     filenames.sort();
 
@@ -257,7 +235,7 @@ pub fn create_reader(
     let default_rt = RuntimeEnvBuilder::new().build()?;
     let store = default_rt.object_store(&table_url)?;
 
-    let object_metas = manager.io_runtime.block_on(
+    let object_metas = tokio_rt_manager.io_runtime.block_on(
         create_object_metas(store.as_ref(), table_path, filenames),
     )?;
 
@@ -277,10 +255,6 @@ pub unsafe fn close_reader(ptr: i64) {
         let _ = Box::from_raw(ptr as *mut ShardView);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Query execution
-// ---------------------------------------------------------------------------
 
 /// Executes a query. Returns a heap-allocated pointer (as i64) to the result stream.
 /// Caller must call `stream_close` exactly once to free it.
@@ -316,10 +290,6 @@ pub async unsafe fn execute_query(
 
     Ok(result)
 }
-
-// ---------------------------------------------------------------------------
-// Stream operations
-// ---------------------------------------------------------------------------
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
 ///
@@ -370,10 +340,6 @@ pub unsafe fn stream_close(stream_ptr: i64) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
-
 /// Converts SQL to Substrait plan bytes (test only).
 ///
 /// # Safety
@@ -420,8 +386,11 @@ pub unsafe fn sql_to_substrait(
             )
             .build()?;
 
-        let state = runtime.session_state_template.clone()
-            .with_runtime_env(Arc::from(runtime_env));
+        let state = SessionStateBuilder::new()
+            .with_config(SessionConfig::new())
+            .with_runtime_env(Arc::from(runtime_env))
+            .with_default_features()
+            .build();
         let ctx = datafusion::prelude::SessionContext::new_with_state(state);
 
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))

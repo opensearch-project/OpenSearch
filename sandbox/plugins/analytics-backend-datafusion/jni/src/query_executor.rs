@@ -68,11 +68,14 @@ pub async fn execute_query(
             e
         })?;
 
-    // Clone the pre-built session state template (cheap Arc increments for all
-    // registered functions, optimizer rules, and planner rules) and swap in the
-    // per-query RuntimeEnv.
+    // Build a fresh session state per query. TODO : Tune this during planning per query
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.parquet.pushdown_filters = false;
+    config.options_mut().execution.target_partitions = 4;
+    config.options_mut().execution.batch_size = 8192;
+
     let state = SessionStateBuilder::new()
-        .with_config(runtime.session_state_template.config().clone())
+        .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
         .build();

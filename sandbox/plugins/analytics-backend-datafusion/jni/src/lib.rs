@@ -63,16 +63,13 @@ where
     })
 }
 
-fn get_manager() -> Result<&'static Arc<RuntimeManager>, DataFusionError> {
+fn get_tokio_rt_manager() -> Result<&'static Arc<RuntimeManager>, DataFusionError> {
     TOKIO_RUNTIME_MANAGER
         .get()
         .ok_or_else(|| DataFusionError::Execution("Runtime manager not initialized".to_string()))
 }
 
-// ---------------------------------------------------------------------------
 // Tokio runtime management
-// ---------------------------------------------------------------------------
-
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_initTokioRuntimeManager(
@@ -95,10 +92,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_shutdo
     }
 }
 
-// ---------------------------------------------------------------------------
-// DataFusion runtime
-// ---------------------------------------------------------------------------
-
+// Create DataFusion global runtime with user defined configuration
 #[jni_safe(default = 0)]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_createGlobalRuntime(
@@ -136,10 +130,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_closeG
     unsafe { api::close_global_runtime(ptr as i64) };
 }
 
-// ---------------------------------------------------------------------------
-// Reader management
-// ---------------------------------------------------------------------------
-
+// Create datafusion reader backed by shard view/catalog snapshot associated files
 #[jni_safe(default = 0)]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_createDatafusionReader(
@@ -162,7 +153,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
             return 0;
         }
     };
-    let manager = match get_manager() {
+    let tokio_rt_mgr = match get_tokio_rt_manager() {
         Ok(m) => m,
         Err(e) => {
             let _ = env.throw_new("java/lang/IllegalStateException", e.to_string());
@@ -170,7 +161,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
         }
     };
 
-    match api::create_reader(&table_path, filenames, manager) {
+    match api::create_reader(&table_path, filenames, tokio_rt_mgr) {
         Ok(ptr) => ptr as jlong,
         Err(e) => {
             let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
@@ -178,6 +169,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
         }
     }
 }
+
 
 #[jni_safe]
 #[no_mangle]
@@ -189,10 +181,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_closeD
     unsafe { api::close_reader(ptr as i64) };
 }
 
-// ---------------------------------------------------------------------------
-// Query execution
-// ---------------------------------------------------------------------------
-
+// Executes the query for the substrait plan and returns a stream handle to listener
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_executeQueryAsync(
@@ -204,7 +193,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     runtime_ptr: jlong,
     listener: JObject,
 ) {
-    let manager = match get_manager() {
+    let tokio_rt_mgr = match get_tokio_rt_manager() {
         Ok(m) => m,
         Err(e) => {
             set_action_listener_error(env, listener, &e);
@@ -236,8 +225,8 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     };
 
     // Delegate to bridge-agnostic API — bridge does the block_on
-    let result = manager.io_runtime.block_on(unsafe {
-        api::execute_query(shard_view_ptr as i64, &table_name, &plan_bytes, runtime_ptr as i64, manager)
+    let result = tokio_rt_mgr.io_runtime.block_on(unsafe {
+        api::execute_query(shard_view_ptr as i64, &table_name, &plan_bytes, runtime_ptr as i64, tokio_rt_mgr)
     });
 
     with_jni_env(|env| match result {
@@ -249,10 +238,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     });
 }
 
-// ---------------------------------------------------------------------------
-// Stream operations
-// ---------------------------------------------------------------------------
-
+// Get schema for the stream
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_streamGetSchema(
@@ -280,7 +266,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     stream_ptr: jlong,
     listener: JObject,
 ) {
-    let manager = match get_manager() {
+    let manager = match get_tokio_rt_manager() {
         Ok(m) => m,
         Err(e) => {
             set_action_listener_error(env, listener, &e);
@@ -317,10 +303,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     unsafe { api::stream_close(stream_ptr as i64) };
 }
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
-
+// Only used for tests
 #[jni_safe(default = std::ptr::null_mut())]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_sqlToSubstrait(
@@ -348,10 +331,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_sqlToS
     }
 }
 
-// ---------------------------------------------------------------------------
-// Cache management (stubs)
-// ---------------------------------------------------------------------------
-
+// Tests panic, only used for testing
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_testPanic(
@@ -363,6 +343,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_testPa
     panic!("{}", msg);
 }
 
+// Cache manager stubs
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_cacheManagerAddFiles(

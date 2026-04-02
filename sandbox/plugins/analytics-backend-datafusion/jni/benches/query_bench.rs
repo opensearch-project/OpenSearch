@@ -6,12 +6,10 @@ use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
-use opensearch_datafusion_jni::executor::DedicatedExecutor;
-use opensearch_datafusion_jni::io::register_io_runtime;
 use opensearch_datafusion_jni::query_executor;
 use opensearch_datafusion_jni::runtime_manager::RuntimeManager;
-use opensearch_datafusion_jni::DataFusionRuntime;
 use std::sync::Arc;
+use opensearch_datafusion_jni::api::DataFusionRuntime;
 
 fn create_test_parquet(dir: &std::path::Path, rows: usize) {
     use arrow::datatypes::{DataType, Field, Schema};
