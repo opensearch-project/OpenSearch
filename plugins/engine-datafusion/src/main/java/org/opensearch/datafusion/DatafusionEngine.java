@@ -1,0 +1,612 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.datafusion;
+
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.ViewVarCharVector;
+import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.BytesRef;
+import org.opensearch.OpenSearchException;
+import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.datafusion.search.AsyncRecordBatchIterator;
+import org.opensearch.datafusion.search.DatafusionContext;
+import org.opensearch.datafusion.search.DatafusionQuery;
+import org.opensearch.datafusion.search.DatafusionReader;
+import org.opensearch.datafusion.search.DatafusionReaderManager;
+import org.opensearch.datafusion.search.DatafusionSearcher;
+import org.opensearch.datafusion.search.DatafusionSearcherSupplier;
+import org.opensearch.datafusion.search.IndexedQueryBridge;
+import org.opensearch.datafusion.search.RecordBatchIterator;
+import org.opensearch.datafusion.search.cache.CacheManager;
+import org.opensearch.index.engine.CatalogSnapshotAwareRefreshListener;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.EngineSearcherSupplier;
+import org.opensearch.index.engine.FileDeletionListener;
+import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.exec.FileMetadata;
+import org.opensearch.index.engine.exec.FileStats;
+import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
+import org.opensearch.index.mapper.DerivedFieldGenerator;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MappingLookup;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.spi.vectorized.DataFormat;
+import org.opensearch.search.DocValueFormat;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.SearchResultsCollector;
+import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.FetchSubPhase;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.search.internal.ReaderContext;
+import org.opensearch.search.internal.SearchContext;
+import org.opensearch.datafusion.search.DfResult;
+import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.vectorized.execution.search.spi.QueryResult;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyMap;
+
+public class DatafusionEngine extends SearchExecEngine<DatafusionContext, DatafusionSearcher,
+    DatafusionReaderManager, DatafusionQuery> implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(DatafusionEngine.class);
+
+    private DataFormat dataFormat;
+    private DatafusionReaderManager datafusionReaderManager;
+    private DataFusionService datafusionService;
+    private CacheManager cacheManager;
+    private final RootAllocator rootAllocator;
+
+    public DatafusionEngine(DataFormat dataFormat, Collection<FileMetadata> formatCatalogSnapshot, DataFusionService dataFusionService, ShardPath shardPath) throws IOException {
+        this.dataFormat = dataFormat;
+        this.datafusionReaderManager = new DatafusionReaderManager(
+            shardPath.getDataPath().resolve(dataFormat.getName()).toString(), formatCatalogSnapshot, dataFormat.getName()
+        );
+        this.datafusionService = dataFusionService;
+        this.cacheManager = datafusionService.getCacheManager();
+        this.rootAllocator = new RootAllocator(Long.MAX_VALUE);
+        if (this.cacheManager != null) {
+            datafusionReaderManager.setOnFilesAdded(files -> {
+                // Handle new files added during refresh
+                cacheManager.addFilesToCacheManager(files);
+            });
+        }
+    }
+
+    @Override
+    public DatafusionContext createContext(ReaderContext readerContext, ShardSearchRequest request, SearchShardTarget searchShardTarget, SearchShardTask task, BigArrays bigArrays, SearchContext originalContext, ClusterService clusterService) throws IOException {
+        DatafusionContext datafusionContext = new DatafusionContext(readerContext, request, searchShardTarget, task, this, bigArrays, originalContext, clusterService);
+        // Parse source
+        datafusionContext.datafusionQuery(new DatafusionQuery(request.shardId().getIndexName(), request.source().queryPlanIR(), new ArrayList<>()));
+        return datafusionContext;
+    }
+
+    @Override
+    public EngineSearcherSupplier<DatafusionSearcher> acquireSearcherSupplier(Function<DatafusionSearcher, DatafusionSearcher> wrapper) throws EngineException {
+        return acquireSearcherSupplier(wrapper, Engine.SearcherScope.EXTERNAL);
+    }
+
+    @Override
+    public EngineSearcherSupplier<DatafusionSearcher> acquireSearcherSupplier(Function<DatafusionSearcher, DatafusionSearcher> wrapper, Engine.SearcherScope scope) throws EngineException {
+        // TODO : wrapper is ignored
+        EngineSearcherSupplier<DatafusionSearcher> searcher = null;
+        // TODO : refcount needs to be revisited - add proper tests for exception etc
+        try {
+            DatafusionReader reader = datafusionReaderManager.acquire();
+            searcher = new DatafusionSearcherSupplier(null) {
+                @Override
+                protected DatafusionSearcher acquireSearcherInternal(String source) {
+                    return new DatafusionSearcher(source, reader,
+                         () -> {});
+
+                }
+
+                @Override
+                protected void doClose() {
+                    try {
+                        datafusionReaderManager.release(reader);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+        } catch (Exception ex) {
+            logger.error("Failed to acquire searcher", ex);
+            throw new RuntimeException(ex);
+        }
+        return searcher;
+    }
+
+    @Override
+    public DatafusionSearcher acquireSearcher(String source) throws EngineException {
+        return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
+    }
+
+    @Override
+    public DatafusionSearcher acquireSearcher(String source, Engine.SearcherScope scope) throws EngineException {
+        return acquireSearcher(source, scope, Function.identity());
+    }
+
+    @Override
+    public DatafusionSearcher acquireSearcher(String source, Engine.SearcherScope scope, Function<DatafusionSearcher, DatafusionSearcher> wrapper) throws EngineException {
+        DatafusionSearcherSupplier releasable = null;
+        try {
+            DatafusionSearcherSupplier searcherSupplier = releasable = (DatafusionSearcherSupplier) acquireSearcherSupplier(wrapper, scope);
+            DatafusionSearcher searcher = searcherSupplier.acquireSearcher(source);
+            releasable = null;
+
+            return new DatafusionSearcher(
+                source,
+                searcher.getReader(),
+                () -> Releasables.close(searcher, searcherSupplier)
+            );
+        } finally {
+            Releasables.close(releasable);
+        }
+    }
+
+    @Override
+    public DatafusionReaderManager getReferenceManager(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
+    public CatalogSnapshotAwareRefreshListener getRefreshListener(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
+    public FileDeletionListener getFileDeletionListener(Engine.SearcherScope scope) {
+        return datafusionReaderManager;
+    }
+
+    @Override
+    public boolean assertSearcherIsWarmedUp(String source, Engine.SearcherScope scope) {
+        return false;
+    }
+
+    @Override
+    public void close() {
+        rootAllocator.close();
+    }
+
+    /**
+     * Get the DataFusion runtime pointer for JNI calls.
+     * Used by IndexedQueryBridge for indexed query execution.
+     */
+    public long getRuntimePointer() {
+        return datafusionService.getRuntimePointer();
+    }
+
+    /**
+     * Get the DatafusionReaderManager for accessing file metadata.
+     */
+    public DatafusionReaderManager getDatafusionReaderManager() {
+        return datafusionReaderManager;
+    }
+
+
+    @Override
+    public void executeQueryPhase(DatafusionContext context) {
+        DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
+        consumeStreamAndSetResults(context, streamPointer);
+    }
+
+    /**
+     * Shared stream consumption logic used by both the normal DF query path
+     * and the indexed query path. Takes a stream pointer, consumes all batches,
+     * populates DF results and topDocs on the context.
+     */
+    private void consumeStreamAndSetResults(DatafusionContext context, long streamPointer) {
+        Map<String, List<Object>> finalRes = new HashMap<>();
+        List<Long> rowIdResult = new ArrayList<>();
+        RecordBatchStream stream = null;
+
+        try {
+            stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
+
+            // We can have some collectors passed like this which can collect the results and convert to InternalAggregation
+            // Is the possible? need to check
+
+            SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
+                while (iterator.hasNext()) {
+                    VectorSchemaRoot root = iterator.next();
+                    for (Field field : root.getSchema().getFields()) {
+                        String fieldName = field.getName();
+                        FieldVector fieldVector = root.getVector(fieldName);
+                        Object[] fieldValues = new Object[fieldVector.getValueCount()];
+                        if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
+                            FieldVector rowIdVector = root.getVector(fieldName);
+                            for(int i=0; i<fieldVector.getValueCount(); i++) {
+                                rowIdResult.add((long) rowIdVector.getObject(i));
+                                fieldValues[i] = fieldVector.getObject(i);
+                            }
+                        }
+                        else {
+                            for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                                fieldValues[i] = fieldVector.getObject(i);
+                            }
+                        }
+                        if(finalRes.containsKey(fieldName)) {
+                            finalRes.get(fieldName).addAll(Arrays.asList(fieldValues));
+                        } else {
+                            finalRes.put(fieldName, new ArrayList<>(Arrays.asList(fieldValues)));
+                        }
+                    }
+                }
+            };
+
+            collector.collect(new RecordBatchIterator(stream));
+
+        } catch (Exception exception) {
+            logger.error("Failed to execute Substrait query plan", exception);
+            throw new RuntimeException(exception);
+        } finally {
+            try {
+                if (stream != null) {
+                    stream.close();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        context.setDFResults(new DfResult(finalRes));
+        context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(), TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(), Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
+    }
+
+    @Override
+    public void executeQueryPhaseAsync(DatafusionContext context, Executor executor, ActionListener<QueryResult> listener) {
+        try {
+            DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+            context.getDatafusionQuery().setQueryPlanExplainEnabled(context.evaluateSearchQueryExplainMode());
+            context.getDatafusionQuery().setTargetPartitionsCount(context.getTargetMaxSliceCount());
+
+            datafusionSearcher.searchAsync(context.getDatafusionQuery(), datafusionService.getRuntimePointer()).whenCompleteAsync((streamPointer, error)-> {
+                Map<String, List<Object>> finalResColumns = new HashMap<>();
+                List<Long> rowIdResult = new ArrayList<>();
+                if(streamPointer == null) {
+                    throw new RuntimeException(error);
+                }
+                collect(context, executor, listener, streamPointer, finalResColumns, rowIdResult);
+            });
+
+//            logger.info("Memory Pool Allocation Post Query ShardID:{}", context.getQueryShardContext().getShardId());
+//            printMemoryPoolAllocation(datafusionService.getRuntimePointer());
+
+
+//            logger.info("Final Results:");
+//            for (Map.Entry<String, Object[]> entry : finalRes.entrySet()) {
+//                logger.info("{}: {}", entry.getKey(), java.util.Arrays.toString(entry.getValue()));
+//            }
+
+        } catch (Exception exception) {
+            logger.error("Failed to execute Substrait query plan", exception);
+            throw new RuntimeException(exception);
+        }
+        //return finalRes;
+    }
+
+    private void collect(DatafusionContext context, Executor executor, ActionListener<QueryResult> listener, Long streamPointer, Map<String, List<Object>> finalRes, List<Long> rowIdResult) {
+        RootAllocator allocator = new RootAllocator(Long.MAX_VALUE);
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer() , allocator);
+        SearchResultsCollector<RecordBatchStream> collector = new SearchResultsCollector<RecordBatchStream>() {
+            @Override
+            public void collect(RecordBatchStream value) {
+                VectorSchemaRoot root = value.getVectorSchemaRoot();
+                for (Field field : root.getSchema().getFields()) {
+                    String fieldName = field.getName();
+                    FieldVector fieldVector = root.getVector(fieldName);
+                    List<Object> fieldValues = new ArrayList<>(fieldVector.getValueCount());
+                    if (fieldName.equals(CompositeDataFormatWriter.ROW_ID)) {
+                        FieldVector rowIdVector = root.getVector(fieldName);
+                        for(int i=0; i<fieldVector.getValueCount(); i++) {
+                            rowIdResult.add((long) rowIdVector.getObject(i));
+                            fieldValues.add(fieldVector.getObject(i));
+                        }
+                    }
+                    else {
+                        for (int i = 0; i < fieldVector.getValueCount(); i++) {
+                            fieldValues.add(fieldVector.getObject(i));
+                        }
+                    }
+                    if (finalRes.containsKey(fieldName)) {
+                        finalRes.get(fieldName).addAll(fieldValues);
+                    } else {
+                        finalRes.put(fieldName, fieldValues);
+                    }
+                }
+            }
+        };
+        loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+    }
+
+    private void loadNextBatch(
+        RecordBatchStream stream,
+        Executor executor,
+        SearchResultsCollector<RecordBatchStream> collector,
+        Map<String, List<Object>> finalRes,
+        RootAllocator allocator,
+        ActionListener<QueryResult> listener,
+        DatafusionContext context,
+        List<Long> rowIdResult
+    ) {
+        AsyncRecordBatchIterator iterator = new AsyncRecordBatchIterator(stream);
+        iterator.nextAsync(ActionListener.wrap(hasMore -> {
+            if (hasMore) {
+                try {
+                    collector.collect(stream);
+                    // Recursively load next batch - TODO : anyway to Change this to iteration ?
+                    loadNextBatch(stream, executor, collector, finalRes, allocator, listener, context, rowIdResult);
+                } catch (Exception e) {
+                    cleanup(stream, allocator);
+                    listener.onFailure(e);
+                }
+            } else {
+                cleanup(stream, allocator);
+                context.queryResult().topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(rowIdResult.size(),
+                    TotalHits.Relation.EQUAL_TO), rowIdResult.stream().map(d-> new ScoreDoc(d.intValue(),
+                    Float.NaN, context.indexShard().shardId().getId())).toList().toArray(ScoreDoc[]::new)) , Float.NaN), new DocValueFormat[0]);
+                // ArrayList<> --> Object[]
+                listener.onResponse(new DfResult(finalRes));
+            }
+        }, error -> {
+            cleanup(stream, allocator);
+            listener.onFailure(new RuntimeException("Error loading batch", error));
+        }));
+    }
+    private void cleanup(RecordBatchStream stream, RootAllocator allocator) {
+        try {
+            if (stream != null) stream.close();
+            if (allocator != null) allocator.close();
+        } catch (Exception e) {
+            logger.error("Cleanup error", e);
+        }
+    }
+
+
+    /**
+     * Executes fetch phase, DataFusion query should contain projections for fields
+     * @param context DataFusion context
+     * @throws IOException
+     */
+    @Override
+    public void executeFetchPhase(DatafusionContext context) throws IOException {
+
+        List<Long> rowIds = Arrays.stream(context.docIdsToLoad()).mapToObj(Long::valueOf).toList();
+        if (rowIds.isEmpty()) {
+            // no individual hits to process, so we shortcut
+            context.fetchResult()
+                .hits(new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore()));
+            return;
+        }
+
+        // preprocess
+        context.getDatafusionQuery().setFetchPhaseContext(rowIds);
+
+        List<String>  includeFields =
+            Optional.ofNullable(context.request().source())
+                .map(SearchSourceBuilder::fetchSource)
+                .map(FetchSourceContext::includes)
+                .map(list -> new ArrayList<>(Arrays.asList(list)))
+                .orElseGet(ArrayList::new);
+
+        List<String>  excludeFields =
+            Optional.ofNullable(context.request().source())
+                .map(SearchSourceBuilder::fetchSource)
+                .map(FetchSourceContext::excludes)
+                .map(list -> new ArrayList<>(Arrays.asList(list)))
+                .orElseGet(ArrayList::new);
+
+        if(!includeFields.isEmpty()) {
+            includeFields.add(CompositeDataFormatWriter.ROW_ID);
+        }
+        excludeFields.addAll(context.mapperService().documentMapper().mapping().getMetadataStringNames());
+        excludeFields.add(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+
+        context.getDatafusionQuery().setSource(includeFields, excludeFields);
+        DatafusionSearcher datafusionSearcher = context.getEngineSearcher();
+        long streamPointer = datafusionSearcher.search(context.getDatafusionQuery(), datafusionService.getRuntimePointer());
+        RecordBatchStream stream = new RecordBatchStream(streamPointer, datafusionService.getRuntimePointer(), rootAllocator);
+
+        Map<Long, Integer> rowIdToIndex = new HashMap<>();
+        for (int idx = 0; idx < rowIds.size(); idx++) {
+            rowIdToIndex.put(rowIds.get(idx), idx);
+        }
+
+        MapperService mapperService = context.mapperService();
+        MappingLookup mappingLookup = mapperService.documentMapper().mappers();
+        SearchResultsCollector<RecordBatchIterator> collector = iterator -> {
+            List<BytesReference> byteRefs = new ArrayList<>();
+            SearchHit[] hits = new SearchHit[rowIds.size()];
+            int totalHits = 0;
+            while (iterator.hasNext()) {
+                VectorSchemaRoot vectorSchemaRoot = iterator.next();
+                List<FieldVector> fieldVectorList = vectorSchemaRoot.getFieldVectors();
+                for (int i = 0; i < vectorSchemaRoot.getRowCount(); i++) {
+                    XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                    String _id = "_id";
+                    Long row_id = null;
+
+                    try {
+                        for (FieldVector valueVectors : fieldVectorList) {
+                            if (valueVectors.getName().equals(CompositeDataFormatWriter.ROW_ID)) {
+                                row_id = (long) valueVectors.getObject(i);
+                                continue;
+                            }
+                            Mapper mapper = mappingLookup.getMapper(valueVectors.getName());
+                            DerivedFieldGenerator derivedFieldGenerator = mapper.derivedFieldGenerator();
+
+                            Object value = valueVectors.getObject(i);
+                            if(value == null) {
+                                builder.nullField(valueVectors.getName());
+                            } else {
+                                if(valueVectors instanceof ViewVarCharVector) {
+                                    BytesRef bytesRef = new BytesRef(((ViewVarCharVector) valueVectors).get(i));
+                                    derivedFieldGenerator.generate(builder, List.of(bytesRef));
+                                } else if (valueVectors instanceof TimeStampMilliVector) {
+                                    long timestamp = ((TimeStampMilliVector) valueVectors).get(i);
+                                    derivedFieldGenerator.generate(builder, List.of(timestamp));
+                                } else {
+                                    derivedFieldGenerator.generate(builder, List.of(value));
+                                }
+                                if (valueVectors.getName().equals(IdFieldMapper.NAME)) {
+                                    BytesRef idRef = new BytesArray((byte[]) value).toBytesRef();
+                                    _id = Uid.decodeId(idRef.bytes, idRef.offset, idRef.length);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to derive source for doc id [{i}]: {}", i, e);
+                        throw new OpenSearchException("Failed to derive source for doc id [" + i + "]", e);
+                    } finally {
+                        builder.endObject();
+                    }
+                    assert row_id != null || rowIds.get(i) != null;
+                    assert rowIdToIndex.containsKey(row_id);
+                    assert _id != null;
+                    BytesReference document = BytesReference.bytes(builder);
+                    byteRefs.add(document);
+                    SearchHit hit = new SearchHit(Math.toIntExact(rowIds.get(i)), _id, emptyMap(), emptyMap());
+                    hit.sourceRef(document);
+                    FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(hit, null, Math.toIntExact(rowIds.get(i)), new SourceLookup()); //TODO: make source lookup one per thread
+                    hitContext.sourceLookup().setSource(document);
+                    int index = rowIdToIndex.get(row_id);
+                    hits[index] = hit;
+                    totalHits++;
+                }
+            }
+            context.fetchResult().hits(new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), context.queryResult().getMaxScore()));
+        };
+
+        try {
+            collector.collect(new RecordBatchIterator(stream));
+        } catch (IOException exception) {
+            logger.error("Failed to perform fetch phase", exception);
+            throw new RuntimeException(exception);
+        } finally {
+            try {
+                stream.close();
+            } catch (Exception e) {
+                logger.error("Failed to close stream", e);
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Override
+    public Map<String, FileStats> fetchSegmentStats() throws IOException {
+        try (DatafusionReader datafusionReader = datafusionReaderManager.acquire()) {
+            return datafusionReader.fetchSegmentStats();
+        }
+    }
+
+    @Override
+    public void executeIndexedQuery(
+        org.apache.lucene.index.DirectoryReader luceneReader,
+        org.apache.lucene.search.Query query,
+        int numPartitions,
+        int bitsetMode,
+        org.opensearch.core.action.ActionListener<Long> listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException(
+            "Use executeIndexedQuery with tableName and substraitBytes instead"));
+    }
+
+    /**
+     * Execute an indexed query with substrait plan — passes through to IndexedQueryBridge directly.
+     * No blocking — the listener is called asynchronously when the stream is ready.
+     */
+    public void executeIndexedQuery(
+        org.apache.lucene.index.DirectoryReader luceneReader,
+        org.apache.lucene.search.Query query,
+        String tableName,
+        byte[] substraitBytes,
+        int numPartitions,
+        int bitsetMode,
+        boolean isQueryPlanExplainEnabled,
+        org.opensearch.core.action.ActionListener<Long> listener
+    ) {
+        logger.info("[INDEXED-DEBUG] DatafusionEngine.executeIndexedQuery: thread={}, tableName={}, substraitBytes={}",
+            Thread.currentThread().getName(), tableName, substraitBytes != null ? substraitBytes.length + " bytes" : "null");
+        try {
+            DatafusionReader dfReader = datafusionReaderManager.acquire();
+
+            IndexedQueryBridge.executeIndexedQuery(
+                luceneReader,
+                query,
+                dfReader.files,
+                dfReader.directoryPath,
+                tableName,
+                substraitBytes,
+                numPartitions,
+                bitsetMode,
+                isQueryPlanExplainEnabled,
+                datafusionService.getRuntimePointer(),
+                listener
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+
+    /**
+     * Execute the query phase using a pre-obtained stream pointer (from indexed query).
+     * Uses the same async stream consumption as executeQueryPhaseAsync — identical response path.
+     */
+    public void executeQueryPhaseWithStreamPointer(DatafusionContext context, long streamPointer, Executor executor, ActionListener<Map<String, Object[]>> listener) {
+        logger.info("[INDEXED-DEBUG] executeQueryPhaseWithStreamPointer: thread={}, streamPtr={}", Thread.currentThread().getName(), streamPointer);
+        Map<String, List<Object>> finalRes = new HashMap<>();
+        List<Long> rowIdResult = new ArrayList<>();
+        collect(context, executor, ActionListener.map(listener, qr -> {
+            // Convert QueryResult columns to Object[] map for the caller
+            Map<String, Object[]> result = new HashMap<>();
+            qr.getColumns().forEach((k, v) -> result.put(k, v.toArray()));
+            return result;
+        }), streamPointer, finalRes, rowIdResult);
+    }
+}

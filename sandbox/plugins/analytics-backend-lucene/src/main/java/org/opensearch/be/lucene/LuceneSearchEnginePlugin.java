@@ -11,6 +11,12 @@ package org.opensearch.be.lucene;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.CatalogSnapshotAwareReaderManager;
+import org.opensearch.index.engine.exec.IndexFilterProvider;
+import org.opensearch.index.engine.exec.IndexFilterTreeProvider;
+import org.opensearch.index.engine.exec.SourceProvider;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CompositeEngine;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -36,6 +42,21 @@ public class LuceneSearchEnginePlugin implements SearchBackEndPlugin {
     @Override
     public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
         return new LuceneReaderManager(format);
+    }
+
+    @Override
+    public IndexFilterProvider<?, ?> createIndexFilterProvider(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneIndexFilterProvider();
+    }
+
+    @Override
+    public SourceProvider<?, ?> createSourceProvider(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneSourceProvider();
+    }
+
+    @Override
+    public IndexFilterTreeProvider<?, ?, ?> createIndexFilterTreeProvider(DataFormat format, ShardPath shardPath) throws IOException {
+        return new LuceneIndexFilterTreeProvider();
     }
 
     @Override
