@@ -149,7 +149,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                String[] includes = parseSourceArray(parser).toArray(new String[0]);
+                ArrayList<String> list = new ArrayList<>();
+                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    list.add(parser.text());
+                }
+                String[] includes = list.toArray(new String[0]);
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_OBJECT -> {
