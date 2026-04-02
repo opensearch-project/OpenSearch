@@ -11,6 +11,8 @@ package org.opensearch.parquet.bridge;
 import org.opensearch.nativebridge.spi.PlatformHelper;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
 
 /**
  * JNI bridge to the native Rust Parquet writer library ({@code parquet_dataformat_jni}).
@@ -35,13 +37,31 @@ public class RustBridge {
     public static native void initLogger();
 
     // Writer lifecycle methods — package-private, controlled by NativeParquetWriter
-    static native void createWriter(String file, long schemaAddress) throws IOException;
+    static native void createWriter(
+        String file,
+        String indexName,
+        long schemaAddress,
+        List<String> sortColumns,
+        List<Boolean> reverseSorts
+    ) throws IOException;
 
     static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
 
     static native ParquetFileMetadata finalizeWriter(String file) throws IOException;
 
     static native void syncToDisk(String file) throws IOException;
+
+    // Settings management
+    public static native void onSettingsUpdate(NativeSettings nativeSettings) throws IOException;
+
+    public static native void removeSettings(String indexName);
+
+    // Merge support
+    public static native void mergeParquetFilesInRust(
+        List<Path> inputFiles,
+        String outputFile,
+        String indexName
+    );
 
     // Public utility methods
     /**
