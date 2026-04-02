@@ -123,6 +123,23 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            value = context.parser().textOrNull();
+        }
+
+        if (value == null) {
+            return;
+        }
+
+        Field field = new Field(fieldType().name(), value, FIELD_TYPE);
+        context.doc().add(field);
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

@@ -451,7 +451,36 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
+            return;
+        }
 
+        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
+            fieldType().name(),
+            scaledValue,
+            indexed,
+            hasDocValues,
+            skiplist,
+            stored
+        );
+        context.doc().addAll(fields);
+
+        if (hasDocValues == false && (indexed || stored)) {
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long scaledValue = parseScaledValue(context);
+        if (scaledValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), scaledValue);
+    }
+
+    private Long parseScaledValue(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -466,7 +495,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
                 numericValue = parse(parser, coerce.value());
             } catch (IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value()) {
-                    return;
+                    return null;
                 } else {
                     throw e;
                 }
@@ -479,7 +508,7 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (value == null) {
-            return;
+            return null;
         }
 
         if (numericValue == null) {
@@ -489,31 +518,13 @@ public class ScaledFloatFieldMapper extends ParametrizedFieldMapper {
         double doubleValue = numericValue.doubleValue();
         if (Double.isFinite(doubleValue) == false) {
             if (ignoreMalformed.value()) {
-                return;
+                return null;
             } else {
                 // since we encode to a long, we have no way to carry NaNs and infinities
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = Math.round(doubleValue * scalingFactor);
-
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), scaledValue);
-        } else {
-            List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(
-                fieldType().name(),
-                scaledValue,
-                indexed,
-                hasDocValues,
-                skiplist,
-                stored
-            );
-            context.doc().addAll(fields);
-
-            if (hasDocValues == false && (indexed || stored)) {
-                createFieldNamesField(context);
-            }
-        }
+        return Math.round(doubleValue * scalingFactor);
     }
 
     static Double parse(Object value) {

@@ -814,11 +814,43 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
+        }
+
+        if (indexed) {
+            context.doc().add(new LongPoint(fieldType().name(), timestamp));
+        }
+        if (hasDocValues) {
+            if (skiplist || isSkiplistDefaultEnabled(context.indexSettings().getIndexSortConfig(), fieldType().name())) {
+                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+            } else {
+                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            }
+        } else if (store || indexed) {
+            createFieldNamesField(context);
+        }
+        if (store) {
+            context.doc().add(new StoredField(fieldType().name(), timestamp));
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Long timestamp = parseTimestamp(context);
+        if (timestamp == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), timestamp);
+    }
+
+    private Long parseTimestamp(ParseContext context) throws IOException {
         String dateAsString = getFieldValue(context);
         long timestamp;
         if (dateAsString == null) {
             if (nullValue == null) {
-                return;
+                return null;
             }
             timestamp = nullValue;
         } else {
@@ -827,32 +859,13 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             } catch (IllegalArgumentException | OpenSearchParseException | DateTimeException | ArithmeticException e) {
                 if (ignoreMalformed().value()) {
                     context.addIgnoredField(mappedFieldType.name());
-                    return;
+                    return null;
                 } else {
                     throw e;
                 }
             }
         }
-
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), timestamp);
-        } else {
-            if (indexed) {
-                context.doc().add(new LongPoint(fieldType().name(), timestamp));
-            }
-            if (hasDocValues) {
-                if (skiplist || isSkiplistDefaultEnabled(context.indexSettings().getIndexSortConfig(), fieldType().name())) {
-                    context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
-                } else {
-                    context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
-                }
-            } else if (store || indexed) {
-                createFieldNamesField(context);
-            }
-            if (store) {
-                context.doc().add(new StoredField(fieldType().name(), timestamp));
-            }
-        }
+        return timestamp;
     }
 
     boolean isSkiplistDefaultEnabled(IndexSortConfig indexSortConfig, String fieldName) {

@@ -203,13 +203,19 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), binaryValue);
-        } else {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
-            context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+        Field field = new Field(fieldType().name(), binaryValue, fieldType);
+        context.doc().add(field);
+        context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        if (context.externalValueSet() == false) {
+            throw new IllegalStateException("external value not set");
         }
+        String refId = (String) context.externalValue();
+        BytesRef binaryValue = new BytesRef(refId);
+        context.documentInput().addField(fieldType(), binaryValue);
     }
 
     @Override

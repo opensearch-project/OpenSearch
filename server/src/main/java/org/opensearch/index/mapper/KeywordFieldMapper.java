@@ -860,6 +860,37 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        String value = parseKeywordValue(context);
+        if (value == null) {
+            return;
+        }
+
+        // convert to utf8 only once before feeding postings/dv/stored fields
+        final BytesRef binaryValue = new BytesRef(value);
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+            context.doc().add(field);
+
+            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
+                createFieldNamesField(context);
+            }
+        }
+
+        if (fieldType().hasDocValues()) {
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value = parseKeywordValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String parseKeywordValue(ParseContext context) throws IOException {
         String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -873,32 +904,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         if (value == null || value.length() > ignoreAbove) {
-            return;
+            return null;
         }
 
         NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
             value = normalizeValue(normalizer, name(), value);
         }
-
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), value);
-        } else {
-            // convert to utf8 only once before feeding postings/dv/stored fields
-            final BytesRef binaryValue = new BytesRef(value);
-            if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-                context.doc().add(field);
-
-                if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                    createFieldNamesField(context);
-                }
-            }
-
-            if (fieldType().hasDocValues()) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-            }
-        }
+        return value;
     }
 
     static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {

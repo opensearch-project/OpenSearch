@@ -47,6 +47,8 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -58,7 +60,9 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.StandardTokenizerFactory;
 import org.opensearch.index.analysis.TokenFilterFactory;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.DocumentMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperTestCase;
@@ -68,11 +72,13 @@ import org.opensearch.plugin.mapper.AnnotatedTextPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -606,4 +612,72 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatAnnotatedText() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
+        TestDocumentInput docInput = new TestDocumentInput();
+        mapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("some annotated text"));
+        assertTrue("Expected annotated_text field captured with value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
+        TestDocumentInput docInput = new TestDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithExternalValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("annotated").field("type", "annotated_text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        TestDocumentInput docInput = new TestDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_value")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.annotated") && e.getValue().equals("external_value"));
+        assertTrue("Expected annotated_text sub-field captured with external value", found);
+    }
+
+    private static class TestDocumentInput implements DocumentInput<Object> {
+        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
+
+        @Override
+        public Object getFinalInput() {
+            return null;
+        }
+
+        @Override
+        public void addField(MappedFieldType fieldType, Object value) {
+            capturedFields.add(Map.entry(fieldType, value));
+        }
+
+        @Override
+        public void setRowId(String rowIdFieldName, long rowId) {}
+
+        @Override
+        public void close() {}
+
+        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
+            return capturedFields;
+        }
+    }
 }

@@ -2167,15 +2167,20 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), numericValue);
-        } else {
-            context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
+        context.doc().addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, skiplist, stored));
 
-            if (hasDocValues == false && (stored || indexed)) {
-                createFieldNamesField(context);
-            }
+        if (hasDocValues == false && (stored || indexed)) {
+            createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Number numericValue = getFieldValue(context);
+        if (numericValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), numericValue);
     }
 
     @Override

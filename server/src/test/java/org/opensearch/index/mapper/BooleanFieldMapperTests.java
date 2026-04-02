@@ -357,4 +357,21 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
         assertTrue(capturingDocInput.getCapturedFields().stream().noneMatch(e -> e.getKey().name().equals("field")));
     }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanNullValueConfigured() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "boolean").field("null_value", true).endObject())
+        );
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.TRUE.equals(e.getValue()))
+        );
+    }
 }

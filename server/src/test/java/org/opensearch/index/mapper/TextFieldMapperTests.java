@@ -1199,4 +1199,66 @@ public class TextFieldMapperTests extends MapperTestCase {
         List<Map.Entry<MappedFieldType, Object>> captured = capturingDocInput.getCapturedFields();
         assertTrue(captured.stream().noneMatch(e -> e.getKey().name().equals("field")));
     }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatTextWithExternalValue() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("sub").field("type", "text").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_text")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.sub") && e.getValue().equals("external_text"));
+        assertTrue("Expected text sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPhraseFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_phrases", true))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper phraseMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_phrase")) {
+                phraseMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected phrase sub-mapper", phraseMapper);
+        assertTrue(phraseMapper instanceof FieldMapper);
+        FieldMapper phraseFieldMapper = (FieldMapper) phraseMapper;
+        expectThrows(UnsupportedOperationException.class, () -> phraseFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPrefixFieldMapperThrows() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text").field("index_prefixes", new java.util.HashMap<>()))
+        );
+        TextFieldMapper textMapper = (TextFieldMapper) mapper.mappers().getMapper("field");
+        Mapper prefixMapper = null;
+        for (Mapper m : textMapper) {
+            if (m.name().endsWith("._index_prefix")) {
+                prefixMapper = m;
+                break;
+            }
+        }
+        assertNotNull("Expected prefix sub-mapper", prefixMapper);
+        assertTrue(prefixMapper instanceof FieldMapper);
+        FieldMapper prefixFieldMapper = (FieldMapper) prefixMapper;
+        expectThrows(UnsupportedOperationException.class, () -> prefixFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
 }

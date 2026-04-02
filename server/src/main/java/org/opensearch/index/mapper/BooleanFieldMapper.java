@@ -374,6 +374,33 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        if (indexed) {
+            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
+        }
+        if (stored) {
+            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
+        }
+        if (hasDocValues) {
+            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
+        } else {
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private Boolean parseBooleanValue(ParseContext context) throws IOException {
         Boolean value = context.parseExternalValue(Boolean.class);
         if (value == null) {
             XContentParser.Token token = context.parser().currentToken();
@@ -385,25 +412,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
                 value = context.parser().booleanValue();
             }
         }
-
-        if (value == null) {
-            return;
-        }
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), value);
-        } else {
-            if (indexed) {
-                context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
-            }
-            if (stored) {
-                context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
-            }
-            if (hasDocValues) {
-                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
-            } else {
-                createFieldNamesField(context);
-            }
-        }
+        return value;
     }
 
     @Override

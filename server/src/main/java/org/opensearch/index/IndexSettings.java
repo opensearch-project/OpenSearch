@@ -980,6 +980,7 @@ public final class IndexSettings {
     private final boolean isTranslogMetadataEnabled;
     private volatile boolean allowDerivedField;
     private final boolean derivedSourceEnabled;
+    private final boolean pluggableDataFormatEnabled;
     private volatile boolean derivedSourceEnabledForTranslog;
 
     /**
@@ -1228,6 +1229,8 @@ public final class IndexSettings {
         checkPendingFlushEnabled = scopedSettings.get(INDEX_CHECK_PENDING_FLUSH_ENABLED);
         defaultSearchPipeline = scopedSettings.get(DEFAULT_SEARCH_PIPELINE);
         derivedSourceEnabled = scopedSettings.get(INDEX_DERIVED_SOURCE_SETTING);
+        pluggableDataFormatEnabled = FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+            && scopedSettings.get(PLUGGABLE_DATAFORMAT_ENABLED_SETTING);
         derivedSourceEnabledForTranslog = scopedSettings.get(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING);
         scopedSettings.addSettingsUpdateConsumer(INDEX_DERIVED_SOURCE_TRANSLOG_ENABLED_SETTING, this::setDerivedSourceEnabledForTranslog);
         /* There was unintentional breaking change got introduced with [OpenSearch-6424](https://github.com/opensearch-project/OpenSearch/pull/6424) (version 2.7).
@@ -2366,5 +2369,15 @@ public final class IndexSettings {
 
     public boolean isDerivedSourceEnabled() {
         return derivedSourceEnabled;
+    }
+
+    /**
+     * Returns whether the pluggable data format feature is enabled for this index.
+     * Requires both the experimental feature flag and the index-level setting.
+     *
+     * @return {@code true} if pluggable data format is enabled
+     */
+    public boolean isPluggableDataFormatEnabled() {
+        return pluggableDataFormatEnabled;
     }
 }

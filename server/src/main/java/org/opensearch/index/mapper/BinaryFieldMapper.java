@@ -194,39 +194,49 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         if (stored == false && hasDocValues == false) {
             return;
         }
+        byte[] value = parseBinaryValue(context);
+        if (value == null) {
+            return;
+        }
+        if (stored) {
+            context.doc().add(new StoredField(fieldType().name(), value));
+        }
+
+        if (hasDocValues) {
+            CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
+            if (field == null) {
+                field = new CustomBinaryDocValuesField(fieldType().name(), value);
+                context.doc().addWithKey(fieldType().name(), field);
+            } else {
+                field.add(value);
+            }
+        } else {
+            // Only add an entry to the field names field if the field is stored
+            // but has no doc values so exists query will work on a field with
+            // no doc values
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        byte[] value = parseBinaryValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private byte[] parseBinaryValue(ParseContext context) throws IOException {
         byte[] value = context.parseExternalValue(byte[].class);
         if (value == null) {
             if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
+                return null;
             } else {
                 value = context.parser().binaryValue();
             }
         }
-        if (value == null) {
-            return;
-        }
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), value);
-        } else {
-            if (stored) {
-                context.doc().add(new StoredField(fieldType().name(), value));
-            }
-
-            if (hasDocValues) {
-                CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
-                if (field == null) {
-                    field = new CustomBinaryDocValuesField(fieldType().name(), value);
-                    context.doc().addWithKey(fieldType().name(), field);
-                } else {
-                    field.add(value);
-                }
-            } else {
-                // Only add an entry to the field names field if the field is stored
-                // but has no doc values so exists query will work on a field with
-                // no doc values
-                createFieldNamesField(context);
-            }
-        }
+        return value;
     }
 
     @Override

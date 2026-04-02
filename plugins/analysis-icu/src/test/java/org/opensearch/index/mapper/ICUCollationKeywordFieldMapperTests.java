@@ -39,14 +39,19 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -308,4 +313,49 @@ public class ICUCollationKeywordFieldMapperTests extends FieldMapperTestCase2<IC
         assertEquals(0, fields.length);
     }
 
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatCollationKeyword() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+        TestDocumentInput docInput = new TestDocumentInput();
+        mapper.parse(source(b -> b.field("field", "test_value")), docInput);
+
+        boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertTrue("Expected ICU collation keyword field captured", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatCollationKeywordNullSkipped() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+        TestDocumentInput docInput = new TestDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    private static class TestDocumentInput implements DocumentInput<Object> {
+        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
+
+        @Override
+        public Object getFinalInput() {
+            return null;
+        }
+
+        @Override
+        public void addField(MappedFieldType fieldType, Object value) {
+            capturedFields.add(Map.entry(fieldType, value));
+        }
+
+        @Override
+        public void setRowId(String rowIdFieldName, long rowId) {}
+
+        @Override
+        public void close() {}
+
+        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
+            return capturedFields;
+        }
+    }
 }

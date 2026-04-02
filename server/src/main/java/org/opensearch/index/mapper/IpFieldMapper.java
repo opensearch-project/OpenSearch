@@ -638,23 +638,28 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), address);
-        } else {
-            if (indexed && hasDocValues) {
-                context.doc().add(new InetAddressField(fieldType().name(), address));
-            } else if (indexed) {
-                context.doc().add(new InetAddressPoint(fieldType().name(), address));
-            } else if (hasDocValues) {
-                context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
-            }
-            if ((stored || indexed) && hasDocValues == false) {
-                createFieldNamesField(context);
-            }
-            if (stored) {
-                context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
-            }
+        if (indexed && hasDocValues) {
+            context.doc().add(new InetAddressField(fieldType().name(), address));
+        } else if (indexed) {
+            context.doc().add(new InetAddressPoint(fieldType().name(), address));
+        } else if (hasDocValues) {
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         }
+        if ((stored || indexed) && hasDocValues == false) {
+            createFieldNamesField(context);
+        }
+        if (stored) {
+            context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final InetAddress address = getFieldValue(context);
+        if (address == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), address);
     }
 
     @Override

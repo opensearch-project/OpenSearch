@@ -37,6 +37,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.opensearch.common.Explicit;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -60,7 +61,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
 /**
@@ -218,7 +218,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected MultiFields multiFields;
     protected CopyTo copyTo;
     protected DerivedFieldGenerator derivedFieldGenerator;
-    private final AtomicBoolean isPluggableDataFormatFeatureEnabled = new AtomicBoolean(false);
 
     protected FieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
@@ -285,7 +284,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public void parse(ParseContext context) throws IOException {
         try {
-            parseCreateField(context);
+            if (isPluggableDataFormatFeatureEnabled(context)) {
+                parseCreateFieldForPluggableFormat(context);
+            } else {
+                parseCreateField(context);
+            }
             extractGroupingCriteriaParams(context);
         } catch (Exception e) {
 
@@ -334,6 +337,20 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected abstract void parseCreateField(ParseContext context) throws IOException;
 
+    /**
+     * Parse the field value and populate the pluggable data format's {@link ParseContext#documentInput()}.
+     * <p>
+     * Subclasses that support pluggable data formats should override this method to extract the
+     * parsed value and call {@code context.documentInput().addField(fieldType(), value)}.
+     * The default implementation throws {@link UnsupportedOperationException}.
+     *
+     * @param context the parse context carrying the document input
+     * @throws IOException if an I/O error occurs while parsing
+     * @throws UnsupportedOperationException if the mapper does not support pluggable data formats
+     */
+    @ExperimentalApi
+    protected abstract void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException;
+
     private void extractGroupingCriteriaParams(ParseContext context) throws IOException {
         if (context.docMapper() != null && context.docMapper().mappers() != null) {
             final Mapper mapper = context.docMapper().mappers().getMapper(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
@@ -378,7 +395,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     protected final boolean isPluggableDataFormatFeatureEnabled(ParseContext parseContext) {
-        return isPluggableDataFormatEnabled(parseContext.indexSettings().getSettings());
+        return parseContext.indexSettings().isPluggableDataFormatEnabled();
     }
 
     @Override

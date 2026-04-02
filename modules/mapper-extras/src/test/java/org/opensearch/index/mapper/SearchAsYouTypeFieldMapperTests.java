@@ -801,4 +801,38 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
         assertFalse("Expected no field entry for null value", found);
     }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatSearchAsYouTypeExternalValue() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("sayt").field("type", "search_as_you_type").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_sayt")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.sayt") && e.getValue().equals("external_sayt"));
+        assertTrue("Expected search_as_you_type sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatPrefixFieldMapperThrows() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject()));
+        PrefixFieldMapper prefixMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
+        expectThrows(UnsupportedOperationException.class, () -> prefixMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatShingleFieldMapperThrows() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject()));
+        ShingleFieldMapper shingleMapper = getShingleFieldMapper(mapper, "field._2gram");
+        expectThrows(UnsupportedOperationException.class, () -> shingleMapper.parseCreateFieldForPluggableFormat(null));
+    }
 }

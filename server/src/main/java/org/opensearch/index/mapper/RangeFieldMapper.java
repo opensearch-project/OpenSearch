@@ -474,15 +474,20 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
         if (range == null) {
             return;
         }
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), range);
-        } else {
-            context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
+        context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, index, hasDocValues, store));
 
-            if (hasDocValues == false && (index || store)) {
-                createFieldNamesField(context);
-            }
+        if (hasDocValues == false && (index || store)) {
+            createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Range range = parseRange(context);
+        if (range == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), range);
     }
 
     private Range parseRange(ParseContext context) throws IOException {

@@ -38,6 +38,8 @@ import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 
@@ -156,5 +158,23 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
             "[rank_feature] fields do not support indexing multiple values for the same field [foo.field] in the same document",
             e.getCause().getMessage()
         );
+    }
+
+    public void testParseCreateFieldForPluggableFormat() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        RankFeatureFieldMapper fieldMapper = (RankFeatureFieldMapper) mapper.mappers().getMapper("field");
+        assertNotNull(fieldMapper);
+        assertEquals("rank_feature", fieldMapper.typeName());
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatRankFeatureNoOp() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", 10)), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("RankFeatureFieldMapper pluggable format is no-op", hasField);
     }
 }

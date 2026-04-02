@@ -789,4 +789,17 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             .anyMatch(e -> e.getKey().name().equals(FIELD_NAME) && e.getValue().equals(3.14));
         assertTrue("Expected double value 3.14", found);
     }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws Exception {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            settings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField(FIELD_NAME)), docInput);
+
+        assertFalse(docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME)));
+    }
 }

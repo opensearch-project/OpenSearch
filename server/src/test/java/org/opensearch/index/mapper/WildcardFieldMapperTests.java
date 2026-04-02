@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -395,5 +396,99 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         final BytesRef binaryValue = new BytesRef(value);
         doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
         return doc;
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultWildcard() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "test_value")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("test_value"));
+        assertTrue("Expected wildcard field captured with value 'test_value'", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueConfigured() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("null_value", "default_val").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("default_val"));
+        assertTrue("Expected wildcard field captured with null_value 'default_val'", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 5).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "opensearch")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field when value exceeds ignore_above", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAboveWithinLimit() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 10).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "elk")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("elk"));
+        assertTrue("Expected wildcard field captured with value 'elk' within ignore_above limit", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithExternalValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("wc").field("type", "wildcard").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_wildcard")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.wc") && e.getValue().equals("external_wildcard"));
+        assertTrue("Expected wildcard sub-field captured with external value", found);
     }
 }

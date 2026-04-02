@@ -710,6 +710,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -737,6 +742,11 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -1040,9 +1050,7 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), value);
-        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
@@ -1055,6 +1063,15 @@ public class TextFieldMapper extends ParametrizedFieldMapper {
                 context.doc().add(new Field(phraseFieldMapper.fieldType().name(), value, phraseFieldMapper.fieldType));
             }
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final String value = getFieldValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
     }
 
     @Override

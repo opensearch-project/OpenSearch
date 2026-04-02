@@ -490,6 +490,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -522,6 +527,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -650,23 +660,32 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
+        final String value = extractValue(context);
         if (value == null) {
             return;
         }
 
-        if (isPluggableDataFormatFeatureEnabled(context)) {
-            context.documentInput().addField(fieldType(), value);
-        } else {
-            context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
-            for (ShingleFieldMapper subFieldMapper : shingleFields) {
-                context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
-            }
-            context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
-            if (fieldType().fieldType.omitNorms()) {
-                createFieldNamesField(context);
-            }
+        context.doc().add(new Field(fieldType().name(), value, fieldType().fieldType));
+        for (ShingleFieldMapper subFieldMapper : shingleFields) {
+            context.doc().add(new Field(subFieldMapper.fieldType().name(), value, subFieldMapper.getLuceneFieldType()));
         }
+        context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
+        if (fieldType().fieldType.omitNorms()) {
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final String value = extractValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String extractValue(ParseContext context) throws IOException {
+        return context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
     }
 
     @Override
