@@ -5,33 +5,27 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+
+//! JNI bridge layer.
+//!
+//! This module is a thin adapter between Java's JNI types and the bridge-agnostic
+//! API in [`api`]. All core logic lives in `api.rs` and `query_executor.rs`.
+//! When migrating to JDK FFM, replace this file with an `extern "C"` bridge
+//! that calls the same `api::*` functions.
+
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::cell::RefCell;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
-use arrow_array::StructArray;
-use arrow_array::Array;
-use arrow_schema::ffi::FFI_ArrowSchema;
-use arrow_array::ffi::FFI_ArrowArray;
 use datafusion::common::DataFusionError;
-use datafusion::datasource::listing::ListingTableUrl;
-use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
-use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
-use datafusion::execution::runtime_env::{RuntimeEnv, RuntimeEnvBuilder};
-use datafusion::execution::{RecordBatchStream, SessionState, SessionStateBuilder};
-use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
-use datafusion::prelude::SessionConfig;
-use futures::TryStreamExt;
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString};
 use jni::sys::{jint, jlong};
 use jni::{JNIEnv, JavaVM};
 use log::error;
-use object_store::ObjectMeta;
 
+pub mod api;
 pub mod cross_rt_stream;
 pub mod executor;
 pub mod io;
@@ -41,7 +35,6 @@ pub mod util;
 
 use jni_macros::jni_safe;
 
-use crate::cross_rt_stream::CrossRtStream;
 use crate::runtime_manager::RuntimeManager;
 use crate::util::*;
 
@@ -70,21 +63,15 @@ where
     })
 }
 
-// Native types for runtime and reader
-
-pub struct DataFusionRuntime {
-    pub runtime_env: RuntimeEnv,
-    /// Pre-built session state with all default features registered.
-    /// Cloned per query to avoid re-registering functions and optimizer rules.
-    pub session_state_template: SessionState,
+fn get_manager() -> Result<&'static Arc<RuntimeManager>, DataFusionError> {
+    TOKIO_RUNTIME_MANAGER
+        .get()
+        .ok_or_else(|| DataFusionError::Execution("Runtime manager not initialized".to_string()))
 }
 
-struct ShardView {
-    table_path: ListingTableUrl,
-    object_metas: Arc<Vec<ObjectMeta>>,
-}
-
+// ---------------------------------------------------------------------------
 // Tokio runtime management
+// ---------------------------------------------------------------------------
 
 #[jni_safe]
 #[no_mangle]
@@ -108,7 +95,10 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_shutdo
     }
 }
 
-// Create DataFusion global runtime with user defined configuration
+// ---------------------------------------------------------------------------
+// DataFusion runtime
+// ---------------------------------------------------------------------------
+
 #[jni_safe(default = 0)]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_createGlobalRuntime(
@@ -122,47 +112,20 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
     let spill_dir: String = match env.get_string(&spill_dir) {
         Ok(s) => s.into(),
         Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/IllegalArgumentException",
-                format!("Invalid spill dir: {:?}", e),
-            );
+            let _ = env.throw_new("java/lang/IllegalArgumentException", format!("Invalid spill dir: {:?}", e));
             return 0;
         }
     };
 
-    let disk_manager = DiskManagerBuilder::default()
-        .with_max_temp_directory_size(spill_limit as u64)
-        .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
-
-    let memory_pool = Arc::new(TrackConsumersPool::new(
-        GreedyMemoryPool::new(memory_pool_limit as usize),
-        NonZeroUsize::new(5).unwrap(),
-    ));
-
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_memory_pool(memory_pool)
-        .with_disk_manager_builder(disk_manager)
-        .build()
-        .unwrap();
-
-    let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
-    config.options_mut().execution.target_partitions = 4;
-    config.options_mut().execution.batch_size = 8192;
-
-    // TODO : config is per dynamic and reusing state across queries causes like "Table already exists"
-    // state has to be per query
-    let session_state_template = SessionStateBuilder::new()
-        .with_config(config)
-        .with_runtime_env(Arc::from(runtime_env.clone()))
-        .with_default_features()
-        .build();
-
-    let runtime = DataFusionRuntime { runtime_env, session_state_template };
-    Box::into_raw(Box::new(runtime)) as jlong
+    match api::create_global_runtime(memory_pool_limit, &spill_dir, spill_limit) {
+        Ok(ptr) => ptr as jlong,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            0
+        }
+    }
 }
 
-// Close DataFusion global runtime
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_closeGlobalRuntime(
@@ -170,12 +133,13 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_closeG
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        let _ = unsafe { Box::from_raw(ptr as *mut DataFusionRuntime) };
-    }
+    unsafe { api::close_global_runtime(ptr as i64) };
 }
 
-// Create datafusion reader by representing it in shard view
+// ---------------------------------------------------------------------------
+// Reader management
+// ---------------------------------------------------------------------------
+
 #[jni_safe(default = 0)]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_createDatafusionReader(
@@ -187,82 +151,32 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_create
     let table_path: String = match env.get_string(&table_path) {
         Ok(s) => s.into(),
         Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/IllegalArgumentException",
-                format!("Invalid table path: {:?}", e),
-            );
+            let _ = env.throw_new("java/lang/IllegalArgumentException", format!("Invalid table path: {:?}", e));
             return 0;
         }
     };
-
-    let mut filenames = match parse_string_arr(env, files) {
+    let filenames = match parse_string_arr(env, files) {
         Ok(f) => f,
         Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/IllegalArgumentException",
-                format!("Invalid file list: {}", e),
-            );
+            let _ = env.throw_new("java/lang/IllegalArgumentException", format!("Invalid file list: {}", e));
             return 0;
         }
     };
-    filenames.sort();
-
-    let manager = match TOKIO_RUNTIME_MANAGER.get() {
-        Some(m) => m,
-        None => {
-            let _ = env.throw_new(
-                "java/lang/IllegalStateException",
-                "Runtime manager not initialized",
-            );
-            return 0;
-        }
-    };
-
-    let table_url = match ListingTableUrl::parse(&table_path) {
-        Ok(u) => u,
-        Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("Invalid table path: {}", e),
-            );
-            return 0;
-        }
-    };
-
-    let default_rt = datafusion::execution::runtime_env::RuntimeEnvBuilder::new()
-        .build()
-        .unwrap();
-
-    let store = match default_rt.object_store(&table_url) {
-        Ok(s) => s,
-        Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("Failed to resolve object store: {}", e),
-            );
-            return 0;
-        }
-    };
-
-    let tp = table_path.clone();
-    let object_metas = match manager.io_runtime.block_on(
-        create_object_metas(store.as_ref(), &tp, filenames),
-    ) {
+    let manager = match get_manager() {
         Ok(m) => m,
         Err(e) => {
-            let _ = env.throw_new(
-                "java/lang/RuntimeException",
-                format!("Failed to create metadata: {}", e),
-            );
+            let _ = env.throw_new("java/lang/IllegalStateException", e.to_string());
             return 0;
         }
     };
 
-    let shard_view = ShardView {
-        table_path: table_url,
-        object_metas: Arc::new(object_metas),
-    };
-    Box::into_raw(Box::new(shard_view)) as jlong
+    match api::create_reader(&table_path, filenames, manager) {
+        Ok(ptr) => ptr as jlong,
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            0
+        }
+    }
 }
 
 #[jni_safe]
@@ -272,10 +186,12 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_closeD
     _class: JClass,
     ptr: jlong,
 ) {
-    if ptr != 0 {
-        let _ = unsafe { Box::from_raw(ptr as *mut ShardView) };
-    }
+    unsafe { api::close_reader(ptr as i64) };
 }
+
+// ---------------------------------------------------------------------------
+// Query execution
+// ---------------------------------------------------------------------------
 
 #[jni_safe]
 #[no_mangle]
@@ -284,18 +200,14 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     _class: JClass,
     shard_view_ptr: jlong,
     table_name: JString,
-    substrait_bytes: JObject, // byte[]
+    substrait_bytes: JObject,
     runtime_ptr: jlong,
     listener: JObject,
 ) {
-    let manager = match TOKIO_RUNTIME_MANAGER.get() {
-        Some(m) => m,
-        None => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution("Runtime manager not initialized".to_string()),
-            );
+    let manager = match get_manager() {
+        Ok(m) => m,
+        Err(e) => {
+            set_action_listener_error(env, listener, &e);
             return;
         }
     };
@@ -303,71 +215,44 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
     let table_name: String = match env.get_string(&JString::from(table_name)) {
         Ok(s) => s.into(),
         Err(e) => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution(format!("Invalid table name: {}", e)),
-            );
+            set_action_listener_error(env, listener, &DataFusionError::Execution(format!("Invalid table name: {}", e)));
             return;
         }
     };
-
     let plan_bytes_obj = unsafe { JByteArray::from_raw(substrait_bytes.as_raw()) };
     let plan_bytes = match env.convert_byte_array(plan_bytes_obj) {
         Ok(b) => b,
         Err(e) => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)),
-            );
+            set_action_listener_error(env, listener, &DataFusionError::Execution(format!("Failed to convert plan bytes: {}", e)));
             return;
         }
     };
-
     let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution(format!("Failed to create global ref: {}", e)),
-            );
+            set_action_listener_error(env, listener, &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
         }
     };
 
-    let io_runtime = manager.io_runtime.clone();
-    let cpu_executor = manager.cpu_executor();
+    // Delegate to bridge-agnostic API — bridge does the block_on
+    let result = manager.io_runtime.block_on(unsafe {
+        api::execute_query(shard_view_ptr as i64, &table_name, &plan_bytes, runtime_ptr as i64, manager)
+    });
 
-    let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-
-    let table_path = shard_view.table_path.clone();
-    let object_metas = shard_view.object_metas.clone();
-
-    io_runtime.block_on(async move {
-        let result = query_executor::execute_query(
-            table_path,
-            object_metas,
-            table_name,
-            plan_bytes,
-            runtime,
-            cpu_executor,
-        )
-        .await;
-
-        with_jni_env(|env| match result {
-            Ok(stream_ptr) => set_action_listener_ok_global(env, &listener_ref, stream_ptr),
-            Err(e) => {
-                error!("Query execution failed: {}", e);
-                set_action_listener_error_global(env, &listener_ref, &e);
-            }
-        });
+    with_jni_env(|env| match result {
+        Ok(stream_ptr) => set_action_listener_ok_global(env, &listener_ref, stream_ptr as jlong),
+        Err(e) => {
+            error!("Query execution failed: {}", e);
+            set_action_listener_error_global(env, &listener_ref, &e);
+        }
     });
 }
 
-// Stream operations (async)
+// ---------------------------------------------------------------------------
+// Stream operations
+// ---------------------------------------------------------------------------
+
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_streamGetSchema(
@@ -377,32 +262,15 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     listener: JObject,
 ) {
     if stream_ptr == 0 {
-        set_action_listener_error(
-            env,
-            listener,
-            &DataFusionError::Execution("Invalid stream pointer".to_string()),
-        );
+        set_action_listener_error(env, listener, &DataFusionError::Execution("Invalid stream pointer".to_string()));
         return;
     }
-    let stream =
-        unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
-    let schema = stream.schema();
-    match FFI_ArrowSchema::try_from(schema.as_ref()) {
-        Ok(ffi_schema) => {
-            let schema_ptr = Box::into_raw(Box::new(ffi_schema));
-            set_action_listener_ok(env, listener, schema_ptr as jlong);
-        }
-        Err(e) => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution(format!("Schema conversion failed: {}", e)),
-            );
-        }
+    match unsafe { api::stream_get_schema(stream_ptr as i64) } {
+        Ok(schema_ptr) => set_action_listener_ok(env, listener, schema_ptr as jlong),
+        Err(e) => set_action_listener_error(env, listener, &e),
     }
 }
 
-// This method pulls the next batch of the stream
 #[jni_safe]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_streamNext(
@@ -412,14 +280,10 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     stream_ptr: jlong,
     listener: JObject,
 ) {
-    let manager = match TOKIO_RUNTIME_MANAGER.get() {
-        Some(m) => m,
-        None => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution("Runtime manager not initialized".to_string()),
-            );
+    let manager = match get_manager() {
+        Ok(m) => m,
+        Err(e) => {
+            set_action_listener_error(env, listener, &e);
             return;
         }
     };
@@ -427,38 +291,19 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     let listener_ref = match env.new_global_ref(&listener) {
         Ok(r) => r,
         Err(e) => {
-            set_action_listener_error(
-                env,
-                listener,
-                &DataFusionError::Execution(format!("Failed to create global ref: {}", e)),
-            );
+            set_action_listener_error(env, listener, &DataFusionError::Execution(format!("Failed to create global ref: {}", e)));
             return;
         }
     };
 
-    let io_runtime = manager.io_runtime.clone();
+    let result = manager.io_runtime.block_on(unsafe { api::stream_next(stream_ptr as i64) });
 
-    io_runtime.block_on(async move {
-        let stream =
-            unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
-        let result = stream.try_next().await;
-
-        with_jni_env(|env| match result {
-            Ok(Some(batch)) => {
-                let struct_array: StructArray = batch.into();
-                let array_data = struct_array.into_data();
-                let ffi_array = FFI_ArrowArray::new(&array_data);
-                let ffi_array_ptr = Box::into_raw(Box::new(ffi_array));
-                set_action_listener_ok_global(env, &listener_ref, ffi_array_ptr as jlong);
-            }
-            Ok(None) => {
-                set_action_listener_ok_global(env, &listener_ref, 0);
-            }
-            Err(e) => {
-                error!("Stream next failed: {}", e);
-                set_action_listener_error_global(env, &listener_ref, &e);
-            }
-        });
+    with_jni_env(|env| match result {
+        Ok(array_ptr) => set_action_listener_ok_global(env, &listener_ref, array_ptr as jlong),
+        Err(e) => {
+            error!("Stream next failed: {}", e);
+            set_action_listener_error_global(env, &listener_ref, &e);
+        }
     });
 }
 
@@ -469,13 +314,13 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
     _class: JClass,
     stream_ptr: jlong,
 ) {
-    if stream_ptr != 0 {
-        let _ =
-            unsafe { Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
-    }
+    unsafe { api::stream_close(stream_ptr as i64) };
 }
 
-// JNI: SQL → Substrait (test helper)
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
 #[jni_safe(default = std::ptr::null_mut())]
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_sqlToSubstrait(
@@ -486,62 +331,26 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_sqlToS
     sql: JString,
     runtime_ptr: jlong,
 ) -> jni::sys::jbyteArray {
-    use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::datasource::file_format::parquet::ParquetFormat;
-    use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
-    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
-    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
-    use datafusion_substrait::logical_plan::producer::to_substrait_plan;
-    use prost::Message;
-
     let manager = TOKIO_RUNTIME_MANAGER.get().expect("Runtime manager not initialized");
     let table_name: String = env.get_string(&table_name).expect("Invalid table name").into();
     let sql: String = env.get_string(&sql).expect("Invalid SQL").into();
 
-    let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
-    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
-    let table_path = shard_view.table_path.clone();
-    let object_metas = shard_view.object_metas.clone();
+    let result = unsafe {
+        api::sql_to_substrait(shard_view_ptr as i64, &table_name, &sql, runtime_ptr as i64, manager)
+    };
 
-    let plan_bytes = manager.io_runtime.block_on(async {
-        let list_file_cache = Arc::new(DefaultListFilesCache::default());
-        list_file_cache.put(
-            &datafusion::execution::cache::TableScopedPath { table: None, path: table_path.prefix().clone() },
-            object_metas,
-        );
-        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
-            .with_cache_manager(
-                CacheManagerConfig::default()
-                    .with_list_files_cache(Some(list_file_cache))
-                    .with_file_metadata_cache(Some(runtime.runtime_env.cache_manager.get_file_metadata_cache()))
-                    .with_files_statistics_cache(runtime.runtime_env.cache_manager.get_file_statistic_cache()),
-            )
-            .build().expect("runtime env");
-
-        let state = SessionStateBuilder::new()
-            .with_config(runtime.session_state_template.config().clone())
-            .with_runtime_env(Arc::from(runtime_env))
-            .with_default_features()
-            .build();
-        let ctx = datafusion::prelude::SessionContext::new_with_state(state);
-
-        let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
-            .with_file_extension(".parquet").with_collect_stat(true);
-        let schema = listing_options.infer_schema(&ctx.state(), &table_path).await.expect("schema");
-        let config = ListingTableConfig::new(table_path).with_listing_options(listing_options).with_schema(schema);
-        ctx.register_table(&table_name, Arc::new(ListingTable::try_new(config).expect("table"))).expect("register");
-
-        let plan = ctx.sql(&sql).await.expect("sql").logical_plan().clone();
-        let substrait = to_substrait_plan(&plan, &ctx.state()).expect("substrait");
-        let mut buf = Vec::new();
-        substrait.encode(&mut buf).expect("encode");
-        buf
-    });
-
-    env.byte_array_from_slice(&plan_bytes).expect("byte array").into_raw()
+    match result {
+        Ok(bytes) => env.byte_array_from_slice(&bytes).expect("byte array").into_raw(),
+        Err(e) => {
+            let _ = env.throw_new("java/lang/RuntimeException", e.to_string());
+            std::ptr::null_mut()
+        }
+    }
 }
 
-// Cache management
+// ---------------------------------------------------------------------------
+// Cache management (stubs)
+// ---------------------------------------------------------------------------
 
 #[jni_safe]
 #[no_mangle]
@@ -562,7 +371,7 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_cacheM
     _runtime_ptr: jlong,
     _file_paths: JObjectArray,
 ) {
-    // TODO: wire to native cache manager when cache config is passed to createGlobalRuntime
+    // TODO: wire to native cache manager
 }
 
 #[jni_safe]
@@ -573,10 +382,8 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_cacheM
     _runtime_ptr: jlong,
     _file_paths: JObjectArray,
 ) {
-    // TODO: wire to native cache manager when cache config is passed to createGlobalRuntime
+    // TODO: wire to native cache manager
 }
-
-// JNI: Logger
 
 #[jni_safe]
 #[no_mangle]

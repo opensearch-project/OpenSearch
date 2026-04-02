@@ -9,6 +9,7 @@ use datafusion::error::DataFusionError;
 use jni::objects::{GlobalRef, JObject, JObjectArray, JString, JValue};
 use jni::sys::jlong;
 use jni::JNIEnv;
+use log::error;
 use object_store::ObjectMeta;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -76,79 +77,85 @@ pub async fn create_object_metas(
 }
 
 /// Call ActionListener.onResponse(Long) via JNI.
+/// Never panics — logs and returns on failure.
 pub fn set_action_listener_ok(env: &mut JNIEnv, listener: JObject, value: jlong) {
-    let boxed = env
-        .call_static_method("java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", &[value.into()])
-        .expect("Long.valueOf failed");
-    env.call_method(
-        listener,
-        "onResponse",
-        "(Ljava/lang/Object;)V",
-        &[(&boxed).into()],
-    )
-    .expect("onResponse failed");
+    let Ok(boxed) = env.call_static_method(
+        "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", &[value.into()]
+    ) else {
+        error!("Failed to box Long for ActionListener.onResponse");
+        return;
+    };
+    if let Err(e) = env.call_method(
+        listener, "onResponse", "(Ljava/lang/Object;)V", &[(&boxed).into()]
+    ) {
+        error!("Failed to call ActionListener.onResponse: {}", e);
+    }
 }
 
 /// Call ActionListener.onResponse(Long) via GlobalRef.
+/// Never panics — logs and returns on failure.
 pub fn set_action_listener_ok_global(env: &mut JNIEnv, listener: &GlobalRef, value: jlong) {
-    let boxed = env
-        .call_static_method("java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", &[value.into()])
-        .expect("Long.valueOf failed");
-    env.call_method(
-        listener.as_obj(),
-        "onResponse",
-        "(Ljava/lang/Object;)V",
-        &[(&boxed).into()],
-    )
-    .expect("onResponse failed");
+    let Ok(boxed) = env.call_static_method(
+        "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", &[value.into()]
+    ) else {
+        error!("Failed to box Long for ActionListener.onResponse (global)");
+        return;
+    };
+    if let Err(e) = env.call_method(
+        listener.as_obj(), "onResponse", "(Ljava/lang/Object;)V", &[(&boxed).into()]
+    ) {
+        error!("Failed to call ActionListener.onResponse (global): {}", e);
+    }
 }
 
 /// Call ActionListener.onFailure(Exception) via JNI.
+/// Never panics — logs and returns on failure.
 pub fn set_action_listener_error(
     env: &mut JNIEnv,
     listener: JObject,
     error: &DataFusionError,
 ) {
-    let msg = env
-        .new_string(error.to_string())
-        .expect("new_string failed");
-    let exception = env
-        .new_object(
-            "java/lang/RuntimeException",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&msg)],
-        )
-        .expect("new RuntimeException failed");
-    env.call_method(
-        listener,
-        "onFailure",
-        "(Ljava/lang/Exception;)V",
-        &[JValue::Object(&exception)],
-    )
-    .expect("onFailure failed");
+    let Ok(msg) = env.new_string(error.to_string()) else {
+        log::error!("Failed to create error string for ActionListener.onFailure");
+        return;
+    };
+    let Ok(exception) = env.new_object(
+        "java/lang/RuntimeException",
+        "(Ljava/lang/String;)V",
+        &[JValue::Object(&msg)],
+    ) else {
+        log::error!("Failed to create RuntimeException for ActionListener.onFailure");
+        return;
+    };
+    if let Err(e) = env.call_method(
+        listener, "onFailure", "(Ljava/lang/Exception;)V", &[JValue::Object(&exception)]
+    ) {
+        log::error!("Failed to call ActionListener.onFailure: {}", e);
+    }
 }
 
 /// Call ActionListener.onFailure(Exception) via GlobalRef.
+/// Never panics — logs and returns on failure.
 pub fn set_action_listener_error_global(
     env: &mut JNIEnv,
     listener: &GlobalRef,
     error: &DataFusionError,
 ) {
-    let msg = env
-        .new_string(error.to_string())
-        .expect("new_string failed");
-    let exception = env
-        .new_object(
-            "java/lang/RuntimeException",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&msg)],
-        )
-        .expect("new RuntimeException failed");
-    env.call_method(
-        listener.as_obj(),
-        "onFailure",
-        "(Ljava/lang/Exception;)V",
-        &[JValue::Object(&exception)],
-    )
-    .expect("onFailure failed");
+    let Ok(msg) = env.new_string(error.to_string()) else {
+        log::error!("Failed to create error string for ActionListener.onFailure (global)");
+        return;
+    };
+    let Ok(exception) = env.new_object(
+        "java/lang/RuntimeException",
+        "(Ljava/lang/String;)V",
+        &[JValue::Object(&msg)],
+    ) else {
+        log::error!("Failed to create RuntimeException for ActionListener.onFailure (global)");
+        return;
+    };
+    if let Err(e) = env.call_method(
+        listener.as_obj(), "onFailure", "(Ljava/lang/Exception;)V", &[JValue::Object(&exception)]
+    ) {
+        log::error!("Failed to call ActionListener.onFailure (global): {}", e);
+    }
 }

@@ -29,7 +29,7 @@ use substrait::proto::Plan;
 
 use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
-use crate::DataFusionRuntime;
+use crate::api::DataFusionRuntime;
 
 /// Execute a vanilla parquet query: substrait plan → DataFusion → CrossRtStream.
 /// File access goes through DataFusion's registered object store.
