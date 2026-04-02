@@ -34,6 +34,7 @@ package org.opensearch.gradle.docker;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.util.ExecutableUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -67,32 +68,20 @@ import java.util.stream.Stream;
  */
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
-    private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
+    private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
 
-    private static String[] DEFAULT_PATH_UNIX = { "/usr/bin", "/usr/local/bin" };
+    private static final String DOCKER_FILENAME = Os.isFamily(Os.FAMILY_WINDOWS) ? "docker.exe" : "docker";
 
-    // Get unix path from PATH env variable, with fallback to DEFAUL_PATH_UNIX
-    private static String[] PATH_UNIX = DockerSupportService.getUnixPath(System.getenv("PATH"), DEFAULT_PATH_UNIX);
+    private static final String DOCKER_COMPOSE_FILENAME = Os.isFamily(Os.FAMILY_WINDOWS) ? "docker-compose.exe" : "docker-compose";
 
-    // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES_UNIX = Arrays.stream(PATH_UNIX).map((String path) -> path + "/docker").toArray(String[]::new);
+    private static final String[] DEFAULT_PATH_UNIX = { "/usr/bin", "/usr/local/bin" };
 
-    private static String[] DOCKER_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe",
-        System.getenv("SystemRoot") + "\\System32\\docker.exe" /* Github Actions */ };
+    private static final String[] DEFAULT_PATH_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin",
+        System.getenv("SystemRoot") + "\\System32" /* Github Actions */
+    };
 
-    private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
-
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = Arrays.stream(PATH_UNIX)
-        .map((String path) -> path + "/docker-compose")
-        .toArray(String[]::new);
-
-    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
-        ? DOCKER_COMPOSE_BINARIES_WINDOWS
-        : DOCKER_COMPOSE_BINARIES_UNIX;
+    private static final String[] DEFAULT_PATH = Os.isFamily(Os.FAMILY_WINDOWS) ? DEFAULT_PATH_WINDOWS : DEFAULT_PATH_UNIX;
 
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
@@ -187,10 +176,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
         // No Docker binary was located
         if (availability.path == null) {
+            final String[] dockerPaths = ExecutableUtils.mergePaths(ExecutableUtils.getPathEnv(), DEFAULT_PATH);
             final String message = String.format(
                 Locale.ROOT,
                 "Docker (checked [%s]) is required to run the following task%s: \n%s",
-                String.join(", ", DOCKER_BINARIES),
+                String.join(", ", dockerPaths),
                 tasks.size() > 1 ? "s" : "",
                 String.join("\n", tasks)
             );
@@ -321,15 +311,14 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     }
 
     /**
-     * Searches the entries in {@link #DOCKER_BINARIES} for the Docker CLI. This method does
+     * Searches for the Docker CLI in the system PATH and default locations. This method does
      * not check whether the Docker installation appears usable, see {@link #getDockerAvailability()}
      * instead.
      *
      * @return the path to a CLI, if available.
      */
     private Optional<String> getDockerPath() {
-        // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return ExecutableUtils.findExecutableInPathWithFallback(DOCKER_FILENAME, DEFAULT_PATH);
     }
 
     private void throwDockerRequiredException(final String message) {
@@ -454,14 +443,13 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         }
 
         /**
-         * Searches the entries in {@link #DOCKER_COMPOSE_BINARIES} for the Docker Compose CLI. This method does
+         * Searches the entries in env variable PATH with fallback to {@link #DEFAULT_PATH} for the Docker Compose CLI. This method does
          * not check whether the installation appears usable, see {@link #getDockerAvailability()} instead.
          *
          * @return the path to a CLI, if available.
          */
         private static Optional<String> getDockerComposePath() {
-            // Check if the Docker binary exists
-            return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+            return ExecutableUtils.findExecutableInPathWithFallback(DOCKER_COMPOSE_FILENAME, DEFAULT_PATH);
         }
 
     }
