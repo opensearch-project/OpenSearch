@@ -423,7 +423,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     /**
      * Marker interface for Docker Compose availability
      */
-    private interface DockerComposeAvailability {
+    public interface DockerComposeAvailability {
         /**
          * Detects Docker Compose V1/V2 availability
          */
@@ -431,12 +431,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Optional<String> composePath = getDockerComposePath();
             if (composePath.isPresent()) {
                 if (runCommand(execOperations, composePath.get(), "version").isSuccess()) {
-                    return Optional.of(new DockerComposeV1Availability());
+                    return Optional.of(new DockerComposeV1Availability(composePath.get()));
                 }
             }
 
             if (runCommand(execOperations, dockerPath, "compose", "version").isSuccess()) {
-                return Optional.of(new DockerComposeV2Availability());
+                return Optional.of(new DockerComposeV2Availability(dockerPath));
             }
 
             return Optional.empty();
@@ -452,17 +452,41 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             return ExecutableUtils.findExecutableInPathWithFallback(DOCKER_COMPOSE_FILENAME, DEFAULT_PATH);
         }
 
+        /**
+         * The path to the Docker CLI, or null
+         */
+        public String getPath();
     }
 
     /**
      * Docker Compose V1 availability
      */
-    public static class DockerComposeV1Availability implements DockerComposeAvailability {}
+    public static class DockerComposeV1Availability implements DockerComposeAvailability {
+        private final String path;
+
+        DockerComposeV1Availability(String path) {
+            this.path = path;
+        }
+
+        public String getPath() {
+            return this.path;
+        }
+    }
 
     /**
      * Docker Compose V2 availability
      */
-    public static class DockerComposeV2Availability implements DockerComposeAvailability {}
+    public static class DockerComposeV2Availability implements DockerComposeAvailability {
+        private final String path;
+
+        DockerComposeV2Availability(String path) {
+            this.path = path;
+        }
+
+        public String getPath() {
+            return this.path;
+        }
+    }
 
     /**
      * This class models the result of running a command. It captures the exit code, standard output and standard error.
