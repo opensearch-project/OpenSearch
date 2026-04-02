@@ -8,16 +8,16 @@
 
 //! Per-query memory tracking via DataFusion's MemoryPool trait.
 //!
-//! Inspired by InfluxDB's per-query allocator approach: each query gets its own
-//! `QueryMemoryPool` that wraps the global pool. All allocations flow through
-//! the global pool (so the global limit is still enforced), but each query also
-//! tracks its own current and peak usage independently.
+//! Each query gets its own `QueryMemoryPool` that wraps the global pool.
+//! All allocations flow through the global pool (so the global limit is
+//! still enforced), but each query also tracks its own current and peak
+//! usage independently.
 //!
 //! This avoids the need for thread-local tricks or a custom global allocator —
 //! DataFusion's cooperative memory management does the bookkeeping for us.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use dashmap::DashMap;
@@ -26,6 +26,21 @@ use vectorized_exec_spi::log_info;
 
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
 use datafusion::common::DataFusionError;
+
+// ---------------------------------------------------------------------------
+// Global pool limit — set once at createGlobalRuntime, read by QueryMemoryPool
+// ---------------------------------------------------------------------------
+
+static POOL_LIMIT: OnceLock<usize> = OnceLock::new();
+
+/// Set the global memory pool limit. Called once from createGlobalRuntime.
+pub fn set_pool_limit(limit: usize) {
+    POOL_LIMIT.get_or_init(|| limit);
+}
+
+fn pool_limit() -> usize {
+    *POOL_LIMIT.get().unwrap_or(&0)
+}
 
 // ---------------------------------------------------------------------------
 // mimalloc RSS check
@@ -66,8 +81,8 @@ fn get_mimalloc_rss() -> (usize, usize) {
 /// A per-query MemoryPool that delegates to a shared global pool while
 /// independently tracking this query's current and peak memory usage.
 ///
-/// Similar to InfluxDB's per-query allocator pattern: the global pool enforces
-/// the overall memory limit, while this wrapper gives per-query visibility.
+/// The global pool enforces the overall memory limit, while this wrapper
+/// gives per-query visibility.
 #[derive(Debug)]
 pub struct QueryMemoryPool {
     /// The shared global memory pool that enforces the overall limit.
@@ -134,23 +149,22 @@ impl MemoryPool for QueryMemoryPool {
                 Ok(())
             }
             Err(e) => {
-                // Inner pool said no — check mimalloc process RSS as a fallback.
-                let (current_rss, peak_rss) = get_mimalloc_rss();
-                if current_rss.saturating_add(additional) <= peak_rss {
-                    // mimalloc says there's room (RSS + request fits within peak),
-                    // allow the allocation bypassing the cooperative pool limit.
+                // Inner pool said no — check mimalloc's committed memory against
+                // the configured pool limit as a fallback. current_commit reflects
+                // memory actually reserved by mimalloc (not process-wide RSS).
+                let (current_rss, _) = get_mimalloc_rss();
+                if current_rss.saturating_add(additional) <= pool_limit() {
                     log_info!(
                         "QueryMemoryPool: inner pool denied {}B, but mimalloc has headroom \
-                         (rss={}MB, peak={}MB) — allowing",
+                         (rss={}MB, limit={}MB) — allowing",
                         additional,
                         current_rss / (1024 * 1024),
-                        peak_rss / (1024 * 1024),
+                        pool_limit() / (1024 * 1024),
                     );
                     self.inner.grow(reservation, additional);
                     self.track_grow(additional);
                     Ok(())
                 } else {
-                    // mimalloc also says no — propagate the original error.
                     Err(e)
                 }
             }

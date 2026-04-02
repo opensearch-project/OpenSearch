@@ -33,7 +33,7 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
      */
     public static final Setting<ByteSizeValue> DATAFUSION_MEMORY_POOL_CONFIGURATION = Setting.byteSizeSetting(
         "datafusion.search.memory_pool",
-        new ByteSizeValue(20, ByteSizeUnit.GB),
+        new ByteSizeValue(10, ByteSizeUnit.GB),
         Setting.Property.Final,
         Setting.Property.NodeScope
     );
@@ -43,7 +43,7 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
      */
     public static final Setting<ByteSizeValue> DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION = Setting.byteSizeSetting(
         "datafusion.spill.memory_limit",
-        new ByteSizeValue(50, ByteSizeUnit.GB),
+        new ByteSizeValue(20, ByteSizeUnit.GB),
         Setting.Property.Final,
         Setting.Property.NodeScope
     );

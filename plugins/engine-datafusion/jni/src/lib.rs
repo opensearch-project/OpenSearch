@@ -103,9 +103,6 @@ static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
 // Global JavaVM reference
 static JAVA_VM: OnceLock<JavaVM> = OnceLock::new();
 
-// Global memory monitor reference (set during createGlobalRuntime)
-static GLOBAL_MEMORY_MONITOR: OnceLock<Arc<Monitor>> = OnceLock::new();
-
 thread_local! {
     static THREAD_JNIENV: RefCell<Option<JNIEnv<'static>>> = RefCell::new(None);
 }
@@ -202,8 +199,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_startToki
     // });
     //
     // println!("Runtime monitoring started");
-
-    log_info!("Per-query memory tracking enabled (metrics flushed on query completion)");
 }
 
 /// Log runtime metrics with performance analysis
@@ -333,14 +328,14 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         .with_disk_manager_builder(builder)
         .build().unwrap();
 
-    // Store monitor globally for diagnostics (e.g., JMX or on-demand queries)
-    GLOBAL_MEMORY_MONITOR.get_or_init(|| monitor.clone());
-
     let runtime = DataFusionRuntime {
         runtime_env,
         custom_cache_manager,
         monitor,
     };
+
+    // Set the global pool limit once — used by QueryMemoryPool's fallback check
+    query_metrics::set_pool_limit(memory_pool_limit as usize);
 
     Box::into_raw(Box::new(runtime)) as jlong
 }
@@ -688,9 +683,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
                 });
             }
             Err(e) => {
-                // Snapshot stats and mark completed — Java's error handler
-                // (e.g., writeTaskResourceUsage) will call drain_completed_query
-                // to retrieve native memory stats before cleanup.
                 query_metrics::stop_query_tracking(context_id);
                 with_jni_env(|env| {
                     log_error!("Query execution failed: {}", e);
