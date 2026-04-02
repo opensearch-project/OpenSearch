@@ -171,10 +171,10 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                     }
                 } else if (InternalAggregation.CommonFields.META.getPreferredName().equals(currentFieldName)
                     && token == XContentParser.Token.START_OBJECT) {
-                    aggregation.metadata = Collections.unmodifiableMap(parser.map());
-                } else {
-                    parser.skipChildren();
-                }
+                        aggregation.metadata = Collections.unmodifiableMap(parser.map());
+                    } else {
+                        parser.skipChildren();
+                    }
             }
             return aggregation;
         }

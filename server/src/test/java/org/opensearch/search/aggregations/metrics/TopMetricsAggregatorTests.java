@@ -25,8 +25,8 @@ import org.opensearch.core.common.text.Text;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.aggregations.AggregatorTestCase;
@@ -55,8 +55,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTopMetricsOnIndexedDocs() throws Exception {
-        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm")
-            .metricField("metric_field")
+        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm").metricField("metric_field")
             .sort(SortBuilders.fieldSort("sort_field").order(SortOrder.DESC))
             .size(1);
 
@@ -68,8 +67,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     public void testTopMetricsSortByScore() throws Exception {
         Query query = new QueryParser("sort_field", new KeywordAnalyzer()).parse("c^100 b^10 a^1");
-        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm")
-            .metricField("metric_field")
+        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm").metricField("metric_field")
             .sort(SortBuilders.scoreSort().order(SortOrder.DESC))
             .size(1);
 
@@ -79,8 +77,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTopMetricsUnresolvedSortFails() throws Exception {
-        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm")
-            .metricField("metric_field")
+        TopMetricsAggregationBuilder builder = new TopMetricsAggregationBuilder("tm").metricField("metric_field")
             .sort(SortBuilders.fieldSort("unknown_sort_field").order(SortOrder.DESC))
             .size(1);
 
@@ -88,7 +85,8 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertTrue(e.getMessage().contains("No mapping found for [unknown_sort_field] in order to sort on"));
     }
 
-    private InternalTopMetrics testCase(Query query, TopMetricsAggregationBuilder builder, boolean includeSortFieldType) throws IOException {
+    private InternalTopMetrics testCase(Query query, TopMetricsAggregationBuilder builder, boolean includeSortFieldType)
+        throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
                 iw.addDocument(document("1", "a", "metric-a"));

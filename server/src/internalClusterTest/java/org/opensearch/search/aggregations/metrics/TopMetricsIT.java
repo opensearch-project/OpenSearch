@@ -93,23 +93,29 @@ public class TopMetricsIT extends OpenSearchIntegTestCase {
 
     private String createAndPopulateIndex() throws Exception {
         String index = "top-metrics-" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-        assertAcked(
-            prepareCreate(index).setMapping("sort_field", "type=long", "metric_field", "type=keyword", "body", "type=text")
-        );
+        assertAcked(prepareCreate(index).setMapping("sort_field", "type=long", "metric_field", "type=keyword", "body", "type=text"));
         ensureGreen(index);
 
         client().prepareIndex(index)
             .setId("1")
-            .setSource(jsonBuilder().startObject().field("sort_field", 10).field("metric_field", "metric-a").field("body", "alpha").endObject())
+            .setSource(
+                jsonBuilder().startObject().field("sort_field", 10).field("metric_field", "metric-a").field("body", "alpha").endObject()
+            )
             .get();
         client().prepareIndex(index)
             .setId("2")
-            .setSource(jsonBuilder().startObject().field("sort_field", 20).field("metric_field", "metric-b").field("body", "beta").endObject())
+            .setSource(
+                jsonBuilder().startObject().field("sort_field", 20).field("metric_field", "metric-b").field("body", "beta").endObject()
+            )
             .get();
         client().prepareIndex(index)
             .setId("3")
             .setSource(
-                jsonBuilder().startObject().field("sort_field", 30).field("metric_field", "metric-c").field("body", "alpha alpha alpha").endObject()
+                jsonBuilder().startObject()
+                    .field("sort_field", 30)
+                    .field("metric_field", "metric-c")
+                    .field("body", "alpha alpha alpha")
+                    .endObject()
             )
             .get();
 
