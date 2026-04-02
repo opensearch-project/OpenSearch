@@ -60,7 +60,8 @@ public interface Indexer
         IndexerEngineOperations,
         IndexerStateManager,
         IndexerLifecycleOperations,
-        IndexerStatistics {
+        IndexerStatistics,
+        IndexReaderProvider {
 
     /**
      * Returns the engine configuration for this indexer.

@@ -394,7 +394,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
 
         @Override
         public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
-            Object reader = ctx.getReader().getReader(format);
+            Object reader = ctx.getReader().reader(format);
             long rows = reader instanceof Long ? (Long) reader : 0L;
             return new MockSearchExecEngine(rows);
         }
