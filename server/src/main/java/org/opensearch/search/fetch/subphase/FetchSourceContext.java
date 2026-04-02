@@ -161,10 +161,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     "Expected one of ["
                         + XContentParser.Token.VALUE_BOOLEAN
                         + ", "
-                        + XContentParser.Token.VALUE_STRING
-                        + ", "
-                        + XContentParser.Token.START_ARRAY
-                        + ", "
                         + XContentParser.Token.START_OBJECT
                         + "] but found ["
                         + token
@@ -172,7 +168,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 );
             }
         }
-        // MUST never reach here
     }
 
     private static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
