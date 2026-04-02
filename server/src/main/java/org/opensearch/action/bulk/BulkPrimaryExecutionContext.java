@@ -339,6 +339,7 @@ class BulkPrimaryExecutionContext {
         }
         primaryResponses[currentIndex] = translatedResponse;
         currentItemState = ItemProcessingState.COMPLETED;
+        assertInvariants(ItemProcessingState.COMPLETED);
         advance();
     }
 
@@ -375,7 +376,7 @@ class BulkPrimaryExecutionContext {
             case COMPLETED:
                 assert requestToExecute != null;
                 assert executionResult != null;
-                assert getCurrentItem().primaryResponse() != null;
+                assert primaryResponses[currentIndex] != null;
                 break;
         }
         return true;
