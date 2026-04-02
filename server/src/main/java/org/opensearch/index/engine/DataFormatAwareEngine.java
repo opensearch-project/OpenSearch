@@ -132,12 +132,7 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
             }
             if (readerType.isInstance(reader) == false) {
                 throw new IllegalArgumentException(
-                    "Reader for format ["
-                        + format.name()
-                        + "] is "
-                        + reader.getClass().getName()
-                        + ", expected "
-                        + readerType.getName()
+                    "Reader for format [" + format.name() + "] is " + reader.getClass().getName() + ", expected " + readerType.getName()
                 );
             }
             return (R) reader;

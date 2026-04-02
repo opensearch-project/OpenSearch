@@ -69,7 +69,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
         context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
-        try (DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)) {
+        try (
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
+                context,
+                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
+            )
+        ) {
             try (EngineResultStream stream = engine.execute(null)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(2, rows.size());
@@ -93,7 +98,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
         context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
-        try (DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)) {
+        try (
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
+                context,
+                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
+            )
+        ) {
             try (EngineResultStream stream = engine.execute(null)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());
@@ -114,7 +124,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         DatafusionContext context = new DatafusionContext(null, reader, runtimeHandle);
         context.setDatafusionQuery(new DatafusionQuery("test_table", substrait));
 
-        try (DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context)) {
+        try (
+            DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(
+                context,
+                () -> new org.apache.arrow.memory.RootAllocator(Long.MAX_VALUE)
+            )
+        ) {
             try (EngineResultStream stream = engine.execute(null)) {
                 List<Object[]> rows = collectRows(stream);
                 assertEquals(1, rows.size());

@@ -51,11 +51,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
      * @param indicesService service for accessing index shards
      * @param clusterService service for accessing cluster state
      */
-    public DefaultPlanExecutor(
-        List<AnalyticsSearchBackendPlugin> providers,
-        IndicesService indicesService,
-        ClusterService clusterService
-    ) {
+    public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> providers, IndicesService indicesService, ClusterService clusterService) {
         this.backEnds = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin provider : providers) {
             this.backEnds.put(provider.name(), provider);

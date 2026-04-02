@@ -13,6 +13,7 @@ use datafusion::{
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
     execution::context::SessionContext,
     execution::runtime_env::RuntimeEnvBuilder,
+    execution::SessionStateBuilder,
     physical_plan::execute_stream,
     prelude::*,
 };
@@ -70,8 +71,11 @@ pub async fn execute_query(
     // Clone the pre-built session state template (cheap Arc increments for all
     // registered functions, optimizer rules, and planner rules) and swap in the
     // per-query RuntimeEnv.
-    let state = runtime.session_state_template.clone()
-        .with_runtime_env(Arc::from(runtime_env));
+    let state = SessionStateBuilder::new()
+        .with_config(runtime.session_state_template.config().clone())
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        .build();
 
     let ctx = SessionContext::new_with_state(state);
 

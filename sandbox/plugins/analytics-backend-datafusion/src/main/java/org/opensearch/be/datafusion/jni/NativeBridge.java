@@ -154,6 +154,11 @@ public final class NativeBridge {
      */
     public static native byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr);
 
+    /**
+     * Deliberately panics in native code (test only). Used to verify panic catching.
+     */
+    public static native void testPanic(String message);
+
     // ---- Logger ----
 
     /**

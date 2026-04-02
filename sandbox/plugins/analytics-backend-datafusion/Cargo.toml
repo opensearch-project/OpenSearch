@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["jni"]
+members = ["jni", "jni-macros"]
 
 [workspace.dependencies]
 datafusion = "52.1.0"
@@ -36,7 +36,6 @@ tempfile = "3"
 [profile.release]
 lto = true
 codegen-units = 1
-panic = "abort"
 strip = false
 
 [profile.dev]

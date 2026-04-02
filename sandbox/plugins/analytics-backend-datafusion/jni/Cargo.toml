@@ -36,6 +36,7 @@ once_cell = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }
+jni-macros = { path = "../jni-macros" }
 
 [dev-dependencies]
 criterion = { workspace = true }

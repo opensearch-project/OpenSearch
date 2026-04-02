@@ -79,6 +79,11 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> new NativeRuntimeHandle(0L));
     }
 
+    public void testNativePanicIsCaughtAsException() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> NativeBridge.testPanic("test panic message"));
+        assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("test panic message"));
+    }
+
     public void testCacheFileOperationsDoNotThrow() {
         ensureTokioInit();
         Path spillDir = createTempDir("spill");
