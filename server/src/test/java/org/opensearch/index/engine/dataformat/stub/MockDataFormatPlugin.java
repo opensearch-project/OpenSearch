@@ -12,6 +12,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 
@@ -35,7 +36,12 @@ public class MockDataFormatPlugin implements DataFormatPlugin {
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(
+        Committer committer,
+        MapperService mapperService,
+        ShardPath shardPath,
+        IndexSettings indexSettings
+    ) {
         return new MockIndexingExecutionEngine(dataFormat);
     }
 }

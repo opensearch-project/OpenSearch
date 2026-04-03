@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -38,12 +39,15 @@ public interface SearchBackEndPlugin<R> {
     List<DataFormat> getSupportedFormats();
 
     /**
-     * Creates a reader manager for the given format and shard.
+     * Creates a reader manager for the given data format and shard.
+     * The {@link Committer} provides access to the backing store (e.g., IndexWriter)
+     * so that the reader manager can open readers from the same writer.
      *
+     * @param committer the committer holding the backing store, or null if not available
      * @param format the data format
      * @param shardPath the shard path
-     * @return a reader manager that produces readers of type {@code R}
-     * @throws IOException if creation fails
+     * @return the reader manager
+     * @throws IOException if reader creation fails
      */
-    EngineReaderManager<R> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException;
+    EngineReaderManager<?> createReaderManager(Committer committer, DataFormat format, ShardPath shardPath) throws IOException;
 }

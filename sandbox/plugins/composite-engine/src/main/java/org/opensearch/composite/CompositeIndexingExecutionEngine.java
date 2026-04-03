@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.queue.LockablePool;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -25,12 +26,17 @@ import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -62,6 +68,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final CompositeDataFormat compositeDataFormat;
     private final LockablePool<CompositeWriter> writerPool;
     private final AtomicLong writerGenerationCounter;
+    private final Committer committer;
+    private CatalogSnapshotManager catalogSnapshotManager;
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -80,16 +88,22 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      * @param indexSettings the index settings containing composite configuration
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
+     * @param committer the committer for durable catalog snapshot persistence during flush
      * @throws IllegalArgumentException if any configured format is not registered
+     * @throws IllegalStateException if committer is null
      */
     public CompositeIndexingExecutionEngine(
         Map<String, DataFormatPlugin> dataFormatPlugins,
         IndexSettings indexSettings,
         MapperService mapperService,
-        ShardPath shardPath
+        ShardPath shardPath,
+        Committer committer
     ) {
         Objects.requireNonNull(dataFormatPlugins, "dataFormatPlugins must not be null");
         Objects.requireNonNull(indexSettings, "indexSettings must not be null");
+        if (committer == null) {
+            throw new IllegalStateException("Committer must not be null");
+        }
 
         Settings settings = indexSettings.getSettings();
 
@@ -100,13 +114,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);
-        this.primaryEngine = primaryPlugin.indexingEngine(mapperService, shardPath, indexSettings);
+        this.primaryEngine = primaryPlugin.indexingEngine(committer, mapperService, shardPath, indexSettings);
         allFormats.add(primaryPlugin.getDataFormat());
 
         List<IndexingExecutionEngine<?, ?>> secondaries = new ArrayList<>();
         for (String secondaryName : secondaryFormatNames) {
             DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
-            secondaries.add(secondaryPlugin.indexingEngine(mapperService, shardPath, indexSettings));
+            secondaries.add(secondaryPlugin.indexingEngine(committer, mapperService, shardPath, indexSettings));
             allFormats.add(secondaryPlugin.getDataFormat());
         }
         this.secondaryEngines = Set.copyOf(secondaries);
@@ -120,6 +134,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             LinkedList::new,
             Runtime.getRuntime().availableProcessors()
         );
+
+        this.committer = committer;
+        try {
+            committer.init(new CommitterSettings(shardPath, indexSettings));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to initialize committer", e);
+        }
     }
 
     /**
@@ -286,6 +307,48 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
             secondaryInputMap.put(engine.getDataFormat(), engine.newDocumentInput());
         }
         return new CompositeDocumentInput(primaryEngine.getDataFormat(), primaryInput, secondaryInputMap);
+    }
+
+    /**
+     * Sets the {@link CatalogSnapshotManager} used by {@link #flush()} to acquire the latest snapshot.
+     *
+     * @param catalogSnapshotManager the catalog snapshot manager
+     */
+    public void setCatalogSnapshotManager(CatalogSnapshotManager catalogSnapshotManager) {
+        this.catalogSnapshotManager = catalogSnapshotManager;
+    }
+
+    /**
+     * Durably commits the latest {@link CatalogSnapshot} via the {@link Committer}.
+     * Acquires the current snapshot from the {@link CatalogSnapshotManager}, passes it
+     * to the committer, and releases the snapshot reference when done.
+     *
+     * @throws IOException if the committer's commit fails
+     * @throws IllegalStateException if the CatalogSnapshotManager has not been set
+     */
+    public void flush() throws IOException {
+        if (catalogSnapshotManager == null) {
+            throw new IllegalStateException("CatalogSnapshotManager not set");
+        }
+        try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+            CatalogSnapshot snapshot = snapshotRef.get();
+            Map<String, String> commitData = new HashMap<>(snapshot.getUserData());
+            commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
+            committer.commit(commitData);
+        }
+    }
+
+    /**
+     * Closes the committer, releasing any resources it holds (e.g., IndexWriter).
+     * If the committer's close throws an IOException, the error is logged and
+     * shutdown continues.
+     */
+    public void close() {
+        try {
+            committer.close();
+        } catch (IOException e) {
+            logger.error("Failed to close committer", e);
+        }
     }
 
     /**

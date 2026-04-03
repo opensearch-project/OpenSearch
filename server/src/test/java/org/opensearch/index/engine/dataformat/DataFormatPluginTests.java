@@ -72,6 +72,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         IndexingExecutionEngine<DataFormat, MockDocumentInput> engine = (IndexingExecutionEngine<DataFormat, MockDocumentInput>) plugin
             .indexingEngine(
+                null,
                 mock(MapperService.class),
                 new ShardPath(false, Path.of("/tmp/uuid/0"), Path.of("/tmp/uuid/0"), new ShardId("index", "uuid", 0)),
                 new IndexSettings(IndexMetadata.builder("index").settings(settings).build(), settings)

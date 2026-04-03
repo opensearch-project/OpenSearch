@@ -8,10 +8,10 @@
 
 package org.opensearch.index.engine.dataformat;
 
-import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
@@ -34,61 +34,55 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class DataFormatRegistry {
 
-    /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
-
-    /** Map from data format to a factory that creates an {@link EngineReaderManager} for a given shard path. */
-    private final Map<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
-
+    private final Map<DataFormat, SearchBackEndPlugin<?>> readerManagerPlugins;
     private final Map<String, DataFormat> dataFormats;
 
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
-     * from the given {@link PluginsService}. Registers each data format with its indexing plugin and reader manager factory.
+     * from the given {@link PluginsService}.
      *
      * @param pluginsService the plugins service used to discover data format plugins and search back-end plugins
-     * @throws IllegalArgumentException if a data format is registered by more than one plugin
-     * @throws IllegalStateException if the set of formats with indexing plugins does not match the set with reader managers
      */
     public DataFormatRegistry(PluginsService pluginsService) {
-        Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
-        Map<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders = new HashMap<>();
-        Map<String, DataFormat> dataFormats = new HashMap<>();
+        Map<DataFormat, DataFormatPlugin> pluginRegistry = new HashMap<>();
+        Map<DataFormat, SearchBackEndPlugin<?>> readerPlugins = new HashMap<>();
+        Map<String, DataFormat> formats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
             DataFormat format = plugin.getDataFormat();
-            DataFormatPlugin existing = dataFormatPlugiRegistry.putIfAbsent(format, plugin);
+            DataFormatPlugin existing = pluginRegistry.putIfAbsent(format, plugin);
             if (existing != null) {
                 throw new IllegalArgumentException("DataFormat [" + format.name() + "] is already registered by plugin [" + existing + "]");
             }
-            dataFormats.put(format.name(), format);
+            formats.put(format.name(), format);
         }
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
             for (DataFormat format : plugin.getSupportedFormats()) {
-                // TODO: use mapperService and indexSettings to filter formats relevant to this index
-                readerManagerBuilders.put(format, shardPath -> plugin.createReaderManager(format, shardPath));
+                readerPlugins.put(format, plugin);
             }
         }
 
-        if (!readerManagerBuilders.keySet().equals(dataFormatPlugiRegistry.keySet())) {
+        if (readerPlugins.keySet().equals(pluginRegistry.keySet()) == false) {
             throw new IllegalStateException(
                 "Cannot build registry as data formats have missing indexing engine/reader managers"
                     + " - formats with reader managers: "
-                    + readerManagerBuilders.keySet()
+                    + readerPlugins.keySet()
                     + ", formats with plugins: "
-                    + dataFormatPlugiRegistry.keySet()
+                    + pluginRegistry.keySet()
             );
         }
 
-        this.dataFormatPluginRegistry = Map.copyOf(dataFormatPlugiRegistry);
-        this.dataFormats = Map.copyOf(dataFormats);
-        this.readerManagerBuilders = Map.copyOf(readerManagerBuilders);
+        this.dataFormatPluginRegistry = Map.copyOf(pluginRegistry);
+        this.dataFormats = Map.copyOf(formats);
+        this.readerManagerPlugins = Map.copyOf(readerPlugins);
     }
 
     /**
      * Creates an {@link IndexingExecutionEngine} for the given data format.
      *
+     * @param committer the committer holding the backing store, or null if not available
      * @param format the data format
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
@@ -97,6 +91,7 @@ public class DataFormatRegistry {
      * @throws IllegalArgumentException if the data format is not registered
      */
     public IndexingExecutionEngine<?, ?> getIndexingEngine(
+        Committer committer,
         DataFormat format,
         MapperService mapperService,
         ShardPath shardPath,
@@ -106,7 +101,7 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        return plugin.indexingEngine(mapperService, shardPath, indexSettings);
+        return plugin.indexingEngine(committer, mapperService, shardPath, indexSettings);
     }
 
     public DataFormat format(String name) {
@@ -119,10 +114,6 @@ public class DataFormatRegistry {
 
     /**
      * Returns all registered data formats that support a specific capability for a field type.
-     *
-     * @param fieldType the field type name
-     * @param capability the capability to check
-     * @return list of data formats supporting the capability for the field type
      */
     public List<DataFormat> supportsCapability(String fieldType, FieldTypeCapabilities.Capability capability) {
         return dataFormatPluginRegistry.keySet()
@@ -137,35 +128,31 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns an unmodifiable view of all registered data formats and their plugins.
-     *
-     * @return unmodifiable map of data formats to plugins
+     * Returns an unmodifiable view of all registered data formats.
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
     }
 
     /**
-     * Creates {@link EngineReaderManager} instances for all applicable data formats based on index settings/mappings.
-     * Each reader manager is instantiated by applying the shard path to the factory registered
-     * by the corresponding {@link SearchBackEndPlugin}.
+     * Creates {@link EngineReaderManager} instances for all applicable data formats.
      *
-     * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
+     * @param committer the committer holding the backing store, or null if not available
+     * @param mapperService the mapper service (reserved for future filtering)
      * @param indexSettings the index settings (reserved for future filtering)
      * @param shardPath the shard path used to create reader managers
      * @return a map from data format to its reader manager
-     * @throws RuntimeException wrapping an {@link IOException} if reader manager creation fails
+     * @throws IOException if reader manager creation fails
      */
     public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
+        Committer committer,
         MapperService mapperService,
         IndexSettings indexSettings,
         ShardPath shardPath
     ) throws IOException {
-        // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedFunction<ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
-            .entrySet()) {
-            readerManagers.put(entry.getKey(), entry.getValue().apply(shardPath));
+        for (Map.Entry<DataFormat, SearchBackEndPlugin<?>> entry : readerManagerPlugins.entrySet()) {
+            readerManagers.put(entry.getKey(), entry.getValue().createReaderManager(committer, entry.getKey(), shardPath));
         }
         return readerManagers;
     }

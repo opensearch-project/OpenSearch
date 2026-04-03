@@ -37,6 +37,7 @@ import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -114,6 +115,18 @@ public interface EnginePlugin {
      * @return a function that returns an instance of {@link TranslogDeletionPolicy}
      */
     default Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
+        return Optional.empty();
+    }
+
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the index settings to determine
+     * whether or not to provide a {@link Committer} for the given index. A plugin that does not provide a Committer should return
+     * {@link Optional#empty()}.
+     *
+     * @param indexSettings the index settings
+     * @return an optional committer
+     */
+    default Optional<Committer> getCommitter(IndexSettings indexSettings) {
         return Optional.empty();
     }
 }

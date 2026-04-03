@@ -12,6 +12,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -23,6 +25,8 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 
@@ -64,7 +68,7 @@ final class CompositeTestHelper {
         IndexMetadata indexMetadata = IndexMetadata.builder("test-index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null);
+        return new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new StubCommitter());
     }
 
     static DataFormatPlugin stubPlugin(String formatName, long priority) {
@@ -77,6 +81,7 @@ final class CompositeTestHelper {
 
             @Override
             public IndexingExecutionEngine<?, ?> indexingEngine(
+                Committer committer,
                 MapperService mapperService,
                 ShardPath shardPath,
                 IndexSettings indexSettings
@@ -96,6 +101,7 @@ final class CompositeTestHelper {
 
             @Override
             public IndexingExecutionEngine<?, ?> indexingEngine(
+                Committer committer,
                 MapperService mapperService,
                 ShardPath shardPath,
                 IndexSettings indexSettings
@@ -225,5 +231,41 @@ final class CompositeTestHelper {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Minimal stub Committer that records init/close calls and does nothing on commit.
+     */
+    static class StubCommitter implements Committer {
+        boolean initCalled = false;
+        boolean closeCalled = false;
+
+        @Override
+        public void init(CommitterSettings settings) {
+            initCalled = true;
+        }
+
+        @Override
+        public void commit(Map<String, String> commitData) {}
+
+        @Override
+        public void close() {
+            closeCalled = true;
+        }
+
+        @Override
+        public Map<String, String> getLastCommittedData() {
+            return Map.of();
+        }
+
+        @Override
+        public CommitStats getCommitStats() {
+            return null;
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            return SafeCommitInfo.EMPTY;
+        }
     }
 }

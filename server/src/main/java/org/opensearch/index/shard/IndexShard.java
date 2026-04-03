@@ -608,10 +608,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         this.dataFormatRegistry = dataFormatRegistry;
         if (dataFormatRegistry != null) {
-            // TODO: This should go away and we should use indexer directly.
-            this.currentCompositeEngineReference.set(
-                new DataFormatAwareEngine(dataFormatRegistry.getReaderManagers(mapperService, indexSettings, path))
+            // TODO: Wire the Committer from EnginePlugin discovery and pass it here.
+            // For now, reader managers are created without a committer — the Lucene reader manager
+            // will fail if used before the committer is wired at engine construction time.
+            DataFormatAwareEngine dfaEngine = new DataFormatAwareEngine(
+                dataFormatRegistry.getReaderManagers(null, mapperService, indexSettings, path)
             );
+            this.currentCompositeEngineReference.set(dfaEngine);
         }
     }
 

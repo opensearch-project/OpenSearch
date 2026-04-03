@@ -102,6 +102,7 @@ public class CompositeEnginePluginTests extends OpenSearchTestCase {
 
             @Override
             public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(
+                org.opensearch.index.engine.exec.commit.Committer committer,
                 org.opensearch.index.mapper.MapperService mapperService,
                 org.opensearch.index.shard.ShardPath shardPath,
                 IndexSettings indexSettings

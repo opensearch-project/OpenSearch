@@ -14,6 +14,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 
@@ -37,6 +38,7 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
 
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
     private volatile CatalogSnapshotManager catalogSnapshotManager;
+    private volatile Committer committer;
 
     /**
      * Constructs a new DataFormatAwareEngine.
@@ -57,6 +59,25 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
 
     public void setCatalogSnapshotManager(CatalogSnapshotManager catalogSnapshotManager) {
         this.catalogSnapshotManager = catalogSnapshotManager;
+    }
+
+    /**
+     * Sets the committer for durable catalog snapshot persistence.
+     * May be null if no committer is configured.
+     *
+     * @param committer the committer instance, or null
+     */
+    public void setCommitter(Committer committer) {
+        this.committer = committer;
+    }
+
+    /**
+     * Returns the committer, or null if none has been set.
+     *
+     * @return the committer instance, or null
+     */
+    public Committer getCommitter() {
+        return committer;
     }
 
     public EngineReaderManager<?> getReaderManager(DataFormat format) {
