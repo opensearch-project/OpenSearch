@@ -20,6 +20,8 @@ import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.shard.ShardPath;
 
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
 
@@ -32,7 +34,7 @@ import java.util.Set;
  * standard filter operators on NUMERIC/KEYWORD/DATE/BOOLEAN, and common aggregates.
  * No full-text support.
  */
-public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin {
+public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, org.opensearch.plugins.SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-parquet";
     public static final String PARQUET_DATA_FORMAT = "parquet";
@@ -95,4 +97,29 @@ public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin {
     @Override public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
     @Override public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
     @Override public Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }
+
+    // ---- SearchBackEndPlugin (storage) ----
+
+    @Override
+    public List<DataFormat> getSupportedFormats() {
+        return List.of(new DataFormat() {
+            @Override public String name() { return PARQUET_DATA_FORMAT; }
+            @Override public long priority() { return 0; }
+            @Override public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of(
+                    new FieldTypeCapabilities("integer", Set.of(COLUMNAR_STORAGE)),
+                    new FieldTypeCapabilities("long", Set.of(COLUMNAR_STORAGE)),
+                    new FieldTypeCapabilities("keyword", Set.of(COLUMNAR_STORAGE)),
+                    new FieldTypeCapabilities("text", Set.of(COLUMNAR_STORAGE)),
+                    new FieldTypeCapabilities("boolean", Set.of(COLUMNAR_STORAGE)),
+                    new FieldTypeCapabilities("date", Set.of(COLUMNAR_STORAGE))
+                );
+            }
+        });
+    }
+
+    @Override
+    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+        return null;
+    }
 }

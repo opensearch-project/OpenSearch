@@ -137,18 +137,16 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
             }
         }
 
-        // Build FieldStorageResolver factory using mock storage backends
-        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx -> {
-            List<SearchBackEndPlugin<?>> mockStorageBackends = new ArrayList<>();
-            for (var backend : backends) {
-                if (backend.name().contains("lucene")) {
-                    mockStorageBackends.add(MockStorageBackend.lucene());
-                } else if (backend.name().contains("parquet")) {
-                    mockStorageBackends.add(MockStorageBackend.parquet());
-                }
+        // Build FieldStorageResolver factory — mock backends implement both interfaces
+        List<SearchBackEndPlugin<?>> storageBackends = new ArrayList<>();
+        for (var backend : backends) {
+            if (backend instanceof SearchBackEndPlugin<?> sb) {
+                storageBackends.add(sb);
             }
-            return new FieldStorageResolver(idx, mockStorageBackends);
-        };
+        }
+        List<SearchBackEndPlugin<?>> finalStorageBackends = storageBackends;
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx ->
+            new FieldStorageResolver(idx, finalStorageBackends);
 
         return new PlannerContext(
             new CapabilityRegistry(backends, fieldStorageFactory, scanFormats),

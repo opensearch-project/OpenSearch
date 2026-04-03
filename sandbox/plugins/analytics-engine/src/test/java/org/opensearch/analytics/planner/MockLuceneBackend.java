@@ -18,6 +18,8 @@ import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.shard.ShardPath;
 
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
@@ -33,7 +35,7 @@ import java.util.Set;
  * only in parquet for default tests). Standard + full-text filter capabilities.
  * SCAN + FILTER only (no AGGREGATE).
  */
-public class MockLuceneBackend implements AnalyticsSearchBackendPlugin {
+public class MockLuceneBackend implements AnalyticsSearchBackendPlugin, org.opensearch.plugins.SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-lucene";
     public static final String LUCENE_DATA_FORMAT = "lucene";
@@ -96,4 +98,29 @@ public class MockLuceneBackend implements AnalyticsSearchBackendPlugin {
 
     @Override public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
     @Override public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
+
+    // ---- SearchBackEndPlugin (storage) ----
+
+    @Override
+    public List<DataFormat> getSupportedFormats() {
+        return List.of(new DataFormat() {
+            @Override public String name() { return LUCENE_DATA_FORMAT; }
+            @Override public long priority() { return 0; }
+            @Override public Set<FieldTypeCapabilities> supportedFields() {
+                return Set.of(
+                    new FieldTypeCapabilities("integer", Set.of(POINT_RANGE, STORED_FIELDS)),
+                    new FieldTypeCapabilities("long", Set.of(POINT_RANGE, STORED_FIELDS)),
+                    new FieldTypeCapabilities("keyword", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
+                    new FieldTypeCapabilities("text", Set.of(FULL_TEXT_SEARCH, STORED_FIELDS)),
+                    new FieldTypeCapabilities("boolean", Set.of(STORED_FIELDS)),
+                    new FieldTypeCapabilities("date", Set.of(POINT_RANGE, STORED_FIELDS))
+                );
+            }
+        });
+    }
+
+    @Override
+    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+        return null;
+    }
 }
