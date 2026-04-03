@@ -18,6 +18,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 
@@ -156,9 +157,9 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         assertNotNull("Native error should propagate", ex.getCause());
         assertTrue(
             "Error should mention substrait/decode failure, got: " + ex.getCause().getMessage(),
-            ex.getCause().getMessage().toLowerCase().contains("substrait")
-                || ex.getCause().getMessage().toLowerCase().contains("decode")
-                || ex.getCause().getMessage().toLowerCase().contains("failed")
+            ex.getCause().getMessage().toLowerCase(Locale.ROOT).contains("substrait")
+                || ex.getCause().getMessage().toLowerCase(Locale.ROOT).contains("decode")
+                || ex.getCause().getMessage().toLowerCase(Locale.ROOT).contains("failed")
         );
     }
 

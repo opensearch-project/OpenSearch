@@ -74,9 +74,16 @@ compileJava.dependsOn copyNativeLibrary
 processResources.dependsOn copyNativeLibrary
 sourcesJar.dependsOn copyNativeLibrary
 
+// copyNativeLibrary writes into src/main/resources/native — any task that scans
+// the source tree must run after it to satisfy Gradle's implicit-dependency check.
 tasks.named("forbiddenPatterns").configure {
   dependsOn copyNativeLibrary
   exclude '**/native/**'
+  exclude '**/*.parquet'
+}
+
+for (def taskName : ["filepermissions", "spotlessJava", "spotlessJavaCheck"]) {
+  tasks.named(taskName).configure { dependsOn copyNativeLibrary }
 }
 
 clean {
@@ -98,42 +105,8 @@ tasks.withType(JavaCompile).configureEach {
 testingConventions.enabled = false
 
 tasks.named('thirdPartyAudit').configure {
-  ignoreMissingClasses(
-    // Arrow references Jackson annotations not on classpath
-    'com.fasterxml.jackson.annotation.JsonCreator',
-    'com.fasterxml.jackson.annotation.JsonGetter',
-    'com.fasterxml.jackson.annotation.JsonIgnore',
-    'com.fasterxml.jackson.annotation.JsonInclude',
-    'com.fasterxml.jackson.annotation.JsonInclude$Include',
-    'com.fasterxml.jackson.annotation.JsonProperty',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$As',
-    'com.fasterxml.jackson.annotation.JsonTypeInfo$Id',
-    'com.fasterxml.jackson.databind.DeserializationContext',
-    'com.fasterxml.jackson.databind.JsonDeserializer',
-    'com.fasterxml.jackson.databind.JsonNode',
-    'com.fasterxml.jackson.databind.JsonSerializer',
-    'com.fasterxml.jackson.databind.ObjectMapper',
-    'com.fasterxml.jackson.databind.SerializerProvider',
-    'com.fasterxml.jackson.databind.annotation.JsonDeserialize',
-    'com.fasterxml.jackson.databind.annotation.JsonSerialize',
-    'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-    'com.fasterxml.jackson.databind.node.ObjectNode',
-    'com.fasterxml.jackson.databind.ser.std.StdSerializer'
-  )
   ignoreViolations(
-    'org.apache.arrow.memory.ArrowBuf',
-    'org.apache.arrow.memory.unsafe.UnsafeAllocationManager',
-    'org.apache.arrow.memory.util.ByteFunctionHelpers',
     'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
-    'org.apache.arrow.memory.util.hash.MurmurHasher',
-    'org.apache.arrow.memory.util.hash.SimpleHasher',
-    'org.apache.arrow.vector.BaseFixedWidthVector',
-    'org.apache.arrow.vector.BitVectorHelper',
-    'org.apache.arrow.vector.Decimal256Vector',
-    'org.apache.arrow.vector.DecimalVector',
-    'org.apache.arrow.vector.util.DecimalUtility',
-    'org.apache.arrow.vector.util.VectorAppender'
+    'org.apache.arrow.memory.util.MemoryUtil$1'
   )
 }
