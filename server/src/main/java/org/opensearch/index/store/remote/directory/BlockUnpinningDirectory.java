@@ -15,8 +15,8 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.store.remote.file.AbstractBlockIndexInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * A {@link FilterDirectory} wrapper that tracks {@link AbstractBlockIndexInput}
@@ -34,15 +34,15 @@ import java.util.List;
  * </ol>
  * <p>
  * Concurrency: {@link #openInput} may be called from multiple threads during
- * parallel segment opening, so {@code addToTracked} is synchronized. After
- * {@link #unpinAndStopTracking()} sets {@code tracked} to {@code null},
- * {@link #openInput} becomes a plain delegation with only a volatile read overhead.
+ * parallel segment opening, so {@code tracked} is a {@link ConcurrentLinkedQueue}
+ * for lock-free concurrent adds. {@link #unpinAndStopTracking()} runs after
+ * {@code DirectoryReader.open()} returns (join barrier).
  *
  * @opensearch.internal
  */
 public final class BlockUnpinningDirectory extends FilterDirectory {
 
-    private volatile List<AbstractBlockIndexInput> tracked = new ArrayList<>();
+    private Queue<AbstractBlockIndexInput> tracked = new ConcurrentLinkedQueue<>();
 
     public BlockUnpinningDirectory(Directory in) {
         super(in);
@@ -53,16 +53,12 @@ public final class BlockUnpinningDirectory extends FilterDirectory {
         IndexInput input = super.openInput(name, context);
         if (tracked != null && input instanceof AbstractBlockIndexInput blockInput) {
             blockInput.setOnClone(this::track);
-            addToTracked(blockInput);
+            track(blockInput);
         }
         return input;
     }
 
     private void track(AbstractBlockIndexInput input) {
-        addToTracked(input);
-    }
-
-    private synchronized void addToTracked(AbstractBlockIndexInput input) {
         if (tracked != null) {
             tracked.add(input);
         }
