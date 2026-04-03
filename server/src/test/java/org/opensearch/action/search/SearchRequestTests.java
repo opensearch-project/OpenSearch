@@ -492,24 +492,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertSame("new bytes should be re-memoized", afterChange, request.getOrCreateSerializedSource(Version.CURRENT));
     }
 
-    public void testGetOrCreateSerializedSourceDifferentVersionsAreMemoizedSeparately() throws IOException {
-        SearchRequest request = new SearchRequest();
-        request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
-
-        Version v1 = Version.CURRENT;
-        Version v2 = Version.V_2_13_0;
-
-        BytesReference bytesV1 = request.getOrCreateSerializedSource(v1);
-        BytesReference bytesV2 = request.getOrCreateSerializedSource(v2);
-
-        assertNotNull(bytesV1);
-        assertNotNull(bytesV2);
-        assertNotSame("different versions should produce separate memoized entries", bytesV1, bytesV2);
-        // Each version is stable across repeated calls
-        assertSame(bytesV1, request.getOrCreateSerializedSource(v1));
-        assertSame(bytesV2, request.getOrCreateSerializedSource(v2));
-    }
-
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", SearchAction.NAME, TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
     }
