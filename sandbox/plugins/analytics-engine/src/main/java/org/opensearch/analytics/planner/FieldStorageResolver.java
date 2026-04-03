@@ -8,13 +8,13 @@
 
 package org.opensearch.analytics.planner;
 
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -35,7 +35,6 @@ import java.util.Map;
 public class FieldStorageResolver {
 
     private final Map<String, FieldStorageInfo> fieldStorage;
-    private final List<String> docValueFormats;
 
     /**
      * Production: resolves per-field storage from IndexMetadata and backend capabilities.
@@ -56,7 +55,7 @@ public class FieldStorageResolver {
      * as a narrowing hint in the interim.
      */
     @SuppressWarnings("unchecked")
-    public FieldStorageResolver(IndexMetadata indexMetadata, List<AnalyticsSearchBackendPlugin> backends) {
+    public FieldStorageResolver(IndexMetadata indexMetadata, List<SearchBackEndPlugin<?>> backends) {
         String indexName = indexMetadata.getIndex().getName();
 
         MappingMetadata mapping = indexMetadata.mapping();
@@ -82,7 +81,6 @@ public class FieldStorageResolver {
             }
             this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, formatCapabilities));
         }
-        this.docValueFormats = computeDocValueFormats(this.fieldStorage);
     }
 
     /**
@@ -91,7 +89,6 @@ public class FieldStorageResolver {
      */
     public FieldStorageResolver(Map<String, FieldStorageInfo> fieldStorage) {
         this.fieldStorage = fieldStorage;
-        this.docValueFormats = computeDocValueFormats(fieldStorage);
     }
 
     /** Resolves storage info for the requested fields. */
@@ -107,31 +104,15 @@ public class FieldStorageResolver {
         return result;
     }
 
-    /** Returns all unique data formats that hold doc values across all fields. Precomputed at creation. */
-    public List<String> docValueFormats() {
-        return docValueFormats;
-    }
-
-    private static List<String> computeDocValueFormats(Map<String, FieldStorageInfo> fieldStorage) {
-        List<String> formats = new ArrayList<>();
-        for (FieldStorageInfo info : fieldStorage.values()) {
-            for (String format : info.getDocValueFormats()) {
-                if (!formats.contains(format)) {
-                    formats.add(format);
-                }
-            }
-        }
-        return formats;
-    }
 
     /**
      * Builds a lookup: formatName → fieldType → FieldTypeCapabilities
      * from all backends' DataFormats.
      */
     private static Map<String, Map<String, FieldTypeCapabilities>> buildFormatCapabilities(
-            List<AnalyticsSearchBackendPlugin> backends) {
+            List<SearchBackEndPlugin<?>> backends) {
         Map<String, Map<String, FieldTypeCapabilities>> result = new LinkedHashMap<>();
-        for (AnalyticsSearchBackendPlugin backend : backends) {
+        for (SearchBackEndPlugin<?> backend : backends) {
             for (DataFormat format : backend.getSupportedFormats()) {
                 Map<String, FieldTypeCapabilities> byFieldType = result.computeIfAbsent(
                     format.name(), k -> new LinkedHashMap<>());

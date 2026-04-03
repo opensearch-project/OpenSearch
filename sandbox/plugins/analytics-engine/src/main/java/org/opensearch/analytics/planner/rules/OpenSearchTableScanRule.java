@@ -57,8 +57,7 @@ public class OpenSearchTableScanRule extends RelOptRule {
 
         String primaryFormat = indexMetadata.getSettings().get("index.composite.primary_data_format", "lucene");
         CapabilityRegistry registry = context.getCapabilityRegistry();
-        FieldStorageResolver fieldStorageResolver = new FieldStorageResolver(indexMetadata,
-            registry.getBackends());
+        FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(indexMetadata);
 
         // TODO : This expects the FrontEnds to attach the row type with all fields.
         // TODO : How will they attach if we perform the index resolution

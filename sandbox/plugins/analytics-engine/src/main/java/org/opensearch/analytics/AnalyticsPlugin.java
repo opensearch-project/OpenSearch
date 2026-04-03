@@ -15,9 +15,12 @@ import org.apache.calcite.sql.util.SqlOperatorTables;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
+import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -36,7 +39,10 @@ import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -55,12 +61,14 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
+    private final List<org.opensearch.plugins.SearchBackEndPlugin<?>> storageBackends = new ArrayList<>();
     private SqlOperatorTable operatorTable;
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));
+        storageBackends.addAll((List) loader.loadExtensions(org.opensearch.plugins.SearchBackEndPlugin.class));
         operatorTable = aggregateOperatorTables();
     }
 
@@ -79,7 +87,19 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
-        DefaultPlanExecutor executor = new DefaultPlanExecutor(backEnds, null/* TODO: pass indices service */, clusterService);
+
+        // Build scan format index and field storage factory from storage backends
+        Map<String, List<String>> scanFormats = new LinkedHashMap<>();
+        for (var sb : storageBackends) {
+            for (var format : sb.getSupportedFormats()) {
+                scanFormats.computeIfAbsent(format.name(), k -> new ArrayList<>()).add(sb.name());
+            }
+        }
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory =
+            (indexMetadata) -> new FieldStorageResolver(indexMetadata, storageBackends);
+
+        CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, fieldStorageFactory, scanFormats);
+        DefaultPlanExecutor executor = new DefaultPlanExecutor(backEnds, capabilityRegistry, clusterService);
         AnalyticsEngineService.setInstance(new AnalyticsEngineService(ctx, executor));
         return List.of(executor, ctx);
     }
@@ -102,7 +122,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     /**
      * Default implementation of {@link EngineContext}.
      */
-    static record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {

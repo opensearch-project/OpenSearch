@@ -8,6 +8,12 @@
 
 package org.opensearch.analytics.planner;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -30,11 +36,18 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -101,7 +114,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         when(mappingMetadata.sourceAsMap()).thenReturn(mappingSource);
 
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getIndex()).thenReturn(new org.opensearch.core.index.Index("test_index", "uuid"));
+        when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
         when(indexMetadata.getSettings()).thenReturn(
             Settings.builder().put("index.composite.primary_data_format", primaryFormat).build()
         );
@@ -114,7 +127,30 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        return new PlannerContext(new CapabilityRegistry(backends), clusterState);
+        // Build scan format index from backend names → format names
+        Map<String, List<String>> scanFormats = new LinkedHashMap<>();
+        for (var backend : backends) {
+            if (backend.name().contains("lucene")) {
+                scanFormats.computeIfAbsent(MockLuceneBackend.LUCENE_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
+            } else if (backend.name().contains("parquet")) {
+                scanFormats.computeIfAbsent(MockDataFusionBackend.PARQUET_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
+            }
+        }
+
+        // Build FieldStorageResolver factory — mock backends implement both interfaces
+        List<SearchBackEndPlugin<?>> storageBackends = new ArrayList<>();
+        for (var backend : backends) {
+            if (backend instanceof SearchBackEndPlugin<?> sb) {
+                storageBackends.add(sb);
+            }
+        }
+        List<SearchBackEndPlugin<?>> finalStorageBackends = storageBackends;
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx ->
+            new FieldStorageResolver(idx, finalStorageBackends);
+
+        return new PlannerContext(
+            new CapabilityRegistry(backends, fieldStorageFactory, scanFormats),
+            clusterState);
     }
 
     // ---- Table builders ----
@@ -175,6 +211,79 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     protected static class StubTableScan extends TableScan {
         StubTableScan(RelOptCluster cluster, RelTraitSet traitSet, RelOptTable table) {
             super(cluster, traitSet, List.of(), table);
+        }
+    }
+
+    /** Minimal SearchBackEndPlugin for test FieldStorageResolver construction. */
+    static class MockStorageBackend implements SearchBackEndPlugin<Object> {
+        private final String formatName;
+        private final Set<FieldTypeCapabilities> fieldCaps;
+
+        MockStorageBackend(String formatName, Set<FieldTypeCapabilities> fieldCaps) {
+            this.formatName = formatName;
+            this.fieldCaps = fieldCaps;
+        }
+
+        /** Lucene: POINT_RANGE + STORED_FIELDS for numerics/dates, FULL_TEXT_SEARCH + STORED_FIELDS for text/keyword */
+        static MockStorageBackend lucene() {
+            var C = FieldTypeCapabilities.Capability.class;
+            return new MockStorageBackend(MockLuceneBackend.LUCENE_DATA_FORMAT, Set.of(
+                new FieldTypeCapabilities("integer",
+                    Set.of(FieldTypeCapabilities.Capability.POINT_RANGE,
+                           FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new FieldTypeCapabilities("long",
+                    Set.of(FieldTypeCapabilities.Capability.POINT_RANGE,
+                           FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new FieldTypeCapabilities("keyword",
+                    Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH,
+                           FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new FieldTypeCapabilities("text",
+                    Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH,
+                           FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new FieldTypeCapabilities("boolean",
+                    Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new FieldTypeCapabilities("date",
+                    Set.of(FieldTypeCapabilities.Capability.POINT_RANGE,
+                           FieldTypeCapabilities.Capability.STORED_FIELDS))
+            ));
+        }
+
+        /** Parquet/DataFusion: COLUMNAR_STORAGE for all types */
+        static MockStorageBackend parquet() {
+            return new MockStorageBackend(MockDataFusionBackend.PARQUET_DATA_FORMAT, Set.of(
+                new FieldTypeCapabilities("integer",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new FieldTypeCapabilities("long",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new FieldTypeCapabilities("keyword",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new FieldTypeCapabilities("text",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new FieldTypeCapabilities("boolean",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new FieldTypeCapabilities("date",
+                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE))
+            ));
+        }
+
+        @Override public String name() { return formatName; }
+
+        @Override
+        public List<DataFormat> getSupportedFormats() {
+            return List.of(new DataFormat() {
+                @Override public String name() { return formatName; }
+                @Override public long priority() { return 0; }
+                @Override public Set<FieldTypeCapabilities> supportedFields() {
+                    return fieldCaps;
+                }
+            });
+        }
+
+        @Override
+        public EngineReaderManager<Object> createReaderManager(
+                DataFormat format,
+                ShardPath shardPath) {
+            return null;
         }
     }
 }
