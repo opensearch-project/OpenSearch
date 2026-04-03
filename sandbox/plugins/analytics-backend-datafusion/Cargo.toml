@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = ["jni", "jni-macros"]
+
+[workspace.dependencies]
+datafusion = "52.1.0"
+datafusion-expr = "52.1.0"
+datafusion-datasource = "52.1.0"
+datafusion-common = "52.1.0"
+datafusion-execution = "52.1.0"
+datafusion-substrait = "52.1.0"
+
+arrow = { version = "57.3.0", features = ["ffi"] }
+arrow-array = "57.3.0"
+arrow-schema = "57.3.0"
+
+parquet = "57.3.0"
+object_store = "0.12.5"
+url = "2.0"
+
+prost = "0.14"
+substrait = "=0.62.0"
+
+jni = "0.21"
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+tokio-stream = "0.1.17"
+parking_lot = "0.12.5"
+once_cell = "1.21.3"
+log = "0.4"
+num_cpus = "1.16"
+mimalloc = { version = "0.1.48", default-features = false }
+criterion = { version = "0.5", features = ["async_tokio"] }
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = false
+
+[profile.dev]
+opt-level = 1
+lto = false
+codegen-units = 16
+incremental = true
