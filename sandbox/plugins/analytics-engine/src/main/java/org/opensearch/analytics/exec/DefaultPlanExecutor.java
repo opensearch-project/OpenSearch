@@ -69,7 +69,6 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             new PlannerContext(
                 new CapabilityRegistry(new ArrayList<>(backEnds.values())),
                 clusterService.state()));
-
         String tableName = extractTableName(logicalFragment);
         AnalyticsSearchBackendPlugin provider = selectBackEnd();
         if (provider == null) {

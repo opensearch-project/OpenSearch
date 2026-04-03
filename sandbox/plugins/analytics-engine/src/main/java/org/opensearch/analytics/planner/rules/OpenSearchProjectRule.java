@@ -23,6 +23,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;
@@ -190,7 +191,11 @@ public class OpenSearchProjectRule extends RelOptRule {
         List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.PROJECT);
 
         List<String> result = new ArrayList<>();
+        List<String> projectCapable = registry.operatorBackends(OperatorCapability.PROJECT);
         for (String candidateName : childViableBackends) {
+            if (!projectCapable.contains(candidateName)) {
+                continue;
+            }
             boolean canHandleAll = true;
             for (RexNode expr : annotatedExprs) {
                 if (!(expr instanceof AnnotatedProjectExpression annotation)) {

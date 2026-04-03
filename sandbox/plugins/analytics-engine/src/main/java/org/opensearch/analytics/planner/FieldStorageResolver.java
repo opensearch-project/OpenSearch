@@ -39,6 +39,21 @@ public class FieldStorageResolver {
 
     /**
      * Production: resolves per-field storage from IndexMetadata and backend capabilities.
+     *
+     * <p>LIMITATION: This infers storage from what each DataFormat DECLARES it can support
+     * (via FieldTypeCapabilities), not from what the index ACTUALLY stores. A format declaring
+     * COLUMNAR_STORAGE for "integer" doesn't mean this index has integer doc values in that format.
+     *
+     * <p>The indexing side has no per-field format metadata at the coordinator level today:
+     * - DataFormat.supportedFields() = capability, not actual storage
+     * - Segment.dfGroupedSearchableFiles = per-segment format info, data node only
+     * - DataFormatRegistry has TODOs to filter by index settings/mapper service
+     * - primary_data_format index setting is the only coordinator-level hint (index-level, not field-level)
+     *
+     * <p>TODO: Replace inference with actual per-field format metadata once the indexing team adds
+     * it to MappingMetadata or IndexMetadata. Until then, this over-estimates viable backends —
+     * the shard-level cost function must handle the mismatch. Consider using primary_data_format
+     * as a narrowing hint in the interim.
      */
     @SuppressWarnings("unchecked")
     public FieldStorageResolver(IndexMetadata indexMetadata, List<AnalyticsSearchBackendPlugin> backends) {

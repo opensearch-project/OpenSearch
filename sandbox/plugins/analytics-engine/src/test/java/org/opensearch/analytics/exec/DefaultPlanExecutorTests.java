@@ -26,11 +26,14 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
@@ -123,6 +126,15 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         Index index = new Index("my_index", "uuid");
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getIndex()).thenReturn(index);
+        when(indexMetadata.getSettings()).thenReturn(
+            Settings.builder().put("index.composite.primary_data_format", "mock-columnar").build()
+        );
+        when(indexMetadata.getNumberOfShards()).thenReturn(1);
+        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+        when(mappingMetadata.sourceAsMap()).thenReturn(
+            Map.of("properties", Map.of("field_0", Map.of("type", "integer")))
+        );
+        when(indexMetadata.mapping()).thenReturn(mappingMetadata);
 
         Metadata metadata = mock(Metadata.class);
         when(metadata.index("my_index")).thenReturn(indexMetadata);
@@ -396,6 +408,16 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         @Override
         public String name() {
             return "mock-backend";
+        }
+
+        @Override
+        public List<DataFormat> getSupportedFormats() {
+            return List.of(format);
+        }
+
+        @Override
+        public Set<OperatorCapability> supportedOperators() {
+            return Set.of(OperatorCapability.SCAN, OperatorCapability.FILTER);
         }
 
         @Override
