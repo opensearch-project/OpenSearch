@@ -175,7 +175,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             }
             generator.writeStartObject();
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -190,7 +190,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             }
             generator.writeEndObject();
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -199,7 +199,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeStartArray();
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -208,7 +208,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeEndArray();
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -217,7 +217,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeName(name);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -226,7 +226,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNull();
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -235,7 +235,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNullProperty(name);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -244,7 +244,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeBooleanProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -253,7 +253,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeBoolean(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -262,7 +262,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumberProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -271,7 +271,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -280,7 +280,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumberProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -289,7 +289,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -298,7 +298,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumberProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -310,7 +310,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             generator.writeName(name);
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -319,7 +319,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumberProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -328,7 +328,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -337,7 +337,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumberProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -346,7 +346,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -355,7 +355,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -364,7 +364,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -373,7 +373,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeNumber(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -382,7 +382,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeStringProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -391,7 +391,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeString(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -400,7 +400,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeString(value, offset, len);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -409,7 +409,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeUTF8String(value, offset, length);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -418,7 +418,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeBinaryProperty(name, value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -427,7 +427,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeBinary(value);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -436,7 +436,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         try {
             generator.writeBinary(value, offset, len);
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -445,7 +445,7 @@ public class JsonXContentGenerator implements XContentGenerator {
             writeFieldName(name);
             generator.writeRaw(':');
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -570,7 +570,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                 copyCurrentStructure(this, parser);
             }
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 
@@ -607,7 +607,7 @@ public class JsonXContentGenerator implements XContentGenerator {
                     destination.copyCurrentEvent(parser);
             }
         } catch (final JacksonException ex) {
-            JacksonExceptionTranslator.translateOrRethrow(ex);
+            JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
         }
     }
 

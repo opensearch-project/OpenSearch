@@ -10,6 +10,7 @@ package org.opensearch.tools.jackson.core;
 
 import java.io.IOException;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.exc.InputCoercionException;
 import tools.jackson.core.exc.StreamConstraintsException;
 import tools.jackson.core.exc.StreamReadException;
@@ -27,7 +28,7 @@ public final class JacksonExceptionTranslator {
      * @param ex exception to translate
      * @return translated exception
      */
-    public static IOException translateOrRethrowReturning(Exception ex) {
+    public static IOException translateToIOExceptionOrRethrowReturning(JacksonException ex) {
         if (ex instanceof UnexpectedEndOfInputException) {
             return new org.opensearch.tools.jackson.core.UnexpectedEndOfInputException(ex.getMessage(), ex);
         } else if (ex instanceof InputCoercionException) {
@@ -47,7 +48,7 @@ public final class JacksonExceptionTranslator {
      * Translates Jackson 3 exception hierarchy to Jackson 2 compatible one and throws it
      * @param ex exception to translate
      */
-    public static void translateOrRethrow(Exception ex) throws IOException {
-        throw translateOrRethrowReturning(ex);
+    public static void translateToIOExceptionOrRethrow(JacksonException ex) throws IOException {
+        throw translateToIOExceptionOrRethrowReturning(ex);
     }
 }

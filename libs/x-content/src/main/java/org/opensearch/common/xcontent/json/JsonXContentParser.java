@@ -68,7 +68,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return convertToken(parser.nextToken());
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -77,7 +77,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             parser.skipChildren();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -91,7 +91,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return convertNumberType(parser.getNumberType());
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -105,7 +105,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getBooleanValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -115,7 +115,7 @@ public class JsonXContentParser extends AbstractXContentParser {
             try {
                 return parser.getString();
             } catch (final JacksonException ex) {
-                JacksonExceptionTranslator.translateOrRethrow(ex);
+                JacksonExceptionTranslator.translateToIOExceptionOrRethrow(ex);
             }
         }
         throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
@@ -126,7 +126,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return CharBuffer.wrap(parser.getStringCharacters(), parser.getStringOffset(), parser.getStringLength());
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -148,7 +148,7 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return text();
             }
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -170,7 +170,7 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return charBuffer();
             }
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -184,7 +184,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getStringCharacters();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -193,7 +193,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getStringLength();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -202,7 +202,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getStringOffset();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -211,7 +211,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getNumberValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -220,7 +220,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getShortValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -229,7 +229,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getIntValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -238,7 +238,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getLongValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -247,7 +247,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getFloatValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -256,7 +256,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getDoubleValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -269,7 +269,7 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return parser.getBigIntegerValue();
             }
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
@@ -278,7 +278,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getBinaryValue();
         } catch (final JacksonException ex) {
-            throw JacksonExceptionTranslator.translateOrRethrowReturning(ex);
+            throw JacksonExceptionTranslator.translateToIOExceptionOrRethrowReturning(ex);
         }
     }
 
