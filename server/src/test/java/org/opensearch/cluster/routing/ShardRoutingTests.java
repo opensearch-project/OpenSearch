@@ -215,8 +215,8 @@ public class ShardRoutingTests extends OpenSearchTestCase {
                     }
                     break;
                 case 4:
-                    // change recovery source (only works for inactive primaries)
-                    if (otherRouting.active() || otherRouting.primary() == false) {
+                    // change recovery source (only works for unassigned/initializing primaries)
+                    if (otherRouting.active() || otherRouting.primary() == false || otherRouting.state() == ShardRoutingState.SPLITTING) {
                         unchanged = true;
                     } else {
                         otherRouting = new ShardRouting(
