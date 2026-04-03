@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE;
 
@@ -34,7 +35,7 @@ import java.util.Set;
  * standard filter operators on NUMERIC/KEYWORD/DATE/BOOLEAN, and common aggregates.
  * No full-text support.
  */
-public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, org.opensearch.plugins.SearchBackEndPlugin<Object> {
+public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-parquet";
     public static final String PARQUET_DATA_FORMAT = "parquet";

@@ -20,6 +20,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
 import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE;
@@ -35,7 +36,7 @@ import java.util.Set;
  * only in parquet for default tests). Standard + full-text filter capabilities.
  * SCAN + FILTER only (no AGGREGATE).
  */
-public class MockLuceneBackend implements AnalyticsSearchBackendPlugin, org.opensearch.plugins.SearchBackEndPlugin<Object> {
+public class MockLuceneBackend implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-lucene";
     public static final String LUCENE_DATA_FORMAT = "lucene";
