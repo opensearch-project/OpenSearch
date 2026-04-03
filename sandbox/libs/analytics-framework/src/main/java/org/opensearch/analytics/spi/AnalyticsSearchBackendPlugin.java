@@ -8,17 +8,16 @@
 
 package org.opensearch.analytics.spi;
 
-import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.SearchExecEngine;
-import org.opensearch.index.engine.dataformat.DataFormat;
-
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 /**
  * SPI extension point for back-end query engines for query planning and execution capabilities
+ * as needed by the {@link org.opensearch.analytics.exec.QueryPlanExecutor}.
+ * <p>
+ * Storage format declarations ({@code getSupportedFormats()}) belong on
+ * {@link org.opensearch.plugins.SearchBackEndPlugin} — the planner accesses
+ * field storage via {@code FieldStorageResolver} which reads from the storage layer.
  * as needed by the {@link org.opensearch.analytics.exec.QueryPlanExecutor}
  *
  * <p>TODO: separate capability declaration (planner, coordinator) from execution engine factory
@@ -27,21 +26,6 @@ import java.util.Set;
  * relationship and the default createSearchExecEngine() below once that separation is done.
  */
 public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
-
-    /** Unique engine name (e.g., "lucene", "datafusion"). */
-    String name();
-
-    /**
-     * {@inheritDoc}
-     * Temporary default — remove once SearchExecEngineProvider is separated from this interface.
-     */
-    @Override
-    default SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
-        throw new UnsupportedOperationException("createSearchExecEngine not implemented for " + name());
-    }
-
-    /** Returns the data formats supported by this backend. */
-    List<DataFormat> getSupportedFormats();
 
     /** Filter capabilities scoped to operator, field type, and data format. */
     default Set<FilterCapability> filterCapabilities() {

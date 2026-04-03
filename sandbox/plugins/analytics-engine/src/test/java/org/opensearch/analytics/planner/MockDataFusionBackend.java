@@ -92,24 +92,6 @@ public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin {
 
     @Override public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) { return null; }
 
-    @Override
-    public List<DataFormat> getSupportedFormats() {
-        return List.of(new DataFormat() {
-            @Override public String name() { return PARQUET_DATA_FORMAT; }
-            @Override public long priority() { return 0; }
-            @Override public Set<FieldTypeCapabilities> supportedFields() {
-                return Set.of(
-                    new FieldTypeCapabilities("integer", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("long", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("keyword", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("text", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("boolean", Set.of(COLUMNAR_STORAGE)),
-                    new FieldTypeCapabilities("date", Set.of(COLUMNAR_STORAGE))
-                );
-            }
-        });
-    }
-
     @Override public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
     @Override public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
     @Override public Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }

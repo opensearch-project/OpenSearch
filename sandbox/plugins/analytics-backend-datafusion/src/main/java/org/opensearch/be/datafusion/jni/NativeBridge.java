@@ -25,10 +25,44 @@ public final class NativeBridge {
     private static synchronized void loadNativeLibrary() {
         if (loaded) return;
         try {
+            // Try java.library.path first
             System.loadLibrary("opensearch_datafusion_jni");
             loaded = true;
         } catch (UnsatisfiedLinkError e) {
-            throw new ExceptionInInitializerError("Failed to load native library opensearch_datafusion_jni: " + e.getMessage());
+            // Fall back to loading from classpath resources
+            try {
+                loadFromResources();
+                loaded = true;
+            } catch (Exception ex) {
+                throw new ExceptionInInitializerError(
+                    "Failed to load native library opensearch_datafusion_jni: " + e.getMessage()
+                    + ". Also failed to load from resources: " + ex.getMessage());
+            }
+        }
+    }
+
+    private static void loadFromResources() throws java.io.IOException {
+        String os = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+        String libName;
+        if (os.contains("mac")) {
+            libName = "libopensearch_datafusion_jni.dylib";
+        } else if (os.contains("win")) {
+            libName = "opensearch_datafusion_jni.dll";
+        } else {
+            libName = "libopensearch_datafusion_jni.so";
+        }
+
+        String resourcePath = "/native/" + libName;
+        try (java.io.InputStream in = NativeBridge.class.getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new java.io.FileNotFoundException("Native library not found in resources: " + resourcePath);
+            }
+            java.io.File tempFile = java.io.File.createTempFile("opensearch_datafusion_jni", libName.substring(libName.lastIndexOf('.')));
+            tempFile.deleteOnExit();
+            try (java.io.OutputStream out = new java.io.FileOutputStream(tempFile)) {
+                in.transferTo(out);
+            }
+            System.load(tempFile.getAbsolutePath());
         }
     }
 

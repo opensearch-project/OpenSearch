@@ -8,6 +8,11 @@
 
 package org.opensearch.analytics.planner;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
@@ -114,7 +119,32 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        return new PlannerContext(new CapabilityRegistry(backends), clusterState);
+        // Build scan format index from backend names → format names
+        Map<String, List<String>> scanFormats = new java.util.LinkedHashMap<>();
+        for (var backend : backends) {
+            if (backend.name().contains("lucene")) {
+                scanFormats.computeIfAbsent(MockLuceneBackend.LUCENE_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
+            } else if (backend.name().contains("parquet")) {
+                scanFormats.computeIfAbsent(MockDataFusionBackend.PARQUET_DATA_FORMAT, k -> new ArrayList<>()).add(backend.name());
+            }
+        }
+
+        // Build FieldStorageResolver factory using mock storage backends
+        java.util.function.Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx -> {
+            List<org.opensearch.plugins.SearchBackEndPlugin<?>> mockStorageBackends = new ArrayList<>();
+            for (var backend : backends) {
+                if (backend.name().contains("lucene")) {
+                    mockStorageBackends.add(MockStorageBackend.lucene());
+                } else if (backend.name().contains("parquet")) {
+                    mockStorageBackends.add(MockStorageBackend.parquet());
+                }
+            }
+            return new FieldStorageResolver(idx, mockStorageBackends);
+        };
+
+        return new PlannerContext(
+            new CapabilityRegistry(backends, fieldStorageFactory, scanFormats),
+            clusterState);
     }
 
     // ---- Table builders ----
@@ -175,6 +205,79 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     protected static class StubTableScan extends TableScan {
         StubTableScan(RelOptCluster cluster, RelTraitSet traitSet, RelOptTable table) {
             super(cluster, traitSet, List.of(), table);
+        }
+    }
+
+    /** Minimal SearchBackEndPlugin for test FieldStorageResolver construction. */
+    static class MockStorageBackend implements org.opensearch.plugins.SearchBackEndPlugin<Object> {
+        private final String formatName;
+        private final Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> fieldCaps;
+
+        MockStorageBackend(String formatName, Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> fieldCaps) {
+            this.formatName = formatName;
+            this.fieldCaps = fieldCaps;
+        }
+
+        /** Lucene: POINT_RANGE + STORED_FIELDS for numerics/dates, FULL_TEXT_SEARCH + STORED_FIELDS for text/keyword */
+        static MockStorageBackend lucene() {
+            var C = org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.class;
+            return new MockStorageBackend(MockLuceneBackend.LUCENE_DATA_FORMAT, Set.of(
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("integer",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE,
+                           org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("long",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE,
+                           org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("keyword",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH,
+                           org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("text",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH,
+                           org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("boolean",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("date",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.POINT_RANGE,
+                           org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS))
+            ));
+        }
+
+        /** Parquet/DataFusion: COLUMNAR_STORAGE for all types */
+        static MockStorageBackend parquet() {
+            return new MockStorageBackend(MockDataFusionBackend.PARQUET_DATA_FORMAT, Set.of(
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("integer",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("long",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("keyword",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("text",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("boolean",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)),
+                new org.opensearch.index.engine.dataformat.FieldTypeCapabilities("date",
+                    Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE))
+            ));
+        }
+
+        @Override public String name() { return formatName; }
+
+        @Override
+        public List<org.opensearch.index.engine.dataformat.DataFormat> getSupportedFormats() {
+            return List.of(new org.opensearch.index.engine.dataformat.DataFormat() {
+                @Override public String name() { return formatName; }
+                @Override public long priority() { return 0; }
+                @Override public Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> supportedFields() {
+                    return fieldCaps;
+                }
+            });
+        }
+
+        @Override
+        public org.opensearch.index.engine.exec.EngineReaderManager<Object> createReaderManager(
+                org.opensearch.index.engine.dataformat.DataFormat format,
+                org.opensearch.index.shard.ShardPath shardPath) {
+            return null;
         }
     }
 }

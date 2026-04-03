@@ -8,13 +8,13 @@
 
 package org.opensearch.analytics.planner;
 
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability;
+import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -56,7 +56,7 @@ public class FieldStorageResolver {
      * as a narrowing hint in the interim.
      */
     @SuppressWarnings("unchecked")
-    public FieldStorageResolver(IndexMetadata indexMetadata, List<AnalyticsSearchBackendPlugin> backends) {
+    public FieldStorageResolver(IndexMetadata indexMetadata, List<SearchBackEndPlugin<?>> backends) {
         String indexName = indexMetadata.getIndex().getName();
 
         MappingMetadata mapping = indexMetadata.mapping();
@@ -112,6 +112,30 @@ public class FieldStorageResolver {
         return docValueFormats;
     }
 
+    /** Returns true if the field has doc values in any format. */
+    public boolean hasDocValues(String fieldName) {
+        FieldStorageInfo info = fieldStorage.get(fieldName);
+        return info != null && !info.getDocValueFormats().isEmpty();
+    }
+
+    /** Returns true if the field has an inverted index or point range in any format. */
+    public boolean isIndexed(String fieldName) {
+        FieldStorageInfo info = fieldStorage.get(fieldName);
+        return info != null && !info.getIndexFormats().isEmpty();
+    }
+
+    /** Returns the first format that provides doc values for this field, or null. */
+    public String getDocValueFormat(String fieldName) {
+        FieldStorageInfo info = fieldStorage.get(fieldName);
+        if (info == null || info.getDocValueFormats().isEmpty()) return null;
+        return info.getDocValueFormats().get(0);
+    }
+
+    /** Returns storage info for a field, or null if not found. */
+    public FieldStorageInfo getFieldInfo(String fieldName) {
+        return fieldStorage.get(fieldName);
+    }
+
     private static List<String> computeDocValueFormats(Map<String, FieldStorageInfo> fieldStorage) {
         List<String> formats = new ArrayList<>();
         for (FieldStorageInfo info : fieldStorage.values()) {
@@ -129,9 +153,9 @@ public class FieldStorageResolver {
      * from all backends' DataFormats.
      */
     private static Map<String, Map<String, FieldTypeCapabilities>> buildFormatCapabilities(
-            List<AnalyticsSearchBackendPlugin> backends) {
+            List<SearchBackEndPlugin<?>> backends) {
         Map<String, Map<String, FieldTypeCapabilities>> result = new LinkedHashMap<>();
-        for (AnalyticsSearchBackendPlugin backend : backends) {
+        for (SearchBackEndPlugin<?> backend : backends) {
             for (DataFormat format : backend.getSupportedFormats()) {
                 Map<String, FieldTypeCapabilities> byFieldType = result.computeIfAbsent(
                     format.name(), k -> new LinkedHashMap<>());

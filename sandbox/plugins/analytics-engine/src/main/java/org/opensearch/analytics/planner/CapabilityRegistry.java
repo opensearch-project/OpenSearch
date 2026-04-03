@@ -22,12 +22,14 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ShuffleCapability;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.cluster.metadata.IndexMetadata;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Pre-indexed capability lookups for planner rules. Built once at plugin startup,
@@ -54,9 +56,14 @@ public class CapabilityRegistry {
     private final Map<String, List<String>> scanFormatIndex = new HashMap<>();
     // backendName → ShuffleCapabilities
     private final Map<String, Set<ShuffleCapability>> shuffleCapabilities = new HashMap<>();
+    private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
-    public CapabilityRegistry(List<AnalyticsSearchBackendPlugin> backends) {
+    public CapabilityRegistry(List<AnalyticsSearchBackendPlugin> backends,
+                              Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory,
+                              Map<String, List<String>> scanFormats) {
         this.backends = backends;
+        this.fieldStorageFactory = fieldStorageFactory;
+        this.scanFormatIndex.putAll(scanFormats);
         for (AnalyticsSearchBackendPlugin backend : backends) {
             String name = backend.name();
 
@@ -114,12 +121,7 @@ public class CapabilityRegistry {
                     cap.formats(), name);
             }
 
-            // Scan format index
-            if (backend.supportedOperators().contains(OperatorCapability.SCAN)) {
-                for (var format : backend.getSupportedFormats()) {
-                    scanFormatIndex.computeIfAbsent(format.name(), k -> new ArrayList<>()).add(name);
-                }
-            }
+            // Scan format index — populated later via setStorageBackends()
 
             // Shuffle capabilities
             if (!backend.supportedShuffleCapabilities().isEmpty()) {
@@ -206,9 +208,14 @@ public class CapabilityRegistry {
         return shuffleCapabilities.getOrDefault(backendName, Set.of());
     }
 
-    /** Returns the backend list for FieldStorageResolver construction. */
+    /** Returns the analytics backends. */
     public List<AnalyticsSearchBackendPlugin> getBackends() {
         return backends;
+    }
+
+    /** Builds a FieldStorageResolver for the given index. */
+    public FieldStorageResolver resolveFieldStorage(IndexMetadata indexMetadata) {
+        return fieldStorageFactory.apply(indexMetadata);
     }
 
     /** All backends that support this filter operator on this field type, any format. */
