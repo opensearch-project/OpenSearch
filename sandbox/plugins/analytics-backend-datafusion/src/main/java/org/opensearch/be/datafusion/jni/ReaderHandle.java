@@ -15,6 +15,8 @@ import org.opensearch.analytics.backend.jni.NativeHandle;
  */
 public final class ReaderHandle extends NativeHandle {
 
+    private final boolean ownsPointer;
+
     /**
      * Creates a reader handle by allocating a native DataFusion reader for the given path and files.
      * @param path the directory path containing data files
@@ -22,13 +24,27 @@ public final class ReaderHandle extends NativeHandle {
      */
     public ReaderHandle(String path, String[] files) {
         super(NativeBridge.createDatafusionReader(path, files));
+        this.ownsPointer = true;
+    }
+
+    /** Wraps an existing pointer without taking ownership. */
+    private ReaderHandle(long existingPtr) {
+        super(existingPtr);
+        this.ownsPointer = false;
+    }
+
+    @Override
+    protected void doClose() {
+        if (ownsPointer) {
+            NativeBridge.closeDatafusionReader(ptr);
+        }
     }
 
     /**
-     * Closes the datafusion reader and releases any associated resources.
+     * Wraps a pre-existing native pointer without taking ownership (test only).
+     * @param existingPtr the native pointer to wrap
      */
-    @Override
-    protected void doClose() {
-        NativeBridge.closeDatafusionReader(ptr);
+    public static ReaderHandle wrap(long existingPtr) {
+        return new ReaderHandle(existingPtr);
     }
 }
