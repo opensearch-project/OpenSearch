@@ -399,15 +399,10 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
+        public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
             Object reader = ctx.getReader().reader(format);
             long rows = reader instanceof Long ? (Long) reader : 0L;
             return new MockSearchExecEngine(rows);
-        }
-
-        @Override
-        public List<DataFormat> getSupportedFormats() {
-            return List.of(format);
         }
     }
 }
