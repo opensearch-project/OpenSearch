@@ -64,7 +64,7 @@ public class DataFormatRegistry {
             dataFormats.put(format.name(), format);
         }
 
-        for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
+        for (SearchBackEndPlugin plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
             for (DataFormat format : plugin.getSupportedFormats()) {
                 // TODO: use mapperService and indexSettings to filter formats relevant to this index
                 readerManagerBuilders.put(format, shardPath -> plugin.createReaderManager(format, shardPath));

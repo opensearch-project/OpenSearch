@@ -115,29 +115,6 @@ public class DataFormatAwareEngine implements IndexReaderProvider, Closeable {
             return readers.get(format);
         }
 
-        /**
-         * Returns the reader for the given format, validated against the expected type.
-         *
-         * @param format the data format
-         * @param readerType the expected reader class
-         * @param <R> the reader type
-         * @return the typed reader, or {@code null} if no reader exists for the format
-         * @throws IllegalArgumentException if the reader exists but is not of the expected type
-         */
-        @SuppressWarnings("unchecked")
-        public <R> R getReader(DataFormat format, Class<R> readerType) {
-            Object reader = readers.get(format);
-            if (reader == null) {
-                return null;
-            }
-            if (readerType.isInstance(reader) == false) {
-                throw new IllegalArgumentException(
-                    "Reader for format [" + format.name() + "] is " + reader.getClass().getName() + ", expected " + readerType.getName()
-                );
-            }
-            return (R) reader;
-        }
-
         @Override
         public CatalogSnapshot catalogSnapshot() {
             return catalogSnapshot;

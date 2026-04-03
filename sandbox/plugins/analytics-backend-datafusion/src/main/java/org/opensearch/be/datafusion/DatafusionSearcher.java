@@ -12,11 +12,9 @@ import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.be.datafusion.jni.ReaderHandle;
 import org.opensearch.be.datafusion.jni.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.EngineSearcher;
 
 import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * DataFusion searcher — executes substrait query plans against a native DataFusion reader.
@@ -57,36 +55,19 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
         if (query == null) {
             throw new IllegalStateException("DatafusionQuery must be set before search");
         }
-        NativeRuntimeHandle runtimeHandle = context.getNativeRuntime();
-        CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(
+        long streamPtr = NativeBridge.executeQuery(
             readerHandle.getPointer(),
             query.getIndexName(),
             query.getSubstraitBytes(),
-            runtimeHandle.get(),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Long streamPtr) {
-                    future.complete(streamPtr);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    future.completeExceptionally(e);
-                }
-            }
+            context.getRuntimePtr()
         );
-        long streamPtr;
-        try {
-            streamPtr = future.join();
-        } catch (Exception e) {
-            throw new IOException("Query execution failed", e);
-        }
-        context.setStreamHandle(new StreamHandle(streamPtr, runtimeHandle));
+        context.setStreamHandle(new StreamHandle(streamPtr, context.getRuntimePtr()));
     }
 
     /**
      * Returns the type-safe handle to the native reader.
+     * Call {@link ReaderHandle#getPointer()} only at JNI invocation time
+     * to get the raw pointer with a liveness check.
      */
     public ReaderHandle getReaderHandle() {
         return readerHandle;

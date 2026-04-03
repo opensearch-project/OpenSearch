@@ -8,7 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
@@ -71,7 +70,7 @@ public class NativeRuntimeHandle implements Closeable {
     public synchronized void close() {
         long ptr = pointer;
         if (ptr != 0L) {
-            NativeBridge.closeGlobalRuntime(ptr);
+            // TODO: NativeBridge.closeGlobalRuntime(ptr);
             pointer = 0L;
         }
     }

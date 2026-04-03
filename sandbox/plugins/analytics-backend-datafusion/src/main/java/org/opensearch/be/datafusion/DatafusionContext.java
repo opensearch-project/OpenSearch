@@ -65,10 +65,10 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     /**
-     * Returns the native runtime handle.
+     * Returns the live native runtime pointer for JNI calls.
      */
-    public NativeRuntimeHandle getNativeRuntime() {
-        return nativeRuntime;
+    public long getRuntimePtr() {
+        return nativeRuntime.get();
     }
 
     /** Returns the DataFusion query plan. */
@@ -102,16 +102,6 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      */
     public StreamHandle getStreamHandle() {
         return streamHandle;
-    }
-
-    /**
-     * Takes ownership of the stream handle, returning it and clearing the reference.
-     * After this call, {@link #close()} will not close the stream handle.
-     */
-    public StreamHandle takeStreamHandle() {
-        StreamHandle handle = streamHandle;
-        streamHandle = null;
-        return handle;
     }
 
     /**

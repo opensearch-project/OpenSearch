@@ -19,7 +19,6 @@ import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,7 +35,6 @@ public class DataFormatAwareEngineFactory {
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
     private final IndexFileDeleter indexFileDeleter;
 
-    @SuppressWarnings("rawtypes")
     public DataFormatAwareEngineFactory(
         PluginsService pluginsService,
         ShardPath shardPath,
@@ -44,11 +42,7 @@ public class DataFormatAwareEngineFactory {
         IndexSettings indexSettings
     ) throws IOException {
         for (SearchBackEndPlugin plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            List<DataFormat> formats = plugin.getSupportedFormats();
-            if (formats == null) {
-                continue;
-            }
-            for (DataFormat format : formats) {
+            for (DataFormat format : plugin.getSupportedFormats()) {
                 // TODO: use mapperService and indexSettings to filter formats relevant to this index
                 readerManagers.put(format, plugin.createReaderManager(format, shardPath));
             }
