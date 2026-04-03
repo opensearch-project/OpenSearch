@@ -13,6 +13,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneSearchEnginePlugin implements SearchBackEndPlugin<DirectoryReader> {
+public class LuceneSearchEnginePlugin extends Plugin implements SearchBackEndPlugin<DirectoryReader> {
 
     /** Creates a new LuceneSearchEnginePlugin. */
     public LuceneSearchEnginePlugin() {}
