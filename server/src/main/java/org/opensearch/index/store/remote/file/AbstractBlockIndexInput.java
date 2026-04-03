@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.lang.ref.Cleaner;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -82,6 +83,19 @@ public abstract class AbstractBlockIndexInput extends IndexInput implements Rand
 
     private final BlockHolder blockHolder = new BlockHolder();
     protected final Cleaner.Cleanable cleanable;
+
+    /**
+     * Optional callback invoked when a new derived input (slice or clone) is created.
+     * Propagated to slices and clones so callers can track all derived inputs.
+     */
+    protected Consumer<AbstractBlockIndexInput> onClone;
+
+    /**
+     * Sets a callback that will be invoked on new slices/clones and propagated to them.
+     */
+    public void setOnClone(Consumer<AbstractBlockIndexInput> onClone) {
+        this.onClone = onClone;
+    }
 
     protected AbstractBlockIndexInput(Builder builder) {
         super(builder.resourceDescription);

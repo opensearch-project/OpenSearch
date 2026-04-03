@@ -49,6 +49,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.directory.BlockUnpinningDirectory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.NoOpTranslogManager;
@@ -140,9 +141,20 @@ public class ReadOnlyEngine extends Engine {
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
-                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
+                // For searchable snapshots, wrap the directory so we can track and
+                // unpin all file cache blocks fetched during DirectoryReader.open().
+                // After the reader is opened (but before any searches), we release
+                // the hard references so blocks become LRU-evictable.
+                BlockUnpinningDirectory unpinningDirectory = null;
+                if (FilterDirectory.unwrap(directory) instanceof RemoteSnapshotDirectory) {
+                    unpinningDirectory = new BlockUnpinningDirectory(directory);
+                }
+                Directory openDirectory = unpinningDirectory != null ? unpinningDirectory : directory;
+                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, openDirectory);
                 reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                unpinBlocksAfterRecovery(directory);
+                if (unpinningDirectory != null) {
+                    unpinningDirectory.unpinAndStopTracking();
+                }
                 readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
@@ -221,13 +233,6 @@ public class ReadOnlyEngine extends Engine {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
         DirectoryReader reader = DirectoryReader.open(commit);
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-    }
-
-    private static void unpinBlocksAfterRecovery(Directory directory) {
-        Directory unwrapped = FilterDirectory.unwrap(directory);
-        if (unwrapped instanceof RemoteSnapshotDirectory) {
-            ((RemoteSnapshotDirectory) unwrapped).unpinBlocksAfterRecovery();
-        }
     }
 
     @Override
