@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.directory;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -70,7 +71,7 @@ public class BlockUnpinningDirectoryTests extends OpenSearchTestCase {
         assertEquals(50L, input.getFilePointer());
 
         dir.unpinAndStopTracking();
-        assertEquals(0L, input.getFilePointer());
+        expectThrows(AlreadyClosedException.class, input::getFilePointer);
 
         input.close();
         dir.close();
@@ -105,9 +106,9 @@ public class BlockUnpinningDirectoryTests extends OpenSearchTestCase {
 
         dir.unpinAndStopTracking();
 
-        assertEquals(0L, master.getFilePointer());
-        assertEquals(0L, slice1.getFilePointer());
-        assertEquals(0L, slice2.getFilePointer());
+        expectThrows(AlreadyClosedException.class, master::getFilePointer);
+        expectThrows(AlreadyClosedException.class, slice1::getFilePointer);
+        expectThrows(AlreadyClosedException.class, slice2::getFilePointer);
 
         slice1.close();
         slice2.close();
@@ -145,6 +146,30 @@ public class BlockUnpinningDirectoryTests extends OpenSearchTestCase {
         dir.close();
     }
 
+    public void testCloneAndSliceWorkAfterUnpin() throws IOException {
+        BlockUnpinningDirectory dir = new BlockUnpinningDirectory(createDirectoryWithFile(FILE_SIZE));
+
+        IndexInput input = dir.openInput(FILE_NAME, IOContext.DEFAULT);
+        input.seek(50);
+        dir.unpinAndStopTracking();
+
+        // Simulates what codec readers do during search: clone/slice from an unpinned input
+        IndexInput clone = input.clone();
+        clone.seek(10);
+        assertEquals(10L, clone.getFilePointer());
+        clone.readByte();
+
+        IndexInput slice = input.slice("test-slice", 0, 100);
+        slice.seek(20);
+        assertEquals(20L, slice.getFilePointer());
+        slice.readByte();
+
+        slice.close();
+        clone.close();
+        input.close();
+        dir.close();
+    }
+
     public void testMultipleInputsAllUnpinned() throws IOException {
         BlockUnpinningDirectory dir = new BlockUnpinningDirectory(createDirectoryWithFile(FILE_SIZE));
 
@@ -155,8 +180,8 @@ public class BlockUnpinningDirectoryTests extends OpenSearchTestCase {
 
         dir.unpinAndStopTracking();
 
-        assertEquals(0L, input1.getFilePointer());
-        assertEquals(0L, input2.getFilePointer());
+        expectThrows(AlreadyClosedException.class, input1::getFilePointer);
+        expectThrows(AlreadyClosedException.class, input2::getFilePointer);
 
         input1.close();
         input2.close();
