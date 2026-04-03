@@ -14,6 +14,8 @@ import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
@@ -21,22 +23,26 @@ import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 
+import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.QueryDAG;
+
 import java.util.List;
 
 /**
  * Central planner for the Analytics Plugin.
  *
- * <p>Two phases:
+ * <p>Three phases:
  * <ol>
  *   <li>HepPlanner (RBO): converts LogicalXxx → OpenSearchXxx with backend
  *       assignment, predicate annotation, and distribution traits.</li>
  *   <li>VolcanoPlanner (CBO): requests SINGLETON at root (coordinator must
  *       gather all results). Split rule fires on aggregates, Volcano inserts
  *       exchanges via trait enforcement where distribution mismatches.</li>
+ *   <li>DAG construction: cuts at exchange boundaries, builds stage tree.</li>
  * </ol>
  *
  * <p>TODO: eliminate copyToCluster — have frontends create RelNodes with Volcano cluster.
- * <p>TODO: DAG construction (cut at exchange boundaries)
+ * <p>TODO: Per-stage plan forking (multiple plan generation)
  * <p>TODO: Fragment conversion (backend.convertFragment)
  * <p>TODO: Join strategy selection, sort removal via CBO
  *
@@ -93,6 +99,11 @@ public class PlannerImpl {
         RelNode result = volcanoPlanner.findBestExp();
 
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(result));
+
+        // Phase 3: DAG construction — cut at exchange boundaries
+        QueryDAG dag = DAGBuilder.build(result);
+        LOGGER.info("QueryDAG:\n{}", dag);
+
         return result;
     }
 }
