@@ -82,4 +82,73 @@ public final class NativeBridge {
      * @param streamPtr the native stream pointer to close
      */
     public static native void streamClose(long streamPtr);
+
+    // ---- Cache management ----
+
+    /**
+     * Notifies the native cache manager that new files are available for caching.
+     * @param runtimePtr the native runtime pointer
+     * @param filePaths absolute paths of the new files
+     */
+    public static native void cacheManagerAddFiles(long runtimePtr, String[] filePaths);
+
+    /**
+     * Notifies the native cache manager that files have been deleted and should be evicted.
+     * @param runtimePtr the native runtime pointer
+     * @param filePaths absolute paths of the deleted files
+     */
+    public static native void cacheManagerRemoveFiles(long runtimePtr, String[] filePaths);
+
+    // ---- Tree query execution ----
+
+    /**
+     * Executes a boolean tree query asynchronously. The tree bytes and bridge context ID
+     * are passed to Rust. Rust deserializes the tree, creates JniTreeShardSearcher per
+     * collector leaf, builds TreeIndexedTableProvider, and returns a stream pointer.
+     *
+     * @param treeBytes        Serialized boolean tree (from IndexFilterTree.serialize())
+     * @param bridgeContextId  Context ID registered with FilterTreeCallbackBridge
+     * @param segmentMaxDocs   Max doc count per segment (long[])
+     * @param parquetPaths     One parquet file path per segment (String[])
+     * @param tableName        Table name for DataFusion registration
+     * @param substraitBytes   Serialized substrait plan bytes
+     * @param numPartitions    Number of DataFusion partitions
+     * @param indexLeafCount   Number of collector leaves in the tree
+     * @param isQueryPlanExplainEnabled Whether to enable query plan explain
+     * @param runtimePtr       Pointer to the DataFusion runtime
+     * @param listener         ActionListener to receive the stream pointer (Long)
+     */
+    public static native void executeTreeQueryAsync(
+        byte[] treeBytes,
+        long bridgeContextId,
+        long[] segmentMaxDocs,
+        String[] parquetPaths,
+        String tableName,
+        byte[] substraitBytes,
+        int numPartitions,
+        int indexLeafCount,
+        boolean isQueryPlanExplainEnabled,
+        long runtimePtr,
+        org.opensearch.core.action.ActionListener<Long> listener
+    );
+
+    // ---- Test helpers ----
+
+    /**
+     * Converts a SQL query to serialized Substrait plan bytes (test only).
+     * Registers the table from the reader, plans the SQL, and returns the substrait bytes.
+     * @param readerPtr the native reader pointer
+     * @param tableName the table name to register
+     * @param sql the SQL query string
+     * @param runtimePtr the native runtime pointer
+     * @return serialized substrait plan bytes
+     */
+    public static native byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr);
+
+    // ---- Logger ----
+
+    /**
+     * Initializes the Rust-to-Java logging bridge.
+     */
+    public static native void initLogger();
 }
