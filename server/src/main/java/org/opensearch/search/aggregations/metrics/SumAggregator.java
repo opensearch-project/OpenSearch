@@ -121,8 +121,8 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue implemen
         }
         final BigArrays bigArrays = context.bigArrays();
 
-        // For integer-backed single-valued fields, use NumericDocValues#longValues bulk API
-        if (valuesSource.isFloatingPoint() == false) {
+        // For integer-backed single-valued fields (not floating point, not unsigned long), use NumericDocValues#longValues bulk API
+        if (valuesSource.isFloatingPoint() == false && valuesSource.isBigInteger() == false) {
             final SortedNumericDocValues longValues = valuesSource.longValues(ctx);
             final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
             if (singleton != null) {

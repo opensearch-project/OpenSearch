@@ -155,8 +155,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
 
         final BigArrays bigArrays = context.bigArrays();
 
-        // For integer-backed fields, use NumericDocValues#longValues bulk API
-        if (valuesSource.isFloatingPoint() == false) {
+        // For integer-backed fields (not floating point, not unsigned long), use NumericDocValues#longValues bulk API
+        if (valuesSource.isFloatingPoint() == false && valuesSource.isBigInteger() == false) {
             final SortedNumericDocValues longValues = valuesSource.longValues(ctx);
             final NumericDocValues singleton = DocValues.unwrapSingleton(longValues);
             if (singleton != null) {

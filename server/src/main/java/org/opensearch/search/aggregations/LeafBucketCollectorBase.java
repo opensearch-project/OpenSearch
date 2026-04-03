@@ -57,8 +57,8 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
     private final LeafBucketCollector sub;
     private final ScorerAware values;
 
-    /** Whether a scorer was set — if true, buffering is disabled */
-    private boolean scorerSet;
+    /** Whether collect(int) buffering is enabled */
+    private final boolean bufferingEnabled;
 
     /** Buffer for batching doc IDs from collect(int) calls */
     private final int[] docBuffer = new int[BUFFER_SIZE];
@@ -77,14 +77,15 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
         } else {
             this.values = null;
         }
+        // Enable buffering only when we have doc values (which support random access)
+        // and the values source doesn't need scores (ScorerAware).
+        // Aggregators with null values (e.g., ScriptedMetricAggregator) or scorer-dependent
+        // values are not safe for buffered replay.
+        this.bufferingEnabled = (values != null && this.values == null);
     }
 
     @Override
     public void setScorer(Scorable s) throws IOException {
-        // Track that a scorer was set — this means someone in the chain needs scores,
-        // so we can't buffer collect(int) calls and flush in finish() because the
-        // scorer won't be in ITERATING state at that point.
-        scorerSet = true;
         sub.setScorer(s);
         if (values != null) {
             values.setScorer(s);
@@ -101,12 +102,12 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
      * {@link #collect(int[], int, long)} when the buffer is full. This enables
      * batch doc value retrieval for the per-doc Lucene scorer path.
      *
-     * <p>When a scorer is set (meaning the aggregation chain needs scores),
-     * falls back to direct collection since finish() cannot safely access the scorer.
+     * <p>When buffering is disabled (no doc values, or scorer-aware values),
+     * falls back to direct collection.
      */
     @Override
     public void collect(int doc) throws IOException {
-        if (scorerSet == false) {
+        if (bufferingEnabled) {
             docBuffer[docCount++] = doc;
             if (docCount == docBuffer.length) {
                 docCount = 0;
