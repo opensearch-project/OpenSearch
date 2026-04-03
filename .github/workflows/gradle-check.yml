@@ -65,14 +65,6 @@ jobs:
       issues: write # To create an issue if check fails on push.
     runs-on: ubuntu-latest
     timeout-minutes: 130
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: check
-            gradle_check_command: 'check -Dtests.coverage=true'
-          - label: bwc
-            gradle_check_command: 'bwcTestSnapshots -Dbwc.buildUnreleasedFromSource=false'
     steps:
       - name: Checkout OpenSearch repo
         uses: actions/checkout@v6
@@ -136,7 +128,7 @@ jobs:
         run: |
           set -e
           set -o pipefail
-          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} -c "${{ matrix.gradle_check_command }}" | tee -a gradle-check.log
+          bash opensearch-build/scripts/gradle/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER}} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN}} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()
@@ -147,7 +139,7 @@ jobs:
           echo "result=$RESULT" >> $GITHUB_ENV
 
       - name: Upload Coverage Report
-        if: success() && matrix.label == 'check'
+        if: success()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -159,7 +151,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            :white_check_mark: Build result for **${{ matrix.label }}** (${{ env.pr_from_sha }}): [${{ env.result }}](${{ env.workflow_url }})
+            :white_check_mark: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
       - name: Extract Test Failure
         if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
@@ -182,7 +174,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            :grey_exclamation: Build result for **${{ matrix.label }}** (${{ env.pr_from_sha }}): [${{ env.result }}](${{ env.workflow_url }}) ${{ env.test_failures }}
+            :grey_exclamation: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }}) ${{ env.test_failures }}
 
             Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
 
@@ -192,7 +184,7 @@ jobs:
         with:
           issue-number: ${{ env.pr_number }}
           body: |
-            :x: Build result for **${{ matrix.label }}** (${{ env.pr_from_sha }}): [${{ env.result }}](${{ env.workflow_url }})
+            :x: Gradle check result for ${{ env.pr_from_sha }}: [${{ env.result }}](${{ env.workflow_url }})
 
             Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green. Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
 
