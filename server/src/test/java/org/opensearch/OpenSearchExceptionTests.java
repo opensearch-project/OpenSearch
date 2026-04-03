@@ -25,11 +25,6 @@
  * under the License.
  */
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
 package org.opensearch;
 
 import org.apache.lucene.util.Constants;
