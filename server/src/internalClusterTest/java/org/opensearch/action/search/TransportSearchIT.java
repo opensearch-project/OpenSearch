@@ -43,6 +43,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -550,6 +551,45 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             estimated += nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getEstimated();
         }
         return estimated;
+    }
+
+    /**
+     * Verifies that searches with a non-trivial SearchSourceBuilder produce correct results when
+     * fanning out to multiple shards. This exercises the serialized source cache path introduced in
+     * AbstractSearchAsyncAction, ensuring the optimization does not corrupt results.
+     */
+    public void testSerializedSourceCacheCorrectnessWithMultipleShards() throws Exception {
+        int numShards = randomIntBetween(3, 7);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test-cache")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .get()
+        );
+
+        int numDocs = randomIntBetween(20, 50);
+        for (int i = 0; i < numDocs; i++) {
+            client().index(
+                new IndexRequest("test-cache").id(Integer.toString(i))
+                    .source("value", i, "tag", i % 2 == 0 ? "even" : "odd")
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE)
+            ).actionGet();
+        }
+        client().admin().indices().prepareRefresh("test-cache").get();
+
+        // Query for even-tagged documents using a non-trivial source (bool query + size + from)
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .query(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("tag", "even")))
+            .size(numDocs)
+            .from(0);
+        SearchResponse response = client().search(new SearchRequest("test-cache").source(source)).actionGet();
+
+        long expectedEven = (numDocs + 1) / 2;
+        assertEquals("should return only even-tagged docs", expectedEven, response.getHits().getTotalHits().value());
+        for (var hit : response.getHits().getHits()) {
+            assertEquals("even", hit.getSourceAsMap().get("tag"));
+        }
     }
 
     /**

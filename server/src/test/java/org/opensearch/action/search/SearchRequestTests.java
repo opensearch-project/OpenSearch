@@ -34,6 +34,8 @@ package org.opensearch.action.search;
 
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
@@ -473,6 +475,39 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
             )
         );
+    }
+
+    public void testGetOrCreateSerializedSourceCachingBehavior() throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+
+        BytesReference first = request.getOrCreateSerializedSource(Version.CURRENT);
+        assertNotNull(first);
+        assertSame("repeated call should return memoized instance", first, request.getOrCreateSerializedSource(Version.CURRENT));
+
+        // After source change, new bytes are computed and re-memoized
+        request.source(new SearchSourceBuilder().size(42));
+        BytesReference afterChange = request.getOrCreateSerializedSource(Version.CURRENT);
+        assertNotSame("changed source should produce new bytes", first, afterChange);
+        assertSame("new bytes should be re-memoized", afterChange, request.getOrCreateSerializedSource(Version.CURRENT));
+    }
+
+    public void testGetOrCreateSerializedSourceDifferentVersionsAreMemoizedSeparately() throws IOException {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+
+        Version v1 = Version.CURRENT;
+        Version v2 = Version.V_2_13_0;
+
+        BytesReference bytesV1 = request.getOrCreateSerializedSource(v1);
+        BytesReference bytesV2 = request.getOrCreateSerializedSource(v2);
+
+        assertNotNull(bytesV1);
+        assertNotNull(bytesV2);
+        assertNotSame("different versions should produce separate memoized entries", bytesV1, bytesV2);
+        // Each version is stable across repeated calls
+        assertSame(bytesV1, request.getOrCreateSerializedSource(v1));
+        assertSame(bytesV2, request.getOrCreateSerializedSource(v2));
     }
 
     private String toDescription(SearchRequest request) {

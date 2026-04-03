@@ -35,6 +35,9 @@ package org.opensearch.search.internal;
 import org.opensearch.Version;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
@@ -53,6 +56,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RandomQueryBuilder;
+import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.indices.InvalidAliasNameException;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.SearchSortValuesAndFormatsTests;
@@ -228,5 +232,69 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    // --- Memoized serialized source tests ---
+
+    private static BytesReference serializeSource(SearchSourceBuilder source) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        source.writeTo(out);
+        return out.copyBytes();
+    }
+
+    private ShardSearchRequest requestWithSource(SearchSourceBuilder source) {
+        SearchRequest searchRequest = new SearchRequest().source(source).allowPartialSearchResults(true);
+        ShardId shardId = new ShardId("test", "test_uuid", 0);
+        return new ShardSearchRequest(
+            new OriginalIndices(new String[] { "test" }, IndicesOptions.strictExpand()),
+            searchRequest,
+            shardId,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null,
+            Strings.EMPTY_ARRAY,
+            null,
+            null
+        );
+    }
+
+    public void testMemoizedSerializedSourceRoundTrip() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(10);
+        ShardSearchRequest request = requestWithSource(source);
+
+        request.setMemoizedSerializedSource(serializeSource(source), Version.CURRENT);
+
+        ShardSearchRequest deserialized = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new);
+        assertEquals(source, deserialized.source());
+    }
+
+    public void testCacheKeyUnaffectedByMemoizedSource() throws Exception {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
+        ShardSearchRequest request = requestWithSource(source);
+
+        BytesReference keyBefore = request.cacheKey();
+        request.setMemoizedSerializedSource(serializeSource(source), Version.CURRENT);
+        BytesReference keyAfter = request.cacheKey();
+
+        assertEquals("cacheKey() must not change when memoized source is set", keyBefore, keyAfter);
+    }
+
+    public void testMemoizationInvalidationClearsStaleBytes() throws Exception {
+        // setAliasFilter should clear stale memoized bytes
+        SearchSourceBuilder realSource = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
+        ShardSearchRequest request = requestWithSource(realSource);
+        request.setMemoizedSerializedSource(serializeSource(new SearchSourceBuilder().size(99)), Version.CURRENT);
+        request.setAliasFilter(AliasFilter.EMPTY);
+        assertEquals(realSource, copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new).source());
+
+        // source() setter should also clear stale memoized bytes
+        request = requestWithSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+        request.setMemoizedSerializedSource(serializeSource(new SearchSourceBuilder().size(99)), Version.CURRENT);
+        SearchSourceBuilder newSource = new SearchSourceBuilder().size(5);
+        request.source(newSource);
+        assertEquals(newSource, copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new).source());
     }
 }
