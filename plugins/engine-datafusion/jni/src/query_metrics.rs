@@ -259,18 +259,265 @@ pub fn start_query_tracking(
 ///
 /// Called from streamClose or on error paths.
 pub fn stop_query_tracking(context_id: i64) {
-    if let Some(tracker) = QUERY_TRACKERS.get(&context_id) {
-        // Snapshot wall time before marking completed — once set, wall_secs()
-        // returns this frozen value regardless of when drain is called
+    let stats = QUERY_TRACKERS.get(&context_id).map(|tracker| {
         let elapsed_nanos = tracker.start_time.elapsed().as_nanos() as u64;
         tracker.wall_nanos.store(elapsed_nanos, Ordering::Relaxed);
         tracker.completed.store(true, Ordering::Release);
-        log_info!(
-            "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
-            context_id,
-            tracker.wall_secs(),
+        (
+            elapsed_nanos as f64 / 1_000_000_000.0,
             tracker.memory_pool.current_bytes(),
             tracker.memory_pool.peak_bytes(),
+        )
+    });
+    // Log after releasing the DashMap read guard
+    if let Some((wall, current, peak)) = stats {
+        log_info!(
+            "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
+            context_id, wall, current, peak,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::execution::memory_pool::GreedyMemoryPool;
+    use std::thread;
+    use std::time::Duration;
+
+    /// Helper: create a global pool with the given limit.
+    fn make_global_pool(limit: usize) -> Arc<dyn MemoryPool> {
+        Arc::new(GreedyMemoryPool::new(limit))
+    }
+
+    /// Helper: create a MemoryConsumer registered with the pool and return its reservation.
+    fn make_reservation(pool: &Arc<dyn MemoryPool>, name: &str) -> MemoryReservation {
+        MemoryConsumer::new(name).register(pool)
+    }
+
+    // -----------------------------------------------------------------------
+    // QueryMemoryPool tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_query_pool_tracks_current_and_peak() {
+        let global = make_global_pool(1_000_000); // large enough to never trigger fallback
+        let qp = Arc::new(QueryMemoryPool::new(global));
+        let pool: Arc<dyn MemoryPool> = qp.clone();
+        let mut reservation = make_reservation(&pool, "test");
+
+        reservation.try_grow(1000).unwrap();
+        assert_eq!(qp.current_bytes(), 1000);
+        assert_eq!(qp.peak_bytes(), 1000);
+
+        reservation.try_grow(500).unwrap();
+        assert_eq!(qp.current_bytes(), 1500);
+        assert_eq!(qp.peak_bytes(), 1500);
+
+        // Shrink 800 → current=700, peak still 1500
+        reservation.shrink(800);
+        assert_eq!(qp.current_bytes(), 700);
+        assert_eq!(qp.peak_bytes(), 1500);
+
+        // Grow 200 → current=900, peak still 1500
+        reservation.try_grow(200).unwrap();
+        assert_eq!(qp.current_bytes(), 900);
+        assert_eq!(qp.peak_bytes(), 1500);
+    }
+
+    #[test]
+    fn test_query_pool_current_returns_to_zero_on_drop() {
+        let global = make_global_pool(1_000_000);
+        let qp = Arc::new(QueryMemoryPool::new(global));
+        let pool: Arc<dyn MemoryPool> = qp.clone();
+
+        {
+            let mut reservation = make_reservation(&pool, "test");
+            reservation.try_grow(5000).unwrap();
+            assert_eq!(qp.current_bytes(), 5000);
+            assert_eq!(qp.peak_bytes(), 5000);
+        } // reservation dropped here — triggers shrink via Drop
+
+        assert_eq!(qp.current_bytes(), 0);
+        assert_eq!(qp.peak_bytes(), 5000);
+    }
+
+    #[test]
+    fn test_query_pool_delegates_reserved_to_inner() {
+        let global = make_global_pool(1_000_000);
+        let qp = Arc::new(QueryMemoryPool::new(global));
+        let pool: Arc<dyn MemoryPool> = qp.clone();
+        let mut reservation = make_reservation(&pool, "test");
+
+        reservation.try_grow(2000).unwrap();
+        assert!(pool.reserved() >= 2000);
+    }
+
+    // -----------------------------------------------------------------------
+    // QueryTracker lifecycle tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_start_tracking_returns_none_for_zero_context() {
+        let global = make_global_pool(10_000);
+        let result = start_query_tracking(0, global);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_start_tracking_returns_pool_for_valid_context() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 42_000;
+        let result = start_query_tracking(ctx_id, global);
+        assert!(result.is_some());
+        assert!(QUERY_TRACKERS.contains_key(&ctx_id));
+
+        // Cleanup
+        QUERY_TRACKERS.remove(&ctx_id);
+    }
+
+    #[test]
+    fn test_stop_tracking_marks_completed_and_freezes_wall_time() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 42_001;
+        let _pool = start_query_tracking(ctx_id, global);
+
+        thread::sleep(Duration::from_millis(50));
+        stop_query_tracking(ctx_id);
+
+        // Use a block so the Ref guard is dropped before remove()
+        {
+            let tracker = QUERY_TRACKERS.get(&ctx_id).unwrap();
+            assert!(tracker.completed.load(Ordering::Relaxed));
+            assert!(tracker.wall_nanos.load(Ordering::Relaxed) > 0);
+
+            let frozen = tracker.wall_secs();
+            thread::sleep(Duration::from_millis(50));
+            let after_sleep = tracker.wall_secs();
+            assert!((after_sleep - frozen).abs() < 0.001);
+        }
+
+        QUERY_TRACKERS.remove(&ctx_id);
+    }
+
+    #[test]
+    fn test_wall_secs_ticks_while_running() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 42_002;
+        let _pool = start_query_tracking(ctx_id, global);
+
+        let t1 = { QUERY_TRACKERS.get(&ctx_id).unwrap().wall_secs() };
+        thread::sleep(Duration::from_millis(50));
+        let t2 = { QUERY_TRACKERS.get(&ctx_id).unwrap().wall_secs() };
+
+        assert!(t2 - t1 >= 0.04);
+
+        stop_query_tracking(ctx_id);
+        QUERY_TRACKERS.remove(&ctx_id);
+    }
+
+    #[test]
+    fn test_stop_tracking_nonexistent_context_is_noop() {
+        stop_query_tracking(99_999);
+    }
+
+    #[test]
+    fn test_tracker_stays_in_registry_after_stop() {
+        let global = make_global_pool(10_000);
+        let ctx_id = 42_003;
+        let _pool = start_query_tracking(ctx_id, global);
+
+        stop_query_tracking(ctx_id);
+        assert!(QUERY_TRACKERS.contains_key(&ctx_id));
+
+        // Cleanup
+        QUERY_TRACKERS.remove(&ctx_id);
+    }
+
+    #[test]
+    fn test_memory_tracking_through_full_lifecycle() {
+        let global = make_global_pool(1_000_000);
+        let ctx_id = 42_004;
+        let qp = start_query_tracking(ctx_id, global).unwrap();
+        let pool: Arc<dyn MemoryPool> = qp.clone();
+        let mut reservation = make_reservation(&pool, "lifecycle_test");
+
+        reservation.try_grow(5000).unwrap();
+        assert_eq!(qp.current_bytes(), 5000);
+        assert_eq!(qp.peak_bytes(), 5000);
+
+        reservation.try_grow(3000).unwrap();
+        assert_eq!(qp.current_bytes(), 8000);
+        assert_eq!(qp.peak_bytes(), 8000);
+
+        reservation.shrink(6000);
+        assert_eq!(qp.current_bytes(), 2000);
+        assert_eq!(qp.peak_bytes(), 8000);
+
+        stop_query_tracking(ctx_id);
+
+        // Block scope so Ref guard is dropped before remove()
+        {
+            let tracker = QUERY_TRACKERS.get(&ctx_id).unwrap();
+            assert_eq!(tracker.memory_pool.current_bytes(), 2000);
+            assert_eq!(tracker.memory_pool.peak_bytes(), 8000);
+            assert!(tracker.wall_secs() > 0.0);
+        }
+
+        // Drop reservation — current goes to 0 via MemoryReservation::Drop, peak stays
+        drop(reservation);
+        assert_eq!(qp.current_bytes(), 0);
+        assert_eq!(qp.peak_bytes(), 8000);
+
+        QUERY_TRACKERS.remove(&ctx_id);
+    }
+
+    #[test]
+    fn test_multiple_concurrent_queries() {
+        let global = make_global_pool(1_000_000);
+        let ctx_a = 42_005;
+        let ctx_b = 42_006;
+
+        let qp_a = start_query_tracking(ctx_a, Arc::clone(&global)).unwrap();
+        let qp_b = start_query_tracking(ctx_b, Arc::clone(&global)).unwrap();
+
+        let pool_a: Arc<dyn MemoryPool> = qp_a.clone();
+        let pool_b: Arc<dyn MemoryPool> = qp_b.clone();
+
+        let mut res_a = make_reservation(&pool_a, "query_a");
+        res_a.try_grow(3000).unwrap();
+
+        let mut res_b = make_reservation(&pool_b, "query_b");
+        res_b.try_grow(7000).unwrap();
+
+        // Each query tracks independently
+        assert_eq!(qp_a.current_bytes(), 3000);
+        assert_eq!(qp_a.peak_bytes(), 3000);
+        assert_eq!(qp_b.current_bytes(), 7000);
+        assert_eq!(qp_b.peak_bytes(), 7000);
+
+        // Global pool sees the sum
+        assert!(global.reserved() >= 10000);
+
+        // Stop one, other keeps running
+        stop_query_tracking(ctx_a);
+        {
+            assert!(QUERY_TRACKERS.get(&ctx_a).unwrap().completed.load(Ordering::Relaxed));
+        }
+        {
+            assert!(!QUERY_TRACKERS.get(&ctx_b).unwrap().completed.load(Ordering::Relaxed));
+        }
+
+        // Cleanup
+        drop(res_a);
+        drop(res_b);
+        QUERY_TRACKERS.remove(&ctx_a);
+        QUERY_TRACKERS.remove(&ctx_b);
+    }
+
+    #[test]
+    fn test_pool_limit_is_set_and_readable() {
+        set_pool_limit(1_000_000);
+        assert!(pool_limit() > 0);
     }
 }
