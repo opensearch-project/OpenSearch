@@ -45,8 +45,8 @@ import java.io.IOException;
  *
  * <p>This class buffers doc IDs from {@link #collect(int)} (top-level bucket 0 path)
  * and flushes them in batches via {@link #collect(int[], int, long)}, enabling
- * aggregator implementations to perform bulk doc value retrieval. Aggregators that
- * need immediate per-doc feedback should use {@link LeafBucketCollector} directly.
+ * aggregator implementations to perform bulk doc value retrieval. Buffering is
+ * automatically disabled when scores are needed (detected via {@link #setScorer}).
  *
  * @opensearch.internal
  */
@@ -57,8 +57,12 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
     private final LeafBucketCollector sub;
     private final ScorerAware values;
 
-    /** Whether collect(int) buffering is enabled */
-    private final boolean bufferingEnabled;
+    /**
+     * Whether collect(int) buffering is enabled. Starts as true when doc values are
+     * present and not scorer-aware, but gets disabled when setScorer is called (meaning
+     * the aggregation chain needs scores, making finish()-time flush unsafe).
+     */
+    private boolean bufferingEnabled;
 
     /** Buffer for batching doc IDs from collect(int) calls */
     private final int[] docBuffer = new int[BUFFER_SIZE];
@@ -74,18 +78,28 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
         this.sub = sub;
         if (values instanceof ScorerAware scorerAware) {
             this.values = scorerAware;
+            // Values source needs scores — disable buffering since finish() can't safely access scorer
+            this.bufferingEnabled = false;
         } else {
             this.values = null;
+            // Enable buffering when we have doc values (which support random access via advanceExact).
+            // Aggregators with null values (e.g., ScriptedMetricAggregator) may have custom state
+            // that doesn't support buffered replay.
+            this.bufferingEnabled = (values != null);
         }
-        // Enable buffering only when we have doc values (which support random access)
-        // and the values source doesn't need scores (ScorerAware).
-        // Aggregators with null values (e.g., ScriptedMetricAggregator) or scorer-dependent
-        // values are not safe for buffered replay.
-        this.bufferingEnabled = (values != null && this.values == null);
     }
 
     @Override
     public void setScorer(Scorable s) throws IOException {
+        // When setScorer is called, the aggregation chain needs scores. Flush any buffered
+        // docs now (while the scorer is still valid) and disable further buffering, because
+        // finish() is called after the scorer leaves ITERATING state.
+        if (bufferingEnabled && docCount > 0) {
+            int count = docCount;
+            docCount = 0;
+            collect(docBuffer, count, 0);
+        }
+        bufferingEnabled = false;
         sub.setScorer(s);
         if (values != null) {
             values.setScorer(s);
@@ -102,7 +116,7 @@ public class LeafBucketCollectorBase extends LeafBucketCollector {
      * {@link #collect(int[], int, long)} when the buffer is full. This enables
      * batch doc value retrieval for the per-doc Lucene scorer path.
      *
-     * <p>When buffering is disabled (no doc values, or scorer-aware values),
+     * <p>When buffering is disabled (scores needed, no doc values, or scorer-aware values),
      * falls back to direct collection.
      */
     @Override
