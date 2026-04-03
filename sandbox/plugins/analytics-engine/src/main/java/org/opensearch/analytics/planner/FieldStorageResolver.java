@@ -35,7 +35,6 @@ import java.util.Map;
 public class FieldStorageResolver {
 
     private final Map<String, FieldStorageInfo> fieldStorage;
-    private final List<String> docValueFormats;
 
     /**
      * Production: resolves per-field storage from IndexMetadata and backend capabilities.
@@ -82,7 +81,6 @@ public class FieldStorageResolver {
             }
             this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, formatCapabilities));
         }
-        this.docValueFormats = computeDocValueFormats(this.fieldStorage);
     }
 
     /**
@@ -91,7 +89,6 @@ public class FieldStorageResolver {
      */
     public FieldStorageResolver(Map<String, FieldStorageInfo> fieldStorage) {
         this.fieldStorage = fieldStorage;
-        this.docValueFormats = computeDocValueFormats(fieldStorage);
     }
 
     /** Resolves storage info for the requested fields. */
@@ -107,46 +104,6 @@ public class FieldStorageResolver {
         return result;
     }
 
-    /** Returns all unique data formats that hold doc values across all fields. Precomputed at creation. */
-    public List<String> docValueFormats() {
-        return docValueFormats;
-    }
-
-    /** Returns true if the field has doc values in any format. */
-    public boolean hasDocValues(String fieldName) {
-        FieldStorageInfo info = fieldStorage.get(fieldName);
-        return info != null && !info.getDocValueFormats().isEmpty();
-    }
-
-    /** Returns true if the field has an inverted index or point range in any format. */
-    public boolean isIndexed(String fieldName) {
-        FieldStorageInfo info = fieldStorage.get(fieldName);
-        return info != null && !info.getIndexFormats().isEmpty();
-    }
-
-    /** Returns the first format that provides doc values for this field, or null. */
-    public String getDocValueFormat(String fieldName) {
-        FieldStorageInfo info = fieldStorage.get(fieldName);
-        if (info == null || info.getDocValueFormats().isEmpty()) return null;
-        return info.getDocValueFormats().get(0);
-    }
-
-    /** Returns storage info for a field, or null if not found. */
-    public FieldStorageInfo getFieldInfo(String fieldName) {
-        return fieldStorage.get(fieldName);
-    }
-
-    private static List<String> computeDocValueFormats(Map<String, FieldStorageInfo> fieldStorage) {
-        List<String> formats = new ArrayList<>();
-        for (FieldStorageInfo info : fieldStorage.values()) {
-            for (String format : info.getDocValueFormats()) {
-                if (!formats.contains(format)) {
-                    formats.add(format);
-                }
-            }
-        }
-        return formats;
-    }
 
     /**
      * Builds a lookup: formatName → fieldType → FieldTypeCapabilities
