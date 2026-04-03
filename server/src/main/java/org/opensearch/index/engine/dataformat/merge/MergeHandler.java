@@ -15,9 +15,9 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.MergeResult;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.ArrayDeque;
 import java.util.Collection;

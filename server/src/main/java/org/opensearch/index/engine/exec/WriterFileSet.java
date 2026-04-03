@@ -9,6 +9,9 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,10 +23,17 @@ import java.util.Set;
  * Groups files by directory and writer generation, tracking metadata such as row count and total size.
  */
 @ExperimentalApi
-public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) {
+public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) implements Writeable {
 
     public WriterFileSet {
         files = Set.copyOf(files);
+    }
+
+    /**
+     * Constructs a WriterFileSet by deserializing from a {@link StreamInput}.
+     */
+    public WriterFileSet(StreamInput in, String directory) throws IOException {
+        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
     }
 
     public long getTotalSize() {
@@ -39,6 +49,15 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
     @Override
     public String toString() {
         return "WriterFileSet{" + "directory=" + directory + ", writerGeneration=" + writerGeneration + ", files=" + files + '}';
+    }
+
+    /**
+     * Serializes this WriterFileSet to the given stream output.
+     */
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(writerGeneration);
+        out.writeStringCollection(files);
+        out.writeLong(numRows);
     }
 
     /**

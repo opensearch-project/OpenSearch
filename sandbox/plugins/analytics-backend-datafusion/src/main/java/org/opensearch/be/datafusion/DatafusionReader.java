@@ -48,6 +48,15 @@ public class DatafusionReader implements Closeable {
         readerHandle = new ReaderHandle(directoryPath, fileNames);
     }
 
+    /**
+     * Wraps a pre-existing native reader pointer (test only).
+     * The caller retains ownership — this reader will NOT close the handle.
+     */
+    DatafusionReader(long nativePtr) {
+        this.directoryPath = "";
+        this.readerHandle = ReaderHandle.wrap(nativePtr);
+    }
+
     @Override
     public void close() throws IOException {
         readerHandle.close();

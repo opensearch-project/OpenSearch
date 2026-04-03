@@ -170,7 +170,9 @@ configure([
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
-  project(":server")
+  project(":server"),
+  project(":sandbox:libs:native-bridge-spi"),
+  project(":sandbox:plugins:parquet-data-format")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
