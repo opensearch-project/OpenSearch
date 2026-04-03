@@ -41,6 +41,9 @@ dependencies {
   runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  // Avatica (Calcite JDBC) eagerly loads HTTP client classes at init time
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
 
   // Calcite bytecode references annotations from apiguardian (@API) and
   // checker-framework (@EnsuresNonNullIf). compileOnlyApi propagates to

@@ -118,7 +118,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * Data formats this plugin can handle. Used by CompositeEngine to route queries.
      */
     public List<DataFormat> getSupportedFormats() {
-        return null; // TODO : List.of("parquet");
+        return List.of();
     }
 
     @Override

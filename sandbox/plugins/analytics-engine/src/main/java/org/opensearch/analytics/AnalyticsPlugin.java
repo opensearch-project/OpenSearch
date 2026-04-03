@@ -78,10 +78,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        return List.of(
-            new DefaultPlanExecutor(backEnds, null/* TODO: pass indices service */, clusterService),
-            new DefaultEngineContext(clusterService, operatorTable)
-        );
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
+        DefaultPlanExecutor executor = new DefaultPlanExecutor(backEnds, null/* TODO: pass indices service */, clusterService);
+        AnalyticsEngineService.setInstance(new AnalyticsEngineService(ctx, executor));
+        return List.of(executor, ctx);
     }
 
     @Override
