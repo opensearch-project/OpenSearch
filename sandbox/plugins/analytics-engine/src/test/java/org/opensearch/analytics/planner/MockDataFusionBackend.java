@@ -90,7 +90,7 @@ public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin {
 
     @Override public String name() { return NAME; }
 
-    @Override public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) { return null; }
+    @Override public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) { return null; }
 
     @Override
     public List<DataFormat> getSupportedFormats() {

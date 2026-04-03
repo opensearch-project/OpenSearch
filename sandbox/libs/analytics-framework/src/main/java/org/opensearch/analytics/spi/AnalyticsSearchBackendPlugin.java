@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.spi;
 
-
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -21,6 +20,11 @@ import java.util.Set;
 /**
  * SPI extension point for back-end query engines for query planning and execution capabilities
  * as needed by the {@link org.opensearch.analytics.exec.QueryPlanExecutor}
+ *
+ * <p>TODO: separate capability declaration (planner, coordinator) from execution engine factory
+ * (data node) into two interfaces. AnalyticsSearchBackendPlugin should only declare capabilities.
+ * SearchExecEngineProvider should be discovered separately by the executor. Remove the extends
+ * relationship and the default createSearchExecEngine() below once that separation is done.
  */
 public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
 
@@ -28,10 +32,13 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
     String name();
 
     /**
-     * Creates a searcher bound to the given reader snapshot.
-     * @param ctx the execution context
+     * {@inheritDoc}
+     * Temporary default — remove once SearchExecEngineProvider is separated from this interface.
      */
-    SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx);
+    @Override
+    default SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+        throw new UnsupportedOperationException("createSearchExecEngine not implemented for " + name());
+    }
 
     /** Returns the data formats supported by this backend. */
     List<DataFormat> getSupportedFormats();
