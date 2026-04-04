@@ -93,16 +93,6 @@ By default, the test tasks use bundled JDK runtime, configured in version catalo
 
 Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
 
-#### Windows
-
-On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
-
-#### Docker
-
-Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
-
-On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
-
 #### Rust and Protoc
 
 Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
@@ -113,9 +103,19 @@ Sandbox plugins such as `analytics-backend-datafusion` include a native Rust com
    ```
 
 2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
-   - macOS: `brew install protobuf`
-   - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
-   - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
+    - macOS: `brew install protobuf`
+    - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+    - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
+
+#### Windows
+
+On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsEnabled=0x1` under `Computer\HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem`.
+
+#### Docker
+
+Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
+
+On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
 
 ### Build
 
