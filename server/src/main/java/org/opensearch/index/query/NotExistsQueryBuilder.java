@@ -134,10 +134,7 @@ public class NotExistsQueryBuilder extends AbstractQueryBuilder<NotExistsQueryBu
         }
 
         if (fieldPattern == null) {
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                "[" + NotExistsQueryBuilder.NAME + "] must be provided with a [field]"
-            );
+            throw new ParsingException(parser.getTokenLocation(), "[" + NotExistsQueryBuilder.NAME + "] must be provided with a [field]");
         }
 
         NotExistsQueryBuilder builder = new NotExistsQueryBuilder(fieldPattern);
