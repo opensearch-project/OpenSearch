@@ -53,6 +53,7 @@ import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
 import org.opensearch.index.query.DistanceFeatureQueryBuilder;
 import org.opensearch.index.query.ExistsQueryBuilder;
+import org.opensearch.index.query.NotExistsQueryBuilder;
 import org.opensearch.index.query.FieldMaskingSpanQueryBuilder;
 import org.opensearch.index.query.FuzzyQueryBuilder;
 import org.opensearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -1174,6 +1175,7 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoPolygonQueryBuilder.NAME, GeoPolygonQueryBuilder::new, GeoPolygonQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(NotExistsQueryBuilder.NAME, NotExistsQueryBuilder::new, NotExistsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(IntervalQueryBuilder.NAME, IntervalQueryBuilder::new, IntervalQueryBuilder::fromXContent));
