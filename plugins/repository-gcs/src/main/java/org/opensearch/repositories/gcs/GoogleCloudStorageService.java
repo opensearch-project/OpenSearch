@@ -61,6 +61,7 @@ import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.Security;
+import java.util.Enumeration;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -193,7 +194,8 @@ public class GoogleCloudStorageService {
         return AccessController.doPrivilegedChecked(() -> {
             try {
                 final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
-                builder.trustCertificates(loadTrustStore(clientSettings));
+                final TruststoreSettings truststoreSettings = clientSettings.getTruststoreSettings();
+                builder.trustCertificates(loadTrustStore(truststoreSettings));
 
                 final ProxySettings proxySettings = clientSettings.getProxySettings();
                 if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
@@ -218,8 +220,7 @@ public class GoogleCloudStorageService {
         });
     }
 
-    private KeyStore loadTrustStore(GoogleCloudStorageClientSettings clientSettings) throws GeneralSecurityException, IOException {
-        TruststoreSettings truststoreSettings = clientSettings.getTruststoreSettings();
+    private KeyStore loadTrustStore(TruststoreSettings truststoreSettings) throws GeneralSecurityException, IOException {
         KeyStore certTrustStore;
         if (truststoreSettings.isConfigured()) {
             final var truststorePath = truststoreSettings.path();
@@ -230,12 +231,10 @@ public class GoogleCloudStorageService {
                 SecurityUtils.loadKeyStore(certTrustStore, trustStoreStream, truststorePassword.toString());
             }
             logger.debug("Loaded custom truststore from path: {} with type: {}", truststorePath, truststoreType);
-        } else if (clientSettings.isFipsMode() && Security.getProvider("BCFIPS") != null) {
-            throw new IllegalStateException(
-                "FIPS mode is active but no custom truststore is configured. "
-                    + "Please configure gcs.client.<client-name>.truststore.path and "
-                    + "gcs.client.<client-name>.truststore.secure_password settings."
-            );
+        } else if (Security.getProvider("BCFIPS") != null) {
+            // FIPS mode is active: create FIPS-compliant (BCFKS) truststore with Google default certs
+            certTrustStore = createFipsCompliantGoogleTrustStore();
+            logger.debug("Using FIPS-compliant Google default certificate trust store");
         } else {
             // requires java.lang.RuntimePermission "setFactory"
             // Pin the TLS trust certificates.
@@ -301,5 +300,26 @@ public class GoogleCloudStorageService {
             return 0;
         }
         return Math.toIntExact(timeout.getMillis());
+    }
+
+    private KeyStore createFipsCompliantGoogleTrustStore() throws GeneralSecurityException, IOException {
+        // Use BCFKS KeyStore type which is required for FIPS mode
+        KeyStore trustStore = KeyStore.getInstance("BCFIPS", "BCFIPS");
+        // Initialize empty BCFKS trust store
+        trustStore.load(null, null);
+
+        // Load Google's built-in default trust store
+        KeyStore googleDefaultStore = GoogleUtils.getCertificateTrustStore();
+        Enumeration<String> aliases = googleDefaultStore.aliases();
+
+        // Copy all certificate entries into the FIPS-compliant BCFKS trust store
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            if (googleDefaultStore.isCertificateEntry(alias)) {
+                trustStore.setCertificateEntry(alias, googleDefaultStore.getCertificate(alias));
+            }
+        }
+
+        return trustStore;
     }
 }
