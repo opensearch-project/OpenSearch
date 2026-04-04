@@ -73,6 +73,11 @@ public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
     }
 
     @Override
+    public RexNode unwrap() {
+        return original;
+    }
+
+    @Override
     protected String computeDigest(boolean withType) {
         return "ANNOTATED_PREDICATE(id=" + annotationId + ", backends=" + viableBackends + ", " + original + ")";
     }

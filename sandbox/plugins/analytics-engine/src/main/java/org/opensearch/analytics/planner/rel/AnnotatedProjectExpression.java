@@ -77,6 +77,11 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
     }
 
     @Override
+    public RexNode unwrap() {
+        return original;
+    }
+
+    @Override
     protected String computeDigest(boolean withType) {
         return "ANNOTATED_PROJECT_EXPR(id=" + annotationId + ", backends=" + viableBackends + ", " + original + ")";
     }

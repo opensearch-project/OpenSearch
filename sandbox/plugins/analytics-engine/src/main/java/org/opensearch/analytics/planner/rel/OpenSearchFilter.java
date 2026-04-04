@@ -13,6 +13,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Filter;
+import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
@@ -94,6 +95,12 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
             resolvedCondition, List.of(backend));
     }
 
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        RexNode stripped = stripCondition(getCondition());
+        return LogicalFilter.create(strippedChildren.getFirst(), stripped);
+    }
+
     private RexNode replaceAnnotations(RexNode node, List<OperatorAnnotation> resolved, int[] index) {
         if (node instanceof AnnotatedPredicate) {
             return (RexNode) resolved.get(index[0]++);
@@ -105,6 +112,25 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
                 RexNode replaced = replaceAnnotations(operand, resolved, index);
                 newOperands.add(replaced);
                 if (replaced != operand) {
+                    changed = true;
+                }
+            }
+            return changed ? call.clone(call.getType(), newOperands) : call;
+        }
+        return node;
+    }
+
+    private RexNode stripCondition(RexNode node) {
+        if (node instanceof AnnotatedPredicate predicate) {
+            return predicate.unwrap();
+        }
+        if (node instanceof RexCall call) {
+            List<RexNode> newOperands = new ArrayList<>();
+            boolean changed = false;
+            for (RexNode operand : call.getOperands()) {
+                RexNode stripped = stripCondition(operand);
+                newOperands.add(stripped);
+                if (stripped != operand) {
                     changed = true;
                 }
             }

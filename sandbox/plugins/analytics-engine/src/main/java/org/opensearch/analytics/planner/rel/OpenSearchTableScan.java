@@ -15,6 +15,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalTableScan;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 
@@ -86,5 +87,10 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
                                 List<OperatorAnnotation> resolvedAnnotations) {
         return new OpenSearchTableScan(getCluster(), getTraitSet(), getTable(),
             List.of(backend), outputFieldStorage);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return LogicalTableScan.create(getCluster(), getTable(), List.of());
     }
 }

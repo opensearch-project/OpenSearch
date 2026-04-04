@@ -15,6 +15,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexInputRef;
@@ -113,5 +114,19 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         }
         return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(),
             resolvedExprs, getRowType(), List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        List<RexNode> strippedExprs = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression annotated) {
+                strippedExprs.add(annotated.unwrap());
+            } else {
+                strippedExprs.add(expr);
+            }
+        }
+        return LogicalProject.create(strippedChildren.getFirst(), List.of(),
+            strippedExprs, getRowType());
     }
 }

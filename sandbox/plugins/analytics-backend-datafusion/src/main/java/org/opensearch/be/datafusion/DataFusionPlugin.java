@@ -14,6 +14,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -107,6 +108,11 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     @Override
     public String name() {
         return "datafusion";
+    }
+
+    @Override
+    public FragmentConvertor getFragmentConvertor() {
+        return new DataFusionFragmentConvertor();
     }
 
     @Override

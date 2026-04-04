@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Sort;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.spi.OperatorCapability;
@@ -74,5 +75,10 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
                                 List<OperatorAnnotation> resolvedAnnotations) {
         return new OpenSearchSort(getCluster(), getTraitSet(), children.getFirst(),
             getCollation(), offset, fetch, List.of(backend));
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return LogicalSort.create(strippedChildren.getFirst(), getCollation(), offset, fetch);
     }
 }

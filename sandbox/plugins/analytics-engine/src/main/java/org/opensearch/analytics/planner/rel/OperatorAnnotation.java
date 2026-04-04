@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.planner.rel;
 
+import org.apache.calcite.rex.RexNode;
+
 import java.util.List;
 
 /**
@@ -26,6 +28,6 @@ public interface OperatorAnnotation {
     /** Returns a copy of this annotation with viableBackends narrowed to the given backend. */
     OperatorAnnotation narrowTo(String backend);
 
-    // TODO: add RexNode unwrap() — returns the original expression with annotation removed.
-    // Needed during fragment conversion to strip annotations before handing to backend's FragmentConvertor.
+    /** Returns the original unwrapped expression with annotation removed. */
+    RexNode unwrap();
 }

@@ -18,13 +18,6 @@ import java.util.List;
  * Marker interface for all OpenSearch custom RelNodes that carry backend assignment
  * and per-column storage metadata.
  *
- * <p>Each node computes {@link #getOutputFieldStorage()} from its input's metadata.
- * Parent operators read this to make backend routing decisions.
- *
- * <p>{@link #getViableBackends()} lists all backends that could execute this operator
- * (including via delegation). Consumed during plan forking to generate one complete
- * plan per viable backend.
- *
  * @opensearch.internal
  */
 public interface OpenSearchRelNode {
@@ -50,13 +43,18 @@ public interface OpenSearchRelNode {
      */
     RelNode copyResolved(String backend, List<RelNode> children, List<OperatorAnnotation> resolvedAnnotations);
 
-    // TODO: add RelNode stripAnnotations(List<RelNode> strippedChildren) — returns a clean standard
-    // Calcite RelNode (e.g., LogicalFilter, LogicalAggregate) with viableBackends dropped and
-    // annotations unwrapped to original expressions. Needed before handing to backend's FragmentConvertor.
-
-    // TODO: add RelNode stripAnnotations(List<RelNode> strippedChildren) — returns a clean standard
-    // Calcite RelNode (e.g., LogicalFilter, LogicalAggregate) with viableBackends dropped and
-    // annotations unwrapped to original expressions. Needed before handing to backend's FragmentConvertor.
+    /**
+     * Returns a clean standard Calcite RelNode with viableBackends dropped and
+     * annotations unwrapped to original expressions. Used before handing to
+     * backend's FragmentConvertor.
+     *
+     * <p>TODO: add delegation-aware conversion. When an annotation's backend differs
+     * from the operator's backend, extract the expression, ask the delegate backend
+     * to convert it, and pass (delegationId, delegateBytes) to the primary backend.
+     *
+     * @param strippedChildren children already stripped
+     */
+    RelNode stripAnnotations(List<RelNode> strippedChildren);
 
     /**
      * The operator capability type for this node. Returns null for nodes that

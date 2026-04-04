@@ -72,6 +72,13 @@ public class AggregateCallAnnotation extends RexCall implements OperatorAnnotati
         return new AggregateCallAnnotation(type, List.of(backend), annotationId);
     }
 
+    @Override
+    public RexNode unwrap() {
+        // AggregateCallAnnotation is a marker in rexList, not a wrapper around an expression.
+        // Unwrapping means removing it from the rexList — handled by the operator's stripAnnotations.
+        return null;
+    }
+
     /** Extracts the annotation from an AggregateCall's rexList, or null if absent. */
     public static AggregateCallAnnotation find(AggregateCall call) {
         for (RexNode rex : call.rexList) {

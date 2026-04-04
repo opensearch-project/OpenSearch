@@ -74,4 +74,10 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
         return new OpenSearchExchangeReducer(getCluster(), getTraitSet(),
             children.getFirst(), List.of(backend));
     }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren) {
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(),
+            strippedChildren.getFirst(), viableBackends);
+    }
 }

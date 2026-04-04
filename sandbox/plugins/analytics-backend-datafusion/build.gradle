@@ -36,6 +36,10 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+
+  // Substrait Isthmus — Calcite RelNode → Substrait conversion
+  implementation "io.substrait:isthmus:0.67.0"
+  implementation "io.substrait:core:0.67.0"
 }
 
 // Rust native library build
