@@ -48,6 +48,7 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.index.query.SimpleQueryStringBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
@@ -299,6 +300,53 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
             .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
+    }
+
+    public void testMapUnmappedFieldAsTextAfterDynamicMappingUpdate() throws IOException {
+        Settings.Builder settings = Settings.builder().put("index.percolator.map_unmapped_fields_as_text", true);
+        IndexService indexService = createIndexWithSimpleMappings("test", settings.build(), "query", "type=percolator");
+
+        client().prepareIndex("test")
+            .setId("q1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", new SimpleQueryStringBuilder("test").field("unmapped_field_1").defaultOperator(Operator.AND))
+                    .endObject()
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        client().prepareIndex("test")
+            .setId("doc1")
+            .setSource(jsonBuilder().startObject().field("new_dynamic_field", "triggers dynamic mapping").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) indexService.mapperService()
+            .fieldType("query");
+        assertTrue(fieldType.mapUnmappedFieldsAsText);
+
+        client().prepareIndex("test")
+            .setId("q2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", new SimpleQueryStringBuilder("test").field("unmapped_field_2").defaultOperator(Operator.AND))
+                    .endObject()
+            )
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "query",
+                    BytesReference.bytes(jsonBuilder().startObject().field("unmapped_field_2", "test").endObject()),
+                    MediaTypeRegistry.JSON
+                )
+            )
+            .get();
+        assertHitCount(response, 1);
+        assertSearchHits(response, "q2");
     }
 
     public void testRangeQueriesWithNow() throws Exception {
