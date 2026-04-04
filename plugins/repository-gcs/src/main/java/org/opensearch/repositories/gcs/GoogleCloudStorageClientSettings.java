@@ -191,7 +191,7 @@ public class GoogleCloudStorageClientSettings {
 
     /**
      * Whether to enable FIPS mode validation for the GCS client.
-     * Set to false to bypass custom truststore check in FIPS-enabled environments.
+     * Set to false to control truststore validation behavior in FIPS mode in FIPS-enabled environments.
      */
     static final Setting.AffixSetting<Boolean> FIPS_MODE_SETTING = Setting.affixKeySetting(
         PREFIX,
