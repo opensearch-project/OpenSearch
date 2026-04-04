@@ -227,8 +227,7 @@ public class GoogleCloudStorageClientSettings {
     private final TruststoreSettings truststoreSettings;
 
     /**
-     * Whether to enforce FIPS mode validation for this GCS client.
-     * When true and running in a FIPS-enabled JVM, a custom truststore must be configured.
+     * FIPS 140-2 compliance behavior control
      */
     private final boolean fipsMode;
 
