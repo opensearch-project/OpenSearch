@@ -16,6 +16,7 @@ import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +62,16 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public boolean hasDelegationAdvantage() {
+        return true;
+    }
+
+    @Override
+    public OperatorCapability getOperatorCapability() {
+        return OperatorCapability.FILTER;
     }
 
     @Override

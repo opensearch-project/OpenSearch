@@ -56,6 +56,8 @@ public class CapabilityRegistry {
     private final Map<String, List<String>> scanFormatIndex = new HashMap<>();
     // backendName → ShuffleCapabilities
     private final Map<String, Set<ShuffleCapability>> shuffleCapabilities = new HashMap<>();
+    // (backendName, OperatorCapability) → can operate on Arrow from another backend
+    private final Map<String, Set<OperatorCapability>> arrowCompatibleIndex = new HashMap<>();
     private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     public CapabilityRegistry(List<AnalyticsSearchBackendPlugin> backends,
@@ -126,6 +128,10 @@ public class CapabilityRegistry {
             // Shuffle capabilities
             if (!backend.supportedShuffleCapabilities().isEmpty()) {
                 shuffleCapabilities.put(name, backend.supportedShuffleCapabilities());
+            }
+            // Arrow-compatible operators
+            if (!backend.arrowCompatibleOperators().isEmpty()) {
+                arrowCompatibleIndex.put(name, backend.arrowCompatibleOperators());
             }
         }
     }
@@ -206,6 +212,11 @@ public class CapabilityRegistry {
     /** Returns shuffle capabilities for a backend, or empty set if none. */
     public Set<ShuffleCapability> getShuffleCapabilities(String backendName) {
         return shuffleCapabilities.getOrDefault(backendName, Set.of());
+    }
+
+    /** Whether the backend can execute this operator on Arrow batches from another backend's output. */
+    public boolean isArrowCompatible(String backendName, OperatorCapability operator) {
+        return arrowCompatibleIndex.getOrDefault(backendName, Set.of()).contains(operator);
     }
 
     /** Returns the analytics backends. */

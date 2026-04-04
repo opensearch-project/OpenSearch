@@ -24,6 +24,10 @@ import java.util.Set;
  * (data node) into two interfaces. AnalyticsSearchBackendPlugin should only declare capabilities.
  * SearchExecEngineProvider should be discovered separately by the executor. Remove the extends
  * relationship and the default createSearchExecEngine() below once that separation is done.
+ *
+ * <p>TODO: move capability methods (filterCapabilities, aggregateCapabilities, windowCapabilities,
+ * projectCapabilities, supportedOperators, supportedDelegations, acceptedDelegations,
+ * supportedShuffleCapabilities) into a dedicated CapabilityAPI interface.
  */
 public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
 
@@ -68,9 +72,31 @@ public interface AnalyticsSearchBackendPlugin extends SearchExecEngineProvider {
     }
 
     /**
+     * Operators this backend can execute on Arrow batches from another backend's scan.
+     * If an operator is NOT in this set, the backend can only execute it on data from
+     * its own scan (uses internal data structures like inverted index, BKD tree, etc.).
+     *
+     * <p>Example: DataFusion declares {FILTER, AGGREGATE, SORT, PROJECT} — it operates
+     * on Arrow column vectors regardless of source. Lucene declares {} — it needs its
+     * own segment-level data structures for all operators.
+     */
+    default Set<OperatorCapability> arrowCompatibleOperators() {
+        return Collections.emptySet();
+    }
+
+    /**
+     * Returns the fragment converter for this backend.
+     * Analytics-engine calls methods on this to convert resolved fragments
+     * into the backend's native serializable form.
+     */
+    default FragmentConvertor getFragmentConvertor() {
+        throw new UnsupportedOperationException("getFragmentConvertor not implemented for " + name());
+    }
+
+    /**
      * Converts a RelNode fragment into a backend-serializable form.
      * E.g. Substrait for DataFusion, QueryBuilder bytes for Lucene.
-     * TODO: implement in Phase 2 (fragment conversion).
+     * TODO: remove once all callers migrate to getFragmentConvertor()
      */
     default byte[] convertFragment(Object fragment) {
         throw new UnsupportedOperationException("convertFragment not yet implemented for " + name());

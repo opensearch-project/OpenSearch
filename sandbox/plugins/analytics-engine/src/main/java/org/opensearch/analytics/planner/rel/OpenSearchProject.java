@@ -21,6 +21,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -91,6 +92,11 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
             }
         }
         return annotations;
+    }
+
+    @Override
+    public OperatorCapability getOperatorCapability() {
+        return OperatorCapability.PROJECT;
     }
 
     @Override

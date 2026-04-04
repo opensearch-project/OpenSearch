@@ -18,6 +18,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +101,11 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
             }
         }
         return planner.getCostFactory().makeTinyCost();
+    }
+
+    @Override
+    public OperatorCapability getOperatorCapability() {
+        return OperatorCapability.AGGREGATE;
     }
 
     @Override

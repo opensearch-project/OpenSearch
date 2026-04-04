@@ -52,8 +52,6 @@ public class AggregateCallAnnotation extends RexCall implements OperatorAnnotati
     private final List<String> viableBackends;
     private final int annotationId;
 
-    // TODO: should getAnnotationId() be on a common interface shared by all annotation types?
-
     private AggregateCallAnnotation(RelDataType type, List<String> viableBackends, int annotationId) {
         super(type, AGG_CALL_ANNOTATION_OP, List.of());
         this.viableBackends = viableBackends;

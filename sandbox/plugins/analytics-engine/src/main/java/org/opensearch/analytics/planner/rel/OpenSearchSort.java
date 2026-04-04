@@ -16,6 +16,7 @@ import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.List;
 
@@ -61,6 +62,11 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public OperatorCapability getOperatorCapability() {
+        return OperatorCapability.SORT;
     }
 
     @Override

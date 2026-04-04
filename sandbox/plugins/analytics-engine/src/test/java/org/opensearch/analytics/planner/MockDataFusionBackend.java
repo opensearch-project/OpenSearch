@@ -95,9 +95,15 @@ public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, Sear
 
     @Override public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) { return null; }
 
+    private static final Set<OperatorCapability> ARROW_COMPATIBLE_OPS = Set.of(
+        OperatorCapability.FILTER, OperatorCapability.AGGREGATE,
+        OperatorCapability.SORT, OperatorCapability.PROJECT
+    );
+
     @Override public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
     @Override public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
     @Override public Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }
+    @Override public Set<OperatorCapability> arrowCompatibleOperators() { return ARROW_COMPATIBLE_OPS; }
 
     // ---- SearchBackEndPlugin (storage) ----
 

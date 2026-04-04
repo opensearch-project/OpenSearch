@@ -49,8 +49,6 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
     private final List<String> viableBackends;
     private final int annotationId;
 
-    // TODO: should getAnnotationId() be on a common interface shared by all annotation types?
-
     public AnnotatedProjectExpression(RelDataType type, RexNode original, List<String> viableBackends,
                                       int annotationId) {
         super(type, ANNOTATED_PROJECT_EXPR_OP, List.of(original));

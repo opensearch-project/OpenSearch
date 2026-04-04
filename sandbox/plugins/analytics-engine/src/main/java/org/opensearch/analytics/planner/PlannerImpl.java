@@ -106,7 +106,7 @@ public class PlannerImpl {
         LOGGER.info("QueryDAG:\n{}", dag);
 
         // Phase 4: Plan forking — generate per-stage alternatives
-        PlanForker.forkAll(dag);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
         LOGGER.info("After plan forking:\n{}", dag);
 
         return result;
