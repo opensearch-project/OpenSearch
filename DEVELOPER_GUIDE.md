@@ -6,6 +6,7 @@
       - [Custom Runtime JDK](#custom-runtime-jdk)
       - [Windows](#windows)
       - [Docker](#docker)
+      - [Rust and Protoc](#rust-and-protoc)
     - [Build](#build)
       - [Generated Code](#generated-code)
     - [Run Tests](#run-tests)
@@ -101,6 +102,20 @@ On Windows, set `_JAVA_OPTIONS: -Xmx4096M`. You may also need to set `LongPathsE
 Download and install [Docker](https://docs.docker.com/install/), required for building OpenSearch artifacts, and executing certain test suites.
 
 On Windows, [use Docker Desktop 3.6](https://docs.docker.com/desktop/windows/release-notes/3.x/). See [OpenSearch#1425](https://github.com/opensearch-project/OpenSearch/issues/1425) for workarounds and issues with Docker Desktop 4.1.1.
+
+#### Rust and Protoc
+
+Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
+
+1. **Rust toolchain**: Install via [rustup](https://rustup.rs/):
+   ```
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+   ```
+
+2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
+   - macOS: `brew install protobuf`
+   - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+   - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
 
 ### Build
 
