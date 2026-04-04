@@ -65,11 +65,6 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     }
 
     @Override
-    public boolean hasDelegationAdvantage() {
-        return true;
-    }
-
-    @Override
     public OperatorCapability getOperatorCapability() {
         return OperatorCapability.FILTER;
     }

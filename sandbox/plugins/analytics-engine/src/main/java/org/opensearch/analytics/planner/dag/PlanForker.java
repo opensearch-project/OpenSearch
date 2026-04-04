@@ -114,11 +114,9 @@ public class PlanForker {
                 continue;
             }
 
-            if (openSearchNode.hasDelegationAdvantage()) {
-                results.addAll(resolveWithBranching(openSearchNode, backend, children, annotations));
-            } else {
-                results.add(resolveWithInheritance(openSearchNode, backend, children, annotations));
-            }
+            // Group-based annotation resolution: one plan per distinct backend group.
+            // Naturally produces 1 group when all annotations share the same viableBackends.
+            results.addAll(resolveWithBranching(openSearchNode, backend, children, annotations));
         }
         return results;
     }
@@ -140,15 +138,6 @@ public class PlanForker {
                 node.copyResolved(backend, children, resolved)));
         }
         return results;
-    }
-
-    /** Resolves all annotations to the operator's backend where possible. */
-    private static Resolved resolveWithInheritance(OpenSearchRelNode node, String backend,
-                                                   List<RelNode> children,
-                                                   List<OperatorAnnotation> annotations) {
-        List<OperatorAnnotation> resolved = resolveAnnotationsToTarget(
-            annotations, backend, backend);
-        return new Resolved(backend, node.copyResolved(backend, children, resolved));
     }
 
     private static List<OperatorAnnotation> resolveAnnotationsToTarget(
