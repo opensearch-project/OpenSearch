@@ -141,19 +141,15 @@ public class ReadOnlyEngine extends Engine {
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
-                // For searchable snapshots, wrap the directory so we can track and
-                // unpin all file cache blocks fetched during DirectoryReader.open().
-                // After the reader is opened (but before any searches), we release
-                // the hard references so blocks become LRU-evictable.
-                BlockUnpinningDirectory unpinningDirectory = null;
+                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 if (FilterDirectory.unwrap(directory) instanceof RemoteSnapshotDirectory) {
-                    unpinningDirectory = new BlockUnpinningDirectory(directory);
-                }
-                Directory openDirectory = unpinningDirectory != null ? unpinningDirectory : directory;
-                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, openDirectory);
-                reader = wrapReader(open(indexCommit), readerWrapperFunction);
-                if (unpinningDirectory != null) {
-                    unpinningDirectory.unpinAndStopTracking();
+                    BlockUnpinningDirectory unpinningDir = new BlockUnpinningDirectory(directory);
+                    // Ephemeral commit — unpinningDir only needs to live during open();
+                    // indexCommit is long-lived and used by recovery, metadata reads, etc.
+                    reader = wrapReader(open(Lucene.getIndexCommit(lastCommittedSegmentInfos, unpinningDir)), readerWrapperFunction);
+                    unpinningDir.unpinAndStopTracking();
+                } else {
+                    reader = wrapReader(open(indexCommit), readerWrapperFunction);
                 }
                 readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
