@@ -189,6 +189,16 @@ public class GoogleCloudStorageClientSettings {
         key -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
+    /**
+     * Whether to enable FIPS mode validation for the GCS client.
+     * Set to false to bypass custom truststore check in FIPS-enabled environments.
+     */
+    static final Setting.AffixSetting<Boolean> FIPS_MODE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "fips.mode",
+        key -> Setting.boolSetting(key, true, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -216,6 +226,12 @@ public class GoogleCloudStorageClientSettings {
     /** The GCS SDK Truststore settings. */
     private final TruststoreSettings truststoreSettings;
 
+    /**
+     * Whether to enforce FIPS mode validation for this GCS client.
+     * When true and running in a FIPS-enabled JVM, a custom truststore must be configured.
+     */
+    private final boolean fipsMode;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -225,7 +241,8 @@ public class GoogleCloudStorageClientSettings {
         final String applicationName,
         final URI tokenUri,
         final ProxySettings proxySettings,
-        final TruststoreSettings truststoreSettings
+        final TruststoreSettings truststoreSettings,
+        final boolean fipsMode
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -236,6 +253,7 @@ public class GoogleCloudStorageClientSettings {
         this.tokenUri = tokenUri;
         this.proxySettings = proxySettings;
         this.truststoreSettings = truststoreSettings;
+        this.fipsMode = fipsMode;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -297,7 +315,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             validateAndCreateProxySettings(settings, clientName),
-            validateAndCreateTruststoreSettings(settings, clientName)
+            validateAndCreateTruststoreSettings(settings, clientName),
+            getConfigValue(settings, clientName, FIPS_MODE_SETTING)
         );
     }
 
@@ -396,5 +415,13 @@ public class GoogleCloudStorageClientSettings {
     private static <T> T getConfigValue(final Settings settings, final String clientName, final Setting.AffixSetting<T> clientSetting) {
         final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
+    }
+
+    /**
+     * Returns whether FIPS mode validation is enabled for this client.
+     * @return true if FIPS mode validation is enabled, false otherwise
+     */
+    public boolean isFipsMode() {
+        return fipsMode;
     }
 }
