@@ -72,6 +72,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private Function<Map<String, ?>, Map<String, Object>> filter;
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
+        if (includes != null && includes.length == 0 && excludes != null && excludes.length > 0) {
+            throw new IllegalArgumentException("Empty _source.include with non-empty _source.exclude is ambiguous.");
+        }
         this.fetchSource = fetchSource;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
