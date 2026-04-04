@@ -286,11 +286,12 @@ public class ShardRouting implements Writeable, ToXContentObject {
     /**
      * Returns <code>true</code> iff the this shard is currently
      * {@link ShardRoutingState#STARTED started} or
+     * {@link ShardRoutingState#SPLITTING splitting} or
      * {@link ShardRoutingState#RELOCATING relocating} to another node.
      * Otherwise <code>false</code>
      */
     public boolean active() {
-        return started() || relocating();
+        return started() || relocating() || splitting();
     }
 
     /**
