@@ -4,6 +4,7 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK](#jdk)
       - [Custom Runtime JDK](#custom-runtime-jdk)
+      - [Rust and Protoc](#rust-and-protoc)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -91,6 +92,20 @@ By default, the test tasks use bundled JDK runtime, configured in version catalo
 #### Custom Runtime JDK
 
 Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Rust and Protoc
+
+Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
+
+1. **Rust toolchain**: Install via [rustup](https://rustup.rs/):
+   ```
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+   ```
+
+2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
+    - macOS: `brew install protobuf`
+    - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+    - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
 
 #### Windows
 
