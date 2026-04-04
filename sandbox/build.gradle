@@ -42,6 +42,8 @@ subprojects {
           task.group == PublishingPlugin.PUBLISH_TASK_GROUP
             || task.name.startsWith('generatePomFileFor')
             || task.name.startsWith('generateMetadataFileFor')
+            || task.name == 'validatePom'
+            || (task.name.startsWith('validate') && task.name.endsWith('Pom'))
         ) {
           task.enabled = false
           task.setDependsOn([])
