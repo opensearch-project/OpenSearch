@@ -209,4 +209,27 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         return hitContext;
     }
 
+    /**
+     * Test that empty includes + non-empty excludes throws an IllegalArgumentException
+     */
+    public void testEmptyIncludesWithNonEmptyExcludesThrowsException() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field1", "value1")
+            .field("field2", "value2")
+            .endObject();
+
+        String[] includes = Strings.EMPTY_ARRAY;
+        String[] excludes = new String[] { "field2" };
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> hitExecuteMultiple(source, true, includes, excludes)
+        );
+
+        assertEquals(
+            "Cannot exclude fields if includes is empty",
+            exception.getMessage()
+        );
+    }
 }
