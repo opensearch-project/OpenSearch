@@ -83,7 +83,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
                 throw new IllegalStateException(
                     "No backend supports aggregate function [" + aggCall.getAggregation().getName() + "]");
             }
-            annotatedCalls.add(AggregateCallAnnotation.annotate(aggCall, callViable));
+            annotatedCalls.add(AggregateCallAnnotation.annotate(aggCall, callViable, context.nextAnnotationId()));
         }
 
         // Compute operator-level viable backends: must be viable for child AND handle agg calls

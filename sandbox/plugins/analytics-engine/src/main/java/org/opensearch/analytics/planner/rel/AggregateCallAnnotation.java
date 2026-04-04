@@ -32,7 +32,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class AggregateCallAnnotation extends RexCall {
+public class AggregateCallAnnotation extends RexCall implements OperatorAnnotation {
 
     private static final SqlOperator AGG_CALL_ANNOTATION_OP = new SqlOperator(
         "AGG_CALL_ANNOTATION",
@@ -50,14 +50,28 @@ public class AggregateCallAnnotation extends RexCall {
     };
 
     private final List<String> viableBackends;
+    private final int annotationId;
 
-    private AggregateCallAnnotation(RelDataType type, List<String> viableBackends) {
+    // TODO: should getAnnotationId() be on a common interface shared by all annotation types?
+
+    private AggregateCallAnnotation(RelDataType type, List<String> viableBackends, int annotationId) {
         super(type, AGG_CALL_ANNOTATION_OP, List.of());
         this.viableBackends = viableBackends;
+        this.annotationId = annotationId;
     }
 
     public List<String> getViableBackends() {
         return viableBackends;
+    }
+
+    @Override
+    public int getAnnotationId() {
+        return annotationId;
+    }
+
+    @Override
+    public OperatorAnnotation narrowTo(String backend) {
+        return new AggregateCallAnnotation(type, List.of(backend), annotationId);
     }
 
     /** Extracts the annotation from an AggregateCall's rexList, or null if absent. */
@@ -71,9 +85,9 @@ public class AggregateCallAnnotation extends RexCall {
     }
 
     /** Creates a new AggregateCall with this annotation appended to its rexList. */
-    public static AggregateCall annotate(AggregateCall call, List<String> viableBackends) {
+    public static AggregateCall annotate(AggregateCall call, List<String> viableBackends, int annotationId) {
         List<RexNode> newRexList = new ArrayList<>(call.rexList);
-        newRexList.add(new AggregateCallAnnotation(call.type, viableBackends));
+        newRexList.add(new AggregateCallAnnotation(call.type, viableBackends, annotationId));
         return AggregateCall.create(
             call.getAggregation(),
             call.isDistinct(),
@@ -90,6 +104,6 @@ public class AggregateCallAnnotation extends RexCall {
 
     @Override
     protected String computeDigest(boolean withType) {
-        return "AGG_CALL_ANNOTATION(viableBackends=" + viableBackends + ")";
+        return "AGG_CALL_ANNOTATION(id=" + annotationId + ", viableBackends=" + viableBackends + ")";
     }
 }

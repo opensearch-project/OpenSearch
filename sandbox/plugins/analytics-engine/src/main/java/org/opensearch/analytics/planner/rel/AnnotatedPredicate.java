@@ -25,7 +25,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class AnnotatedPredicate extends RexCall {
+public class AnnotatedPredicate extends RexCall implements OperatorAnnotation {
 
     private static final SqlOperator ANNOTATED_PREDICATE_OP = new SqlOperator(
         "ANNOTATED_PREDICATE",
@@ -44,11 +44,13 @@ public class AnnotatedPredicate extends RexCall {
 
     private final RexNode original;
     private final List<String> viableBackends;
+    private final int annotationId;
 
-    public AnnotatedPredicate(RelDataType type, RexNode original, List<String> viableBackends) {
+    public AnnotatedPredicate(RelDataType type, RexNode original, List<String> viableBackends, int annotationId) {
         super(type, ANNOTATED_PREDICATE_OP, List.of(original));
         this.original = original;
         this.viableBackends = viableBackends;
+        this.annotationId = annotationId;
     }
 
     public RexNode getOriginal() {
@@ -61,7 +63,17 @@ public class AnnotatedPredicate extends RexCall {
     }
 
     @Override
+    public int getAnnotationId() {
+        return annotationId;
+    }
+
+    @Override
+    public OperatorAnnotation narrowTo(String backend) {
+        return new AnnotatedPredicate(type, original, List.of(backend), annotationId);
+    }
+
+    @Override
     protected String computeDigest(boolean withType) {
-        return "ANNOTATED_PREDICATE(backends=" + viableBackends + ", " + original + ")";
+        return "ANNOTATED_PREDICATE(id=" + annotationId + ", backends=" + viableBackends + ", " + original + ")";
     }
 }

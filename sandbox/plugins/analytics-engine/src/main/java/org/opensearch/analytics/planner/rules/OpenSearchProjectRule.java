@@ -99,7 +99,8 @@ public class OpenSearchProjectRule extends RelOptRule {
                     throw new IllegalStateException(
                         "No backend can evaluate [" + funcName + "] and no delegation path exists");
                 }
-                return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable);
+                return new AnnotatedProjectExpression(rexCall.getType(), rexCall, exprViable,
+                    context.nextAnnotationId());
             }
         }
 
@@ -123,7 +124,8 @@ public class OpenSearchProjectRule extends RelOptRule {
         }
 
         RexCall target = changed ? rexCall.clone(rexCall.getType(), newOperands) : rexCall;
-        return new AnnotatedProjectExpression(target.getType(), target, scalarViable);
+        return new AnnotatedProjectExpression(target.getType(), target, scalarViable,
+            context.nextAnnotationId());
     }
 
     private List<String> resolveOpaqueViableBackends(String funcName, List<String> childViableBackends) {

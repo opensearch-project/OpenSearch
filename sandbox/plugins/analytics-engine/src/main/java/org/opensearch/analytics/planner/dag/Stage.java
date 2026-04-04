@@ -13,11 +13,12 @@ import org.apache.calcite.rel.RelNode;
 import java.util.List;
 
 /**
- * A stage in the query DAG. Each stage holds a plan fragment (the marked RelNode
- * subtree between exchange boundaries) and references to child stages.
+ * A stage in the query DAG. Each stage holds a marked plan fragment (annotations
+ * intact, multiple viableBackends per operator/expression) and references to
+ * child stages.
  *
- * <p>Fragment may be null for a pure gather stage (coordinator just accumulates
- * Arrow batches from child stages).
+ * <p>After plan forking, {@code planAlternatives} contains resolved variants
+ * where every viableBackends is narrowed to exactly one backend.
  *
  * @opensearch.internal
  */
@@ -27,21 +28,21 @@ public class Stage {
     private final RelNode fragment;
     private final List<Stage> childStages;
     private final ExchangeInfo exchangeInfo;
-
-    // TODO: add List<StagePlan> planAlternatives — populated during plan forking phase
+    private List<StagePlan> planAlternatives;
 
     public Stage(int stageId, RelNode fragment, List<Stage> childStages, ExchangeInfo exchangeInfo) {
         this.stageId = stageId;
         this.fragment = fragment;
         this.childStages = List.copyOf(childStages);
         this.exchangeInfo = exchangeInfo;
+        this.planAlternatives = List.of();
     }
 
     public int getStageId() {
         return stageId;
     }
 
-    /** Marked plan fragment with annotations intact. Null for a pure gather stage. */
+    /** Marked plan fragment with annotations intact. */
     public RelNode getFragment() {
         return fragment;
     }
@@ -53,5 +54,13 @@ public class Stage {
     /** How this stage connects to its parent. Null for the root stage. */
     public ExchangeInfo getExchangeInfo() {
         return exchangeInfo;
+    }
+
+    public List<StagePlan> getPlanAlternatives() {
+        return planAlternatives;
+    }
+
+    public void setPlanAlternatives(List<StagePlan> planAlternatives) {
+        this.planAlternatives = planAlternatives;
     }
 }

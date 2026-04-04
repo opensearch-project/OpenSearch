@@ -130,7 +130,7 @@ public class OpenSearchFilterRule extends RelOptRule {
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
         List<String> viableBackends = resolveViableBackends(rexCall, inputRowType, fieldStorage, childViableBackends);
-        return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends);
+        return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
     /**

@@ -62,4 +62,11 @@ public class OpenSearchSort extends Sort implements OpenSearchRelNode {
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children,
+                                List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchSort(getCluster(), getTraitSet(), children.getFirst(),
+            getCollation(), offset, fetch, List.of(backend));
+    }
 }

@@ -88,4 +88,11 @@ public class OpenSearchExchangeWriter extends SingleRel implements OpenSearchRel
         }
         return writer;
     }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children,
+                                List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchExchangeWriter(getCluster(), getTraitSet(),
+            children.getFirst(), List.of(backend), shuffleImpl, keys);
+    }
 }

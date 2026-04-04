@@ -28,7 +28,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class AnnotatedProjectExpression extends RexCall {
+public class AnnotatedProjectExpression extends RexCall implements OperatorAnnotation {
 
     private static final SqlOperator ANNOTATED_PROJECT_EXPR_OP = new SqlOperator(
         "ANNOTATED_PROJECT_EXPR",
@@ -47,11 +47,16 @@ public class AnnotatedProjectExpression extends RexCall {
 
     private final RexNode original;
     private final List<String> viableBackends;
+    private final int annotationId;
 
-    public AnnotatedProjectExpression(RelDataType type, RexNode original, List<String> viableBackends) {
+    // TODO: should getAnnotationId() be on a common interface shared by all annotation types?
+
+    public AnnotatedProjectExpression(RelDataType type, RexNode original, List<String> viableBackends,
+                                      int annotationId) {
         super(type, ANNOTATED_PROJECT_EXPR_OP, List.of(original));
         this.original = original;
         this.viableBackends = viableBackends;
+        this.annotationId = annotationId;
     }
 
     public RexNode getOriginal() {
@@ -64,7 +69,17 @@ public class AnnotatedProjectExpression extends RexCall {
     }
 
     @Override
+    public int getAnnotationId() {
+        return annotationId;
+    }
+
+    @Override
+    public OperatorAnnotation narrowTo(String backend) {
+        return new AnnotatedProjectExpression(type, original, List.of(backend), annotationId);
+    }
+
+    @Override
     protected String computeDigest(boolean withType) {
-        return "ANNOTATED_PROJECT_EXPR(backends=" + viableBackends + ", " + original + ")";
+        return "ANNOTATED_PROJECT_EXPR(id=" + annotationId + ", backends=" + viableBackends + ", " + original + ")";
     }
 }

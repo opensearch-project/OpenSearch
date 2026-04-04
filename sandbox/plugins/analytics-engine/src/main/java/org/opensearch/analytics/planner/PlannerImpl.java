@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
+import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -103,6 +104,10 @@ public class PlannerImpl {
         // Phase 3: DAG construction — cut at exchange boundaries
         QueryDAG dag = DAGBuilder.build(result);
         LOGGER.info("QueryDAG:\n{}", dag);
+
+        // Phase 4: Plan forking — generate per-stage alternatives
+        PlanForker.forkAll(dag);
+        LOGGER.info("After plan forking:\n{}", dag);
 
         return result;
     }

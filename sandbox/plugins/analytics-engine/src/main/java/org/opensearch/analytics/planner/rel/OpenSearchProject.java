@@ -25,8 +25,6 @@ import org.opensearch.analytics.planner.RelNodeUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-import java.util.List;
-
 /**
  * @opensearch.internal
  */
@@ -82,5 +80,32 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public List<OperatorAnnotation> getAnnotations() {
+        List<OperatorAnnotation> annotations = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression annotated) {
+                annotations.add(annotated);
+            }
+        }
+        return annotations;
+    }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children,
+                                List<OperatorAnnotation> resolvedAnnotations) {
+        int annotationIndex = 0;
+        List<RexNode> resolvedExprs = new ArrayList<>();
+        for (RexNode expr : getProjects()) {
+            if (expr instanceof AnnotatedProjectExpression) {
+                resolvedExprs.add((RexNode) resolvedAnnotations.get(annotationIndex++));
+            } else {
+                resolvedExprs.add(expr);
+            }
+        }
+        return new OpenSearchProject(getCluster(), getTraitSet(), children.getFirst(),
+            resolvedExprs, getRowType(), List.of(backend));
     }
 }

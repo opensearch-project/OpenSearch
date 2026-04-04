@@ -54,6 +54,22 @@ public record QueryDAG(String queryId, Stage rootStage) {
             builder.append(indent).append("  <gather>\n");
         }
 
+        if (!stage.getPlanAlternatives().isEmpty()) {
+            builder.append(indent).append("  Alternatives (").append(stage.getPlanAlternatives().size()).append("):\n");
+            for (int idx = 0; idx < stage.getPlanAlternatives().size(); idx++) {
+                StagePlan plan = stage.getPlanAlternatives().get(idx);
+                builder.append(indent).append("  [").append(idx).append("] ");
+                String planStr = RelOptUtil.toString(plan.resolvedFragment());
+                String[] lines = planStr.split("\n");
+                builder.append(lines[0]).append("\n");
+                for (int lineIdx = 1; lineIdx < lines.length; lineIdx++) {
+                    if (!lines[lineIdx].isEmpty()) {
+                        builder.append(indent).append("      ").append(lines[lineIdx]).append("\n");
+                    }
+                }
+            }
+        }
+
         for (Stage child : stage.getChildStages()) {
             appendStage(builder, child, depth + 1);
         }

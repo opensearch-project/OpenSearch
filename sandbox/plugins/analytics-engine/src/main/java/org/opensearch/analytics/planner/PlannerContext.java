@@ -23,11 +23,18 @@ public class PlannerContext {
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
+    private int annotationIdCounter;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
+        this.annotationIdCounter = 0;
+    }
+
+    /** Returns a unique annotation ID for marking phase. */
+    public int nextAnnotationId() {
+        return annotationIdCounter++;
     }
 
     public CapabilityRegistry getCapabilityRegistry() {

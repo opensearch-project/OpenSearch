@@ -67,4 +67,11 @@ public class OpenSearchExchangeReducer extends SingleRel implements OpenSearchRe
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("viableBackends", viableBackends);
     }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children,
+                                List<OperatorAnnotation> resolvedAnnotations) {
+        return new OpenSearchExchangeReducer(getCluster(), getTraitSet(),
+            children.getFirst(), List.of(backend));
+    }
 }

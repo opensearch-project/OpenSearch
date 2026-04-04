@@ -14,6 +14,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.FieldStorageInfo;
 import org.opensearch.analytics.planner.RelNodeUtils;
@@ -104,5 +105,48 @@ public class OpenSearchAggregate extends Aggregate implements OpenSearchRelNode 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw).item("mode", mode).item("viableBackends", viableBackends);
+    }
+
+    @Override
+    public List<OperatorAnnotation> getAnnotations() {
+        List<OperatorAnnotation> annotations = new ArrayList<>();
+        for (AggregateCall aggCall : getAggCallList()) {
+            AggregateCallAnnotation annotation = AggregateCallAnnotation.find(aggCall);
+            if (annotation != null) {
+                annotations.add(annotation);
+            }
+        }
+        return annotations;
+    }
+
+    @Override
+    public RelNode copyResolved(String backend, List<RelNode> children,
+                                List<OperatorAnnotation> resolvedAnnotations) {
+        int annotationIndex = 0;
+        List<AggregateCall> resolvedCalls = new ArrayList<>();
+        for (AggregateCall aggCall : getAggCallList()) {
+            AggregateCallAnnotation existing = AggregateCallAnnotation.find(aggCall);
+            if (existing != null) {
+                AggregateCallAnnotation resolved = (AggregateCallAnnotation) resolvedAnnotations.get(annotationIndex++);
+                // Replace annotation in rexList
+                List<RexNode> newRexList = new ArrayList<>();
+                for (RexNode rex : aggCall.rexList) {
+                    if (rex instanceof AggregateCallAnnotation) {
+                        newRexList.add(resolved);
+                    } else {
+                        newRexList.add(rex);
+                    }
+                }
+                resolvedCalls.add(AggregateCall.create(
+                    aggCall.getAggregation(), aggCall.isDistinct(), aggCall.isApproximate(),
+                    aggCall.ignoreNulls(), newRexList, aggCall.getArgList(), aggCall.filterArg,
+                    aggCall.distinctKeys, aggCall.collation, aggCall.type, aggCall.name
+                ));
+            } else {
+                resolvedCalls.add(aggCall);
+            }
+        }
+        return new OpenSearchAggregate(getCluster(), getTraitSet(), children.getFirst(),
+            getGroupSet(), getGroupSets(), resolvedCalls, mode, List.of(backend));
     }
 }
