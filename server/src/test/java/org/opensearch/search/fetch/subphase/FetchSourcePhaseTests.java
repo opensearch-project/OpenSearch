@@ -61,7 +61,11 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
     }
 
     public void testBasicFiltering() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field1", "value").field("field2", "value2").endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field1", "value")
+            .field("field2", "value2")
+            .endObject();
         HitContext hitContext = hitExecute(source, false, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
 
@@ -76,7 +80,11 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
     }
 
     public void testMultipleFiltering() throws IOException {
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").field("field2", "value2").endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "value")
+            .field("field2", "value2")
+            .endObject();
         HitContext hitContext = hitExecuteMultiple(source, true, new String[] { "*.notexisting", "field" }, null);
         assertEquals(Collections.singletonMap("field", "value"), hitContext.hit().getSourceAsMap());
 
@@ -85,16 +93,31 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
     }
 
     public void testNestedSource() throws IOException {
-        Map<String, Object> expectedNested = Collections.singletonMap("nested2", Collections.singletonMap("field", "value0"));
+        Map<String, Object> expectedNested = Collections.singletonMap(
+            "nested2",
+            Collections.singletonMap("field", "value0")
+        );
         XContentBuilder source = XContentFactory.jsonBuilder()
             .startObject()
             .field("field", "value")
             .field("field2", "value2")
             .field("nested1", expectedNested)
             .endObject();
-        HitContext hitContext = hitExecuteMultiple(source, true, null, null, new SearchHit.NestedIdentity("nested1", 0, null));
+        HitContext hitContext = hitExecuteMultiple(
+            source,
+            true,
+            null,
+            null,
+            new SearchHit.NestedIdentity("nested1", 0, null)
+        );
         assertEquals(expectedNested, hitContext.hit().getSourceAsMap());
-        hitContext = hitExecuteMultiple(source, true, new String[] { "invalid" }, null, new SearchHit.NestedIdentity("nested1", 0, null));
+        hitContext = hitExecuteMultiple(
+            source,
+            true,
+            new String[] { "invalid" },
+            null,
+            new SearchHit.NestedIdentity("nested1", 0, null)
+        );
         assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecuteMultiple(
@@ -123,9 +146,12 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         hitContext = hitExecute(null, false, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> hitExecute(null, true, "field1", null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> hitExecute(null, true, "field1", null)
+        );
         assertEquals(
-            "unable to fetch fields from _source field: _source is disabled in the mappings " + "for index [index]",
+            "unable to fetch fields from _source field: _source is disabled in the mappings for index [index]",
             exception.getMessage()
         );
 
@@ -134,7 +160,7 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
             () -> hitExecuteMultiple(null, true, new String[] { "*" }, new String[] { "field2" })
         );
         assertEquals(
-            "unable to fetch fields from _source field: _source is disabled in the mappings " + "for index [index]",
+            "unable to fetch fields from _source field: _source is disabled in the mappings for index [index]",
             exception.getMessage()
         );
     }
@@ -148,7 +174,7 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
             () -> hitExecute(null, true, "field1", null, new SearchHit.NestedIdentity("nested1", 0, null))
         );
         assertEquals(
-            "unable to fetch fields from _source field: _source is disabled in the mappings " + "for index [index]",
+            "unable to fetch fields from _source field: _source is disabled in the mappings for index [index]",
             e.getMessage()
         );
     }
@@ -227,9 +253,6 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
             () -> hitExecuteMultiple(source, true, includes, excludes)
         );
 
-        assertEquals(
-            "Cannot exclude fields if includes is empty",
-            exception.getMessage()
-        );
+        assertEquals("Cannot exclude fields if includes is empty", exception.getMessage());
     }
 }
