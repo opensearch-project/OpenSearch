@@ -24,7 +24,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
-| Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh      | [msfroh](https://github.com/msfroh)                     | Uber        |
 | Mohit Godwani     | [mgodwan](https://github.com/mgodwan)                   | Amazon      |
@@ -34,12 +33,14 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
 | Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
+| Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Amazon      |
 | Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
+| Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Varun Bharadwaj   | [varunbharadwaj](https://github.com/varunbharadwaj)     | Uber        |
 | Yupeng Fu         | [yupeng9](https://github.com/yupeng9)                   | Uber        |
 
