@@ -124,7 +124,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         }
         this.secondaryEngines = Set.copyOf(secondaries);
 
-        this.compositeDataFormat = new CompositeDataFormat(allFormats);
+        this.compositeDataFormat = new CompositeDataFormat(primaryPlugin.getDataFormat(), allFormats);
         this.committer = committer;
     }
 
