@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
@@ -34,7 +35,13 @@ public class StreamingParquetMergeStrategy implements ParquetMergeStrategy {
     @Override
     public MergeResult mergeParquetFiles(MergeInput mergeInput) {
 
-        List<WriterFileSet> files = mergeInput.writerFiles();
+        List<WriterFileSet> files = new ArrayList<>();
+        for (var segment : mergeInput.segments()) {
+            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME);
+            if (wfs != null) {
+                files.add(wfs);
+            }
+        }
         long writerGeneration = mergeInput.newWriterGeneration();
         if (files.isEmpty()) {
             throw new IllegalArgumentException("No files to merge");

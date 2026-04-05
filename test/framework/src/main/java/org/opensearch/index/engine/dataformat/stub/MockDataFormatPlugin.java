@@ -27,7 +27,7 @@ public class MockDataFormatPlugin extends Plugin implements DataFormatPlugin {
         this(new MockDataFormat("", 100L, Set.of()));
     }
 
-    MockDataFormatPlugin(MockDataFormat mockDataFormat) {
+    protected MockDataFormatPlugin(MockDataFormat mockDataFormat) {
         this.dataFormat = mockDataFormat;
     }
 

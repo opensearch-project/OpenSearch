@@ -9,7 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.Segment;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,14 +21,14 @@ import java.util.List;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapping, long newWriterGeneration, String indexName) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, String indexName) {
 
     public MergeInput {
-        writerFiles = List.copyOf(writerFiles);
+        segments = List.copyOf(segments);
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.fileMetadataList), builder.rowIdMapping, builder.newWriterGeneration, builder.indexName);
+        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration, builder.indexName);
     }
 
     /**
@@ -45,7 +45,7 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
      */
     @ExperimentalApi
     public static class Builder {
-        private List<WriterFileSet> fileMetadataList = new ArrayList<>();
+        private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
         private String indexName;
@@ -53,24 +53,24 @@ public record MergeInput(List<WriterFileSet> writerFiles, RowIdMapping rowIdMapp
         private Builder() {}
 
         /**
-         * Sets the list of writer file sets to merge.
+         * Sets the list of segments to merge.
          *
-         * @param fileMetadataList the writer file sets
+         * @param segments the segments to merge
          * @return this builder
          */
-        public Builder fileMetadataList(List<WriterFileSet> fileMetadataList) {
-            this.fileMetadataList = new ArrayList<>(fileMetadataList);
+        public Builder segments(List<Segment> segments) {
+            this.segments = new ArrayList<>(segments);
             return this;
         }
 
         /**
-         * Adds a writer file set to merge.
+         * Adds a segment to merge.
          *
-         * @param writerFileSet the writer file set to add
+         * @param segment the segment to add
          * @return this builder
          */
-        public Builder addFileMetadata(WriterFileSet writerFileSet) {
-            this.fileMetadataList.add(writerFileSet);
+        public Builder addSegment(Segment segment) {
+            this.segments.add(segment);
             return this;
         }
 
