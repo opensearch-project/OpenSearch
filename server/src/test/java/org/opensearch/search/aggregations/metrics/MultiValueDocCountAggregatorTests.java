@@ -318,7 +318,6 @@ public class MultiValueDocCountAggregatorTests extends AggregatorTestCase {
         multiRecord.add(range1);
         multiRecord.add(range2);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            Document document = new Document();
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
