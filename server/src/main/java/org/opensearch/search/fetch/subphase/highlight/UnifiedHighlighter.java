@@ -161,14 +161,12 @@ public class UnifiedHighlighter implements Highlighter {
         int maxAnalyzedOffset = fieldContext.context.getIndexSettings().getHighlightMaxAnalyzedOffset();
         Integer fieldMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzerOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = getAnalyzer(fieldContext.context.mapperService().documentMapper());
+        Analyzer analyzer = fieldContext.context.mapperService().documentMapper().mappers().indexAnalyzer();
         MappedFieldType derivedFieldType = fieldContext.context.getQueryShardContext().resolveDerivedFieldType(fieldContext.fieldName);
         if (derivedFieldType != null) {
             analyzer = ((DerivedFieldType) derivedFieldType).getIndexAnalyzer();
         }
-        if (fieldMaxAnalyzedOffset != null) {
-            analyzer = getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
-        }
+        analyzer = wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -212,6 +210,13 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected Analyzer getAnalyzer(DocumentMapper docMapper) {
         return docMapper.mappers().indexAnalyzer();
+    }
+
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer fieldMaxAnalyzedOffset) {
+        if (fieldMaxAnalyzedOffset != null) {
+            return getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
+        }
+        return analyzer;
     }
 
     protected List<Object> loadFieldValues(
