@@ -1697,14 +1697,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("force merge with {}", forceMerge);
         }
         Indexer engine = getIndexer();
-        engine.forceMerge(
-            forceMerge.flush(),
-            forceMerge.maxNumSegments(),
-            forceMerge.onlyExpungeDeletes(),
-            false,
-            false,
-            forceMerge.forceMergeUUID()
-        );
+        if (forceMerge.onlyUpgradeLucene()) {
+            engine.forceMerge(
+                forceMerge.flush(),
+                Integer.MAX_VALUE,
+                false,
+                true,
+                false,
+                forceMerge.forceMergeUUID()
+            );
+        } else {
+            engine.forceMerge(
+                forceMerge.flush(),
+                forceMerge.maxNumSegments(),
+                forceMerge.onlyExpungeDeletes(),
+                false,
+                false,
+                forceMerge.forceMergeUUID()
+            );
+        }
     }
 
     /**
