@@ -18,6 +18,7 @@ import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 public class FilterConverterTests extends OpenSearchTestCase {
@@ -80,5 +81,110 @@ public class FilterConverterTests extends OpenSearchTestCase {
         assertTrue(result instanceof LogicalFilter);
         LogicalFilter filter = (LogicalFilter) result;
         assertTrue(filter.getCondition() instanceof org.opensearch.dsl.query.UnresolvedQueryCall);
+    }
+
+    public void testSearchAfterWithSingleSortAsc() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("price", SortOrder.ASC)
+            .searchAfter(new Object[]{100});
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalFilter);
+        RexCall condition = (RexCall) ((LogicalFilter) result).getCondition();
+        assertEquals(SqlKind.GREATER_THAN, condition.getKind());
+    }
+
+    public void testSearchAfterWithSingleSortDesc() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("price", SortOrder.DESC)
+            .searchAfter(new Object[]{100});
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalFilter);
+        RexCall condition = (RexCall) ((LogicalFilter) result).getCondition();
+        assertEquals(SqlKind.LESS_THAN, condition.getKind());
+    }
+
+    public void testSearchAfterWithMultipleSorts() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("brand", SortOrder.ASC)
+            .sort("price", SortOrder.DESC)
+            .searchAfter(new Object[]{"acme", 500});
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalFilter);
+        RexCall condition = (RexCall) ((LogicalFilter) result).getCondition();
+        assertEquals(SqlKind.OR, condition.getKind());
+    }
+
+    public void testSearchAfterWithQueryCombinesConditions() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .query(QueryBuilders.termQuery("name", "laptop"))
+            .sort("price", SortOrder.ASC)
+            .searchAfter(new Object[]{100});
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalFilter);
+        RexCall condition = (RexCall) ((LogicalFilter) result).getCondition();
+        assertEquals(SqlKind.AND, condition.getKind());
+    }
+
+    public void testSearchAfterWithoutSortThrowsException() {
+        SearchSourceBuilder source = new SearchSourceBuilder().searchAfter(new Object[]{100});
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        ConversionException ex = expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        assertTrue(ex.getMessage().contains("search_after requires sort"));
+    }
+
+    public void testSearchAfterValuesMismatchThrowsException() {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("price", SortOrder.ASC)
+            .searchAfter(new Object[]{100, 200});
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        ConversionException ex = expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        assertTrue(ex.getMessage().contains("search_after values must match sort fields"));
+    }
+
+    public void testSearchAfterWithUnknownFieldThrowsException() {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("unknown", SortOrder.ASC)
+            .searchAfter(new Object[]{100});
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        ConversionException ex = expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        assertTrue(ex.getMessage().contains("Field not found"));
+    }
+
+    public void testSearchAfterMatchesSortOrderNotSchemaOrder() throws ConversionException {
+        // Schema: name(0), price(1), brand(2), rating(3)
+        // Sort: price, name → search_after values must match this order
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .sort("price", SortOrder.ASC)
+            .sort("name", SortOrder.ASC)
+            .searchAfter(new Object[]{100, "laptop"});
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalFilter);
+        RexCall condition = (RexCall) ((LogicalFilter) result).getCondition();
+        assertEquals(SqlKind.OR, condition.getKind());
+        
+        // First OR branch: price > 100 (field index 1)
+        RexCall firstBranch = (RexCall) condition.getOperands().get(0);
+        assertEquals(SqlKind.GREATER_THAN, firstBranch.getKind());
+        assertEquals(1, ((RexInputRef) firstBranch.getOperands().get(0)).getIndex());
+        
+        // Second OR branch: price = 100 AND name > "laptop"
+        RexCall secondBranch = (RexCall) condition.getOperands().get(1);
+        assertEquals(SqlKind.AND, secondBranch.getKind());
+        RexCall nameComparison = (RexCall) secondBranch.getOperands().get(1);
+        assertEquals(SqlKind.GREATER_THAN, nameComparison.getKind());
+        assertEquals(0, ((RexInputRef) nameComparison.getOperands().get(0)).getIndex());
     }
 }
