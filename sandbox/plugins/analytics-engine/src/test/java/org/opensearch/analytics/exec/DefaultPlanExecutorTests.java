@@ -36,7 +36,9 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -107,7 +109,17 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         Segment seg1 = Segment.builder(0L).addSearchableFiles(format, fs1).build();
         Segment seg2 = Segment.builder(1L).addSearchableFiles(format, fs2).build();
 
-        CatalogSnapshotManager snapshotManager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg1, seg2), 2L, Map.of());
+        CatalogSnapshotManager snapshotManager = new CatalogSnapshotManager(
+            1L,
+            1L,
+            0L,
+            List.of(seg1, seg2),
+            2L,
+            Map.of(),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            FileDeleter.NOOP,
+            null
+        );
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = snapshotManager.acquireSnapshot()) {

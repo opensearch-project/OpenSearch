@@ -10,20 +10,25 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine.
+ * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine
+ * and coordinates file deletion through an internally owned {@link IndexFileDeleter}.
  *
  * <p>Tracks all live snapshots in a map keyed by generation. When a snapshot's reference count reaches
- * zero (via {@link #decRefAndRemove}), it is automatically removed from the map. All {@code decRef}
- * calls on managed snapshots go through this method to ensure consistent cleanup.</p>
+ * zero (via {@link #decRefAndMaybeDelete}), it is automatically removed from the map and its files
+ * are cleaned up through the deleter.</p>
  *
  * <p>The write path (commit) is single-threaded (refresh is serialized per shard), while the read
  * path (acquireSnapshot) is safe for concurrent access via volatile reads and {@code tryIncRef}.</p>
@@ -34,16 +39,21 @@ public class CatalogSnapshotManager implements Closeable {
     private volatile CatalogSnapshot latestCatalogSnapshot;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
+    private final IndexFileDeleter indexFileDeleter;
+    private final CatalogSnapshotDeletionPolicy deletionPolicy;
 
     /**
-     * Constructs a new CatalogSnapshotManager with an initial snapshot built from the given parameters.
+     * Constructs a new CatalogSnapshotManager.
      *
-     * @param id the unique snapshot identifier
-     * @param generation the initial generation number
-     * @param version the schema version
-     * @param segments the initial segments
+     * @param id                   the unique snapshot identifier
+     * @param generation           the initial generation number
+     * @param version              the schema version
+     * @param segments             the initial segments
      * @param lastWriterGeneration the last writer generation
-     * @param userData user-defined metadata
+     * @param userData             user-defined metadata
+     * @param deletionPolicy       decides which committed snapshots to keep, or null if not needed
+     * @param fileDeleter          delegates actual file deletion to the engine, or null if not needed
+     * @param shardPath            for orphan cleanup on init, or null if not needed
      */
     public CatalogSnapshotManager(
         long id,
@@ -51,8 +61,11 @@ public class CatalogSnapshotManager implements Closeable {
         long version,
         List<Segment> segments,
         long lastWriterGeneration,
-        Map<String, String> userData
-    ) {
+        Map<String, String> userData,
+        CatalogSnapshotDeletionPolicy deletionPolicy,
+        FileDeleter fileDeleter,
+        ShardPath shardPath
+    ) throws IOException {
         DataformatAwareCatalogSnapshot initialSnapshot = new DataformatAwareCatalogSnapshot(
             id,
             generation,
@@ -63,11 +76,48 @@ public class CatalogSnapshotManager implements Closeable {
         );
         this.latestCatalogSnapshot = initialSnapshot;
         catalogSnapshotMap.put(initialSnapshot.getGeneration(), initialSnapshot);
+        this.deletionPolicy = deletionPolicy;
+        this.indexFileDeleter = new IndexFileDeleter(deletionPolicy, fileDeleter, initialSnapshot, shardPath);
     }
 
+    // ---- Refresh path ----
+
     /**
-     * Acquires the current snapshot with an incremented reference count, wrapped in a {@link GatedCloseable}
-     * that calls {@link #decRefAndRemove} on close.
+     * Creates a new CatalogSnapshot from refreshed segments, replacing the current latest.
+     * Notifies the IndexFileDeleter of new files. Releases the manager's own reference to
+     * the old snapshot — the snapshot will only be fully cleaned up when all references
+     * (including any commit references) are released.
+     *
+     * @param refreshedSegments the segments produced by the latest refresh
+     */
+    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
+        assert closed.get() == false;
+
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1,
+            latestCatalogSnapshot.getGeneration() + 1,
+            latestCatalogSnapshot.getVersion(),
+            refreshedSegments,
+            latestCatalogSnapshot.getLastWriterGeneration() + 1,
+            latestCatalogSnapshot.getUserData()
+        );
+
+        indexFileDeleter.addFileReferences(newSnapshot);
+        catalogSnapshotMap.put(newSnapshot.getGeneration(), newSnapshot);
+
+        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
+        latestCatalogSnapshot = newSnapshot;
+
+        // Release the manager's own reference to the old snapshot.
+        // The snapshot won't be deleted if the commit path still holds a reference.
+        decRefAndMaybeDelete(oldSnapshot);
+    }
+
+    // ---- Acquire path ----
+
+    /**
+     * Acquires the current latest snapshot with an incremented reference count.
+     * Read-path only — the returned {@link GatedCloseable}'s close will decRef the snapshot.
      *
      * @return a {@link GatedCloseable} wrapping the current {@link CatalogSnapshot}
      * @throws IllegalStateException if the manager or snapshot is already closed
@@ -80,52 +130,74 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.tryIncRef() == false) {
             throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
         }
-        return new GatedCloseable<>(snapshot, () -> decRefAndRemove(snapshot));
+        return new GatedCloseable<>(snapshot, () -> decRefAndMaybeDelete(snapshot));
     }
 
     /**
-     * Commits a new snapshot built from the given refreshed segments, replacing the current one.
-     * The new snapshot inherits user data from the current snapshot and increments the generation.
-     * The old snapshot is decRef'd and removed from the map if its count reaches zero.
+     * Acquires the current latest snapshot for committing (flushing).
+     * The returned {@link GatedCloseable}'s close will register this snapshot as a commit
+     * with the {@link IndexFileDeleter}, triggering the deletion policy.
+     * The commit takes ownership of the ref — no decRef on close.
      *
-     * @param refreshedSegments the segments produced by the latest refresh
+     * @return a {@link GatedCloseable} wrapping the current {@link CatalogSnapshot}
+     * @throws IllegalStateException if the manager or snapshot is already closed
      */
-    public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
-        assert closed.get() == false : "Cannot commit to a closed CatalogSnapshotManager";
-
-        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
-            latestCatalogSnapshot.getId() + 1,
-            latestCatalogSnapshot.getGeneration() + 1,
-            latestCatalogSnapshot.getVersion(),
-            refreshedSegments,
-            latestCatalogSnapshot.getLastWriterGeneration() + 1,
-            latestCatalogSnapshot.getUserData()
-        );
-
-        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
-        latestCatalogSnapshot = newSnapshot;
-        decRefAndRemove(oldSnapshot);
+    public GatedCloseable<CatalogSnapshot> acquireSnapshotForCommit() {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+        final CatalogSnapshot snapshot = latestCatalogSnapshot;
+        if (snapshot.tryIncRef() == false) {
+            throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
+        }
+        return new GatedCloseable<>(snapshot, () -> {
+            try {
+                indexFileDeleter.onCommit(snapshot);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to register commit [gen=" + snapshot.getGeneration() + "]", e);
+            }
+        });
     }
 
+    // ---- Snapshot protection for _snapshot API / peer recovery ----
+
     /**
-     * Decrements the reference count and removes the snapshot from the tracking map if it reaches zero.
-     * Generation is captured before decRef to avoid accessing the snapshot after closeInternal.
+     * Acquire a committed snapshot for _snapshot API or peer recovery.
+     * The snapshot won't be deleted until the returned {@link GatedCloseable} is closed.
+     * On close, the policy releases the hold and the deleter revisits for cleanup.
+     *
+     * @param acquiringSafe if true, acquires the safe commit (for peer recovery);
+     *                      otherwise the last commit (for _snapshot API)
      */
-    private void decRefAndRemove(CatalogSnapshot snapshot) {
+    public GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
+        GatedCloseable<CatalogSnapshot> policyRef = deletionPolicy.acquireCommittedSnapshot(acquiringSafe);
+        return new GatedCloseable<>(policyRef.get(), () -> {
+            policyRef.close();
+            indexFileDeleter.revisitPolicy();
+        });
+    }
+
+    // ---- Internal ----
+
+    private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
         final long gen = snapshot.getGeneration();
         if (snapshot.decRef()) {
             catalogSnapshotMap.remove(gen);
+            try {
+                indexFileDeleter.removeFileReferences(snapshot);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to clean up files for snapshot [gen=" + gen + "]", e);
+            }
         }
     }
 
     /**
-     * Closes this manager. Idempotent. DecRefs the current snapshot and removes it if count reaches zero.
+     * Closes this manager. Idempotent. DecRefs the current snapshot and cleans up if count reaches zero.
      */
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            decRefAndRemove(latestCatalogSnapshot);
+            decRefAndMaybeDelete(latestCatalogSnapshot);
         }
     }
-
 }

@@ -22,6 +22,8 @@ import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -255,7 +257,17 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
 
         RefreshResult rr1 = indexEngine.refresh(RefreshInput.builder().addWriterFileSet(fs1).build());
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            1L,
+            1L,
+            0L,
+            rr1.refreshedSegments(),
+            1L,
+            Map.of(),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            FileDeleter.NOOP,
+            null
+        );
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -301,11 +313,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         // Search completes — releases the old snapshot ref
         dataFormatAwareReader.close();
 
-        // Snapshot1 is now dead
-        assertTrue(
-            "Snapshot1 should be closed after search releases the last ref",
-            ((DataformatAwareCatalogSnapshot) snapshot1).isClosed()
-        );
+        // Snapshot1 still has commit ref (initial snapshot gets incRef'd by IndexFileDeleter).
+        // It won't be fully closed until a flush triggers the deletion policy.
+        assertFalse("Snapshot1 should still be alive due to commit ref", ((DataformatAwareCatalogSnapshot) snapshot1).isClosed());
 
         // Snapshot1 is now dead — tryIncRef would fail (verified via new acquire returning snapshot2)
         // Snapshot 2 works
@@ -348,7 +358,17 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         WriterFileSet wfs2 = WriterFileSet.builder().directory(dir).writerGeneration(1L).addFile("data.lucene").addNumRows(10).build();
         Segment seg = Segment.builder(0L).addSearchableFiles(format1, wfs1).addSearchableFiles(format2, wfs2).build();
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg), 1L, Map.of());
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            1L,
+            1L,
+            0L,
+            List.of(seg),
+            1L,
+            Map.of(),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            FileDeleter.NOOP,
+            null
+        );
 
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
             rm1.afterRefresh(true, ref.get());
