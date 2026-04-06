@@ -495,23 +495,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         }
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(coordinator, searchRequestContext);
         }
     }
 
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(coordinator);
         }
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(coordinator, searchRequestContext);
     }
 
     private void onRequestFailure(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(coordinator, searchRequestContext);
     }
 
     private void executePhase(SearchPhase phase) {
@@ -816,7 +816,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         setPhaseResourceUsages();
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(coordinator, cause);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
