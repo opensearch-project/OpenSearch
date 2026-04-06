@@ -68,4 +68,90 @@ public class RestForceMergeActionTests extends RestActionTestCase {
             "setting only_expunge_deletes and max_num_segments at the same time is deprecated " + "and will be rejected in a future version"
         );
     }
+
+    public void testUpgradeWithMaxNumSegmentsIsAccepted() {
+        // "upgrade" now composes with "max_num_segments" (upgrade segments, then consolidate),
+        // so this combination must be accepted rather than rejected.
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
+
+    public void testUpgradeWithOnlyExpungeDeletesRejected() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("only_expunge_deletes", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        RestForceMergeAction action = new RestForceMergeAction();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertEquals("cannot set upgrade and only_expunge_deletes at the same time", e.getMessage());
+    }
+
+    public void testUpgradeAloneIsAccepted() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
+
+    public void testUpgradeWithMaxNumSegmentsAndOnlyExpungeDeletesRejected() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.TRUE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+        params.put("only_expunge_deletes", Boolean.TRUE.toString());
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        RestForceMergeAction action = new RestForceMergeAction();
+        // upgrade + max_num_segments is allowed now; the remaining conflict is upgrade + only_expunge_deletes.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+        assertEquals("cannot set upgrade and only_expunge_deletes at the same time", e.getMessage());
+        // The deprecation warning for only_expunge_deletes + max_num_segments fires before the upgrade check.
+        assertWarnings(
+            "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
+        );
+    }
+
+    public void testUpgradeFalseWithOtherParamsIsAccepted() {
+        final Map<String, String> params = new HashMap<>();
+        params.put("upgrade", Boolean.FALSE.toString());
+        params.put("max_num_segments", Integer.toString(randomIntBetween(1, 10)));
+
+        final RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(params)
+            .build();
+
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
+        dispatchRequest(request);
+    }
 }
