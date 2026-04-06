@@ -6,6 +6,7 @@ As of the 3.6 release [the CHANGELOG is no longer used][1] to generate release n
 [2]: https://github.com/opensearch-project/OpenSearch/pulls?q=sort%3Amerged-desc+is%3Apr+-label%3Askip-changelog+is%3Amerged+base%3Amain+
 ## [Unreleased 3.x]
 ### Added
+- Add intra segment support for terms bucket aggregations  ([#20829](https://github.com/opensearch-project/OpenSearch/pull/20829))
 - Add bitmap64 query support ([#20606](https://github.com/opensearch-project/OpenSearch/pull/20606))
 - Add ProfilingWrapper interface for plugin access to delegates in profiling decorators ([#20607](https://github.com/opensearch-project/OpenSearch/pull/20607))
 - Support expected cluster name with validation in CCS Sniff mode ([#20532](https://github.com/opensearch-project/OpenSearch/pull/20532))

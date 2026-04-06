@@ -96,6 +96,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorTestCase;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -1803,6 +1804,24 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 // Case 3: Get All buckets when buckets <= size (size=110, buckets=100)
                 GlobalOrdinalsStringTermsAggregator aggregator3 = createAndTestAggregator(indexSearcher, stringFieldType, 110);
                 assertEquals("select_all", aggregator3.getResultSelectionStrategy());
+            }
+        }
+    }
+
+    public void testStringTermAggregatorWithIntrasegmentSearch() throws IOException {
+        MappedFieldType fieldtype = new KeywordFieldMapper.KeywordFieldType("value");
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            indexWriter.addDocument(singleton(new StringField("value", "1", Field.Store.NO)));
+            try (IndexReader reader = indexWriter.getReader()) {
+                IndexSearcher searcher = newIndexSearcher(reader);
+                AggregatorFactories factories = AggregatorFactories.builder()
+                    .addAggregator(new TermsAggregationBuilder("test").field("value"))
+                    .build(
+                        createSearchContext(searcher, createIndexSettings(), new MatchAllDocsQuery(), null, fieldtype)
+                            .getQueryShardContext(),
+                        null
+                    );
+                assertTrue(factories.allFactoriesSupportIntraSegmentSearch());
             }
         }
     }

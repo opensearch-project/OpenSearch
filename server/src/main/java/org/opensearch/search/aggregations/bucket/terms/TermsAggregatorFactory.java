@@ -797,4 +797,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
 }
