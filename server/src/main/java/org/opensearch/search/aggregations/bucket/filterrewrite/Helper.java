@@ -186,12 +186,10 @@ final class Helper {
             roundedLow = preparedRounding.round(fieldType.convertNanosToMillis(low));
 
             for (int i = 0; i < bucketCount; i++) {
-                long lower = i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow);
+                lowers[i] = i == 0 ? low : fieldType.convertRoundedMillisToNanos(roundedLow);
                 roundedLow = preparedRounding.round(roundedLow + interval);
-                long upper = i + 1 == bucketCount ? high + 1 : fieldType.convertRoundedMillisToNanos(roundedLow);
-
-                lowers[i] = lower;
-                uppers[i] = upper;
+                // plus one on high value because upper bound is exclusive, but high value exists
+                uppers[i] = i + 1 == bucketCount ? high + 1 : fieldType.convertRoundedMillisToNanos(roundedLow);
             }
         }
 
