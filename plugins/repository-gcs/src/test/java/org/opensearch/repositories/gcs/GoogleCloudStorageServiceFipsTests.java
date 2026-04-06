@@ -68,17 +68,18 @@ public class GoogleCloudStorageServiceFipsTests extends GoogleCloudStorageServic
         assertNotNull(storage);
     }
 
-    public void testFipsModeEnforcesTruststoreConfiguration() throws Exception {
+    public void testFipsModeTruststoreConfiguration() throws Exception {
         final var service = new GoogleCloudStorageService();
         final var statsCollector = new GoogleCloudStorageOperationsStats("bucket");
 
-        { // Scenario 1: No truststore configuration -> should throw exception
+        { // Scenario 1: No truststore configuration -> auto-create FIPS truststore
             final var secureSettings = new MockSecureSettings();
             final var settings = Settings.builder().setSecureSettings(secureSettings).build();
             service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
 
-            final var exception = expectThrows(IOException.class, () -> service.client("default", "repo", statsCollector));
-            assertThat(exception.getMessage(), containsString("FIPS mode is active but no custom truststore is configured"));
+            // Should create client successfully without exception
+            final var storage = service.client("default", "repo", statsCollector);
+            assertNotNull(storage);
         }
 
         { // Scenario 2: Path + password configured (missing type) -> should throw exception
