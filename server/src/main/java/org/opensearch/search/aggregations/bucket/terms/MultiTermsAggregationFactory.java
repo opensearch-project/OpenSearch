@@ -195,10 +195,18 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         for (int i = 0; i < numFields; i++) {
             maxOrds[i] = ((ValuesSource.Bytes.WithOrdinals) rawValuesSources.get(i)).globalMaxOrd(searchContext.searcher());
         }
-        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds)) {
+        if (PackedOrdinalBucketOrds.fitsInSingleLong(maxOrds)) {
+            // Single-long path supports any cardinality via LongKeyedBucketOrds
             return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
         }
-        // Ordinals don't fit in 126 bits — fall back to existing bytes-based path
+        if (PackedOrdinalBucketOrds.fitsInTwoLongs(maxOrds)) {
+            // Two-long path uses LongLongHash directly, which does not support
+            // multiple owning bucket ordinals. Only use it for top-level aggregations.
+            if (cardinality == CardinalityUpperBound.ONE) {
+                return new PackedOrdinalBucketOrds(searchContext.bigArrays(), cardinality, maxOrds);
+            }
+        }
+        // Ordinals don't fit, or multi-owning-bucket with >63 bits — fall back to existing bytes-based path
         return null;
     }
 
