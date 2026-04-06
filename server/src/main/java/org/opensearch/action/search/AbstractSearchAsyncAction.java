@@ -128,6 +128,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
+    /**
+     * The coordinator provides a separate identity from this phase for downstream phases to use as their
+     * {@link SearchPhaseContext}. This breaks the circular dependency where the phase previously passed
+     * itself as the context to phases it created.
+     */
+    private final SearchRequestCoordinator coordinator = new SearchRequestCoordinator(this);
+
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
@@ -847,9 +854,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        final SearchPhase nextPhase = getNextPhase(results, this);
+        final SearchPhase nextPhase = getNextPhase(results, coordinator);
         if (request instanceof PipelinedRequest && nextPhase != null) {
-            ((PipelinedRequest) request).transformSearchPhaseResults(results, this, this.getName(), nextPhase.getName());
+            ((PipelinedRequest) request).transformSearchPhaseResults(results, coordinator, this.getName(), nextPhase.getName());
         }
         executeNextPhase(this, nextPhase);
     }
