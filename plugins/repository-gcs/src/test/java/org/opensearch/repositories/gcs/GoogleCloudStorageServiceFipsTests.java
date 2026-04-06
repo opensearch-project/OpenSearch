@@ -12,7 +12,6 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
@@ -106,5 +105,4 @@ public class GoogleCloudStorageServiceFipsTests extends GoogleCloudStorageServic
             assertNotNull("Storage client should be created successfully with full truststore configuration", storage);
         }
     }
-
 }
