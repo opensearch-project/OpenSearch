@@ -214,32 +214,34 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * This is the main entry point for a search. This method starts the search execution of the initial phase.
      */
     public final void start() {
-        if (getNumShards() == 0) {
-            // no search shards to search on, bail with empty response
-            // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
-            // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    InternalSearchResponse.empty(withTotalHits),
-                    null,
-                    0,
-                    0,
-                    0,
-                    buildTookInMillis(),
-                    searchRequestContext.getPhaseTook(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
-            );
-            onRequestEnd(searchRequestContext);
-            return;
-        }
-        executePhase(this);
+        coordinator.start(this);
+    }
+
+    /**
+     * Sends an empty response when there are no shards to search on.
+     * Called by the coordinator during start() when getNumShards() == 0.
+     */
+    void sendZeroShardResponse() {
+        int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : request.source().trackTotalHitsUpTo();
+        // total hits is null in the response if the tracking of total hits is disabled
+        boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
+        listener.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(withTotalHits),
+                null,
+                0,
+                0,
+                0,
+                buildTookInMillis(),
+                searchRequestContext.getPhaseTook(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters,
+                null
+            )
+        );
+        onRequestEnd(searchRequestContext);
     }
 
     @Override
@@ -485,7 +487,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 );
             }
             onPhaseEnd(searchRequestContext);
-            executePhase(nextPhase);
+            coordinator.executePhase(nextPhase);
         }
     }
 
@@ -514,7 +516,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(coordinator, searchRequestContext);
     }
 
-    private void executePhase(SearchPhase phase) {
+    void executePhase(SearchPhase phase) {
         Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
         try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
             onPhaseStart(phase);

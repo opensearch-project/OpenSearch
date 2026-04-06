@@ -41,6 +41,29 @@ class SearchRequestCoordinator implements SearchPhaseContext {
         this.delegate = delegate;
     }
 
+    // --- Coordinator lifecycle methods ---
+
+    /**
+     * Entry point for the search request. Handles the zero-shard edge case,
+     * then delegates to {@link #executePhase(SearchPhase)} for the initial phase.
+     */
+    void start(SearchPhase initialPhase) {
+        if (delegate.getNumShards() == 0) {
+            delegate.sendZeroShardResponse();
+            return;
+        }
+        executePhase(initialPhase);
+    }
+
+    /**
+     * Executes a search phase: fires lifecycle callbacks, runs the phase, and handles exceptions.
+     * Called by {@link #start(SearchPhase)} for the initial phase and by
+     * {@link #executeNextPhase(SearchPhase, SearchPhase)} for subsequent phases.
+     */
+    void executePhase(SearchPhase phase) {
+        delegate.executePhase(phase);
+    }
+
     // --- SearchCoordinator methods ---
 
     @Override
