@@ -16,10 +16,31 @@ import java.util.Map;
 public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
 
     public void testEnumSettingNames() {
+        assertEquals("batched_reduce_size", WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.getSettingName());
+        assertEquals(
+            "cancel_after_time_interval",
+            WorkloadGroupSearchSettings.WlmSearchSetting.CANCEL_AFTER_TIME_INTERVAL.getSettingName()
+        );
+        assertEquals(
+            "max_concurrent_shard_requests",
+            WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.getSettingName()
+        );
         assertEquals("timeout", WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT.getSettingName());
     }
 
     public void testFromKeyValidSettings() {
+        assertEquals(
+            WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE,
+            WorkloadGroupSearchSettings.WlmSearchSetting.fromKey("batched_reduce_size")
+        );
+        assertEquals(
+            WorkloadGroupSearchSettings.WlmSearchSetting.CANCEL_AFTER_TIME_INTERVAL,
+            WorkloadGroupSearchSettings.WlmSearchSetting.fromKey("cancel_after_time_interval")
+        );
+        assertEquals(
+            WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS,
+            WorkloadGroupSearchSettings.WlmSearchSetting.fromKey("max_concurrent_shard_requests")
+        );
         assertEquals(WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT, WorkloadGroupSearchSettings.WlmSearchSetting.fromKey("timeout"));
     }
 
@@ -33,6 +54,7 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
         WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT.validate("30s");
         WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT.validate("5m");
         WorkloadGroupSearchSettings.WlmSearchSetting.TIMEOUT.validate("1h");
+        WorkloadGroupSearchSettings.WlmSearchSetting.CANCEL_AFTER_TIME_INTERVAL.validate("1h");
     }
 
     public void testValidateInvalidTimeValue() {
@@ -43,9 +65,35 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
         assertTrue(exception.getMessage().contains("Invalid value"));
     }
 
+    public void testValidatePositiveInt() {
+        WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("1");
+        WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("100");
+    }
+
+    public void testValidateInvalidPositiveInt() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("0")
+        );
+        assertTrue(exception.getMessage().contains("must be >= 1"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("-1")
+        );
+        assertTrue(exception.getMessage().contains("must be >= 1"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.MAX_CONCURRENT_SHARD_REQUESTS.validate("abc")
+        );
+        assertTrue(exception.getMessage().contains("Invalid value"));
+    }
+
     public void testValidateSearchSettingsValid() {
         Map<String, String> settings = new HashMap<>();
         settings.put("timeout", "30s");
+        settings.put("max_concurrent_shard_requests", "5");
 
         // Should not throw exception
         WorkloadGroupSearchSettings.validateSearchSettings(settings);
@@ -105,5 +153,30 @@ public class WorkloadGroupSearchSettingsTests extends OpenSearchTestCase {
 
         // Should not throw exception for empty map
         WorkloadGroupSearchSettings.validateSearchSettings(settings);
+    }
+
+    public void testValidateBatchedReduceSize() {
+        WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("2");
+        WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("512");
+    }
+
+    public void testValidateInvalidBatchedReduceSize() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("1")
+        );
+        assertTrue(exception.getMessage().contains("must be >= 2"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("0")
+        );
+        assertTrue(exception.getMessage().contains("must be >= 2"));
+
+        exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> WorkloadGroupSearchSettings.WlmSearchSetting.BATCHED_REDUCE_SIZE.validate("abc")
+        );
+        assertTrue(exception.getMessage().contains("Invalid value"));
     }
 }
