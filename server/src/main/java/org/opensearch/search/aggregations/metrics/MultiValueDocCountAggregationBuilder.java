@@ -101,7 +101,7 @@ public class MultiValueDocCountAggregationBuilder extends ValuesSourceAggregatio
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new MultiValueDocCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, null);
+        return new MultiValueDocCountAggregatorFactory(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
