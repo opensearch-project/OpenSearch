@@ -78,6 +78,8 @@ As of the 3.6 release [the CHANGELOG is no longer used][1] to generate release n
 - Restore default `shard_path_type` to FIXED for snapshot repositories ([#20643](https://github.com/opensearch-project/OpenSearch/issues/20643))
 - Fix `_field_caps` returning empty results and corrupted field names for `disable_objects: true` mappings ([#20800](https://github.com/opensearch-project/OpenSearch/pull/20800))
 - Fix race condition in PeerFinder where concurrent connection attempts could fail ([#21055](https://github.com/opensearch-project/OpenSearch/pull/21055))
+- Refactor WLM settings to use Setting objects and rename field ([#21143](https://github.com/opensearch-project/OpenSearch/pull/21143))
+
 
 
 ### Dependencies
