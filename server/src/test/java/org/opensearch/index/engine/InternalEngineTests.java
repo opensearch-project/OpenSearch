@@ -463,6 +463,26 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testForceMergeUpgradeComposesWithMaxNumSegments() throws Exception {
+        try (Store store = createStore(); Engine engine = createEngine(defaultSettings, store, createTempDir(), new TieredMergePolicy())) {
+            // Create three separate segments by flushing after each document.
+            for (int i = 0; i < 3; i++) {
+                engine.index(indexForDoc(testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null)));
+                engine.flush();
+            }
+            assertThat(engine.segments(false).size(), equalTo(3));
+
+            // upgrade=true without an explicit max_num_segments (Integer.MAX_VALUE) upgrades segments in
+            // place without consolidating: the segment topology is preserved.
+            engine.forceMerge(true, Integer.MAX_VALUE, false, true, false, UUIDs.randomBase64UUID());
+            assertThat(engine.segments(false).size(), equalTo(3));
+
+            // upgrade=true composed with max_num_segments=1 consolidates down to a single segment.
+            engine.forceMerge(true, 1, false, true, false, UUIDs.randomBase64UUID());
+            assertThat(engine.segments(false).size(), equalTo(1));
+        }
+    }
+
     public void testSegmentsWithIndexSort() throws Exception {
         Sort indexSort = new Sort(new SortedSetSortField("field", false));
         try (

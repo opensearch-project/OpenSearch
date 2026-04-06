@@ -1989,11 +1989,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("force merge with {}", forceMerge);
         }
         Indexer engine = getIndexer();
+        // When an upgrade is requested without an explicit (positive) max_num_segments, we must pass
+        // Integer.MAX_VALUE so the engine takes the forceMerge(upgrade) path. A non-positive
+        // maxNumSegments routes to maybeMerge(), which runs natural merges only and never upgrades
+        // segments. Passing Integer.MAX_VALUE upgrades every old-Lucene segment one-for-one while the
+        // merge policy's delegate performs no consolidation (topology preserved). When max_num_segments
+        // is a positive value, upgrade composes with it: segments are upgraded and then merged down to
+        // at most that many segments.
+        int maxNumSegments = forceMerge.maxNumSegments();
+        if (forceMerge.upgrade() && maxNumSegments <= 0) {
+            maxNumSegments = Integer.MAX_VALUE;
+        }
         engine.forceMerge(
             forceMerge.flush(),
-            forceMerge.maxNumSegments(),
+            maxNumSegments,
             forceMerge.onlyExpungeDeletes(),
-            false,
+            forceMerge.upgrade(),
             false,
             forceMerge.forceMergeUUID()
         );
