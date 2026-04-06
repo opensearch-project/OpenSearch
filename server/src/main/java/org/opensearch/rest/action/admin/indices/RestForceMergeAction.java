@@ -77,11 +77,20 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
         mergeRequest.primaryOnly(request.paramAsBoolean("primary_only", mergeRequest.primaryOnly()));
+        mergeRequest.onlyUpgradeLucene(request.paramAsBoolean("only_upgrade_lucene", mergeRequest.onlyUpgradeLucene()));
         if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             deprecationLogger.deprecate(
                 "force_merge_expunge_deletes_and_max_num_segments_deprecation",
                 "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
             );
+        }
+        if (mergeRequest.onlyUpgradeLucene()) {
+            if (mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
+                throw new IllegalArgumentException("cannot set only_upgrade_lucene and max_num_segments at the same time");
+            }
+            if (mergeRequest.onlyExpungeDeletes()) {
+                throw new IllegalArgumentException("cannot set only_upgrade_lucene and only_expunge_deletes at the same time");
+            }
         }
         if (request.paramAsBoolean("wait_for_completion", true)) {
             return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
