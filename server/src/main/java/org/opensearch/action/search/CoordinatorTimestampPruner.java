@@ -61,9 +61,18 @@ final class CoordinatorTimestampPruner {
             return;
         }
 
-        LongSupplier nowSupplier = System::currentTimeMillis;
-        long queryMin = resolveToEpochMillis(bounds.from, bounds.format, nowSupplier, false);
-        long queryMax = resolveToEpochMillis(bounds.to, bounds.format, nowSupplier, true);
+        final long now = System.currentTimeMillis();
+        LongSupplier nowSupplier = () -> now;
+
+        final long queryMin;
+        final long queryMax;
+        try {
+            queryMin = resolveToEpochMillis(bounds.from, bounds.format, nowSupplier, false);
+            queryMax = resolveToEpochMillis(bounds.to, bounds.format, nowSupplier, true);
+        } catch (Exception e) {
+            // If date parsing fails, fall through to shard-level can_match rather than failing the search
+            return;
+        }
 
         if (queryMin == Long.MIN_VALUE && queryMax == Long.MAX_VALUE) {
             return;
@@ -101,27 +110,49 @@ final class CoordinatorTimestampPruner {
             return null;
         }
 
-        // If multiple ranges exist (e.g., in a bool filter), intersect them
-        Object from = null;
-        Object to = null;
-        String format = null;
+        if (candidates.size() == 1) {
+            RangeQueryBuilder range = candidates.get(0);
+            if (range.from() == null && range.to() == null) {
+                return null;
+            }
+            return new TimestampBounds(range.from(), range.to(), range.format());
+        }
+
+        // Multiple @timestamp ranges exist (e.g., in a bool filter). Intersect them
+        // by resolving to epoch millis and taking the tightest bounds: max(from), min(to).
+        final long now = System.currentTimeMillis();
+        LongSupplier nowSupplier = () -> now;
+        long resolvedFrom = Long.MIN_VALUE;
+        long resolvedTo = Long.MAX_VALUE;
         for (RangeQueryBuilder range : candidates) {
             if (range.from() != null) {
-                from = from == null ? range.from() : from; // take first non-null
+                try {
+                    long candidateFrom = resolveToEpochMillis(range.from(), range.format(), nowSupplier, false);
+                    resolvedFrom = Math.max(resolvedFrom, candidateFrom);
+                } catch (Exception e) {
+                    // Cannot parse; skip this bound
+                }
             }
             if (range.to() != null) {
-                to = to == null ? range.to() : to;
-            }
-            if (range.format() != null && format == null) {
-                format = range.format();
+                try {
+                    long candidateTo = resolveToEpochMillis(range.to(), range.format(), nowSupplier, true);
+                    resolvedTo = Math.min(resolvedTo, candidateTo);
+                } catch (Exception e) {
+                    // Cannot parse; skip this bound
+                }
             }
         }
 
-        if (from == null && to == null) {
+        if (resolvedFrom == Long.MIN_VALUE && resolvedTo == Long.MAX_VALUE) {
             return null;
         }
 
-        return new TimestampBounds(from, to, format);
+        // Return pre-resolved millis values so they don't need re-parsing
+        return new TimestampBounds(
+            resolvedFrom != Long.MIN_VALUE ? resolvedFrom : null,
+            resolvedTo != Long.MAX_VALUE ? resolvedTo : null,
+            null // format not needed since values are already epoch millis
+        );
     }
 
     private static void collectTimestampRanges(QueryBuilder query, List<RangeQueryBuilder> candidates) {

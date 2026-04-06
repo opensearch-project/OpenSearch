@@ -115,6 +115,22 @@ public class CoordinatorTimestampPrunerTests extends OpenSearchTestCase {
         assertNull(bounds.to);
     }
 
+    public void testExtractIntersectsMultipleRanges() {
+        // Two range filters: from Jan 1 to Jan 31 AND from Jan 15 to Feb 15
+        // Intersection should be Jan 15 to Jan 31
+        BoolQueryBuilder bool = new BoolQueryBuilder()
+            .filter(new RangeQueryBuilder("@timestamp").gte("2026-01-01T00:00:00.000Z").lte("2026-01-31T23:59:59.999Z"))
+            .filter(new RangeQueryBuilder("@timestamp").gte("2026-01-15T00:00:00.000Z").lte("2026-02-15T23:59:59.999Z"));
+        CoordinatorTimestampPruner.TimestampBounds bounds = CoordinatorTimestampPruner.extractTimestampBounds(bool);
+        assertNotNull(bounds);
+        // from should be Jan 15 (the later/tighter lower bound)
+        // 2026-01-15T00:00:00.000Z = 1736899200000
+        assertEquals(1736899200000L, ((Number) bounds.from).longValue());
+        // to should be Jan 31 23:59:59.999 (the earlier/tighter upper bound)
+        // 2026-01-31T23:59:59.999Z = 1738367999999
+        assertEquals(1738367999999L, ((Number) bounds.to).longValue());
+    }
+
     public void testExtractWithOnlyTo() {
         RangeQueryBuilder range = new RangeQueryBuilder("@timestamp").lte("2026-01-31");
         CoordinatorTimestampPruner.TimestampBounds bounds = CoordinatorTimestampPruner.extractTimestampBounds(range);

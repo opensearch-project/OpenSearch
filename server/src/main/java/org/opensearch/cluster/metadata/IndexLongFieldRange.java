@@ -160,27 +160,19 @@ public final class IndexLongFieldRange implements Writeable, ToXContentFragment 
 
     // --- Serialization ---
 
-    public IndexLongFieldRange(StreamInput in) throws IOException {
+    /**
+     * Reads an {@link IndexLongFieldRange} from a stream. Returns singleton instances for
+     * {@link #UNKNOWN} and {@link #EMPTY} states.
+     */
+    public static IndexLongFieldRange readFrom(StreamInput in) throws IOException {
         byte type = in.readByte();
         switch (type) {
             case SERIAL_UNKNOWN:
-                this.unknown = true;
-                this.empty = false;
-                this.min = Long.MIN_VALUE;
-                this.max = Long.MAX_VALUE;
-                break;
+                return UNKNOWN;
             case SERIAL_EMPTY:
-                this.unknown = false;
-                this.empty = true;
-                this.min = Long.MIN_VALUE;
-                this.max = Long.MAX_VALUE;
-                break;
+                return EMPTY;
             case SERIAL_RANGE:
-                this.unknown = false;
-                this.empty = false;
-                this.min = in.readLong();
-                this.max = in.readLong();
-                break;
+                return IndexLongFieldRange.of(in.readLong(), in.readLong());
             default:
                 throw new IOException("Unknown IndexLongFieldRange type: " + type);
         }

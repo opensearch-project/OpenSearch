@@ -154,7 +154,7 @@ public class IndexLongFieldRangeTests extends OpenSearchTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        IndexLongFieldRange deserialized = new IndexLongFieldRange(in);
+        IndexLongFieldRange deserialized = IndexLongFieldRange.readFrom(in);
         assertEquals(original, deserialized);
     }
 }

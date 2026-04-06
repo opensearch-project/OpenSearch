@@ -1752,7 +1752,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-                timestampRange = new IndexLongFieldRange(in);
+                timestampRange = IndexLongFieldRange.readFrom(in);
             } else {
                 timestampRange = IndexLongFieldRange.UNKNOWN;
             }
@@ -1891,7 +1891,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            builder.timestampRange(new IndexLongFieldRange(in));
+            builder.timestampRange(IndexLongFieldRange.readFrom(in));
         }
         return builder.build();
     }
@@ -2697,7 +2697,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.endObject();
             }
 
-            if (indexMetadata.timestampRange != null && !indexMetadata.timestampRange.isUnknown()) {
+            if (indexMetadata.timestampRange != null) {
                 builder.startObject(KEY_TIMESTAMP_RANGE);
                 indexMetadata.timestampRange.toXContent(builder, params);
                 builder.endObject();
