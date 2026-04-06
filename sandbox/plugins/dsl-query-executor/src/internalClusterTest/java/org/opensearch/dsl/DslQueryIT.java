@@ -35,6 +35,33 @@ public class DslQueryIT extends DslIntegTestBase {
         assertOk(search(new SearchSourceBuilder().query(QueryBuilders.termQuery("name", "laptop"))));
     }
 
+    public void testTermsQuery() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop", "phone"))));
+    }
+
+    public void testTermsQueryWithBoostThrowsException() {
+        createTestIndex();
+        expectThrows(Exception.class, () ->
+            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").boost(2.0f)))
+        );
+    }
+
+    public void testTermsQueryWithNameThrowsException() {
+        createTestIndex();
+        expectThrows(Exception.class, () ->
+            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").queryName("my_query")))
+        );
+    }
+
+    public void testTermsQueryWithValueTypeThrowsException() {
+        createTestIndex();
+        expectThrows(Exception.class, () ->
+            search(new SearchSourceBuilder().query(QueryBuilders.termsQuery("name", "laptop").valueType(
+                org.opensearch.index.query.TermsQueryBuilder.ValueType.BITMAP)))
+        );
+    }
+
     public void testWildcardQueryWithUnresolvedNode() {
         createTestIndex();
         // Wildcard query is not converted to standard Rex — wraps in UnresolvedQueryCall.

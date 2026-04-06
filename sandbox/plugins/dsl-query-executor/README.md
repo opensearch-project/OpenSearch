@@ -2,6 +2,12 @@
 
 A front-end sandbox plugin to the analytics engine that intercepts `_search` requests, converts DSL queries into Calcite RelNode logical plans, and executes them through the analytics engine's query pipeline.
 
+## Supported Query Types
+
+- **Term** — equality filter
+- **Terms** — multi-value equality filter (uses query Filter with SEARCH and EQUALS)
+- **Match All** — matches all documents
+
 ## Architecture
 
 ```
