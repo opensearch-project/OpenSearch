@@ -38,6 +38,7 @@ import java.io.Closeable;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -53,6 +54,9 @@ import java.util.stream.Collectors;
  */
 
 public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultStream, RelNode>, Closeable {
+
+    /** Negative IDs for bridge-path queries to avoid collision with ShardSearchContextId. */
+    private static final AtomicLong BRIDGE_TASK_ID_COUNTER = new AtomicLong(-1L);
 
     private static final Logger logger = LogManager.getLogger(DataFusionBridge.class);
 
@@ -196,6 +200,7 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
      */
     @Override
     public DataFusionResultStream execute(byte[] fragment) {
+        long taskId = BRIDGE_TASK_ID_COUNTER.getAndDecrement();
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryPhaseAsync(
             reader.getReaderPtr(),
@@ -204,6 +209,7 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
             false,    // isQueryPlanExplainEnabled
             0,        // partitionCount — use engine default
             runtimePointer,
+            taskId,
             new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long streamPointer) {
@@ -223,7 +229,7 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
         } catch (Exception e) {
             throw new RuntimeException("Failed to execute query phase", e);
         }
-        return new DataFusionResultStream(streamPointer, runtimePointer, allocator);
+        return new DataFusionResultStream(streamPointer, runtimePointer, taskId, allocator);
     }
 
     @Override

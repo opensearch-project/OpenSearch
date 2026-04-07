@@ -38,6 +38,10 @@ public class DataFusionResultStream implements EngineResultStream {
         this.stream = new RecordBatchStream(streamPointer, runtimePointer, allocator);
     }
 
+    public DataFusionResultStream(long streamPointer, long runtimePointer, long taskId, BufferAllocator allocator) {
+        this.stream = new RecordBatchStream(streamPointer, runtimePointer, taskId, allocator);
+    }
+
     @Override
     public EngineResultBatchIterator iterator() {
         if (iteratorInstance == null) {

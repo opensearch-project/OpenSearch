@@ -24,11 +24,16 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     private final String source;
     private DatafusionReader reader;
     private Closeable closeable;
+    private long taskId = 0;
 
     public DatafusionSearcher(String source, DatafusionReader reader, Closeable close) {
         this.source = source;
         this.reader = reader;
         this.closeable = close;
+    }
+
+    public void setTaskId(long taskId) {
+        this.taskId = taskId;
     }
 
     @Override
@@ -47,7 +52,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
             String[] includeFields = Objects.isNull(datafusionQuery.getIncludeFields()) ? new String[]{} : datafusionQuery.getIncludeFields().toArray(String[]::new);
             String[] excludeFields = Objects.isNull(datafusionQuery.getExcludeFields()) ? new String[]{} : datafusionQuery.getExcludeFields().toArray(String[]::new);
 
-            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, includeFields, excludeFields, runtimePtr);
+            return NativeBridge.executeFetchPhase(reader.getReaderPtr(), row_ids, includeFields, excludeFields, runtimePtr, taskId);
         }
         throw new RuntimeException("Can be only called for fetch phase");
     }
@@ -55,7 +60,7 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionQuery, Recor
     @Override
     public CompletableFuture<Long> searchAsync(DatafusionQuery datafusionQuery, Long runtimePtr) {
         CompletableFuture<Long> result = new CompletableFuture<>();
-        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), datafusionQuery.getQueryPlanExplainEnabled(), datafusionQuery.getTargetPartitionsCount(), runtimePtr, new ActionListener<Long>() {
+        NativeBridge.executeQueryPhaseAsync(reader.getReaderPtr(), datafusionQuery.getIndexName(), datafusionQuery.getSubstraitBytes(), datafusionQuery.getQueryPlanExplainEnabled(), datafusionQuery.getTargetPartitionsCount(), runtimePtr, taskId, new ActionListener<Long>() {
             @Override
             public void onResponse(Long streamPointer) {
                 if (streamPointer == 0) {

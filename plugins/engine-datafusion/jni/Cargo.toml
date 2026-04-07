@@ -36,6 +36,7 @@ prost = { workspace = true }
 
 # Async runtime
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 futures = { workspace = true }
 #tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros"] }
 tokio-metrics = { workspace = true }
