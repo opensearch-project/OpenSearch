@@ -32,9 +32,6 @@
 
 package org.opensearch.plugins;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.json.JsonReadFeature;
-
 import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.bootstrap.JarHell;
@@ -63,6 +60,10 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.core.json.JsonFactoryBuilder;
+import tools.jackson.core.json.JsonReadFeature;
+
 import static org.opensearch.semver.SemverRange.RANGE_PATTERN;
 
 /**
@@ -75,10 +76,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
     public static final String OPENSEARCH_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String OPENSEARCH_PLUGIN_POLICY = "plugin-security.policy";
-    private static final JsonFactory jsonFactory = new JsonFactory().configure(
-        JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(),
-        true
-    );
+    private static final JsonFactory jsonFactory = new JsonFactoryBuilder().configure(JsonReadFeature.ALLOW_UNQUOTED_PROPERTY_NAMES, true)
+        .build();
 
     private final String name;
     private final String description;
