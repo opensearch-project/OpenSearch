@@ -218,7 +218,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                     assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
                 } else {
                     assertThat(e.getCause().getMessage(), containsString("Current token"));
-                    assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+                    assertThat(e.getCause().getMessage(), containsString("not numeric, cannot use numeric value accessors"));
                 }
 
                 ParsedDocument doc = ignoring.parse(source);
@@ -267,15 +267,15 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, "-1", "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of `int"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("18446744073709551616"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, -129, "is out of range for a byte"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long"),
+            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of `short`"),
+            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of `int`"),
+            OutOfRangeSpec.of(NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of `long`"),
             OutOfRangeSpec.of(NumberType.UNSIGNED_LONG, new BigInteger("-1"), "out of range for an unsigned long"),
 
             OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),

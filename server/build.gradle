@@ -120,6 +120,13 @@ dependencies {
   api libs.protobuf
   api libs.jakartaannotation
 
+  // Keeping Jackson 2.x dependencies till migration to 3.x completes across the ecosystem
+  api libs.jackson.core
+  api libs.jackson.dataformat.smile
+  api libs.jackson.dataformat.yaml
+  api libs.jackson.dataformat.cbor
+  api "org.yaml:snakeyaml:${versions.snakeyaml}"
+
   // https://mvnrepository.com/artifact/org.roaringbitmap/RoaringBitmap
   api libs.roaringbitmap
   testImplementation 'org.awaitility:awaitility:4.3.0'
@@ -244,6 +251,7 @@ tasks.named("thirdPartyAudit").configure {
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
             'com.fasterxml.jackson.databind.ObjectMapper',
             'com.fasterxml.jackson.databind.util.ClassUtil',
+            'com.fasterxml.jackson.databind.cfg.MapperBuilder',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
@@ -421,6 +429,7 @@ tasks.named("dependencyLicenses").configure {
     mapping from: /jackson-.*/, to: 'jackson'
     mapping from: /reactor-.*/, to: 'reactor'
     mapping from: /lucene-.*/, to: 'lucene'
+    mapping from: /snakeyaml-.*/, to: 'snakeyaml'
     dependencies = project.configurations.runtimeClasspath.incoming.artifactView {
         componentFilter {
             it instanceof ModuleComponentIdentifier &&
