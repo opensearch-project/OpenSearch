@@ -20,6 +20,14 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'vectorized-exec-spi'
   }
+
+  // jqwik for property-based testing (requires JUnit 5 Platform)
+  testImplementation 'net.jqwik:jqwik-api:1.9.2'
+  testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+  testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+  testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.2'
+  testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
+  testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.3'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -30,4 +38,5 @@ jarHell.enabled = false
 
 test {
   systemProperty 'tests.security.manager', 'false'
+  useJUnitPlatform()
 }

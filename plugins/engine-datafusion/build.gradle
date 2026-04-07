@@ -72,6 +72,7 @@ dependencies {
         exclude group: 'org.antlr', module: 'antlr4-runtime'
         exclude group: 'org.antlr', module: 'antlr4'
     }
+    // protobuf-java required by Substrait (io.substrait.proto.Plan serialization)
     implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
@@ -79,6 +80,14 @@ dependencies {
     testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
     testImplementation "org.mockito:mockito-core:${versions.mockito}"
     testImplementation project(":modules:parquet-data-format")
+
+    // jqwik for property-based testing (requires JUnit 5 Platform)
+    testImplementation 'net.jqwik:jqwik-api:1.9.2'
+    testImplementation 'org.apiguardian:apiguardian-api:1.1.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+    testRuntimeOnly 'net.jqwik:jqwik-engine:1.9.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
+    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.3'
     // Add CSV plugin for testing
     // testImplementation project(':plugins:dataformat-csv')
 }
@@ -171,6 +180,7 @@ bundlePlugin {
     exclude 'jackson-databind-*.jar'
     exclude 'jackson-core-*.jar'
     exclude 'commons-codec-*.jar'
+    exclude 'commons-io-*.jar'
     exclude 'janino-*.jar'
     exclude 'commons-compiler-*.jar'
     exclude 'joou-java-6-*.jar'
@@ -239,6 +249,7 @@ test {
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
 
   systemProperty 'java.library.path', file('src/main/resources/native').absolutePath
+  useJUnitPlatform()
 }
 
 internalClusterTest {
@@ -317,3 +328,4 @@ missingJavadoc {
         'org.opensearch.datafusion.core'
     ]
 }
+

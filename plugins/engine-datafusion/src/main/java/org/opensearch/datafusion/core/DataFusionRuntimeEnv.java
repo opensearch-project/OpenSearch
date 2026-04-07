@@ -56,7 +56,6 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
         long spillLimit = clusterService.getClusterSettings().get(DATAFUSION_SPILL_MEMORY_LIMIT_CONFIGURATION).getBytes();
         long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
         NativeBridge.initTokioRuntimeManager(Runtime.getRuntime().availableProcessors());
-        NativeBridge.startTokioRuntimeMonitoring(); // TODO : do we need this control in java ?
         this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit);
         System.out.println("Runtime : " + this.runtimeHandle);
         this.cacheManager = new CacheManager(this.runtimeHandle);

@@ -1044,7 +1044,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             admissionControlStats,
             nodeCacheStats,
-            remoteStoreNodeStats
+            remoteStoreNodeStats,
+            null
         );
     }
 

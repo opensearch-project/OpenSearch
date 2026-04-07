@@ -1,6 +1,7 @@
 use crate::executor::DedicatedExecutor;
 use crate::io::register_io_runtime;
 use vectorized_exec_spi::log_info;
+use crate::metrics_collector::MetricsCollector;
 use log::info;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -79,6 +80,8 @@ pub struct RuntimeManager {
     /// shutdown_timeout(), which blocks until all IO threads have fully stopped.
     io_runtime_owned: Mutex<Option<Runtime>>,
     pub(crate) cpu_executor: DedicatedExecutor,
+    pub io_metrics: Arc<MetricsCollector>,
+    pub cpu_metrics: Option<Arc<MetricsCollector>>,
 }
 
 impl RuntimeManager {
@@ -122,10 +125,20 @@ impl RuntimeManager {
 
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
 
+        // Create MetricsCollector for IO runtime
+        let io_metrics = Arc::new(MetricsCollector::new(io_runtime_rt.handle()));
+
+        // Create MetricsCollector for CPU runtime (if handle is available)
+        let cpu_metrics = cpu_executor
+            .handle()
+            .map(|handle| Arc::new(MetricsCollector::new(&handle)));
+
         Self {
             io_runtime: io_handle,
             io_runtime_owned: Mutex::new(Some(io_runtime_rt)),
             cpu_executor,
+            io_metrics,
+            cpu_metrics,
         }
     }
 

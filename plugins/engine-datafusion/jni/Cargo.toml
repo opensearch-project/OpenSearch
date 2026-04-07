@@ -87,8 +87,8 @@ parking_lot = { workspace = true }
 tracing = { workspace = true }
 mimalloc = { version = "0.1.48", default-features = false }
 
-[build-dependencies]
-cbindgen = "0.27"
+[dev-dependencies]
+proptest = "1"
 
 [profile.release]
 lto = true
