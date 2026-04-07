@@ -33,10 +33,10 @@ public interface DataFormatPlugin {
 
     /**
      * Creates the indexing engine for the data format. This should be instantiated per shard.
-     * The {@link Committer} provides access to the backing store (e.g., IndexWriter) so that
-     * per-format engines can share the same writer for segment incorporation.
+     * The {@link Committer} provides access to the backing store so that per-format engines
+     * can share the same writer for segment incorporation and flush.
      *
-     * @param committer the committer holding the backing store, or null if not available
+     * @param committer the committer, or null if not available
      * @param mapperService the mapper service for field mapping resolution
      * @param shardPath the shard path for file storage
      * @param indexSettings the index settings

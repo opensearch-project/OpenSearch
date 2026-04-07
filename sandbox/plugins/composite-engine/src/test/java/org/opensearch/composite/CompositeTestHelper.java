@@ -26,7 +26,7 @@ import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 
@@ -179,6 +179,11 @@ final class CompositeTestHelper {
         public DocumentInput<?> newDocumentInput() {
             return new StubDocumentInput();
         }
+
+        @Override
+        public IndexStoreProvider getProvider() {
+            return null;
+        }
     }
 
     /**
@@ -234,16 +239,10 @@ final class CompositeTestHelper {
     }
 
     /**
-     * Minimal stub Committer that records init/close calls and does nothing on commit.
+     * Minimal stub Committer that records close calls and does nothing on commit.
      */
     static class StubCommitter implements Committer {
-        boolean initCalled = false;
         boolean closeCalled = false;
-
-        @Override
-        public void init(CommitterSettings settings) {
-            initCalled = true;
-        }
 
         @Override
         public void commit(Map<String, String> commitData) {}

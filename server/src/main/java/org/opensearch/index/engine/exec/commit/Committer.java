@@ -26,23 +26,14 @@ import java.util.Map;
  * The caller is responsible for serializing any higher-level state (e.g., CatalogSnapshot)
  * into the commit data before calling {@link #commit}.
  * <p>
- * Lifecycle: {@link #init(CommitterSettings)} is called once during engine construction,
- * {@link #commit(Map)} is called during flush, and {@link #close()} is called
- * during engine shutdown.
+ * Implementations are constructed with {@link CommitterSettings} which provides the shard path,
+ * index settings, and engine config needed to open the backing store. There is no separate
+ * {@code init()} method — the constructor handles all initialization.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public interface Committer extends Closeable {
-
-    /**
-     * Initializes the committer with the given settings.
-     * Called once during engine construction before any indexing operations.
-     *
-     * @param settings initialization parameters (e.g., shard path, index settings)
-     * @throws IOException if initialization fails
-     */
-    void init(CommitterSettings settings) throws IOException;
 
     /**
      * Durably commits the given data to the backing store's commit metadata.
@@ -55,8 +46,6 @@ public interface Committer extends Closeable {
 
     /**
      * Returns the user data from the last successful commit.
-     * For Lucene-backed implementations, this is the commit userData from the last
-     * {@code IndexWriter.commit()} call, which includes the serialized CatalogSnapshot.
      *
      * @return the last committed user data, or an empty map if no commit has occurred
      * @throws IOException if reading the commit data fails
@@ -65,7 +54,6 @@ public interface Committer extends Closeable {
 
     /**
      * Returns statistics about the last commit point.
-     * Includes generation, user data, commit ID, and document count.
      *
      * @return the commit stats, or null if no commit has occurred
      */
@@ -73,8 +61,6 @@ public interface Committer extends Closeable {
 
     /**
      * Returns information about the safe commit point for recovery decisions.
-     * The safe commit is the most recent commit that is safe to recover from,
-     * carrying the local checkpoint and document count.
      *
      * @return the safe commit info
      */

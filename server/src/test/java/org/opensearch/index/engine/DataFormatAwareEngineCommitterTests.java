@@ -9,10 +9,8 @@
 package org.opensearch.index.engine;
 
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,30 +19,19 @@ import java.util.Map;
  */
 public class DataFormatAwareEngineCommitterTests extends OpenSearchTestCase {
 
-    /**
-     * Verifies that getCommitter() returns null when no committer has been set.
-     * Validates: Requirements 4.3, 4.4
-     */
     public void testGetCommitterReturnsNullByDefault() {
         DataFormatAwareEngine engine = new DataFormatAwareEngine(new HashMap<>());
-        assertNull("getCommitter() should return null by default", engine.getCommitter());
+        assertNull(engine.getCommitter());
     }
 
-    /**
-     * Verifies that setCommitter() followed by getCommitter() returns the same instance.
-     * Validates: Requirements 4.3, 4.4
-     */
     public void testSetCommitterThenGetCommitterReturnsSameInstance() {
         DataFormatAwareEngine engine = new DataFormatAwareEngine(new HashMap<>());
         Committer committer = new Committer() {
             @Override
-            public void init(CommitterSettings settings) throws IOException {}
+            public void commit(Map<String, String> commitData) {}
 
             @Override
-            public void commit(Map<String, String> commitData) throws IOException {}
-
-            @Override
-            public void close() throws IOException {}
+            public void close() {}
 
             @Override
             public Map<String, String> getLastCommittedData() {
@@ -61,8 +48,7 @@ public class DataFormatAwareEngineCommitterTests extends OpenSearchTestCase {
                 return SafeCommitInfo.EMPTY;
             }
         };
-
         engine.setCommitter(committer);
-        assertSame("getCommitter() should return the exact instance that was set", committer, engine.getCommitter());
+        assertSame(committer, engine.getCommitter());
     }
 }

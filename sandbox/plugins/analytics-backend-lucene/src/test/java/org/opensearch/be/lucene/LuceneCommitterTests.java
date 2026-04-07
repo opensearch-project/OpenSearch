@@ -9,11 +9,14 @@
 package org.opensearch.be.lucene;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.Store;
+import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -35,36 +38,37 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
-        return new CommitterSettings(shardPath, indexSettings);
+        Store store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        return new CommitterSettings(shardPath, indexSettings, null, store);
     }
 
-    public void testInitOpensIndexWriter() throws IOException {
-        LuceneCommitter committer = new LuceneCommitter();
+    public void testConstructorOpensIndexWriter() throws IOException {
+        CommitterSettings settings = createCommitterSettings();
+        LuceneCommitter committer = new LuceneCommitter(settings);
         try {
-            assertNull(committer.getIndexWriter());
-            committer.init(createCommitterSettings());
             IndexWriter writer = committer.getIndexWriter();
             assertNotNull(writer);
             assertTrue(writer.isOpen());
         } finally {
             committer.close();
+            settings.store().close();
         }
     }
 
     public void testCloseReleasesIndexWriter() throws IOException {
-        LuceneCommitter committer = new LuceneCommitter();
-        committer.init(createCommitterSettings());
+        CommitterSettings settings = createCommitterSettings();
+        LuceneCommitter committer = new LuceneCommitter(settings);
         assertNotNull(committer.getIndexWriter());
 
         committer.close();
         assertNull(committer.getIndexWriter());
+        settings.store().close();
     }
 
     public void testCommitRoundTrip() throws IOException {
-        LuceneCommitter committer = new LuceneCommitter();
+        CommitterSettings settings = createCommitterSettings();
+        LuceneCommitter committer = new LuceneCommitter(settings);
         try {
-            committer.init(createCommitterSettings());
-
             Map<String, String> commitData = Map.of("key1", "value1", "key2", "value2", "_snapshot_", "serialized-data");
             committer.commit(commitData);
 
@@ -78,14 +82,14 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertEquals("serialized-data", readBack.get("_snapshot_"));
         } finally {
             committer.close();
+            settings.store().close();
         }
     }
 
     public void testCommitWithEmptyData() throws IOException {
-        LuceneCommitter committer = new LuceneCommitter();
+        CommitterSettings settings = createCommitterSettings();
+        LuceneCommitter committer = new LuceneCommitter(settings);
         try {
-            committer.init(createCommitterSettings());
-
             committer.commit(Map.of());
 
             Map<String, String> readBack = new HashMap<>();
@@ -96,14 +100,16 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertTrue(readBack.isEmpty());
         } finally {
             committer.close();
+            settings.store().close();
         }
     }
 
     public void testCommitAfterCloseThrows() throws IOException {
-        LuceneCommitter committer = new LuceneCommitter();
-        committer.init(createCommitterSettings());
+        CommitterSettings settings = createCommitterSettings();
+        LuceneCommitter committer = new LuceneCommitter(settings);
         committer.close();
 
         expectThrows(IllegalStateException.class, () -> committer.commit(Map.of("key", "value")));
+        settings.store().close();
     }
 }

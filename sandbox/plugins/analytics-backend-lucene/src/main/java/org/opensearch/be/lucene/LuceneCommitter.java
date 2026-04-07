@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -22,26 +20,17 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Lucene-specific {@link Committer} that owns the {@link IndexWriter} lifecycle.
  * <p>
- * Responsibilities:
- * <ul>
- *   <li>{@link #init} — opens the IndexWriter on the shard's Lucene directory</li>
- *   <li>{@link #commit} — serializes the CatalogSnapshot as Lucene commit userData</li>
- *   <li>{@link #close} — closes the IndexWriter</li>
- * </ul>
- * <p>
- * The IndexWriter is exposed via {@link #getIndexWriter()} so that
- * {@link LuceneIndexingExecutionEngine} (which handles {@code addIndexes} during refresh)
- * and {@link LuceneReaderManager} (which opens DirectoryReaders) can share the same writer.
+ * The constructor takes {@link CommitterSettings} and opens the IndexWriter immediately.
+ * No separate {@code init()} call is needed.
  *
  * @opensearch.experimental
  */
@@ -53,25 +42,24 @@ public class LuceneCommitter implements Committer {
     /** Subdirectory under the shard data path where the Lucene index is stored. */
     static final String LUCENE_DIR_NAME = "lucene";
 
+    private final Store store;
     private IndexWriter indexWriter;
 
-    /** Creates a new LuceneCommitter. */
-    public LuceneCommitter() {}
-
-    @Override
-    public void init(CommitterSettings settings) throws IOException {
-        Path luceneDir = settings.shardPath().getDataPath().resolve(LUCENE_DIR_NAME);
-        Files.createDirectories(luceneDir);
-        Directory directory = FSDirectory.open(luceneDir);
+    /**
+     * Creates a new LuceneCommitter and opens the IndexWriter.
+     *
+     * @param settings the committer settings (shard path, index settings, engine config, store)
+     * @throws IOException if opening the IndexWriter fails
+     */
+    public LuceneCommitter(CommitterSettings settings) throws IOException {
+        this.store = settings.store();
+        if (this.store == null) {
+            throw new IllegalArgumentException("CommitterSettings must provide a non-null Store");
+        }
         IndexWriterConfig iwc = createIndexWriterConfig(settings.engineConfig());
-        this.indexWriter = new IndexWriter(directory, iwc);
+        this.indexWriter = new IndexWriter(store.directory(), iwc);
     }
 
-    /**
-     * Creates an {@link IndexWriterConfig} from the engine configuration.
-     * When an {@link EngineConfig} is provided, the analyzer, codec, index sort,
-     * and similarity are taken from it. Otherwise a default config is used.
-     */
     private IndexWriterConfig createIndexWriterConfig(EngineConfig engineConfig) {
         if (engineConfig == null) {
             return new IndexWriterConfig();
@@ -89,6 +77,8 @@ public class LuceneCommitter implements Committer {
         return iwc;
     }
 
+    // --- Committer ---
+
     @Override
     public void commit(Map<String, String> commitData) throws IOException {
         if (indexWriter == null) {
@@ -104,18 +94,6 @@ public class LuceneCommitter implements Committer {
             indexWriter.close();
             indexWriter = null;
         }
-    }
-
-    /**
-     * Returns the underlying IndexWriter.
-     * Used by {@link LuceneIndexingExecutionEngine} for {@code addIndexes} and
-     * by {@link LuceneReaderManager} for opening DirectoryReaders.
-     * Package-private — only accessible within the analytics-backend-lucene plugin.
-     *
-     * @return the IndexWriter, or null if not initialized
-     */
-    IndexWriter getIndexWriter() {
-        return indexWriter;
     }
 
     @Override
@@ -164,5 +142,17 @@ public class LuceneCommitter implements Committer {
             logger.warn("Failed to get safe commit info", e);
             return SafeCommitInfo.EMPTY;
         }
+    }
+
+    // --- IndexWriter access (package-private for LuceneIndexingExecutionEngine) ---
+
+    /**
+     * Returns the underlying IndexWriter.
+     * Visible to other classes in this package (e.g., LuceneIndexingExecutionEngine).
+     *
+     * @return the index writer, or null if closed
+     */
+    IndexWriter getIndexWriter() {
+        return indexWriter;
     }
 }

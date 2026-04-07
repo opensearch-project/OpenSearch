@@ -17,7 +17,6 @@ import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -229,13 +228,15 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
     // --- Task 8.7: Unit tests for flush and Committer lifecycle ---
 
     public void testInitCalledDuringConstruction() {
+        // With constructor-based init, the committer is fully initialized before being passed.
+        // This test validates that construction succeeds with a valid committer.
         CompositeTestHelper.StubCommitter stub = new CompositeTestHelper.StubCommitter();
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub);
-        assertTrue("init() must be called during construction", stub.initCalled);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub);
+        assertNotNull(engine);
     }
 
     public void testCloseCalledDuringShutdown() {
@@ -250,50 +251,12 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
     }
 
     public void testInitFailurePreventsConstruction() {
-        Committer failingInit = new Committer() {
-            @Override
-            public void init(CommitterSettings settings) throws IOException {
-                throw new IOException("init failed");
-            }
-
-            @Override
-            public void commit(Map<String, String> commitData) {}
-
-            @Override
-            public void close() {}
-
-            @Override
-            public Map<String, String> getLastCommittedData() {
-                return Map.of();
-            }
-
-            @Override
-            public CommitStats getCommitStats() {
-                return null;
-            }
-
-            @Override
-            public SafeCommitInfo getSafeCommitInfo() {
-                return SafeCommitInfo.EMPTY;
-            }
-        };
-
-        Map<String, DataFormatPlugin> plugins = new HashMap<>();
-        plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
-        IndexSettings indexSettings = createIndexSettings("lucene");
-
-        RuntimeException ex = expectThrows(
-            RuntimeException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, failingInit)
-        );
-        assertTrue(ex.getMessage().contains("Failed to initialize committer"));
+        // With constructor-based init, this test is no longer applicable.
+        // The committer is fully constructed before being passed to the engine.
     }
 
     public void testCloseFailureIsLoggedAndShutdownContinues() {
         Committer failingClose = new Committer() {
-            @Override
-            public void init(CommitterSettings settings) {}
-
             @Override
             public void commit(Map<String, String> commitData) {}
 
@@ -347,9 +310,6 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
     public void testFlushPropagatesIOExceptionFromCommit() {
         Committer failingCommit = new Committer() {
             @Override
-            public void init(CommitterSettings settings) {}
-
-            @Override
             public void commit(Map<String, String> commitData) throws IOException {
                 throw new IOException("commit failed");
             }
@@ -397,15 +357,9 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
      * A Committer that tracks which methods were called, for test assertions.
      */
     private static class TrackingCommitter implements Committer {
-        boolean initCalled = false;
         boolean commitCalled = false;
         boolean closeCalled = false;
         Map<String, String> lastCommitData = null;
-
-        @Override
-        public void init(CommitterSettings settings) {
-            initCalled = true;
-        }
 
         @Override
         public void commit(Map<String, String> commitData) {

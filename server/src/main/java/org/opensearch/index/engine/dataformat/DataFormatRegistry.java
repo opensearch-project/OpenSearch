@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
@@ -137,7 +138,7 @@ public class DataFormatRegistry {
     /**
      * Creates {@link EngineReaderManager} instances for all applicable data formats.
      *
-     * @param committer the committer holding the backing store, or null if not available
+     * @param indexStoreProvider the store provider, or null if not available
      * @param mapperService the mapper service (reserved for future filtering)
      * @param indexSettings the index settings (reserved for future filtering)
      * @param shardPath the shard path used to create reader managers
@@ -145,14 +146,14 @@ public class DataFormatRegistry {
      * @throws IOException if reader manager creation fails
      */
     public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
-        Committer committer,
+        IndexStoreProvider indexStoreProvider,
         MapperService mapperService,
         IndexSettings indexSettings,
         ShardPath shardPath
     ) throws IOException {
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
         for (Map.Entry<DataFormat, SearchBackEndPlugin<?>> entry : readerManagerPlugins.entrySet()) {
-            readerManagers.put(entry.getKey(), entry.getValue().createReaderManager(committer, entry.getKey(), shardPath));
+            readerManagers.put(entry.getKey(), entry.getValue().createReaderManager(indexStoreProvider, entry.getKey(), shardPath));
         }
         return readerManagers;
     }

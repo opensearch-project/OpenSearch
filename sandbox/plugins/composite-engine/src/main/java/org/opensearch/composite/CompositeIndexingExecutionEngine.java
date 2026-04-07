@@ -27,7 +27,7 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.mapper.MapperService;
@@ -136,11 +136,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         );
 
         this.committer = committer;
-        try {
-            committer.init(new CommitterSettings(shardPath, indexSettings));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to initialize committer", e);
-        }
     }
 
     /**
@@ -358,6 +353,11 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     public IndexingExecutionEngine<?, ?> getPrimaryDelegate() {
         return primaryEngine;
+    }
+
+    @Override
+    public IndexStoreProvider getProvider() {
+        return primaryEngine.getProvider();
     }
 
     /**

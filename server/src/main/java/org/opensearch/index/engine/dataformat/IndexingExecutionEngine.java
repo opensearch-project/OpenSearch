@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -88,4 +89,6 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      * @return a new document input instance
      */
     P newDocumentInput();
+
+    IndexStoreProvider getProvider();
 }

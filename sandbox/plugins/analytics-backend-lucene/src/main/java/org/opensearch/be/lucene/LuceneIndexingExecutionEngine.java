@@ -24,6 +24,8 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.store.Store;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,13 +49,17 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<DataFormat, DocumentInput<?>> {
+public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<DataFormat, DocumentInput<?>>, IndexStoreProvider {
 
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
     // TODO:: This will go once we implement the Dataformat plugin in Lucene
     private static final String LUCENE_FORMAT_NAME = "lucene";
 
     private final IndexWriter parentIndexWriter;
+
+    public IndexWriter getWriter() {
+        return parentIndexWriter;
+    }
 
     /**
      * Creates a new LuceneIndexingExecutionEngine.
@@ -62,6 +68,16 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
      */
     public LuceneIndexingExecutionEngine(IndexWriter parentIndexWriter) {
         this.parentIndexWriter = parentIndexWriter;
+    }
+
+    @Override
+    public IndexStoreProvider getProvider() {
+        return this;
+    }
+
+    @Override
+    public Store getStore() {
+        return null;
     }
 
     @Override
