@@ -32,12 +32,16 @@
 
 package org.opensearch.common.xcontent.yaml;
 
-import com.fasterxml.jackson.core.JsonParser;
-
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContentParser;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+
+import java.io.IOException;
+
+import org.snakeyaml.engine.v2.resolver.ScalarResolver;
+import tools.jackson.core.JsonParser;
+import tools.jackson.dataformat.yaml.YAMLParser;
 
 public class YamlXContentParser extends JsonXContentParser {
 
@@ -48,5 +52,32 @@ public class YamlXContentParser extends JsonXContentParser {
     @Override
     public XContentType contentType() {
         return XContentType.YAML;
+    }
+
+    /**
+     * Normalizes YAML boolean variants (e.g. {@code True}, {@code False}, {@code TRUE}, {@code FALSE})
+     * to lowercase {@code "true"} / {@code "false"}.
+     *
+     * The underlying Jackson YAML parser uses {@code JsonScalarResolver} which only recognizes
+     * lowercase {@code true}/{@code false} as boolean tokens. Mixed-case variants allowed by the
+     * YAML 1.1/1.2 core schema (e.g. {@code True}, {@code FALSE}) are therefore emitted as
+     * {@code VALUE_STRING} tokens with their original casing preserved, this we normalize
+     * such values at parse time.
+     *
+     * The better way to deal with that would be be to provide own dedicated {@link ScalarResolver}
+     * implementation but unfortunately {@link YAMLParser} does not provide a way to set or override it
+     * currently.
+     */
+    @Override
+    public String text() throws IOException {
+        String text = super.text();
+        if (currentToken() == Token.VALUE_STRING) {
+            if ("true".equalsIgnoreCase(text)) {
+                return "true";
+            } else if ("false".equalsIgnoreCase(text)) {
+                return "false";
+            }
+        }
+        return text;
     }
 }
