@@ -25,6 +25,7 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ExecutionContext;
 import org.opensearch.analytics.backend.SearchExecEngine;
+import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -448,10 +449,15 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
-            Object reader = ctx.getReader().reader(format);
-            long rows = reader instanceof Long ? (Long) reader : 0L;
-            return new MockSearchExecEngine(rows);
+        public SearchExecEngineProvider getSearchExecEngineProvider() {
+            return new SearchExecEngineProvider() {
+                @Override
+                public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+                    Object reader = ctx.getReader().reader(format);
+                    long rows = reader instanceof Long ? (Long) reader : 0L;
+                    return new MockSearchExecEngine(rows);
+                }
+            };
         }
     }
 }

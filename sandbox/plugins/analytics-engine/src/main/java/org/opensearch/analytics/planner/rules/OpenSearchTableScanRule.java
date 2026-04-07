@@ -1,0 +1,113 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.analytics.planner.rules;
+
+import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.FieldStorageInfo;
+import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.OperatorCapability;
+import org.opensearch.cluster.metadata.IndexMetadata;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Converts {@link TableScan} → {@link OpenSearchTableScan}.
+ * Resolves backend from index data format settings and populates
+ * per-column {@link FieldStorageInfo} from IndexMetadata mappings.
+ *
+ * @opensearch.internal
+ */
+public class OpenSearchTableScanRule extends RelOptRule {
+
+    private final PlannerContext context;
+
+    public OpenSearchTableScanRule(PlannerContext context) {
+        super(operand(TableScan.class, none()), "OpenSearchTableScanRule");
+        this.context = context;
+    }
+
+    @Override
+    public void onMatch(RelOptRuleCall call) {
+        TableScan scan = call.rel(0);
+        if (scan instanceof OpenSearchTableScan) {
+            return;
+        }
+
+        // TODO: table name can be an index pattern — needs IndexNameExpressionResolver
+        String tableName = scan.getTable().getQualifiedName().getLast();
+
+        IndexMetadata indexMetadata = context.getClusterState().metadata().index(tableName);
+        if (indexMetadata == null) {
+            throw new IllegalArgumentException("Index [" + tableName + "] not found in cluster state");
+        }
+
+        String primaryFormat = indexMetadata.getSettings().get("index.composite.primary_data_format", "lucene");
+        CapabilityRegistry registry = context.getCapabilityRegistry();
+        FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(indexMetadata);
+
+        // TODO : This expects the FrontEnds to attach the row type with all fields.
+        // TODO : How will they attach if we perform the index resolution
+        List<String> fieldNames = scan.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
+        List<FieldStorageInfo> fieldStorage = fieldStorageResolver.resolve(fieldNames);
+
+        // Viable backends: must support SCAN and be able to read ALL requested fields
+        // (natively or via delegation to another backend that can read the field)
+        List<String> scanCapable = registry.operatorBackends(OperatorCapability.SCAN);
+        List<String> delegationSupporters = registry.delegationSupporters(DelegationType.SCAN);
+        List<String> delegationAcceptors = registry.delegationAcceptors(DelegationType.SCAN);
+        List<String> viableBackends = new ArrayList<>(scanCapable);
+
+        for (FieldStorageInfo field : fieldStorage) {
+            if (field.isDerived()) {
+                continue;
+            }
+            // Backends that can natively scan this field's doc values
+            List<String> fieldBackends = new ArrayList<>();
+            for (String format : field.getDocValueFormats()) {
+                for (String backend : registry.scanBackends(format)) {
+                    if (!fieldBackends.contains(backend)) {
+                        fieldBackends.add(backend);
+                    }
+                }
+            }
+            // Keep candidates that can scan natively or delegate to one that can
+            viableBackends.removeIf(candidate -> {
+                if (fieldBackends.contains(candidate)) {
+                    return false;
+                }
+                return !delegationSupporters.contains(candidate) || fieldBackends.stream().noneMatch(delegationAcceptors::contains);
+            });
+        }
+
+        if (viableBackends.isEmpty()) {
+            throw new IllegalStateException(
+                "No backend can scan all requested fields on index [" + indexMetadata.getIndex().getName() + "]"
+            );
+        }
+
+        call.transformTo(
+            OpenSearchTableScan.create(
+                scan.getCluster(),
+                scan.getTable(),
+                viableBackends,
+                fieldStorage,
+                indexMetadata.getNumberOfShards(),
+                context.getDistributionTraitDef()
+            )
+        );
+    }
+}
