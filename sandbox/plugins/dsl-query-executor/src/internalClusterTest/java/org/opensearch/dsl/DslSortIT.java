@@ -55,4 +55,22 @@ public class DslSortIT extends DslIntegTestBase {
         createTestIndex();
         assertOk(search(new SearchSourceBuilder().from(10).size(5)));
     }
+
+    public void testSortMissingFirst() {
+        createTestIndex();
+        assertOk(search(
+            new SearchSourceBuilder().sort(
+                org.opensearch.search.sort.SortBuilders.fieldSort("price").order(SortOrder.ASC).missing("_first")
+            )
+        ));
+    }
+
+    public void testSortMissingLast() {
+        createTestIndex();
+        assertOk(search(
+            new SearchSourceBuilder().sort(
+                org.opensearch.search.sort.SortBuilders.fieldSort("price").order(SortOrder.DESC).missing("_last")
+            )
+        ));
+    }
 }

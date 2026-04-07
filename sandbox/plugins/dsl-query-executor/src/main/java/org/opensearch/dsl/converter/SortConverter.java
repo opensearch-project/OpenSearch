@@ -72,9 +72,7 @@ public class SortConverter extends AbstractDslConverter {
                     ? RelFieldCollation.Direction.ASCENDING
                     : RelFieldCollation.Direction.DESCENDING;
 
-                RelFieldCollation.NullDirection nullDirection = (fieldSort.order() == SortOrder.ASC)
-                    ? RelFieldCollation.NullDirection.LAST
-                    : RelFieldCollation.NullDirection.FIRST;
+                RelFieldCollation.NullDirection nullDirection = resolveNullDirection(fieldSort);
 
                 fieldCollations.add(new RelFieldCollation(field.getIndex(), direction, nullDirection));
             } else {
@@ -83,6 +81,21 @@ public class SortConverter extends AbstractDslConverter {
         }
 
         return RelCollations.of(fieldCollations);
+    }
+
+    private RelFieldCollation.NullDirection resolveNullDirection(FieldSortBuilder fieldSort) {
+        Object missing = fieldSort.missing();
+        if (missing != null) {
+            String missingStr = missing.toString();
+            if ("_first".equals(missingStr)) {
+                return RelFieldCollation.NullDirection.FIRST;
+            } else if ("_last".equals(missingStr)) {
+                return RelFieldCollation.NullDirection.LAST;
+            }
+        }
+        return (fieldSort.order() == SortOrder.ASC)
+            ? RelFieldCollation.NullDirection.LAST
+            : RelFieldCollation.NullDirection.FIRST;
     }
 
     private RexNode buildOffset(ConversionContext ctx) {
