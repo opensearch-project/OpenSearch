@@ -798,7 +798,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 false,
                 discoveryNodes,
                 mockReplicationStatsProvider,
-                new MergedSegmentWarmerFactory(null, new RecoverySettings(nodeSettings, clusterSettings), null),
+                new MergedSegmentWarmerFactory(null, new RecoverySettings(nodeSettings, clusterSettings), clusterService),
                 false,
                 () -> Boolean.FALSE,
                 indexSettings::getRefreshInterval,
