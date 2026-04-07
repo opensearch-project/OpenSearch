@@ -46,6 +46,7 @@ As of the 3.6 release [the CHANGELOG is no longer used][1] to generate release n
 - Updated MMapDirectory to use ReadAdviseByContext rather than default readadvise of Lucene([#21031](https://github.com/opensearch-project/OpenSearch/pull/21031))
 
 ### Fixed
+- Fix missing per-field disk statistics of Lucene segments by merging file sizes per extension instead of overwriting ([#21000](https://github.com/opensearch-project/OpenSearch/pull/21000))
 - Relax index template pattern overlap check to use minimum-string heuristic, allowing distinguishable multi-wildcard patterns at the same priority ([#20702](https://github.com/opensearch-project/OpenSearch/pull/20702))
 - Fix `AutoForceMergeMetrics` silently dropping tags due to unreassigned `addTag()` return value ([#20788](https://github.com/opensearch-project/OpenSearch/pull/20788))
 - Fix flaky test failures in ShardsLimitAllocationDeciderIT ([#20375](https://github.com/opensearch-project/OpenSearch/pull/20375))
