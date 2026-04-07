@@ -1396,7 +1396,6 @@ final class DocumentParser {
         }
 
         // If a dynamic_property matches this field, use it without updating the index mapping (no cluster state update;
-        // see DynamicProperty javadoc for authorization/audit implications).
         // Use ContentPath + leaf so the dotted name matches FieldMapper#name (built via pathAsText in FieldMapper.Builder).
         // Root ObjectMapper#fullPath is the internal mapping-type name "_doc", which must not prefix index field names.
         String fullPath = context.path().pathAsText(currentFieldName);

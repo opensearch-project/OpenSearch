@@ -27,13 +27,6 @@ import java.util.TreeMap;
  * new field definitions into the cluster state mapping (no mapping-update round trip for that
  * field). That is intentional for performance and matches Solr-style dynamic fields.
  *
- * <p>Downstream effects: anything that runs only when the cluster state mapping is updated
- * (for example authorization checks, audit hooks, or plugins that observe {@code PUT mapping}
- * / dynamic mapping updates) will not run for fields materialized solely through dynamic
- * property matching. Operators and integrators should not assume those hooks fire per matched
- * field. Use explicit {@code properties} in the index mapping if a field must go through the
- * normal mapping-update pipeline.
- *
  * <p>The pattern key {@code *} alone is not allowed in {@code dynamic_properties}; each pattern must
  * contain {@code *} as part of a more specific glob (e.g. {@code *_i}). To default-type every unknown
  * field name with one rule, use {@code dynamic_templates} on the root mapping instead.
