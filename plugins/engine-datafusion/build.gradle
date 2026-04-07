@@ -35,9 +35,6 @@ dependencies {
     implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
-    // protobuf for decoding native metrics from Rust (prost-encoded)
-    implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
-
     // Bundle Jackson in the plugin JAR using 'api' like other OpenSearch plugins
     api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -75,6 +72,7 @@ dependencies {
         exclude group: 'org.antlr', module: 'antlr4-runtime'
         exclude group: 'org.antlr', module: 'antlr4'
     }
+    // protobuf-java required by Substrait (io.substrait.proto.Plan serialization)
     implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
 
@@ -182,6 +180,7 @@ bundlePlugin {
     exclude 'jackson-databind-*.jar'
     exclude 'jackson-core-*.jar'
     exclude 'commons-codec-*.jar'
+    exclude 'commons-io-*.jar'
     exclude 'janino-*.jar'
     exclude 'commons-compiler-*.jar'
     exclude 'joou-java-6-*.jar'
@@ -317,15 +316,7 @@ tasks.named('thirdPartyAudit').configure {
         'org.apache.arrow.vector.Decimal256Vector',
         'org.apache.arrow.vector.DecimalVector',
         'org.apache.arrow.vector.util.DecimalUtility',
-        'org.apache.arrow.vector.util.VectorAppender',
-        // Protobuf internal classes that use Unsafe operations
-        'com.google.protobuf.MessageSchema',
-        'com.google.protobuf.UnsafeUtil',
-        'com.google.protobuf.UnsafeUtil$1',
-        'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+        'org.apache.arrow.vector.util.VectorAppender'
     )
 }
 
@@ -338,15 +329,3 @@ missingJavadoc {
     ]
 }
 
-// Handle protobuf generated code
-tasks.named('forbiddenApisMain').configure {
-    ignoreViolations(
-        'com.google.protobuf.MessageSchema',
-        'com.google.protobuf.UnsafeUtil',
-        'com.google.protobuf.UnsafeUtil$1',
-        'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-        'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-    )
-}

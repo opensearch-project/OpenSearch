@@ -27,7 +27,6 @@ jni = "0.21"
 # Substrait support
 datafusion-substrait = "52.1.0"
 prost = "0.14"
-prost-build = "0.14"
 
 
 # Async runtime

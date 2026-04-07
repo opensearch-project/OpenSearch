@@ -126,7 +126,7 @@ impl RuntimeManager {
         let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder);
 
         // Create MetricsCollector for IO runtime
-        let io_metrics = Arc::new(MetricsCollector::new(io_runtime.handle()));
+        let io_metrics = Arc::new(MetricsCollector::new(io_runtime_rt.handle()));
 
         // Create MetricsCollector for CPU runtime (if handle is available)
         let cpu_metrics = cpu_executor

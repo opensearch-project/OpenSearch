@@ -24,8 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * Writeable round-trip and XContent tests have moved to NativeExecutorsStatsTests
  * in the server module, since DataFusionPluginStats is now a pure POJO.
- *
- * Feature: proto-to-longarray-migration
  */
 public class DataFusionPluginStatsTests {
 

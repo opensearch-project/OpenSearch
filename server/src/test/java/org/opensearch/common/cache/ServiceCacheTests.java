@@ -25,8 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Property-based tests for ServiceCache using jqwik.
  * Tests the caching invariant: supplier called once within TTL,
  * called again after TTL expires.
- *
- * Feature: metrics-arch-migration, Property 8: ServiceCache caching invariant
  */
 public class ServiceCacheTests {
 
