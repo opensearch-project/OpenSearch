@@ -306,6 +306,7 @@ exit 0
 %attr(-, %{name}, %{name}) %{product_dir}/engine/sockets/.keep
 %attr(-, %{name}, %{name}) %{product_dir}/engine/bin/lib
 %attr(-, %{name}, %{name}) %{product_dir}/engine/data
+%attr(-, %{name}, %{name}) %{product_dir}/engine/data/tzdb
 %attr(-, %{name}, %{name}) %{product_dir}/engine/logs
 %attr(-, %{name}, %{name}) %{product_dir}/engine/schemas
 %attr(-, %{name}, %{name}) %{product_dir}/engine/README.md
