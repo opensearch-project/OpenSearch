@@ -17,8 +17,6 @@ import java.util.Map;
  * without adding those fields to the serialized mapping. Query-time resolution mirrors ingest-time
  * {@link DynamicProperty} handling: no cluster state mapping update occurs when a name matches.
  *
- * <p>Callers that rely on mapping-update side effects (security, audit, etc.) should see
- * {@link DynamicProperty} class documentation.
  *
  * <p><b>Cache invalidation:</b> Each {@link DocumentMapper} constructor runs
  * {@link MappingLookup#fromMapping} and constructs a new resolver with an empty cache.
