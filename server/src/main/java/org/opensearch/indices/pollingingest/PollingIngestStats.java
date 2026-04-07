@@ -32,23 +32,6 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         this(messageProcessorStats, consumerStats, new PipelineStats(0, 0, 0, 0));
     }
 
-    public PollingIngestStats(
-        MessageProcessorStats messageProcessorStats,
-        ConsumerStats consumerStats,
-        IngestPipelineExecutor.PipelineMetrics pipelineMetrics
-    ) {
-        this(
-            messageProcessorStats,
-            consumerStats,
-            new PipelineStats(
-                pipelineMetrics.totalExecutionCount(),
-                pipelineMetrics.totalExecutionTimeInMillis(),
-                pipelineMetrics.totalFailedCount(),
-                pipelineMetrics.totalDroppedCount()
-            )
-        );
-    }
-
     public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats, PipelineStats pipelineStats) {
         this.messageProcessorStats = messageProcessorStats;
         this.consumerStats = consumerStats;
@@ -302,11 +285,11 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             return this;
         }
 
-        public Builder setPipelineStats(IngestPipelineExecutor.PipelineMetrics metrics) {
-            this.pipelineExecutionCount = metrics.totalExecutionCount();
-            this.pipelineExecutionTimeInMillis = metrics.totalExecutionTimeInMillis();
-            this.pipelineFailedCount = metrics.totalFailedCount();
-            this.pipelineDroppedCount = metrics.totalDroppedCount();
+        public Builder setPipelineStats(PipelineStats stats) {
+            this.pipelineExecutionCount = stats.totalExecutionCount();
+            this.pipelineExecutionTimeInMillis = stats.totalExecutionTimeInMillis();
+            this.pipelineFailedCount = stats.totalFailedCount();
+            this.pipelineDroppedCount = stats.totalDroppedCount();
             return this;
         }
 

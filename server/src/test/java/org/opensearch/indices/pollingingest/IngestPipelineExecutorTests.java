@@ -59,7 +59,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         verify(ingestService, never()).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         // No pipeline configured — metrics should be zero
-        IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
         assertEquals(0, metrics.totalExecutionCount());
         assertEquals(0, metrics.totalFailedCount());
     }
@@ -79,7 +79,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         verify(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         // Verify metrics
-        IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
         assertEquals(1, metrics.totalExecutionCount());
         assertTrue(metrics.totalExecutionTimeInMillis() >= 0);
         assertEquals(0, metrics.totalFailedCount());
@@ -107,7 +107,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         assertNull(result);
 
         // Verify drop metric
-        IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
         assertEquals(1, metrics.totalExecutionCount());
         assertEquals(1, metrics.totalDroppedCount());
         assertEquals(0, metrics.totalFailedCount());
@@ -131,7 +131,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         assertTrue(e.getMessage().contains("processor failed"));
 
         // Verify failure metric
-        IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
+        PollingIngestStats.PipelineStats metrics = executor.getMetrics();
         assertEquals(1, metrics.totalExecutionCount());
         assertEquals(1, metrics.totalFailedCount());
         assertEquals(0, metrics.totalDroppedCount());

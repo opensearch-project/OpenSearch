@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.metrics.CounterMetric;
+import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.ingest.IngestService;
 
@@ -45,8 +45,7 @@ public class IngestPipelineExecutor {
     private volatile String resolvedFinalPipeline;
 
     // Pipeline execution metrics
-    private final CounterMetric executionCount = new CounterMetric();
-    private final CounterMetric executionTimeNanos = new CounterMetric();
+    private final MeanMetric executionTime = new MeanMetric();
     private final CounterMetric failedCount = new CounterMetric();
     private final CounterMetric droppedCount = new CounterMetric();
 
@@ -131,8 +130,7 @@ public class IngestPipelineExecutor {
             }
         }, slot -> dropped.set(true));
 
-        executionTimeNanos.inc(System.nanoTime() - startTimeNanos);
-        executionCount.inc();
+        executionTime.inc(System.nanoTime() - startTimeNanos);
 
         if (failureRef.get() != null) {
             failedCount.inc();
@@ -168,22 +166,12 @@ public class IngestPipelineExecutor {
     /**
      * Returns pipeline execution metrics.
      */
-    public PipelineMetrics getMetrics() {
-        return new PipelineMetrics(
-            executionCount.count(),
-            TimeUnit.NANOSECONDS.toMillis(executionTimeNanos.count()),
+    public PollingIngestStats.PipelineStats getMetrics() {
+        return new PollingIngestStats.PipelineStats(
+            executionTime.count(),
+            TimeUnit.NANOSECONDS.toMillis(executionTime.sum()),
             failedCount.count(),
             droppedCount.count()
         );
-    }
-
-    /**
-     * Pipeline execution metrics for pull-based ingestion.
-     * Note: totalExecutionCount includes all pipeline invocations (successful, failed, and dropped).
-     * Success count can be derived as: totalExecutionCount - totalFailedCount - totalDroppedCount.
-     */
-    @PublicApi(since = "3.7.0")
-    public record PipelineMetrics(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount,
-        long totalDroppedCount) {
     }
 }
