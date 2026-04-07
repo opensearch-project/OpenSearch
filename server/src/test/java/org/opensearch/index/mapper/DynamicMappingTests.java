@@ -42,12 +42,21 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
 
@@ -59,6 +68,102 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             buildFields.accept(b);
             b.endObject();
         });
+    }
+
+    public void testDynamicPropertiesNoMappingUpdate() throws IOException {
+        // When a field matches a dynamic_property pattern, it is indexed without a cluster state mapping update
+        DocumentMapper mapper = createDocumentMapper(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("*_s")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("count_i", 42).field("name_s", "foo")));
+        assertThat(doc.rootDoc().get("count_i"), equalTo("42"));
+        // keyword fields are often represented as binary term values, not stringValue(); see Document#get
+        assertThat(doc.rootDoc().getBinaryValue("name_s").utf8ToString(), equalTo("foo"));
+        assertNull("dynamic_property match must not trigger mapping update", doc.dynamicMappingsUpdate());
+    }
+
+    public void testDynamicPropertiesFieldTypeLookup() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .startObject("*_s")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNotNull(mapperService.fieldType("count_i"));
+        assertThat(mapperService.fieldType("count_i").typeName(), equalTo("long"));
+        assertNotNull(mapperService.fieldType("name_s"));
+        assertThat(mapperService.fieldType("name_s").typeName(), equalTo("keyword"));
+    }
+
+    /**
+     * Stresses {@link DynamicPropertyFieldTypeResolver}: many threads resolve distinct field names
+     * (more than the resolver LRU size) so {@link java.util.LinkedHashMap} eviction runs under the
+     * synchronized {@code resolve} path without corruption or wrong types.
+     */
+    public void testDynamicPropertyFieldTypeLookupConcurrent() throws Exception {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        final int threads = 16;
+        final int iterations = 400;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        AtomicInteger bad = new AtomicInteger(0);
+        for (int t = 0; t < threads; t++) {
+            final int tid = t;
+            pool.submit(() -> {
+                try {
+                    start.await();
+                    for (int i = 0; i < iterations; i++) {
+                        String field = "t" + tid + "_" + i + "_i";
+                        MappedFieldType ft = mapperService.fieldType(field);
+                        if (ft == null || ft.typeName().equals("long") == false) {
+                            bad.incrementAndGet();
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    bad.incrementAndGet();
+                } catch (RuntimeException e) {
+                    bad.incrementAndGet();
+                } finally {
+                    done.countDown();
+                }
+            });
+        }
+        start.countDown();
+        assertTrue(done.await(120, TimeUnit.SECONDS));
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(60, TimeUnit.SECONDS));
+        assertEquals(0, bad.get());
     }
 
     public void testDynamicTrue() throws IOException {
