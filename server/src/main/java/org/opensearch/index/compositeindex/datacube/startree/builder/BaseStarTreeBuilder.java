@@ -79,7 +79,7 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
  * Builder for star tree. Defines the algorithm to construct star-tree
  * See {@link StarTreesBuilder} for information around the construction of star-trees based on star-tree fields
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public abstract class BaseStarTreeBuilder implements StarTreeBuilder {
 

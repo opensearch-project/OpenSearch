@@ -9,6 +9,6 @@
 /**
  * Holds classes associated with star tree node
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree.node;

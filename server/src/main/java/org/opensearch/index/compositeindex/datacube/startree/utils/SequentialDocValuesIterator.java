@@ -10,7 +10,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.utils;
 
 import org.apache.lucene.util.LongValues;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.StarTreeValuesIterator;
@@ -24,9 +24,9 @@ import java.io.IOException;
  * In case of merge , this will be reading the entries of star tree values and in case of flush this will go through
  * the actual segment documents.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SequentialDocValuesIterator {
 
     /**

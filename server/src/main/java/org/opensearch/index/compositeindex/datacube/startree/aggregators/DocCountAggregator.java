@@ -14,7 +14,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
 /**
  * Aggregator to handle '_doc_count' field
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class DocCountAggregator implements ValueAggregator<Long> {
 

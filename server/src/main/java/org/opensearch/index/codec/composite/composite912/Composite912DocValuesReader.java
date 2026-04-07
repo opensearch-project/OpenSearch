@@ -28,7 +28,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.IndexInput;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -58,9 +58,9 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
 /**
  * Reader for star tree index and star tree doc values from the segments
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Composite912DocValuesReader extends DocValuesProducer implements CompositeIndexReader {
     private static final Logger logger = LogManager.getLogger(Composite912DocValuesReader.class);
 

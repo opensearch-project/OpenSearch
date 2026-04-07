@@ -14,7 +14,7 @@ package org.opensearch.index.compositeindex.datacube;
  * This enum defines the possible types of dimensions that can be used
  * in a data cube structure within the composite index.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public enum DimensionType {
     /**

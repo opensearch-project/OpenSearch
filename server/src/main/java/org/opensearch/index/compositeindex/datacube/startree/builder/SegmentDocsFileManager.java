@@ -14,7 +14,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
@@ -29,9 +29,9 @@ import java.util.List;
  * Segment documents are stored in a single file named 'segment.documents' for sorting and aggregation. A document ID array is created,
  * and the document IDs in the array are swapped during sorting based on the actual segment document values in the file.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SegmentDocsFileManager extends AbstractDocumentsFileManager implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(SegmentDocsFileManager.class);

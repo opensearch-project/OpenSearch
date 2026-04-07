@@ -9,15 +9,15 @@
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;
 
 import org.apache.lucene.index.DocValuesType;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.DimensionDataType;
 
 /**
  * Class to store DocValuesType and DimensionDataType for a dimension.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class DimensionConfig {
 
     private final DocValuesType docValuesType;

@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Unsigned Long dimension class
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class UnsignedLongDimension extends NumericDimension {
 

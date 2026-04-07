@@ -9,6 +9,6 @@
 /**
  * Meta package for star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree.fileformats.meta;

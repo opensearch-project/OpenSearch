@@ -8,7 +8,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.Metric;
 
@@ -20,9 +20,9 @@ import java.util.Set;
 /**
  * Base class for multi field data cube fields
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class CompositeDataCubeFieldType extends CompositeMappedFieldType {
     public static final String NAME = "name";
     public static final String TYPE = "type";

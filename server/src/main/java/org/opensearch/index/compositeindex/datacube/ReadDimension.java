@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 /**
  * Represents a dimension for reconstructing StarTreeField from file formats during searches and merges.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class ReadDimension implements Dimension {
     public static final String READ = "read";

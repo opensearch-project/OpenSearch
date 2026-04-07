@@ -28,7 +28,7 @@ import static java.util.Collections.unmodifiableMap;
  *
  * @see org.opensearch.common.Rounding.DateTimeUnit for more information on the dateTimeUnit enum and rounding logic.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public enum DataCubeDateTimeUnit implements DateTimeUnitRounding {
     HALF_HOUR_OF_DAY("half-hour") {

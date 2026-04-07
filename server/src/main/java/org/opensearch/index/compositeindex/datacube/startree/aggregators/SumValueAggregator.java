@@ -20,7 +20,7 @@ import org.opensearch.search.aggregations.metrics.CompensatedSum;
  *
  * @see <a href="http://en.wikipedia.org/wiki/Kahan_summation_algorithm">Kahan Summation Algorithm</a>
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 class SumValueAggregator implements ValueAggregator<CompensatedSum> {
 

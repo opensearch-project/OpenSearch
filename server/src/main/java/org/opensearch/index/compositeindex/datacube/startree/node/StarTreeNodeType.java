@@ -33,7 +33,7 @@ package org.opensearch.index.compositeindex.datacube.startree.node;
  *
  * By default, we want to consider nodes as default node.
  *
- * @opensearch.experimental
+ * @opensearch.api
  * @see StarTreeNode
  */
 public enum StarTreeNodeType {

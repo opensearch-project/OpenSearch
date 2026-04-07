@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -18,9 +18,9 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 /**
  * Cluster level settings for composite indices
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class CompositeIndexSettings {
     public static final Setting<Boolean> STAR_TREE_INDEX_ENABLED_SETTING = Setting.boolSetting(
         "indices.composite_index.star_tree.enabled",

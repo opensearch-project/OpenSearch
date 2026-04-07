@@ -15,7 +15,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.store.TrackingDirectoryWrapper;
 import org.apache.lucene.util.NumericUtils;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.Metric;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeDocument;
@@ -38,9 +38,9 @@ import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 /**
  * Abstract class for managing star tree file operations.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class AbstractDocumentsFileManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(AbstractDocumentsFileManager.class);
     protected final StarTreeField starTreeField;

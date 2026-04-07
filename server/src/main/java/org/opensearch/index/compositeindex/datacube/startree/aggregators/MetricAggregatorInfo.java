@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * Builds aggregation function and doc values field pair to support various aggregations
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class MetricAggregatorInfo implements Comparable<MetricAggregatorInfo> {
 

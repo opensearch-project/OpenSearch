@@ -8,14 +8,14 @@
 
 package org.opensearch.index.compositeindex.datacube.startree.index;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Interface for composite index values
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface CompositeIndexValues {
     CompositeIndexValues getValues();
 }

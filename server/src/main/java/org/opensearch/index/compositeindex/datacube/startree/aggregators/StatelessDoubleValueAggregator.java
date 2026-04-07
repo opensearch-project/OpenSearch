@@ -14,7 +14,7 @@ import org.opensearch.index.mapper.NumberFieldMapper;
  * This is an abstract class that defines the common methods for all double value aggregators
  * It is stateless.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 abstract class StatelessDoubleValueAggregator implements ValueAggregator<Double> {
 

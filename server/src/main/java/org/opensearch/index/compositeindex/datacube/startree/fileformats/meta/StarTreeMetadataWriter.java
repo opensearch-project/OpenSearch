@@ -29,7 +29,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.fileformats.
  * The metadata includes information about the dimensions, metrics, and other relevant details
  * related to the star tree.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeMetadataWriter {
 

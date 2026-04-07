@@ -14,7 +14,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -22,9 +22,9 @@ import java.io.IOException;
 /**
  * DocValues format to handle composite indices
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Composite912DocValuesFormat extends DocValuesFormat {
     /**
      * Creates a new docvalues format.

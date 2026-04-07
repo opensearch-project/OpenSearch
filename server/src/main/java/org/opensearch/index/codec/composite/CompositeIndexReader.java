@@ -8,7 +8,7 @@
 
 package org.opensearch.index.codec.composite;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.CompositeIndexValues;
 
 import java.io.IOException;
@@ -17,9 +17,9 @@ import java.util.List;
 /**
  * Interface that abstracts the functionality to read composite index structures from the segment
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface CompositeIndexReader {
     /**
      * Get list of composite index fields from the segment

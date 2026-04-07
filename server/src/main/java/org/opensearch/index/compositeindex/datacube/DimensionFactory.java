@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.utils.date.DateTimeUnitRounding;
@@ -30,9 +30,9 @@ import static org.opensearch.index.compositeindex.datacube.OrdinalDimension.ORDI
 /**
  * Dimension factory class mainly used to parse and create dimension from the mappings
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class DimensionFactory {
     public static Dimension parseAndCreateDimension(
         String name,

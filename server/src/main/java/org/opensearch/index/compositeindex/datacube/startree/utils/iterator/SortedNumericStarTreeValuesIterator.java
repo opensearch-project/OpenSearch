@@ -10,16 +10,16 @@ package org.opensearch.index.compositeindex.datacube.startree.utils.iterator;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * Wrapper iterator class for StarTree index to traverse through SortedNumericDocValues
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SortedNumericStarTreeValuesIterator extends StarTreeValuesIterator {
 
     public SortedNumericStarTreeValuesIterator(DocIdSetIterator docIdSetIterator) {

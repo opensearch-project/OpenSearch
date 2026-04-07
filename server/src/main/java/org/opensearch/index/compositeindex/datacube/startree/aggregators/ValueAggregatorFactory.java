@@ -13,7 +13,7 @@ import org.opensearch.index.mapper.FieldValueConverter;
 /**
  * Value aggregator factory for a given aggregation type
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class ValueAggregatorFactory {
     private ValueAggregatorFactory() {}

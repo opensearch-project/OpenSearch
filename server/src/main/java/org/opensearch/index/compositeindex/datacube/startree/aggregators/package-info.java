@@ -9,6 +9,6 @@
 /**
  * Aggregators for Composite Index Star Tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree.aggregators;

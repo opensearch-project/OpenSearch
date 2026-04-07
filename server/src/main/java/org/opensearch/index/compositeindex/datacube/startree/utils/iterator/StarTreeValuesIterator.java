@@ -9,7 +9,7 @@
 package org.opensearch.index.compositeindex.datacube.startree.utils.iterator;
 
 import org.apache.lucene.search.DocIdSetIterator;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
@@ -18,9 +18,9 @@ import java.io.IOException;
  * This is needed since star tree values are different from segment documents and number of star tree values
  * can even exceed segment docs in the worst cases.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public abstract class StarTreeValuesIterator {
 
     public static final int NO_MORE_ENTRIES = Integer.MAX_VALUE;

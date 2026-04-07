@@ -21,7 +21,7 @@ import java.io.IOException;
  * from an {@link IndexInput} and {@link StarTreeMetadata}. The implementation uses an
  * off-heap data structure to store and access the star-tree data efficiently using random access.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeFactory {
 

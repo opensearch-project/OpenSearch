@@ -8,6 +8,6 @@
 /**
  * Core classes for handling star tree index.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree;

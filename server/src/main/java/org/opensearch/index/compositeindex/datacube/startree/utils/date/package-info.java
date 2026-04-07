@@ -9,6 +9,6 @@
 /**
  * Classes and utilities for working with dateTimeUnits
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 package org.opensearch.index.compositeindex.datacube.startree.utils.date;

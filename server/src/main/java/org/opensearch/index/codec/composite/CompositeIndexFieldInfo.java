@@ -9,15 +9,15 @@
 
 package org.opensearch.index.codec.composite;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.mapper.CompositeMappedFieldType;
 
 /**
  * Field info details of composite index fields
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class CompositeIndexFieldInfo {
     private final String field;
     private final CompositeMappedFieldType.CompositeFieldType type;

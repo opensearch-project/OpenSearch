@@ -8,7 +8,7 @@
 
 package org.opensearch.search.startree.filter;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.node.StarTreeNode;
 import org.opensearch.search.internal.SearchContext;
@@ -17,7 +17,7 @@ import org.opensearch.search.startree.StarTreeNodeCollector;
 /**
  * Filter which matches no StarTreeNodes.
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class MatchNoneFilter implements DimensionFilter {
 
     @Override

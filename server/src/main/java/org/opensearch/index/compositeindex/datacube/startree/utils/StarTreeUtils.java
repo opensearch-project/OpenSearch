@@ -22,7 +22,7 @@ import java.util.Map;
 /**
  * Util class for building star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeUtils {
 

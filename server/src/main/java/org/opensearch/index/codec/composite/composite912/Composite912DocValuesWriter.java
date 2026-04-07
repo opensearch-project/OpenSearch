@@ -25,7 +25,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
@@ -56,9 +56,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * This class write the star tree index and star tree doc values
  * based on the doc values structures of the original index
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class Composite912DocValuesWriter extends DocValuesConsumer {
     private final DocValuesConsumer delegate;
     private final SegmentWriteState state;

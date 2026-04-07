@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * Util class for building star tree
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeWriter {
 

@@ -8,7 +8,7 @@
 
 package org.opensearch.index.compositeindex.datacube.startree;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -25,9 +25,9 @@ import java.util.Set;
 /**
  * Validations for star tree fields as part of mappings
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class StarTreeValidator {
     public static void validate(MapperService mapperService, CompositeIndexSettings compositeIndexSettings, IndexSettings indexSettings) {
         Set<CompositeMappedFieldType> compositeFieldTypes = mapperService.getCompositeFieldTypes();

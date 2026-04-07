@@ -41,6 +41,7 @@ As of the 3.6 release [the CHANGELOG is no longer used][1] to generate release n
 - Use env variable (OPENSEARCH_FIPS_MODE) to enable opensearch to run in FIPS enforced mode instead of checking for existence of bcFIPS jars ([#20625](https://github.com/opensearch-project/OpenSearch/pull/20625))
 - Update streaming flag to use search request context ([#20530](https://github.com/opensearch-project/OpenSearch/pull/20530))
 - Move pull-based ingestion classes from experimental to publicAPI ([#20704](https://github.com/opensearch-project/OpenSearch/pull/20704))
+- Move star-tree classes from experimental to public API ([#20925](https://github.com/opensearch-project/OpenSearch/pull/20925))
 - Lazy init stored field reader in SourceLookup ([#20827](https://github.com/opensearch-project/OpenSearch/pull/20827))
 * Improved error message when trying to open an index originally created with Elasticsearch on OpenSearch ([#20512](https://github.com/opensearch-project/OpenSearch/pull/20512))
 - Updated MMapDirectory to use ReadAdviseByContext rather than default readadvise of Lucene([#21031](https://github.com/opensearch-project/OpenSearch/pull/21031))

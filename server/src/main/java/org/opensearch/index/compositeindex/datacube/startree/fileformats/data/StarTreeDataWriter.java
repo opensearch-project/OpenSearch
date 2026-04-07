@@ -23,7 +23,7 @@ import static org.opensearch.index.compositeindex.datacube.startree.utils.StarTr
 /**
  * Utility class for serializing a star-tree data structure.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
 public class StarTreeDataWriter {
 

@@ -11,6 +11,7 @@ package org.opensearch.index.codec.composite;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesProducerWrapper;
 import org.apache.lucene.index.SegmentReadState;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.codec.composite.composite912.Composite912Codec;
 
 import java.io.IOException;
@@ -25,8 +26,9 @@ import java.io.IOException;
  * <p>
  * This design ensures backward compatibility for reads across different codec versions.
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
+@PublicApi(since = "3.6.0")
 public class LuceneDocValuesProducerFactory {
 
     public static DocValuesProducer getDocValuesProducerForCompositeCodec(

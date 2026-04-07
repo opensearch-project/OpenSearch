@@ -13,16 +13,16 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
 /**
  * Wrapper iterator class for StarTree index to traverse through SortedNumericDocValues
  *
- * @opensearch.experimental
+ * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public class SortedSetStarTreeValuesIterator extends StarTreeValuesIterator {
 
     public SortedSetStarTreeValuesIterator(DocIdSetIterator docIdSetIterator) {
