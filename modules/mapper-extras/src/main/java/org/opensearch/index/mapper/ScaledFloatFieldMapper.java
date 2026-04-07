@@ -32,8 +32,6 @@
 
 package org.opensearch.index.mapper;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DocValues;
@@ -63,6 +61,7 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.tools.jackson.core.JsonParseException;
 
 import java.io.IOException;
 import java.time.ZoneId;
