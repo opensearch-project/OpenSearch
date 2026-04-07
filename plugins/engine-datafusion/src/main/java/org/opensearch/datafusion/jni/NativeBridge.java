@@ -70,6 +70,15 @@ public final class NativeBridge {
     // Memory monitoring
     public static native void printMemoryPoolAllocation(long runtimePtr);
 
+    /** Get current memory pool usage in bytes */
+    public static native long getMemoryPoolCurrentUsage(long runtimePtr);
+    /** Get peak memory pool usage in bytes */
+    public static native long getMemoryPoolPeakUsage(long runtimePtr);
+    /** Get current memory pool limit in bytes */
+    public static native long getMemoryPoolLimit(long runtimePtr);
+    /** Set memory pool limit at runtime. Takes effect for new allocations only. */
+    public static native void setMemoryPoolLimit(long runtimePtr, long newLimitBytes);
+
 
     // Logger initialization
     public static native void initLogger();

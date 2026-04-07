@@ -8,6 +8,8 @@
 
 package org.opensearch.datafusion.core;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 
@@ -24,17 +26,21 @@ import org.opensearch.datafusion.search.cache.CacheUtils;
  */
 public final class DataFusionRuntimeEnv implements AutoCloseable {
 
+    private static final Logger logger = LogManager.getLogger(DataFusionRuntimeEnv.class);
+
     private final GlobalRuntimeHandle runtimeHandle;
 
     private CacheManager cacheManager;
 
     /**
-     * Controls the memory used for the datafusion query execution
+     * Controls the memory used for the datafusion query execution.
+     * Dynamic: can be changed at runtime via cluster settings API.
+     * The Rust DynamicLimitPool reads the new limit atomically on every try_grow() call.
      */
     public static final Setting<ByteSizeValue> DATAFUSION_MEMORY_POOL_CONFIGURATION = Setting.byteSizeSetting(
         "datafusion.search.memory_pool",
         new ByteSizeValue(10, ByteSizeUnit.GB),
-        Setting.Property.Final,
+        Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
@@ -57,8 +63,21 @@ public final class DataFusionRuntimeEnv implements AutoCloseable {
         long cacheManagerConfigPtr = CacheUtils.createCacheConfig(clusterService.getClusterSettings());
         NativeBridge.initTokioRuntimeManager(Runtime.getRuntime().availableProcessors());
         this.runtimeHandle = new GlobalRuntimeHandle(memoryLimit, cacheManagerConfigPtr, spill_dir, spillLimit);
-        System.out.println("Runtime : " + this.runtimeHandle);
+        logger.info("DataFusion runtime created with memory pool limit: {} bytes", memoryLimit);
         this.cacheManager = new CacheManager(this.runtimeHandle);
+
+        // Register dynamic settings listener for memory pool limit changes
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            DATAFUSION_MEMORY_POOL_CONFIGURATION,
+            newValue -> {
+                long newLimitBytes = newValue.getBytes();
+                long runtimePtr = runtimeHandle.getPointer();
+                if (runtimePtr != 0) {
+                    NativeBridge.setMemoryPoolLimit(runtimePtr, newLimitBytes);
+                    logger.info("DataFusion memory pool limit updated to {} bytes via cluster settings", newLimitBytes);
+                }
+            }
+        );
     }
 
     /**
