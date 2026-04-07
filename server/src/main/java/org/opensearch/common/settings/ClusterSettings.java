@@ -344,6 +344,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
                 RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_REMOTE_STORE_STREAMS_SETTING,
+                RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_TRANSLOG_DOWNLOAD_STREAMS_SETTING,
                 RecoverySettings.INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT,
                 RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE_SETTING,
                 RecoverySettings.INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE,

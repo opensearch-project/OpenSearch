@@ -110,6 +110,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1706,7 +1707,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
 
         // Always File not found
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(new NoSuchFileException("File not found"));
+        doAnswer(invocation -> { throw new NoSuchFileException("File not found"); })
+            .when(mockTransfer).downloadTranslogsParallel(any(), any(), anyInt());
         TranslogTransferManager finalMockTransfer = mockTransfer;
         assertThrows(NoSuchFileException.class, () -> RemoteFsTranslog.download(finalMockTransfer, location, logger, false, 0));
 
@@ -1714,9 +1716,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         mockTransfer = mock(TranslogTransferManager.class);
         when(mockTransfer.readMetadata()).thenReturn(translogTransferMetadata);
         when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
-        String msg = "File not found";
-        Exception toThrow = randomBoolean() ? new NoSuchFileException(msg) : new FileNotFoundException(msg);
-        when(mockTransfer.downloadTranslog(any(), any(), any())).thenThrow(toThrow).thenReturn(true);
 
         AtomicLong downloadCounter = new AtomicLong();
         doAnswer(invocation -> {
@@ -1725,8 +1724,8 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
             } else if (downloadCounter.get() == 2) {
                 Files.createFile(location.resolve(Translog.getCommitCheckpointFileName(generation)));
             }
-            return true;
-        }).when(mockTransfer).downloadTranslog(any(), any(), any());
+            return null;
+        }).when(mockTransfer).downloadTranslogsParallel(any(), any(), anyInt());
 
         // no exception thrown
         RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
@@ -2093,6 +2092,40 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         }
 
         protected void afterAdd() {}
+    }
+
+    public void testConcurrentDownloadDuringRecovery() throws IOException {
+        long generation = 3, primaryTerm = 1, minGeneration = 1;
+        Path location = createTempDir();
+
+        TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(primaryTerm, generation, minGeneration, 3);
+        Map<String, String> generationToPrimaryTermMapper = new HashMap<>();
+        for (long gen = minGeneration; gen <= generation; gen++) {
+            generationToPrimaryTermMapper.put(String.valueOf(gen), String.valueOf(primaryTerm));
+        }
+        translogTransferMetadata.setGenerationToPrimaryTermMapper(generationToPrimaryTermMapper);
+
+        TranslogTransferManager mockTransfer = mock(TranslogTransferManager.class);
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker = mock(RemoteTranslogTransferTracker.class);
+        when(mockTransfer.readMetadata(0)).thenReturn(translogTransferMetadata);
+        when(mockTransfer.getRemoteTranslogTransferTracker()).thenReturn(remoteTranslogTransferTracker);
+
+        // Capture the pairs passed to downloadTranslogsParallel
+        List<List<?>> capturedPairs = new ArrayList<>();
+        doAnswer(invocation -> {
+            List<?> pairs = invocation.getArgument(0);
+            capturedPairs.add(pairs);
+            // Create the checkpoint file so download can proceed
+            Files.createDirectories(location);
+            Files.createFile(location.resolve(Translog.getCommitCheckpointFileName(generation)));
+            return null;
+        }).when(mockTransfer).downloadTranslogsParallel(any(), any(), anyInt());
+
+        RemoteFsTranslog.download(mockTransfer, location, logger, false, 0);
+
+        // Verify downloadTranslogsParallel was called with all 3 generations
+        assertEquals(1, capturedPairs.size());
+        assertEquals(3, capturedPairs.get(0).size());
     }
 
 }

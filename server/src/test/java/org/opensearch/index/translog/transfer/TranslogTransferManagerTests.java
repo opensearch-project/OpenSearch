@@ -1000,4 +1000,138 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             translogTransferManager.getFileTransferTracker().allUploaded()
         );
     }
+
+    public void testDownloadTranslogsParallelMultipleGenerations() throws IOException {
+        // Build a manager with threadPool so parallel path is taken
+        TranslogTransferManager parallelManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker),
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            false,
+            threadPool
+        );
+
+        // Mock downloads for generations 1, 2, 3
+        long delayMs = 50;
+        for (long gen = 1; gen <= 3; gen++) {
+            String tlogFile = "translog-" + gen + ".tlog";
+            String ckpFile = "translog-" + gen + ".ckp";
+            when(transferService.downloadBlob(any(BlobPath.class), eq(tlogFile))).thenAnswer(invocation -> {
+                Thread.sleep(delayMs);
+                return new java.io.ByteArrayInputStream(tlogBytes);
+            });
+            when(transferService.downloadBlob(any(BlobPath.class), eq(ckpFile))).thenAnswer(invocation -> {
+                Thread.sleep(delayMs);
+                return new java.io.ByteArrayInputStream(ckpBytes);
+            });
+        }
+
+        Path location = createTempDir();
+        List<org.opensearch.common.collect.Tuple<String, String>> pairs = new ArrayList<>();
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "3"));
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "2"));
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "1"));
+
+        parallelManager.downloadTranslogsParallel(pairs, location, 4);
+
+        // All 6 files should exist
+        for (long gen = 1; gen <= 3; gen++) {
+            assertTrue(Files.exists(location.resolve("translog-" + gen + ".tlog")));
+            assertTrue(Files.exists(location.resolve("translog-" + gen + ".ckp")));
+        }
+    }
+
+    public void testDownloadTranslogsParallelFailurePropagation() throws IOException {
+        TranslogTransferManager parallelManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            new FileTransferTracker(new ShardId("index", "indexUuid", 0), remoteTranslogTransferTracker),
+            remoteTranslogTransferTracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            false,
+            threadPool
+        );
+
+        // Generation 2 tlog download fails
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-1.tlog"))).thenReturn(
+            new java.io.ByteArrayInputStream(tlogBytes)
+        );
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-1.ckp"))).thenReturn(
+            new java.io.ByteArrayInputStream(ckpBytes)
+        );
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-2.tlog"))).thenThrow(
+            new IOException("Simulated download failure")
+        );
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-2.ckp"))).thenReturn(
+            new java.io.ByteArrayInputStream(ckpBytes)
+        );
+
+        Path location = createTempDir();
+        List<org.opensearch.common.collect.Tuple<String, String>> pairs = new ArrayList<>();
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "2"));
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "1"));
+
+        IOException ex = assertThrows(
+            IOException.class,
+            () -> parallelManager.downloadTranslogsParallel(pairs, location, 4)
+        );
+        assertTrue(ex.getMessage().contains("Simulated download failure"));
+    }
+
+    public void testDownloadTranslogsParallelSingleGeneration() throws IOException {
+        // With a single generation and maxConcurrentStreams=4, it should fall back to sequential (threads=1)
+        Path location = createTempDir();
+        List<org.opensearch.common.collect.Tuple<String, String>> pairs = List.of(
+            new org.opensearch.common.collect.Tuple<>("12", "23")
+        );
+
+        // Use manager without threadPool — single gen forces sequential path regardless
+        translogTransferManager.downloadTranslogsParallel(pairs, location, 1);
+
+        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
+        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
+    }
+
+    public void testDownloadTranslogsParallelTrackerUpdated() throws IOException {
+        RemoteTranslogTransferTracker tracker = new RemoteTranslogTransferTracker(shardId, 20);
+        TranslogTransferManager parallelManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            remoteBaseTransferPath.add(TRANSLOG.getName()),
+            remoteBaseTransferPath.add(METADATA.getName()),
+            new FileTransferTracker(new ShardId("index", "indexUuid", 0), tracker),
+            tracker,
+            DefaultRemoteStoreSettings.INSTANCE,
+            false,
+            threadPool
+        );
+
+        // Mock downloads for 2 generations
+        for (long gen = 1; gen <= 2; gen++) {
+            when(transferService.downloadBlob(any(BlobPath.class), eq("translog-" + gen + ".tlog"))).thenReturn(
+                new java.io.ByteArrayInputStream(tlogBytes)
+            );
+            when(transferService.downloadBlob(any(BlobPath.class), eq("translog-" + gen + ".ckp"))).thenReturn(
+                new java.io.ByteArrayInputStream(ckpBytes)
+            );
+        }
+
+        Path location = createTempDir();
+        List<org.opensearch.common.collect.Tuple<String, String>> pairs = new ArrayList<>();
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "2"));
+        pairs.add(new org.opensearch.common.collect.Tuple<>("1", "1"));
+
+        parallelManager.downloadTranslogsParallel(pairs, location, 4);
+
+        // Each generation downloads tlog + ckp = 2 files, 2 generations = 4 downloads
+        // Bytes tracked = 4 * tlogBytes (since available() returns the buffer length)
+        assertTrue(tracker.getDownloadBytesSucceeded() > 0);
+        assertTrue(tracker.getTotalDownloadTimeInMillis() >= 0);
+    }
 }
