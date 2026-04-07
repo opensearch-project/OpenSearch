@@ -29,7 +29,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
     private final PipelineStats pipelineStats;
 
     public PollingIngestStats(MessageProcessorStats messageProcessorStats, ConsumerStats consumerStats) {
-        this(messageProcessorStats, consumerStats, new PipelineStats(0, 0, 0, 0, 0));
+        this(messageProcessorStats, consumerStats, new PipelineStats(0, 0, 0, 0));
     }
 
     public PollingIngestStats(
@@ -44,8 +44,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
                 pipelineMetrics.totalExecutionCount(),
                 pipelineMetrics.totalExecutionTimeInMillis(),
                 pipelineMetrics.totalFailedCount(),
-                pipelineMetrics.totalDroppedCount(),
-                pipelineMetrics.totalTimeoutCount()
+                pipelineMetrics.totalDroppedCount()
             )
         );
     }
@@ -94,9 +93,9 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         );
 
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            this.pipelineStats = new PipelineStats(in.readLong(), in.readLong(), in.readLong(), in.readLong(), in.readLong());
+            this.pipelineStats = new PipelineStats(in.readLong(), in.readLong(), in.readLong(), in.readLong());
         } else {
-            this.pipelineStats = new PipelineStats(0, 0, 0, 0, 0);
+            this.pipelineStats = new PipelineStats(0, 0, 0, 0);
         }
     }
 
@@ -124,7 +123,6 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             out.writeLong(pipelineStats.totalExecutionTimeInMillis);
             out.writeLong(pipelineStats.totalFailedCount);
             out.writeLong(pipelineStats.totalDroppedCount);
-            out.writeLong(pipelineStats.totalTimeoutCount);
         }
     }
 
@@ -153,7 +151,6 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         builder.field("total_execution_time_in_millis", pipelineStats.totalExecutionTimeInMillis);
         builder.field("total_failed_count", pipelineStats.totalFailedCount);
         builder.field("total_dropped_count", pipelineStats.totalDroppedCount);
-        builder.field("total_timeout_count", pipelineStats.totalTimeoutCount);
         builder.endObject();
         builder.endObject();
         return builder;
@@ -208,8 +205,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
      * Stats for pipeline execution in pull-based ingestion.
      */
     @PublicApi(since = "3.7.0")
-    public record PipelineStats(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount, long totalDroppedCount,
-        long totalTimeoutCount) {
+    public record PipelineStats(long totalExecutionCount, long totalExecutionTimeInMillis, long totalFailedCount, long totalDroppedCount) {
     }
 
     /**
@@ -234,7 +230,6 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
         private long pipelineExecutionTimeInMillis;
         private long pipelineFailedCount;
         private long pipelineDroppedCount;
-        private long pipelineTimeoutCount;
 
         public Builder() {}
 
@@ -312,7 +307,6 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
             this.pipelineExecutionTimeInMillis = metrics.totalExecutionTimeInMillis();
             this.pipelineFailedCount = metrics.totalFailedCount();
             this.pipelineDroppedCount = metrics.totalDroppedCount();
-            this.pipelineTimeoutCount = metrics.totalTimeoutCount();
             return this;
         }
 
@@ -338,8 +332,7 @@ public class PollingIngestStats implements Writeable, ToXContentFragment {
                 pipelineExecutionCount,
                 pipelineExecutionTimeInMillis,
                 pipelineFailedCount,
-                pipelineDroppedCount,
-                pipelineTimeoutCount
+                pipelineDroppedCount
             );
             return new PollingIngestStats(messageProcessorStats, consumerStats, pipelineStats);
         }

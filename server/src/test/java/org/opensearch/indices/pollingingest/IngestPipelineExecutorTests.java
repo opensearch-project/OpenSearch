@@ -20,7 +20,6 @@ import java.util.function.IntConsumer;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -57,7 +56,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         Map<String, Object> result = executor.executePipelines("1", source);
 
         assertSame(source, result);
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        verify(ingestService, never()).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         // No pipeline configured — metrics should be zero
         IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
@@ -77,7 +76,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         Map<String, Object> result = executor.executePipelines("1", source);
 
         assertNotNull(result);
-        verify(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        verify(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         // Verify metrics
         IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
@@ -96,7 +95,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             onDropped.accept(0);
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "drop-pipeline");
 
@@ -121,7 +120,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             onFailure.accept(0, new RuntimeException("processor failed"));
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "fail-pipeline");
 
@@ -129,8 +128,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         source.put("name", "alice");
 
         Exception e = expectThrows(RuntimeException.class, () -> executor.executePipelines("1", source));
-        assertTrue(e.getMessage().contains("Ingest pipeline execution failed"));
-        assertTrue(e.getCause().getMessage().contains("processor failed"));
+        assertTrue(e.getMessage().contains("processor failed"));
 
         // Verify failure metric
         IngestPipelineExecutor.PipelineMetrics metrics = executor.getMetrics();
@@ -144,7 +142,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             BiConsumer<Thread, Exception> onCompletion = invocation.getArgument(3);
             onCompletion.accept(Thread.currentThread(), new RuntimeException("bulk execution failed"));
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "fail-pipeline");
 
@@ -152,7 +150,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
         source.put("name", "alice");
 
         RuntimeException e = expectThrows(RuntimeException.class, () -> executor.executePipelines("1", source));
-        assertTrue(e.getMessage().contains("Ingest pipeline execution failed"));
+        assertTrue(e.getMessage().contains("bulk execution failed"));
     }
 
     // --- Guardrails ---
@@ -166,7 +164,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             }
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "mutate-pipeline");
 
@@ -186,7 +184,7 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             }
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
 
         IngestPipelineExecutor executor = new IngestPipelineExecutor(ingestService, "test_index", "mutate-pipeline");
 
@@ -211,6 +209,6 @@ public class IngestPipelineExecutorTests extends OpenSearchTestCase {
             }
             onCompletion.accept(Thread.currentThread(), null);
             return null;
-        }).when(ingestService).executeBulkRequest(anyInt(), any(), any(), any(), any(), anyString());
+        }).when(ingestService).executeBulkRequestSync(anyInt(), any(), any(), any(), any());
     }
 }

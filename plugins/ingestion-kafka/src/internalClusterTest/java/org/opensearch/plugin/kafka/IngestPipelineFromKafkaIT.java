@@ -86,7 +86,6 @@ public class IngestPipelineFromKafkaIT extends KafkaIngestionBaseIT {
         assertTrue(stats.getPipelineStats().totalExecutionTimeInMillis() >= 0);
         assertEquals(0, stats.getPipelineStats().totalFailedCount());
         assertEquals(0, stats.getPipelineStats().totalDroppedCount());
-        assertEquals(0, stats.getPipelineStats().totalTimeoutCount());
     }
 
     /**

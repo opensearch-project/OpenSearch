@@ -9,7 +9,7 @@
 package org.opensearch.analytics.backend;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.index.engine.DataFormatAwareEngine;
+import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 
 /**
  * Execution context carrying reader and delegation state through
@@ -20,7 +20,7 @@ import org.opensearch.index.engine.DataFormatAwareEngine;
 public class ExecutionContext {
 
     private final String tableName;
-    private final DataFormatAwareEngine.DataFormatAwareReader reader;
+    private final Reader reader;
     private final SearchShardTask task;
 
     /**
@@ -29,7 +29,7 @@ public class ExecutionContext {
      * @param task the search shard task
      * @param reader the data-format aware reader
      */
-    public ExecutionContext(String tableName, SearchShardTask task, DataFormatAwareEngine.DataFormatAwareReader reader) {
+    public ExecutionContext(String tableName, SearchShardTask task, Reader reader) {
         this.tableName = tableName;
         this.task = task;
         this.reader = reader;
@@ -46,7 +46,7 @@ public class ExecutionContext {
     }
 
     /** Returns the data-format aware reader. */
-    public DataFormatAwareEngine.DataFormatAwareReader getReader() {
+    public Reader getReader() {
         return reader;
     }
 }

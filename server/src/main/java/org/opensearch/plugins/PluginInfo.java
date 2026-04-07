@@ -222,6 +222,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         } else {
             this.optionalExtendedPlugins = new ArrayList<>();
         }
+
     }
 
     static boolean isOptionalExtension(String extendedPlugin) {

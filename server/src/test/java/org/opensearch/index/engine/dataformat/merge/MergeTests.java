@@ -14,12 +14,12 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatTestUtils.MockDataFormat;
 import org.opensearch.index.engine.dataformat.MergeResult;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;

@@ -57,6 +57,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin {
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
 
+    @SuppressWarnings("rawtypes")
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));

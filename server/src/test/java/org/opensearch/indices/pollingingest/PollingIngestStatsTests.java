@@ -62,8 +62,6 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
             + stats.getPipelineStats().totalFailedCount()
             + ",\"total_dropped_count\":"
             + stats.getPipelineStats().totalDroppedCount()
-            + ",\"total_timeout_count\":"
-            + stats.getPipelineStats().totalTimeoutCount()
             + "}}}";
 
         assertEquals(expected, builder.toString());
@@ -105,7 +103,6 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
                 assertEquals(0, deserialized.getPipelineStats().totalExecutionTimeInMillis());
                 assertEquals(0, deserialized.getPipelineStats().totalFailedCount());
                 assertEquals(0, deserialized.getPipelineStats().totalDroppedCount());
-                assertEquals(0, deserialized.getPipelineStats().totalTimeoutCount());
             }
         }
     }
@@ -152,7 +149,6 @@ public class PollingIngestStatsTests extends OpenSearchTestCase {
                 randomNonNegativeLong()
             ),
             new PollingIngestStats.PipelineStats(
-                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
