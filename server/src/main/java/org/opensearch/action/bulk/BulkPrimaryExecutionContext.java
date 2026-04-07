@@ -374,7 +374,7 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if the update ended up as NOOP
                 assert executionResult != null;
                 assert primaryResponses[currentIndex] != null;
                 break;
