@@ -148,39 +148,39 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
     }
 
     public void testSearchSettings() throws Exception {
-        // Create with search_settings
+        // Create with settings
         String createJson = """
             {
                 "name": "search_test",
                 "resiliency_mode": "enforced",
                 "resource_limits": {"cpu": 0.3, "memory": 0.3},
-                "search_settings": {
-                    "timeout": "30s"
+                "settings": {
+                    "search.default_search_timeout": "30s"
                 }
             }""";
         Response response = performOperation("PUT", "_wlm/workload_group", createJson);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        // Verify search_settings in GET response
+        // Verify settings in GET response
         Response getResponse = performOperation("GET", "_wlm/workload_group/search_test", null);
         String responseBody = EntityUtils.toString(getResponse.getEntity());
-        assertTrue(responseBody.contains("\"search_settings\""));
-        assertTrue(responseBody.contains("\"timeout\":\"30s\""));
+        assertTrue(responseBody.contains("\"settings\""));
+        assertTrue(responseBody.contains("\"search.default_search_timeout\":\"30s\""));
 
-        // Update search_settings
+        // Update settings
         String updateJson = """
             {
-                "search_settings": {
-                    "timeout": "1m"
+                "settings": {
+                    "search.default_search_timeout": "1m"
                 }
             }""";
         Response updateResponse = performOperation("PUT", "_wlm/workload_group/search_test", updateJson);
         assertEquals(200, updateResponse.getStatusLine().getStatusCode());
 
-        // Verify updated search_settings
+        // Verify updated settings
         Response getResponse2 = performOperation("GET", "_wlm/workload_group/search_test", null);
         String responseBody2 = EntityUtils.toString(getResponse2.getEntity());
-        assertTrue(responseBody2.contains("\"timeout\":\"1m\""));
+        assertTrue(responseBody2.contains("\"search.default_search_timeout\":\"1m\""));
 
         performOperation("DELETE", "_wlm/workload_group/search_test", null);
     }
@@ -201,7 +201,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
             + memory
             + "\n"
             + "    },\n"
-            + "    \"search_settings\": {}\n"
+            + "    \"settings\": {}\n"
             + "}";
     }
 

@@ -50,7 +50,7 @@ public class WorkloadGroupMetadataTests extends AbstractDiffableSerializationTes
         builder.endObject();
         String expected = "{\"ajakgakg983r92_4242\":{\"_id\":\"ajakgakg983r92_4242\",\"name\":\"test\","
             + "\"resiliency_mode\":\"enforced\",\"resource_limits\":{\"memory\":0.5},"
-            + "\"search_settings\":{\"timeout\":\"30s\"},"
+            + "\"settings\":{\"search.default_search_timeout\":\"30s\"},"
             + "\"updated_at\":1720047207}}";
         assertEquals(expected, builder.toString());
     }

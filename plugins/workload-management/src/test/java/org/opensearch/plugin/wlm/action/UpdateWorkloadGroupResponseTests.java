@@ -60,7 +60,7 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
             + "  \"resource_limits\" : {\n"
             + "    \"memory\" : 0.3\n"
             + "  },\n"
-            + "  \"search_settings\" : { },\n"
+            + "  \"settings\" : { },\n"
             + "  \"updated_at\" : 4513232413\n"
             + "}";
         assertEquals(expected, actual);
@@ -83,8 +83,8 @@ public class UpdateWorkloadGroupResponseTests extends OpenSearchTestCase {
             + "  \"resource_limits\" : {\n"
             + "    \"memory\" : 0.5\n"
             + "  },\n"
-            + "  \"search_settings\" : {\n"
-            + "    \"timeout\" : \"30s\"\n"
+            + "  \"settings\" : {\n"
+            + "    \"search.default_search_timeout\" : \"30s\"\n"
             + "  },\n"
             + "  \"updated_at\" : 4513232417\n"
             + "}";
