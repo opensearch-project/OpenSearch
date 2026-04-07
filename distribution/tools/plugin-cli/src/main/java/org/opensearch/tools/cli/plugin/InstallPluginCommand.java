@@ -863,15 +863,22 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             tmpRoot,
             env.binDir().resolve(targetFolderName),
             env.configDir().resolve(targetFolderName),
+            env.pluginsDir().resolve("lib").resolve(targetFolderName),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);
         return info;
     }
 
-    /** Moves bin and config directories from the plugin if they exist */
-    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot, Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure)
-        throws Exception {
+    /** Moves bin, config, and shared directories from the plugin if they exist */
+    private void installPluginSupportFiles(
+        PluginInfo info,
+        Path tmpRoot,
+        Path destBinDir,
+        Path destConfigDir,
+        Path destLibDir,
+        List<Path> deleteOnFailure
+    ) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
             deleteOnFailure.add(destBinDir);
@@ -883,6 +890,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             // some files may already exist, and we don't remove plugin config files on plugin removal,
             // so any installed config files are left on failure too
             installConfig(info, tmpConfigDir, destConfigDir);
+        }
+
+        Path tmpLibDir = tmpRoot.resolve("shared");
+        if (Files.exists(tmpLibDir)) {
+            deleteOnFailure.add(destLibDir);
+            installLib(info, tmpLibDir, destLibDir);
         }
     }
 
@@ -934,6 +947,34 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         IOUtils.rm(tmpBinDir); // clean up what we just copied
+    }
+
+    /**
+     * Copies jar files from {@code tmpLibDir} into {@code destLibDir} ({@code plugins/lib/<plugin_name>/}).
+     * These jars are added to the plugin's classloader at startup, making them visible to plugins
+     * that extend this one without exposing the full implementation classpath.
+     */
+    private void installLib(PluginInfo info, Path tmpLibDir, Path destLibDir) throws Exception {
+        if (Files.isDirectory(tmpLibDir) == false) {
+            throw new UserException(PLUGIN_MALFORMED, "shared in plugin " + info.getName() + " is not a directory");
+        }
+        Files.createDirectories(destLibDir);
+        setFileAttributes(destLibDir, PLUGIN_DIR_PERMS);
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpLibDir)) {
+            for (Path srcFile : stream) {
+                if (Files.isDirectory(srcFile)) {
+                    throw new UserException(
+                        PLUGIN_MALFORMED,
+                        "Directories not allowed in shared dir for plugin " + info.getName() + ", found " + srcFile.getFileName()
+                    );
+                }
+                Path destFile = destLibDir.resolve(tmpLibDir.relativize(srcFile));
+                Files.copy(srcFile, destFile);
+                setFileAttributes(destFile, PLUGIN_FILES_PERMS);
+            }
+        }
+        IOUtils.rm(tmpLibDir); // clean up what we just copied
     }
 
     /**
