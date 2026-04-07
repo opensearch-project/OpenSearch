@@ -114,6 +114,87 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("name_s").typeName(), equalTo("keyword"));
     }
 
+    /** {@link DynamicPropertyFieldTypeResolver} returns null when no pattern matches the field name. */
+    public void testDynamicPropertiesFieldTypeLookupUnmatchedReturnsNull() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNull(mapperService.fieldType("no_pattern_match"));
+    }
+
+    /**
+     * Object mappers are not {@link FieldMapper}s; resolver returns null so {@link MapperService#fieldType}
+     * does not synthesize a {@link MappedFieldType} for dynamic_property rules that map to {@code object}.
+     */
+    public void testDynamicPropertiesObjectMappingYieldsNoFieldType() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_o")
+                    .field("type", "object")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        assertNull(mapperService.fieldType("foo_o"));
+    }
+
+    /** Pattern matches full dotted path; nested dynamic field resolves for query-time lookup. */
+    public void testDynamicPropertiesNestedPathFieldTypeLookup() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .startObject("obj")
+                    .field("type", "object")
+                    .field("dynamic", true)
+                    .endObject()
+                    .endObject()
+            )
+        );
+        DocumentMapper mapper = mapperService.documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("obj").field("nested_i", 7L).endObject()));
+        assertThat(doc.rootDoc().get("obj.nested_i"), equalTo("7"));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(mapperService.fieldType("obj.nested_i"));
+        assertThat(mapperService.fieldType("obj.nested_i").typeName(), equalTo("long"));
+    }
+
+    /** Second document with the same dynamic field exercises per-parse {@link ParseContext} mapper cache. */
+    public void testDynamicPropertiesRepeatedFieldUsesParseCache() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        ).documentMapper();
+        ParsedDocument first = mapper.parse(source(b -> b.field("count_i", 1L)));
+        ParsedDocument second = mapper.parse(source(b -> b.field("count_i", 2L)));
+        assertNull(first.dynamicMappingsUpdate());
+        assertNull(second.dynamicMappingsUpdate());
+        assertThat(first.rootDoc().get("count_i"), equalTo("1"));
+        assertThat(second.rootDoc().get("count_i"), equalTo("2"));
+    }
+
     /**
      * Stresses {@link DynamicPropertyFieldTypeResolver}: many threads resolve distinct field names
      * (more than the resolver LRU size) so {@link java.util.LinkedHashMap} eviction runs under the
