@@ -222,7 +222,7 @@ public class IngestionSource {
     /**
      * Strategy for mapping source stream partitions to OpenSearch shards.
      */
-    @PublicApi(since = "3.6.0")
+    @PublicApi(since = "3.7.0")
     public enum PartitionStrategy {
         FIXED("fixed"),
         AUTO("auto");
