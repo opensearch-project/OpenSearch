@@ -107,36 +107,28 @@ public class FakeStringFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
-
+        String value = parseValue(context);
         if (value == null) {
             return;
         }
-
         Field field = new Field(fieldType().name(), value, FIELD_TYPE);
         context.doc().add(field);
     }
 
     @Override
     protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
-
+        String value = parseValue(context);
         if (value == null) {
             return;
         }
+        context.documentInput().addField(fieldType(), value);
+    }
 
-        Field field = new Field(fieldType().name(), value, FIELD_TYPE);
-        context.doc().add(field);
+    private String parseValue(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            return context.externalValue().toString();
+        }
+        return context.parser().textOrNull();
     }
 
     @Override

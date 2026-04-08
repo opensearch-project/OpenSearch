@@ -49,6 +49,7 @@ import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -801,5 +802,78 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         mapper.parse(source(b -> b.nullField(FIELD_NAME)), docInput);
 
         assertFalse(docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME)));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: integer value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.field(FIELD_NAME, 42),
+            FIELD_NAME,
+            42
+        );
+
+        // Scenario 2: long value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "long").endObject()),
+            b -> b.field(FIELD_NAME, 123456789L),
+            FIELD_NAME,
+            123456789L
+        );
+
+        // Scenario 3: double value
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "double").endObject()),
+            b -> b.field(FIELD_NAME, 3.14),
+            FIELD_NAME,
+            3.14
+        );
+
+        // Scenario 4: null value — no field produced
+        assertNumericLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "integer").endObject()),
+            b -> b.nullField(FIELD_NAME),
+            FIELD_NAME,
+            null
+        );
+    }
+
+    private void assertNumericLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        Number expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue.doubleValue(), luceneFields[0].numericValue().doubleValue(), 0.001d);
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

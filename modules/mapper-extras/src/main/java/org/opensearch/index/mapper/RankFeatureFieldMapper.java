@@ -202,11 +202,6 @@ public class RankFeatureFieldMapper extends ParametrizedFieldMapper {
         context.doc().addWithKey(name(), new FeatureField("_feature", name(), value));
     }
 
-    @Override
-    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
-        // TODO check how we can support addWithKey for pluggable dataformat
-    }
-
     private static Float objectToFloat(Object value) {
         if (value instanceof Number number) {
             return number.floatValue();

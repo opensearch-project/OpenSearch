@@ -835,4 +835,52 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         ShingleFieldMapper shingleMapper = getShingleFieldMapper(mapper, "field._2gram");
         expectThrows(UnsupportedOperationException.class, () -> shingleMapper.parseCreateFieldForPluggableFormat(null));
     }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: search_as_you_type value
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.field("field", "hello world")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(source(b -> b.field("field", "hello world")), docInput);
+
+            assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
+            assertEquals("hello world", luceneFields[0].stringValue());
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("hello world"));
+            assertTrue("Pluggable path should capture field 'field' with value 'hello world'", pluggableFound);
+        }
+
+        // Scenario 2: null value — no field produced
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.nullField("field")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(
+                pluggableSettings,
+                mapping(b -> b.startObject("field").field("type", "search_as_you_type").endObject())
+            );
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
+            pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
+
+            assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+            assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
+        }
+    }
 }

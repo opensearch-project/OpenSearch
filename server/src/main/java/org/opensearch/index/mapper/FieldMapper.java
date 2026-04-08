@@ -349,7 +349,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @throws UnsupportedOperationException if the mapper does not support pluggable data formats
      */
     @ExperimentalApi
-    protected abstract void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException;
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException("Field mapper [" + typeName() + "] does not support pluggable data formats");
+    };
 
     private void extractGroupingCriteriaParams(ParseContext context) throws IOException {
         if (context.docMapper() != null && context.docMapper().mappers() != null) {

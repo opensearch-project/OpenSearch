@@ -46,6 +46,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -346,5 +347,56 @@ public class IpFieldMapperTests extends MapperTestCase {
 
         boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(FIELD_NAME));
         assertFalse("Expected no ip field to be captured for null value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws Exception {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: ip value
+        assertIpLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject()),
+            b -> b.field(FIELD_NAME, "192.168.1.1"),
+            FIELD_NAME,
+            true
+        );
+
+        // Scenario 2: null value — no field produced
+        assertIpLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject(FIELD_NAME).field("type", "ip").endObject()),
+            b -> b.nullField(FIELD_NAME),
+            FIELD_NAME,
+            false
+        );
+    }
+
+    private void assertIpLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        boolean expectField
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+
+        if (!expectField) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertTrue("Pluggable path should capture field '" + fieldName + "'", pluggableHasField);
+        }
     }
 }

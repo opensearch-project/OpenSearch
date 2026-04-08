@@ -51,6 +51,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockLowerCaseFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -706,5 +707,110 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(2, fields.length);
         assertEquals(new BytesRef("1234"), fields[0].binaryValue());
         assertEquals(new BytesRef("1234"), fields[1].binaryValue());
+    }
+
+    /**
+     * Cross-path equivalence test: verifies that the pluggable DocumentInput path
+     * captures the same field values as the Lucene Document path for all common
+     * keyword scenarios (default, null_value, ignore_above, normalizer, multi-field).
+     */
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: default keyword
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject()),
+            b -> b.field("field", "1234"),
+            "field",
+            "1234"
+        );
+
+        // Scenario 2: null value — no field produced
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject()),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+
+        // Scenario 3: null_value configured — substitution kicks in
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("null_value", "uri").endObject()),
+            b -> b.nullField("field"),
+            "field",
+            "uri"
+        );
+
+        // Scenario 4: ignore_above — value exceeds limit, no field produced
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("ignore_above", 5).endObject()),
+            b -> b.field("field", "opensearch"),
+            "field",
+            null
+        );
+
+        // Scenario 5: ignore_above — value within limit
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("ignore_above", 5).endObject()),
+            b -> b.field("field", "elk"),
+            "field",
+            "elk"
+        );
+
+        // Scenario 6: normalizer
+        assertLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "keyword").field("normalizer", "lowercase").endObject()),
+            b -> b.field("field", "AbC"),
+            "field",
+            "abc"
+        );
+    }
+
+    /**
+     * Parses the same source through both the Lucene path and the pluggable DocumentInput path,
+     * then asserts they agree on the produced field value (or absence thereof).
+     *
+     * @param expectedValue the expected value, or null if no field should be produced
+     */
+    private void assertLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        String expectedValue
+    ) throws IOException {
+        // Lucene path (default, no pluggable setting)
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            // Both paths should produce no field
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            // Lucene path should have produced the field with the expected value
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(new BytesRef(expectedValue), luceneFields[0].binaryValue());
+
+            // Pluggable path should capture the same value
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

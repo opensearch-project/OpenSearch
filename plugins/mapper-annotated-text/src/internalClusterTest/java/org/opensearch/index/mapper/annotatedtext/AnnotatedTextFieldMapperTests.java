@@ -657,6 +657,42 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertTrue("Expected annotated_text sub-field captured with external value", found);
     }
 
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        // Scenario 1: annotated text value
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.field("field", "some annotated text")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
+            TestDocumentInput docInput = new TestDocumentInput();
+            pluggableMapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
+
+            assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
+            assertEquals("some annotated text", luceneFields[0].stringValue());
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("some annotated text"));
+            assertTrue("Pluggable path should capture field 'field' with value 'some annotated text'", pluggableFound);
+        }
+
+        // Scenario 2: null value — no field produced
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.nullField("field")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
+            TestDocumentInput docInput = new TestDocumentInput();
+            pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
+
+            assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+            assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
+        }
+    }
+
     private static class TestDocumentInput implements DocumentInput<Object> {
         private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
 

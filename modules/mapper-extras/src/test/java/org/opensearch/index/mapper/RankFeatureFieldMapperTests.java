@@ -168,13 +168,14 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableDataFormatRankFeatureNoOp() throws IOException {
+    public void testPluggableDataFormatRankFeatureThrows() throws IOException {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
         CapturingDocumentInput docInput = new CapturingDocumentInput();
-        mapper.parse(source(b -> b.field("field", 10)), docInput);
-
-        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
-        assertFalse("RankFeatureFieldMapper pluggable format is no-op", hasField);
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.field("field", 10)), docInput)
+        );
+        assertThat(e.getCause(), instanceOf(UnsupportedOperationException.class));
     }
 }

@@ -110,6 +110,41 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         assertFalse("Expected no captured field for null value", hasField);
     }
 
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: murmur3 value
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.field("field", "test_value")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+            TestDocumentInput docInput = new TestDocumentInput();
+            pluggableMapper.parse(source(b -> b.field("field", "test_value")), docInput);
+
+            assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
+            boolean pluggableFound = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+            assertTrue("Pluggable path should capture field 'field'", pluggableFound);
+        }
+
+        // Scenario 2: null value — no field produced
+        {
+            DocumentMapper luceneMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+            ParsedDocument luceneDoc = luceneMapper.parse(source(b -> b.nullField("field")));
+            IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
+
+            DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
+            TestDocumentInput docInput = new TestDocumentInput();
+            pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
+
+            assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+            assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
+        }
+    }
+
     public void testHashCalculation() throws Exception {
         String testValue = "test_value";
         BytesRef bytes = new BytesRef(testValue);

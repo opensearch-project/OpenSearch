@@ -72,6 +72,7 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -1260,5 +1261,60 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTrue(prefixMapper instanceof FieldMapper);
         FieldMapper prefixFieldMapper = (FieldMapper) prefixMapper;
         expectThrows(UnsupportedOperationException.class, () -> prefixFieldMapper.parseCreateFieldForPluggableFormat(null));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: default text value
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.field("field", "hello world"),
+            "field",
+            "hello world"
+        );
+
+        // Scenario 2: null value — no field produced
+        assertTextLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(b -> b.field("type", "text")),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+    }
+
+    private void assertTextLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        String expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            assertEquals(expectedValue, luceneFields[0].stringValue());
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }
