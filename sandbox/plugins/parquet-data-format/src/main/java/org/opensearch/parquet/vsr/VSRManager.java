@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.nativebridge.spi.ArrowExport;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
+import org.opensearch.parquet.bridge.NativeObjectStore;
 import org.opensearch.parquet.bridge.NativeParquetWriter;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
@@ -60,6 +61,7 @@ public class VSRManager implements AutoCloseable {
     private final VSRPool vsrPool;
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
+    private final NativeObjectStore objectStore;
     private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
@@ -67,19 +69,28 @@ public class VSRManager implements AutoCloseable {
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
      *
+     * @param objectStore native object store for the writer backend
      * @param fileName output Parquet file path
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
      * @param maxRowsPerVSR row threshold triggering VSR rotation
      * @param threadPool the thread pool for background native writes
      */
-    public VSRManager(String fileName, Schema schema, ArrowBufferPool bufferPool, int maxRowsPerVSR, ThreadPool threadPool) {
-        this(fileName, schema, bufferPool, maxRowsPerVSR, threadPool, true);
+    public VSRManager(
+        NativeObjectStore objectStore,
+        String fileName,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        int maxRowsPerVSR,
+        ThreadPool threadPool
+    ) {
+        this(objectStore, fileName, schema, bufferPool, maxRowsPerVSR, threadPool, true);
     }
 
     /**
      * Creates a new VSRManager.
      *
+     * @param objectStore native object store for the writer backend
      * @param fileName output Parquet file path
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
@@ -89,6 +100,7 @@ public class VSRManager implements AutoCloseable {
      *                 if false, they run on the calling thread (for benchmarks/tests)
      */
     public VSRManager(
+        NativeObjectStore objectStore,
         String fileName,
         Schema schema,
         ArrowBufferPool bufferPool,
@@ -96,6 +108,7 @@ public class VSRManager implements AutoCloseable {
         ThreadPool threadPool,
         boolean runAsync
     ) {
+        this.objectStore = objectStore;
         this.fileName = fileName;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
@@ -187,11 +200,21 @@ public class VSRManager implements AutoCloseable {
     }
 
     /**
-     * Syncs the Parquet file to disk. Must be called after {@link #flush()}.
+     * Syncs the Parquet file to durable storage. For object store backends,
+     * durability is guaranteed by the writer close/flush, so this is a no-op
+     * unless the backend requires explicit sync.
      */
     public void sync() throws IOException {
         awaitPendingWrite(ROTATION_TIMEOUT, false);
-        writer.sync();
+    }
+
+    /**
+     * Returns the native memory used by the underlying Rust writer buffers.
+     *
+     * @return bytes of native memory, or 0 if the writer is not initialized
+     */
+    public long getNativeMemoryUsage() {
+        return writer != null ? writer.getMemoryUsage() : 0;
     }
 
     @Override
@@ -200,6 +223,7 @@ public class VSRManager implements AutoCloseable {
             awaitPendingWrite(ROTATION_TIMEOUT, true);
             if (writer != null) {
                 writer.flush();
+                writer.close();
             }
             vsrPool.close();
             managedVSR.set(null);
@@ -212,7 +236,7 @@ public class VSRManager implements AutoCloseable {
     private void initializeWriter() {
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, arrowSchema.memoryAddress());
+            writer = new NativeParquetWriter(objectStore, fileName, arrowSchema.memoryAddress());
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {

@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.parquet.ParquetSettings;
+import org.opensearch.parquet.bridge.NativeObjectStore;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
@@ -29,13 +30,8 @@ import java.nio.file.Path;
  *
  * <p>Each instance corresponds to a single Parquet file for a given writer generation.
  * Documents are accepted via {@link #addDoc(ParquetDocumentInput)}, batched in Arrow vectors
- * by the {@link VSRManager}, and flushed to a Parquet file via the native Rust writer.
- *
- * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
- * the {@link Settings} passed at construction time and propagated to the VSR layer.
- *
- * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
- * generation, and row count for downstream commit tracking.
+ * by the {@link VSRManager}, and flushed to a Parquet file via the native Rust writer
+ * backed by an {@link NativeObjectStore}.
  */
 public class ParquetWriter implements Writer<ParquetDocumentInput> {
 
@@ -47,7 +43,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     /**
      * Creates a new ParquetWriter.
      *
-     * @param file output Parquet file path
+     * @param objectStore native object store backend
+     * @param file output Parquet file path (relative to the object store root)
      * @param writerGeneration generation number for this writer
      * @param dataFormat the Parquet data format instance
      * @param schema Arrow schema for vector creation
@@ -56,6 +53,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param threadPool the thread pool for background native writes
      */
     public ParquetWriter(
+        NativeObjectStore objectStore,
         String file,
         long writerGeneration,
         ParquetDataFormat dataFormat,
@@ -67,7 +65,14 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         this.file = file;
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
-        this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings), threadPool);
+        this.vsrManager = new VSRManager(
+            objectStore,
+            file,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(settings),
+            threadPool
+        );
     }
 
     @Override
@@ -101,5 +106,4 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     public void close() throws IOException {
         vsrManager.close();
     }
-
 }

@@ -7,9 +7,17 @@
  */
 
 use mimalloc::MiMalloc;
+use std::sync::LazyLock;
+use tokio::runtime::Runtime;
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
+
+/// Shared tokio runtime for driving async object-store IO from synchronous JNI calls.
+/// Uses a multi-thread scheduler with default worker count (num CPUs).
+pub static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
+    Runtime::new().expect("Failed to create tokio runtime")
+});
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
@@ -17,6 +25,7 @@ pub mod test_utils;
 #[cfg(test)]
 mod tests;
 
+pub mod object_store_handle;
 pub mod writer;
 mod jni;
 

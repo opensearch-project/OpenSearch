@@ -29,10 +29,12 @@
  *
  * <h2>Writer Lifecycle</h2>
  * <pre>
- * createWriter(filePath, schemaAddress)  — initialize native writer with Arrow schema
- * write(arrayAddress, schemaAddress)     — send a batch of Arrow data (repeatable)
- * finalizeWriter(filePath)                  — finalize Parquet file, returns metadata
- * syncToDisk(filePath)                  — fsync the file to durable storage
+ * createObjectStore(storeType, configJson) — create a native object store backend
+ * createWriter(storeHandle, path, schemaAddress) — initialize native writer with Arrow schema
+ * write(handle, arrayAddress, schemaAddress)     — send a batch of Arrow data (repeatable)
+ * finalizeWriter(handle)                         — finalize Parquet file, returns metadata
+ * destroyWriter(handle)                          — release native writer resources
+ * destroyObjectStore(storeHandle)                — release native object store resources
  * </pre>
  *
  * @see org.opensearch.parquet.bridge.NativeParquetWriter

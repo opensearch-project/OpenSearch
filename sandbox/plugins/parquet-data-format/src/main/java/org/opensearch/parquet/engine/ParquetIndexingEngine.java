@@ -21,7 +21,7 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.bridge.NativeObjectStore;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
@@ -43,14 +43,10 @@ import java.util.function.Supplier;
  * <p>Implements {@link IndexingExecutionEngine} to integrate with OpenSearch's data format
  * framework. Each shard gets its own engine instance, which manages:
  * <ul>
+ *   <li>A shared {@link NativeObjectStore} for the storage backend.</li>
  *   <li>A shared {@link ArrowBufferPool} for Arrow memory allocation across all writers.</li>
  *   <li>Writer creation per writer generation, each producing a separate Parquet file.</li>
- *   <li>Native memory usage reporting (Arrow allocations + Rust-side allocations).</li>
  * </ul>
- *
- * <p>Node-level {@link Settings} are passed through to each {@link ParquetWriter} at creation
- * time, where writer-specific settings (e.g., {@code parquet.max_rows_per_vsr}) are
- * extracted and applied.
  */
 public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDataFormat, ParquetDocumentInput>, Closeable {
 
@@ -65,6 +61,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ShardPath shardPath;
     private final Supplier<Schema> schemaSupplier;
     private final ArrowBufferPool bufferPool;
+    private final NativeObjectStore objectStore;
     private final Settings settings;
     private final ThreadPool threadPool;
 
@@ -92,21 +89,35 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.bufferPool = new ArrowBufferPool(settings);
         this.settings = settings;
         this.threadPool = threadPool;
+        try {
+            // Default to local filesystem rooted at the shard data path.
+            // Remote backends (S3, GCS, Azure) can be configured via settings in the future.
+            String root = shardPath.getDataPath().toString();
+            this.objectStore = new NativeObjectStore("local", "{\"root\": \"" + root + "\"}");
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create native object store for shard: " + shardPath, e);
+        }
     }
 
     @Override
     public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = Path.of(
-            shardPath.getDataPath().toString(),
-            dataFormat.name(),
-            FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
+        // Path is relative to the object store root (which is the shard data path)
+        String relativePath = dataFormat.name() + "/" + FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT;
+        return new ParquetWriter(
+            objectStore,
+            relativePath,
+            writerGeneration,
+            dataFormat,
+            schemaSupplier.get(),
+            bufferPool,
+            settings,
+            threadPool
         );
-        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool, settings, threadPool);
     }
 
     @Override
     public long getNativeBytesUsed() {
-        return bufferPool.getTotalAllocatedBytes() + RustBridge.getFilteredNativeBytesUsed(shardPath.getDataPath().toString());
+        return bufferPool.getTotalAllocatedBytes();
     }
 
     @Override
@@ -160,6 +171,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public void close() throws IOException {
+        objectStore.close();
         bufferPool.close();
     }
 }
