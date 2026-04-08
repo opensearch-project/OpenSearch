@@ -78,7 +78,6 @@ tokio-stream = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
 mimalloc = { version = "0.1.48", default-features = false }
-libmimalloc-sys = { version = "0.1.42", features = ["extended"] }
 
 [build-dependencies]
 cbindgen = "0.27"

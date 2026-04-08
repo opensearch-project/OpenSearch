@@ -253,42 +253,6 @@ fn log_task_metrics(operation: &str, metrics: &tokio_metrics::TaskMetrics) {
     log_info!("  Total long delays: {}", metrics.total_long_delay_count);
 }
 
-/// Log overall plugin memory usage from mimalloc's heap stats.
-/// This captures ALL Rust-side allocations (not just DataFusion's cooperative pool).
-#[allow(dead_code)]
-fn log_mimalloc_stats() {
-    let mut elapsed_ms: usize = 0;
-    let mut user_ms: usize = 0;
-    let mut system_ms: usize = 0;
-    let mut current_rss: usize = 0;
-    let mut peak_rss: usize = 0;
-    let mut current_commit: usize = 0;
-    let mut peak_commit: usize = 0;
-    let mut page_faults: usize = 0;
-
-    unsafe {
-        libmimalloc_sys::mi_process_info(
-            &mut elapsed_ms,
-            &mut user_ms,
-            &mut system_ms,
-            &mut current_rss,
-            &mut peak_rss,
-            &mut current_commit,
-            &mut peak_commit,
-            &mut page_faults,
-        );
-    }
-
-    log_info!(
-        "mimalloc process memory: rss_current={}MB, rss_peak={}MB, commit_current={}MB, commit_peak={}MB, page_faults={}",
-        current_rss / (1024 * 1024),
-        peak_rss / (1024 * 1024),
-        current_commit / (1024 * 1024),
-        peak_commit / (1024 * 1024),
-        page_faults,
-    );
-}
-
 #[no_mangle]
 pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlobalRuntime(
     mut env: JNIEnv,
@@ -794,9 +758,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     // TODO : Thread leaks in tests if its spawn
     io_runtime.block_on(async move {
 
-        let stream = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
+        let handle = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
         // Poll the stream with monitoring
-        let result = stream.stream.try_next().await;
+        let result = handle.stream.try_next().await;
 
         // Uncomment for monitoring stream next
         // let result = STREAM_NEXT_MONITOR.instrument(async {
@@ -844,10 +808,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGet
         return;
     }
     // Schema access is synchronous and fast - no need for runtime
-    let stream = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
+    let handle = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
     //let stream = unsafe { &mut *(stream_ptr as *mut SendableRecordBatchStream) };
 
-    let schema = stream.stream.schema();
+    let schema = handle.stream.schema();
     match FFI_ArrowSchema::try_from(schema.as_ref()) {
         Ok(mut ffi_schema) => {
             set_action_listener_ok(&mut env, listener, addr_of_mut!(ffi_schema) as jlong);
