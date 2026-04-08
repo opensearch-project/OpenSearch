@@ -294,7 +294,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      * @return the path to a CLI, if available.
      */
     private Optional<String> getDockerPath() {
-        return ExecutableUtils.findExecutableInPathWithFallback(DOCKER_FILENAME, DEFAULT_PATH);
+        return ExecutableUtils.findExecutableInKnownPaths(DOCKER_FILENAME, DEFAULT_PATH);
     }
 
     private void throwDockerRequiredException(final String message) {
@@ -425,7 +425,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
          * @return the path to a CLI, if available.
          */
         private static Optional<String> getDockerComposePath() {
-            return ExecutableUtils.findExecutableInPathWithFallback(DOCKER_COMPOSE_FILENAME, DEFAULT_PATH);
+            return ExecutableUtils.findExecutableInKnownPaths(DOCKER_COMPOSE_FILENAME, DEFAULT_PATH);
         }
 
         /**

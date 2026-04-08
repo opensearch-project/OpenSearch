@@ -11,6 +11,7 @@ package org.opensearch.gradle.util;
 import org.apache.tools.ant.taskdefs.condition.Os;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
@@ -101,20 +102,23 @@ public class ExecutableUtils {
      * @return An optional path to found executable.
      */
     public static Optional<String> findExecutable(String executableFileName, String[] path) {
-        return Arrays.stream(path).map(p -> p + getFileSeparator() + executableFileName).filter(p -> {
-            File executableFile = new File(p);
-            return executableFile.exists() && executableFile.canExecute();
-        }).findFirst();
+        return Arrays.stream(path)
+            .map(p -> Path.of(p, executableFileName))
+            .map(Path::toFile)
+            .filter(File::exists)
+            .filter(File::canExecute)
+            .findFirst()
+            .map(File::toString);
     }
 
     /**
-     * Find executable with given name in paths defined in PATH environment or in fallback path.
+     * Find executable with given name in known path, with fallback to paths defined in PATH environment.
      * @param executableFileName A filename of executable (with extension included if present).
-     * @param fallbackPath Array of paths where to look for executable if it wasn't found in system PATH.
+     * @param knownPath Array of paths where to look for executable first, before looking into system PATH.
      * @return An optional path to found executable.
      */
-    public static Optional<String> findExecutableInPathWithFallback(String executableFileName, String[] fallbackPath) {
-        String[] mergedPath = mergePaths(getPathEnv(), fallbackPath);
+    public static Optional<String> findExecutableInKnownPaths(String executableFileName, String[] knownPath) {
+        String[] mergedPath = mergePaths(knownPath, getPathEnv());
 
         return findExecutable(executableFileName, mergedPath);
     }
