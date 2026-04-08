@@ -18,11 +18,22 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.Store;
+import org.opensearch.test.DummyShardLock;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -30,6 +41,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -218,5 +230,37 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         assertSame(first, rm.getReader(snap));
 
         rm.onDeleted(snap);
+    }
+
+    // --- LuceneSearchBackEnd.createReaderManager tests ---
+
+    public void testCreateReaderManagerWithLuceneIndexingEngine() throws IOException {
+        Path dir = createTempDir();
+        ShardId shardId = new ShardId("test", "_na_", 0);
+        Path dataPath = dir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
+        java.nio.file.Files.createDirectories(dataPath);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+        Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
+        ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        CommitterSettings cs = new CommitterSettings(shardPath, idxSettings, null, store);
+        LuceneCommitter committer = new LuceneCommitter(cs);
+
+        try {
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
+            ReaderManagerSettings settings = new ReaderManagerSettings(Optional.of(engine), dataFormat, shardPath);
+
+            EngineReaderManager<?> rm = LuceneSearchBackEnd.createReaderManager(settings);
+            assertNotNull(rm);
+        } finally {
+            committer.close();
+            store.close();
+        }
+    }
+
+    public void testCreateReaderManagerWithEmptyProviderThrows() {
+        ReaderManagerSettings settings = new ReaderManagerSettings(Optional.empty(), dataFormat, null);
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> LuceneSearchBackEnd.createReaderManager(settings));
+        assertTrue(ex.getMessage().contains("IndexStoreProvider is required"));
     }
 }
