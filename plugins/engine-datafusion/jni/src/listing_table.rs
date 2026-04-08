@@ -712,17 +712,31 @@ impl ListingOptions {
         state: &dyn Session,
         table_path: &'a ListingTableUrl,
     ) -> Result<SchemaRef> {
+        let t0 = std::time::Instant::now();
         let store = state.runtime_env().object_store(table_path)?;
 
         let files: Vec<_> = table_path
             .list_all_files(state, store.as_ref(), &self.file_extension)
             .await?
-            // Empty files cannot affect schema but may throw when trying to read for it
             .try_filter(|object_meta| future::ready(object_meta.size > 0))
             .try_collect()
             .await?;
 
+        let t1 = std::time::Instant::now();
         let schema = self.format.infer_schema(state, &store, &files).await?;
+
+        println!("╔══════════════════════════════════════════════════════════════");
+        println!("║ [InferSchema] path={}", table_path);
+        println!("║   list_files: {:?}, {} files found", t0.elapsed(), files.len());
+        for f in &files {
+            println!("║     file: {} ({}B)", f.location, f.size);
+        }
+        println!("║   format.infer_schema: {:?}", t1.elapsed());
+        println!("║   result schema ({} fields):", schema.fields().len());
+        for field in schema.fields() {
+            println!("║     - {} : {:?} (nullable={})", field.name(), field.data_type(), field.is_nullable());
+        }
+        println!("╚══════════════════════════════════════════════════════════════");
 
         Ok(schema)
     }
@@ -1223,6 +1237,14 @@ impl TableProvider for ListingTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
+        println!("╔══════════════════════════════════════════════════════════════");
+        println!("║ [Scan] collect_stat={}, files_metadata={}", self.options.collect_stat, self.options.files_metadata.len());
+        println!("║ [Scan] Stacktrace:");
+        let bt = std::backtrace::Backtrace::force_capture();
+        for line in bt.to_string().lines().take(40) {
+            println!("║   {}", line);
+        }
+        println!("╚══════════════════════════════════════════════════════════════");
         // extract types of partition columns
         let table_partition_cols = self
             .options
@@ -1470,7 +1492,7 @@ impl ListingTable {
         if let Some(factory) = &self.schema_adapter_factory {
             let schema_adapter = factory.create_with_projected_schema(self.schema());
             let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
-            
+
             stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
             file_groups.iter_mut().try_for_each(|file_group| {
                 if let Some(stat) = file_group.statistics_mut() {
@@ -1479,7 +1501,7 @@ impl ListingTable {
                 Ok::<_, DataFusionError>(())
             })?;
         }
-        
+
         Ok((file_groups, stats))
     }
 
@@ -1494,12 +1516,18 @@ impl ListingTable {
         store: &Arc<dyn ObjectStore>,
         part_file: &PartitionedFile,
     ) -> Result<Arc<Statistics>> {
+        let file_loc = part_file.object_meta.location.to_string();
+        let short_name = file_loc.rsplit('/').next().unwrap_or(&file_loc);
         match self
             .collected_statistics
             .get_with_extra(&part_file.object_meta.location, &part_file.object_meta)
         {
-            Some(statistics) => Ok(statistics),
+            Some(statistics) => {
+                println!("║ [StatsCache] HIT  {} | num_rows={:?} cols={}", short_name, statistics.num_rows, statistics.column_statistics.len());
+                Ok(statistics)
+            },
             None => {
+                let t_infer = std::time::Instant::now();
                 let statistics = self
                     .options
                     .format
@@ -1510,6 +1538,11 @@ impl ListingTable {
                         &part_file.object_meta,
                     )
                     .await?;
+                println!("[StatsCache] infer_stats took {:?}, num_rows={:?}, cols={}", t_infer.elapsed(), statistics.num_rows, statistics.column_statistics.len());
+                println!("║ [StatsCache] MISS {} | infer_stats {:?} | num_rows={:?} cols={}", short_name, t_infer.elapsed(), statistics.num_rows, statistics.column_statistics.len());
+                for (i, col_stat) in statistics.column_statistics.iter().enumerate() {
+                    println!("║   col[{}]: null_count={:?} min={:?} max={:?}", i, col_stat.null_count, col_stat.min_value, col_stat.max_value);
+                }
                 let statistics = Arc::new(statistics);
                 self.collected_statistics.put_with_extra(
                     &part_file.object_meta.location,

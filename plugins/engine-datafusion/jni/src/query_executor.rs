@@ -201,7 +201,10 @@ pub async fn execute_query_with_cross_rt_stream(
         .with_schema(resolved_schema);
 
     let provider = match ListingTable::try_new(table_config) {
-        Ok(table) => Arc::new(table),
+        Ok(table) => {
+            let table = table.with_cache(runtimeEnv.cache_manager.get_file_statistic_cache());
+            Arc::new(table)
+        },
         Err(e) => {
             error!("Failed to create listing table: {}", e);
             return Err(e);
