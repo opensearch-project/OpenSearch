@@ -10,7 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;

@@ -1,0 +1,16 @@
+[package]
+name = "opensearch-native-lib"
+version = "0.1.0"
+edition = "2021"
+description = "Single cdylib exposing extern C functions for JDK FFM"
+license = "Apache-2.0"
+
+[lib]
+name = "opensearch_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+opensearch-datafusion = { path = "../../../../plugins/analytics-backend-datafusion/rust" }
+opensearch-parquet-format = { path = "../../../../plugins/parquet-data-format/src/main/rust" }
+native-bridge-common = { workspace = true }
+mimalloc = { workspace = true }

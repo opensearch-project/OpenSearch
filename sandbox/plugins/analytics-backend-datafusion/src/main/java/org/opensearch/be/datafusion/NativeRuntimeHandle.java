@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;

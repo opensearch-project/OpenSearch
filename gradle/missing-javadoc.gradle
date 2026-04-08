@@ -171,7 +171,7 @@ configure([
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),
   project(":server"),
-  project(":sandbox:libs:native-bridge-spi"),
+  project(":sandbox:libs:dataformat-native"),
   project(":sandbox:plugins:parquet-data-format")
 ]) {
   project.tasks.withType(MissingJavadocTask) {

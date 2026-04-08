@@ -71,3 +71,4 @@ testfixtures_shared/
 doc-tools/missing-doclet/bin/
 **/Cargo.lock
 /sandbox/plugins/analytics-backend-datafusion/target/
+/sandbox/libs/dataformat-native/rust/target

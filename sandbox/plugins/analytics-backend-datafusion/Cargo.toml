@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["jni", "jni-macros"]
+members = ["rust"]
 
 [workspace.dependencies]
 datafusion = "52.1.0"
@@ -21,7 +21,6 @@ url = "2.0"
 prost = "0.14"
 substrait = "=0.62.0"
 
-jni = "0.21"
 tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 tokio-stream = "0.1.17"

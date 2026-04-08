@@ -11,7 +11,7 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -186,7 +186,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long streamPtr = future.join();
 
         DatafusionResultStream stream = new DatafusionResultStream(
-            new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, tempRuntime),
+            new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, tempRuntime),
             testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE)
         );
 
@@ -228,6 +228,6 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         });
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
-        return new DatafusionResultStream(new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, runtimeHandle), childAllocator);
+        return new DatafusionResultStream(new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle), childAllocator);
     }
 }

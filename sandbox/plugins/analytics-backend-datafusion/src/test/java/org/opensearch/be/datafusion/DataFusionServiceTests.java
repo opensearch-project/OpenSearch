@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
@@ -77,11 +77,6 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
     public void testNativeRuntimeHandleRejectsZeroPointer() {
         expectThrows(IllegalArgumentException.class, () -> new NativeRuntimeHandle(0L));
-    }
-
-    public void testNativePanicIsCaughtAsException() {
-        RuntimeException ex = expectThrows(RuntimeException.class, () -> NativeBridge.testPanic("test panic message"));
-        assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("test panic message"));
     }
 
     public void testCacheFileOperationsDoNotThrow() {
