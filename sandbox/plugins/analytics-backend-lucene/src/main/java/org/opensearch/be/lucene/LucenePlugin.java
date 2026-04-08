@@ -53,7 +53,7 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
 
     @Override
     public EngineReaderManager<DirectoryReader> createReaderManager(
-        IndexStoreProvider indexStoreProvider,
+        Optional<IndexStoreProvider> indexStoreProvider,
         DataFormat format,
         ShardPath shardPath
     ) throws IOException {

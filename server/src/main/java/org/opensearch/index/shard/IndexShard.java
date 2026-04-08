@@ -612,7 +612,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // For now, reader managers are created without a committer — the Lucene reader manager
             // will fail if used before the committer is wired at engine construction time.
             DataFormatAwareEngine dfaEngine = new DataFormatAwareEngine(
-                dataFormatRegistry.getReaderManagers(null, mapperService, indexSettings, path)
+                dataFormatRegistry.getReaderManagers(Optional.empty(), mapperService, indexSettings, path)
             );
             this.currentCompositeEngineReference.set(dfaEngine);
         }

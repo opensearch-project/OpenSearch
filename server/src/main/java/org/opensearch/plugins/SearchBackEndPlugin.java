@@ -15,6 +15,7 @@ import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Unified SPI for back-end storage and query engines.
@@ -43,12 +44,12 @@ public interface SearchBackEndPlugin<R> {
      * The {@link IndexStoreProvider} provides access to the shard's {@link org.opensearch.index.store.Store}
      * so that the reader manager can open NRT readers.
      *
-     * @param indexStoreProvider provides the store, or null if not available
+     * @param indexStoreProvider provides the store, or empty if not available
      * @param format the data format
      * @param shardPath the shard path
      * @return the reader manager
      * @throws IOException if reader creation fails
      */
-    EngineReaderManager<?> createReaderManager(IndexStoreProvider indexStoreProvider, DataFormat format, ShardPath shardPath)
+    EngineReaderManager<?> createReaderManager(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, ShardPath shardPath)
         throws IOException;
 }

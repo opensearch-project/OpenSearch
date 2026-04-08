@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -264,7 +265,12 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManagers(null, mapperService, indexSettings, shardPath);
+        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManagers(
+            Optional.empty(),
+            mapperService,
+            indexSettings,
+            shardPath
+        );
         assertEquals(1, managers.size());
         assertNotNull(managers.get(format));
     }

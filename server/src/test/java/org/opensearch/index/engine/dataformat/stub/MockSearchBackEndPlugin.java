@@ -15,6 +15,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.List;
+import java.util.Optional;
 
 public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     private final List<DataFormat> formats;
@@ -34,7 +35,11 @@ public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     }
 
     @Override
-    public EngineReaderManager<?> createReaderManager(IndexStoreProvider indexStoreProvider, DataFormat format, ShardPath shardPath) {
+    public EngineReaderManager<?> createReaderManager(
+        Optional<IndexStoreProvider> indexStoreProvider,
+        DataFormat format,
+        ShardPath shardPath
+    ) {
         return new MockReaderManager("mock-columnar");
     }
 }

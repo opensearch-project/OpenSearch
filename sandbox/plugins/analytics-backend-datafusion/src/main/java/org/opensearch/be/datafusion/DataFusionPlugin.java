@@ -24,6 +24,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -110,7 +112,11 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     @Override
-    public EngineReaderManager<DatafusionReader> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
+    public EngineReaderManager<DatafusionReader> createReaderManager(
+        Optional<IndexStoreProvider> indexStoreProvider,
+        DataFormat format,
+        ShardPath shardPath
+    ) throws IOException {
         return new DatafusionReaderManager(format, shardPath, dataFusionService);
     }
 

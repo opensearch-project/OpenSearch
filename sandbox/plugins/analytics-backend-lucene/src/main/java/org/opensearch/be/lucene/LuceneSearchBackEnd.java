@@ -17,6 +17,7 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Static helpers for creating Lucene-based reader managers.
@@ -34,25 +35,25 @@ final class LuceneSearchBackEnd {
      * provider is a {@link LuceneIndexingExecutionEngine}, otherwise falls back to opening
      * a reader from the {@link org.opensearch.index.store.Store}'s directory.
      *
-     * @param indexStoreProvider the store provider, must not be null
+     * @param indexStoreProvider the store provider, must be present
      * @param format the data format
      * @param shardPath the shard path
      * @return a new reader manager
      * @throws IOException if reader creation fails
      */
     static EngineReaderManager<DirectoryReader> createReaderManager(
-        IndexStoreProvider indexStoreProvider,
+        Optional<IndexStoreProvider> indexStoreProvider,
         DataFormat format,
         ShardPath shardPath
     ) throws IOException {
-        if (indexStoreProvider == null) {
-            throw new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager");
-        }
+        IndexStoreProvider provider = indexStoreProvider.orElseThrow(
+            () -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager")
+        );
         DirectoryReader directoryReader;
-        if (indexStoreProvider instanceof LuceneIndexingExecutionEngine luceneProvider) {
+        if (provider instanceof LuceneIndexingExecutionEngine luceneProvider) {
             directoryReader = DirectoryReader.open(luceneProvider.getWriter());
         } else {
-            directoryReader = StandardDirectoryReader.open(indexStoreProvider.getStore().directory());
+            directoryReader = StandardDirectoryReader.open(provider.getStore().directory());
         }
         return new LuceneReaderManager(format, directoryReader);
     }

@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,7 +42,7 @@ public class DataFormatRegistry {
     /** Map from data format to a factory that creates an {@link EngineReaderManager} for a given store provider and shard path. */
     private final Map<
         DataFormat,
-        CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
+        CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
 
@@ -55,8 +56,10 @@ public class DataFormatRegistry {
      */
     public DataFormatRegistry(PluginsService pluginsService) {
         Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
-        Map<DataFormat, CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders =
-            new HashMap<>();
+        Map<
+            DataFormat,
+            CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders =
+                new HashMap<>();
         Map<String, DataFormat> dataFormats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
@@ -149,7 +152,7 @@ public class DataFormatRegistry {
      * Each reader manager is instantiated by applying the store provider and shard path to the factory registered
      * by the corresponding {@link SearchBackEndPlugin}.
      *
-     * @param indexStoreProvider the store provider, or null if not available
+     * @param indexStoreProvider the store provider, or empty if not available
      * @param mapperService the mapper service for field mapping resolution (reserved for future filtering)
      * @param indexSettings the index settings (reserved for future filtering)
      * @param shardPath the shard path used to create reader managers
@@ -157,7 +160,7 @@ public class DataFormatRegistry {
      * @throws IOException if reader manager creation fails
      */
     public Map<DataFormat, EngineReaderManager<?>> getReaderManagers(
-        IndexStoreProvider indexStoreProvider,
+        Optional<IndexStoreProvider> indexStoreProvider,
         MapperService mapperService,
         IndexSettings indexSettings,
         ShardPath shardPath
@@ -166,7 +169,7 @@ public class DataFormatRegistry {
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
         for (Map.Entry<
             DataFormat,
-            CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
+            CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
                 .entrySet()) {
             readerManagers.put(entry.getKey(), entry.getValue().apply(indexStoreProvider, shardPath));
         }

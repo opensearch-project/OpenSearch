@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Factory that discovers {@link SearchBackEndPlugin}s via
@@ -50,11 +51,12 @@ public class DataFormatAwareEngineFactory {
      * This is separate from the constructor because the store provider may not be available
      * at factory construction time.
      *
-     * @param indexStoreProvider the store provider, or null if not available
+     * @param indexStoreProvider the store provider, or empty if not available
      * @return a map of data format to reader manager
      * @throws IOException if reader manager creation fails
      */
-    public Map<DataFormat, EngineReaderManager<?>> createReaderManagers(IndexStoreProvider indexStoreProvider) throws IOException {
+    public Map<DataFormat, EngineReaderManager<?>> createReaderManagers(Optional<IndexStoreProvider> indexStoreProvider)
+        throws IOException {
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
         for (SearchBackEndPlugin<?> plugin : searchBackEndPlugins) {
             for (DataFormat format : plugin.getSupportedFormats()) {
