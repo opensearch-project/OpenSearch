@@ -46,16 +46,19 @@ public class DataFormatAwareEngineFactory {
     /**
      * Creates reader managers for all discovered search back-end plugins.
      * The {@link IndexStoreProvider} is passed through so plugins can open readers from the store.
+     * <p>
+     * This is separate from the constructor because the store provider may not be available
+     * at factory construction time.
      *
      * @param indexStoreProvider the store provider, or null if not available
      * @return a map of data format to reader manager
      * @throws IOException if reader manager creation fails
      */
-    @SuppressWarnings("unchecked")
     public Map<DataFormat, EngineReaderManager<?>> createReaderManagers(IndexStoreProvider indexStoreProvider) throws IOException {
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
         for (SearchBackEndPlugin<?> plugin : searchBackEndPlugins) {
             for (DataFormat format : plugin.getSupportedFormats()) {
+                // TODO: use mapperService and indexSettings to filter formats relevant to this index
                 readerManagers.put(format, plugin.createReaderManager(indexStoreProvider, format, shardPath));
             }
         }
