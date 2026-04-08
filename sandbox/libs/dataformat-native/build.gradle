@@ -31,14 +31,14 @@ tasks.named('forbiddenApisMain').configure {
 
 jarHell.enabled = false
 
-// FFM is preview on JDK 21 — requires --enable-preview for compile and runtime.
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs += ['--enable-preview']
-    options.compilerArgs -= '-Werror'
+// FFM is stable since JDK 22. Override project-wide JDK 21 target for this module.
+java {
+    sourceCompatibility = JavaVersion.toVersion(25)
+    targetCompatibility = JavaVersion.toVersion(25)
 }
 
 tasks.withType(Test).configureEach {
-    jvmArgs += ['--enable-preview', '--enable-native-access=ALL-UNNAMED']
+    jvmArgs += ['--enable-native-access=ALL-UNNAMED']
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -49,7 +49,7 @@ def osName = System.getProperty('os.name').toLowerCase()
 def libPrefix = osName.contains('windows') ? '' : 'lib'
 def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
 def nativeLibName = "opensearch_native"
-def buildType = 'debug'//project.hasProperty('rustDebug') ? 'release' : 'debug'
+def buildType = project.hasProperty('rustDebug') ? 'release' : 'debug'
 def rustWorkspaceDir = file("${projectDir}/rust")
 def nativeLibFile = file("${rustWorkspaceDir}/target/${buildType}/${libPrefix}${nativeLibName}${libExtension}")
 

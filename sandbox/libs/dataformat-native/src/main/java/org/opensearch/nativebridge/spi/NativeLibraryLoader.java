@@ -70,7 +70,7 @@ public final class NativeLibraryLoader {
         String msg;
         try {
             MemorySegment msgSeg = (MemorySegment) ERROR_MESSAGE.invokeExact(errPtr);
-            msg = msgSeg.reinterpret(4096).getUtf8String(0);
+            msg = msgSeg.reinterpret(4096).getString(0);
         } catch (Throwable t) {
             msg = "failed to read native error";
         }
@@ -91,7 +91,7 @@ public final class NativeLibraryLoader {
         String msg;
         try {
             MemorySegment msgSeg = (MemorySegment) ERROR_MESSAGE.invokeExact(errPtr);
-            msg = msgSeg.reinterpret(4096).getUtf8String(0);
+            msg = msgSeg.reinterpret(4096).getString(0);
         } catch (Throwable t) {
             msg = "failed to read native error";
         }

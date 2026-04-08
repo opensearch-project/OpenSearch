@@ -11,6 +11,7 @@ opensearchplugin {
   classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
@@ -53,13 +54,7 @@ spotless {
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs += ['--enable-preview']
-    options.compilerArgs -= '-Werror'
-}
-
 test {
-  jvmArgs '--enable-preview'
   jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'

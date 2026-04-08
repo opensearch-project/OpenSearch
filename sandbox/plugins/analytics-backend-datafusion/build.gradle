@@ -12,6 +12,7 @@ opensearchplugin {
   extendedPlugins = ['analytics-engine']
 }
 
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
@@ -40,7 +41,6 @@ dependencies {
 }
 
 test {
-  jvmArgs += ["--enable-preview"]
   jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
   jvmArgs += ["--enable-native-access=ALL-UNNAMED"]
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
@@ -48,7 +48,6 @@ test {
 }
 
 tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs += ['--enable-preview']
   // Arrow references Jackson annotations not on classpath — harmless warnings
   options.compilerArgs -= '-Werror'
 }

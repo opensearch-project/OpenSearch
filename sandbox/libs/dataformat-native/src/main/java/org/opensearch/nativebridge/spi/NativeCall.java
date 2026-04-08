@@ -50,10 +50,7 @@ public final class NativeCall implements AutoCloseable {
 
     /** Allocate a UTF-8 string segment. Use with {@link #len(String)} for the length param. */
     public MemorySegment str(String s) {
-        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
-        MemorySegment seg = arena.allocate(bytes.length);
-        MemorySegment.copy(bytes, 0, seg, ValueLayout.JAVA_BYTE, 0, bytes.length);
-        return seg;
+        return arena.allocateFrom(ValueLayout.JAVA_BYTE, s.getBytes(StandardCharsets.UTF_8));
     }
 
     /** UTF-8 byte length of a string (for the len param paired with {@link #str}). */
@@ -78,9 +75,7 @@ public final class NativeCall implements AutoCloseable {
 
     /** Allocate a segment from a byte array. */
     public MemorySegment bytes(byte[] data) {
-        MemorySegment seg = arena.allocate(data.length);
-        MemorySegment.copy(data, 0, seg, ValueLayout.JAVA_BYTE, 0, data.length);
-        return seg;
+        return arena.allocateFrom(ValueLayout.JAVA_BYTE, data);
     }
 
     /** Invoke a MethodHandle and check the result. Throws RuntimeException on native error. */
