@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -110,11 +111,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
             "test-action"
         );
 
-        assertEquals(
-            "Caller's thread context should be preserved after completeStream",
-            HEADER_VALUE,
-            threadContext.getHeader(HEADER_KEY)
-        );
+        assertEquals("Caller's thread context should be preserved after completeStream", HEADER_VALUE, threadContext.getHeader(HEADER_KEY));
     }
 
     public void testSendErrorResponsePreservesCallerThreadContext() throws Exception {
@@ -204,10 +201,6 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         // Complete the stream
         handler.completeStream(Version.CURRENT, features, mockFlightChannel, mockTransportChannel, 1L, "test-action");
 
-        assertEquals(
-            "Caller's thread context should be preserved after completeStream",
-            HEADER_VALUE,
-            threadContext.getHeader(HEADER_KEY)
-        );
+        assertEquals("Caller's thread context should be preserved after completeStream", HEADER_VALUE, threadContext.getHeader(HEADER_KEY));
     }
 }

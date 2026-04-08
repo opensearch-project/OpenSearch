@@ -20,7 +20,6 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.threadpool.ThreadPool;
@@ -37,7 +36,6 @@ import org.opensearch.transport.stream.StreamException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * Outbound handler for Arrow Flight streaming responses.

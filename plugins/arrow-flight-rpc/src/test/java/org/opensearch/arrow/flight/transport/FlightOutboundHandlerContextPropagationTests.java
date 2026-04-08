@@ -40,39 +40,34 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
         AtomicReference<Exception> handlerException = new AtomicReference<>();
         AtomicReference<String> capturedHeaderOnServer = new AtomicReference<>();
 
-        streamTransportService.registerRequestHandler(
-            action,
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
+        streamTransportService.registerRequestHandler(action, ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            try {
+                // Set a header in the request handler's thread context
+                threadPool.getThreadContext().putHeader(CONTEXT_HEADER, CONTEXT_VALUE);
+
+                // Verify context is set before sending batch
+                assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
+
+                channel.sendResponseBatch(new TestResponse("Response 1"));
+
+                // Verify the caller's context is preserved after sendResponseBatch
+                capturedHeaderOnServer.set(threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
+
+                channel.sendResponseBatch(new TestResponse("Response 2"));
+
+                // Verify context is still preserved after second batch
+                assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
+
+                channel.completeStream();
+
+                // Verify context is still preserved after completeStream
+                assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
+            } catch (Exception e) {
                 try {
-                    // Set a header in the request handler's thread context
-                    threadPool.getThreadContext().putHeader(CONTEXT_HEADER, CONTEXT_VALUE);
-
-                    // Verify context is set before sending batch
-                    assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
-
-                    channel.sendResponseBatch(new TestResponse("Response 1"));
-
-                    // Verify the caller's context is preserved after sendResponseBatch
-                    capturedHeaderOnServer.set(threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
-
-                    channel.sendResponseBatch(new TestResponse("Response 2"));
-
-                    // Verify context is still preserved after second batch
-                    assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
-
-                    channel.completeStream();
-
-                    // Verify context is still preserved after completeStream
-                    assertEquals(CONTEXT_VALUE, threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ignored) {}
-                }
+                    channel.sendResponse(e);
+                } catch (IOException ignored) {}
             }
-        );
+        });
 
         TestRequest testRequest = new TestRequest();
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
@@ -88,8 +83,7 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
                     } catch (Exception e) {
                         handlerException.set(e);
                     }
-                } catch (Exception ignored) {
-                } finally {
+                } catch (Exception ignored) {} finally {
                     handlerLatch.countDown();
                 }
             }
@@ -129,23 +123,18 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
         AtomicReference<Exception> handlerException = new AtomicReference<>();
         AtomicReference<String> capturedHeaderOnServer = new AtomicReference<>();
 
-        streamTransportService.registerRequestHandler(
-            action,
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
-                try {
-                    // Set a header in the request handler's thread context
-                    threadPool.getThreadContext().putHeader(CONTEXT_HEADER, CONTEXT_VALUE);
+        streamTransportService.registerRequestHandler(action, ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            try {
+                // Set a header in the request handler's thread context
+                threadPool.getThreadContext().putHeader(CONTEXT_HEADER, CONTEXT_VALUE);
 
-                    // Send an error
-                    channel.sendResponse(new RuntimeException("Intentional test error"));
+                // Send an error
+                channel.sendResponse(new RuntimeException("Intentional test error"));
 
-                    // Verify the caller's context is preserved after sendErrorResponse
-                    capturedHeaderOnServer.set(threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
-                } catch (IOException ignored) {}
-            }
-        );
+                // Verify the caller's context is preserved after sendErrorResponse
+                capturedHeaderOnServer.set(threadPool.getThreadContext().getHeader(CONTEXT_HEADER));
+            } catch (IOException ignored) {}
+        });
 
         TestRequest testRequest = new TestRequest();
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
@@ -160,8 +149,7 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
                     } catch (Exception e) {
                         handlerException.set(e);
                     }
-                } catch (Exception ignored) {
-                } finally {
+                } catch (Exception ignored) {} finally {
                     handlerLatch.countDown();
                 }
             }
@@ -211,22 +199,17 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
 
         flightTransport.setMessageListener(testListener);
 
-        streamTransportService.registerRequestHandler(
-            action,
-            ThreadPool.Names.SAME,
-            TestRequest::new,
-            (request, channel, task) -> {
+        streamTransportService.registerRequestHandler(action, ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
+            try {
+                channel.sendResponseBatch(new TestResponse("batch-1"));
+                channel.sendResponseBatch(new TestResponse("batch-2"));
+                channel.completeStream();
+            } catch (Exception e) {
                 try {
-                    channel.sendResponseBatch(new TestResponse("batch-1"));
-                    channel.sendResponseBatch(new TestResponse("batch-2"));
-                    channel.completeStream();
-                } catch (Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException ioException) {}
-                }
+                    channel.sendResponse(e);
+                } catch (IOException ioException) {}
             }
-        );
+        });
 
         TestRequest testRequest = new TestRequest();
         TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
@@ -242,8 +225,7 @@ public class FlightOutboundHandlerContextPropagationTests extends FlightTranspor
                     } catch (Exception e) {
                         handlerException.set(e);
                     }
-                } catch (Exception ignored) {
-                } finally {
+                } catch (Exception ignored) {} finally {
                     handlerLatch.countDown();
                 }
             }
