@@ -90,6 +90,7 @@ import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactor
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -763,6 +764,7 @@ public final class IndexModule {
             indicesQueryCache,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             namedWriteableRegistry,
             idFieldDataEnabled,
             valuesSourceRegistry,
@@ -795,6 +797,7 @@ public final class IndexModule {
         IndicesQueryCache indicesQueryCache,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -868,6 +871,7 @@ public final class IndexModule {
                 readerWrapperFactory,
                 mapperRegistry,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,

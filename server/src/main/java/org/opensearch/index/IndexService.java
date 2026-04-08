@@ -103,6 +103,7 @@ import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -244,6 +245,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -315,8 +317,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
-            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.bitsetFilterCache = indicesBitsetFilterCache != null
+                ? new BitsetFilterCache(indicesBitsetFilterCache, new BitsetCacheListener(this))
+                : null;
+            this.warmer = new IndexWarmer(
+                threadPool,
+                indexFieldData,
+                indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null
+            );
             this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
@@ -450,6 +458,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             wrapperFactory,
             mapperRegistry,
             indicesFieldDataCache,
+            null,
             searchOperationListeners,
             indexingOperationListeners,
             namedWriteableRegistry,
@@ -579,7 +588,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } finally {
                 IOUtils.close(
-                    bitsetFilterCache,
                     indexCache,
                     indexFieldData,
                     mapperService,
@@ -1138,7 +1146,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      *
      * @opensearch.internal
      */
-    private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
+    private static final class BitsetCacheListener implements IndicesBitsetFilterCache.Listener {
         final IndexService indexService;
 
         private BitsetCacheListener(IndexService indexService) {

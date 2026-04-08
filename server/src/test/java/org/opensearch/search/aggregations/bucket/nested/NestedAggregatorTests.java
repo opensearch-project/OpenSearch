@@ -76,6 +76,7 @@ import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.support.NestedScope;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -1132,7 +1133,10 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.nestedScope()).thenReturn(new NestedScope(indexSettings));
 
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, Mockito.mock(BitsetFilterCache.Listener.class));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
+            Mockito.mock(IndicesBitsetFilterCache.class),
+            Mockito.mock(IndicesBitsetFilterCache.Listener.class)
+        );
         when(queryShardContext.bitsetFilter(any())).thenReturn(bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter()));
         when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
