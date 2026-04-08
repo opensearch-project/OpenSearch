@@ -173,7 +173,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
         // No Docker binary was located
         if (availability.path == null) {
-            final String[] dockerPaths = ExecutableUtils.mergePaths(ExecutableUtils.getPathEnv(), DEFAULT_PATH);
+            final String[] dockerPaths = ExecutableUtils.mergePaths(DEFAULT_PATH, ExecutableUtils.getPathEnv());
             final String message = String.format(
                 Locale.ROOT,
                 "Docker (checked [%s]) is required to run the following task%s: \n%s",
