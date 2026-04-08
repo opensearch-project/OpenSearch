@@ -49,7 +49,7 @@ def osName = System.getProperty('os.name').toLowerCase()
 def libPrefix = osName.contains('windows') ? '' : 'lib'
 def libExtension = osName.contains('windows') ? '.dll' : (osName.contains('mac') ? '.dylib' : '.so')
 def nativeLibName = "opensearch_native"
-def buildType = project.hasProperty('rustDebug') ? 'release' : 'debug'
+def buildType = 'debug'//project.hasProperty('rustDebug') ? 'release' : 'debug'
 def rustWorkspaceDir = file("${projectDir}/rust")
 def nativeLibFile = file("${rustWorkspaceDir}/target/${buildType}/${libPrefix}${nativeLibName}${libExtension}")
 

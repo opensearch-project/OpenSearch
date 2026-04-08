@@ -2,7 +2,7 @@
 name = "opensearch-native-lib"
 version = "0.1.0"
 edition = "2021"
-description = "Single cdylib exposing extern C functions for JDK FFM"
+description = "Single cdylib linking all native modules"
 license = "Apache-2.0"
 
 [lib]

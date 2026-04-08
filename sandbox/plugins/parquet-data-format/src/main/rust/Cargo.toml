@@ -3,6 +3,7 @@ name = "opensearch-parquet-format"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
 
 [features]
 test-utils = []
@@ -12,18 +13,18 @@ name = "opensearch_parquet_format"
 crate-type = ["rlib"]
 
 [dependencies]
-arrow = { version = "57.3.0", features = ["ffi"] }
-arrow-array = "57.3.0"
-arrow-schema = "57.3.0"
-arrow-buffer = "57.3.0"
-log = "0.4"
-parquet = "57.3.0"
-lazy_static = "1.4.0"
-dashmap = "5.5"
-chrono = "0.4"
-mimalloc = { version = "0.1.48", default-features = false }
-tempfile = "3.0"
-native-bridge-common = { path = "../../../../../libs/dataformat-native/rust/common" }
+arrow = { workspace = true }
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+arrow-buffer = { workspace = true }
+log = { workspace = true }
+parquet = { workspace = true }
+lazy_static = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+mimalloc = { workspace = true }
+tempfile = { workspace = true }
+native-bridge-common = { workspace = true }
 
 [dev-dependencies]
 opensearch-parquet-format = { path = ".", features = ["test-utils"] }

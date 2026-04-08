@@ -3,6 +3,7 @@ name = "opensearch-datafusion"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
+workspace = "../../../libs/dataformat-native/rust"
 
 [lib]
 name = "opensearch_datafusion"
@@ -35,7 +36,7 @@ once_cell = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }
-native-bridge-common = { path = "../../../libs/dataformat-native/rust/common" }
+native-bridge-common = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
