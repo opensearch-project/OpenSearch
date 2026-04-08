@@ -9,6 +9,4 @@ license = "Apache-2.0"
 crate-type = ["rlib"]
 
 [dependencies]
-jni = { workspace = true }
-log = { workspace = true }
 native-bridge-macros = { path = "../macros" }

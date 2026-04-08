@@ -31,14 +31,14 @@ tasks.named('forbiddenApisMain').configure {
 
 jarHell.enabled = false
 
-// FFM is stable since JDK 22. Override project-wide JDK 21 target for this module.
-java {
-    sourceCompatibility = JavaVersion.toVersion(25)
-    targetCompatibility = JavaVersion.toVersion(25)
+// FFM is preview on JDK 21 — requires --enable-preview for compile and runtime.
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['--enable-preview']
+    options.compilerArgs -= '-Werror'
 }
 
 tasks.withType(Test).configureEach {
-    jvmArgs += ['--enable-native-access=ALL-UNNAMED']
+    jvmArgs += ['--enable-preview', '--enable-native-access=ALL-UNNAMED']
 }
 
 // ═══════════════════════════════════════════════════════════════════

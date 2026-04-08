@@ -31,25 +31,54 @@ public class RustBridge {
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
-        CREATE_WRITER = linker.downcallHandle(lib.find("parquet_create_writer").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
-        WRITE = linker.downcallHandle(lib.find("parquet_write").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
-        FINALIZE_WRITER = linker.downcallHandle(lib.find("parquet_finalize_writer").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
-        SYNC_TO_DISK = linker.downcallHandle(lib.find("parquet_sync_to_disk").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
-        GET_FILE_METADATA = linker.downcallHandle(lib.find("parquet_get_file_metadata").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
-        GET_FILTERED_BYTES = linker.downcallHandle(lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        CREATE_WRITER = linker.downcallHandle(
+            lib.find("parquet_create_writer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        WRITE = linker.downcallHandle(
+            lib.find("parquet_write").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+        FINALIZE_WRITER = linker.downcallHandle(
+            lib.find("parquet_finalize_writer").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+        SYNC_TO_DISK = linker.downcallHandle(
+            lib.find("parquet_sync_to_disk").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        GET_FILE_METADATA = linker.downcallHandle(
+            lib.find("parquet_get_file_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+        GET_FILTERED_BYTES = linker.downcallHandle(
+            lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
     public static void initLogger() {}
@@ -72,16 +101,13 @@ public class RustBridge {
             var numRowsOut = call.longOut();
             var cbBuf = call.buf(1024);
             var cbLen = call.longOut();
-            long rc = call.invokeIO(FINALIZE_WRITER,
-                call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
+            long rc = call.invokeIO(FINALIZE_WRITER, call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
             if (rc == 1) return null;
             long createdByLen = cbLen.get(ValueLayout.JAVA_LONG, 0);
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0
-                    ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
-                    : null
+                createdByLen >= 0 ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
             );
         }
     }
@@ -98,15 +124,12 @@ public class RustBridge {
             var numRowsOut = call.longOut();
             var cbBuf = call.buf(1024);
             var cbLen = call.longOut();
-            call.invokeIO(GET_FILE_METADATA,
-                call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
+            call.invokeIO(GET_FILE_METADATA, call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
             long createdByLen = cbLen.get(ValueLayout.JAVA_LONG, 0);
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0
-                    ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
-                    : null
+                createdByLen >= 0 ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
             );
         }
     }

@@ -19,7 +19,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -53,6 +52,8 @@ public final class NativeLibraryLoader {
                 lookup.find("native_error_free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
             );
+            // Register the Rust→Java log callback
+            lookup.find("native_logger_init").ifPresent(sym -> RustLoggerBridge.register(linker, sym));
         }
         return lookup;
     }
@@ -69,7 +70,7 @@ public final class NativeLibraryLoader {
         String msg;
         try {
             MemorySegment msgSeg = (MemorySegment) ERROR_MESSAGE.invokeExact(errPtr);
-            msg = msgSeg.reinterpret(4096).getString(0);
+            msg = msgSeg.reinterpret(4096).getUtf8String(0);
         } catch (Throwable t) {
             msg = "failed to read native error";
         }
@@ -90,7 +91,7 @@ public final class NativeLibraryLoader {
         String msg;
         try {
             MemorySegment msgSeg = (MemorySegment) ERROR_MESSAGE.invokeExact(errPtr);
-            msg = msgSeg.reinterpret(4096).getString(0);
+            msg = msgSeg.reinterpret(4096).getUtf8String(0);
         } catch (Throwable t) {
             msg = "failed to read native error";
         }

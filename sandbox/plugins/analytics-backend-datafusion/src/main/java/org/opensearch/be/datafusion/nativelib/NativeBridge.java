@@ -56,51 +56,87 @@ public final class NativeBridge {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
 
-        INIT_RUNTIME_MANAGER = linker.downcallHandle(lib.find("df_init_runtime_manager").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT));
+        INIT_RUNTIME_MANAGER = linker.downcallHandle(
+            lib.find("df_init_runtime_manager").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_INT)
+        );
 
-        SHUTDOWN_RUNTIME_MANAGER = linker.downcallHandle(lib.find("df_shutdown_runtime_manager").orElseThrow(),
-            FunctionDescriptor.ofVoid());
+        SHUTDOWN_RUNTIME_MANAGER = linker.downcallHandle(
+            lib.find("df_shutdown_runtime_manager").orElseThrow(),
+            FunctionDescriptor.ofVoid()
+        );
 
-        CREATE_GLOBAL_RUNTIME = linker.downcallHandle(lib.find("df_create_global_runtime").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
-
-        CLOSE_GLOBAL_RUNTIME = linker.downcallHandle(lib.find("df_close_global_runtime").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
-
-        CREATE_READER = linker.downcallHandle(lib.find("df_create_reader").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
-
-        CLOSE_READER = linker.downcallHandle(lib.find("df_close_reader").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
-
-        EXECUTE_QUERY = linker.downcallHandle(lib.find("df_execute_query").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
+        CREATE_GLOBAL_RUNTIME = linker.downcallHandle(
+            lib.find("df_create_global_runtime").orElseThrow(),
+            FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG));
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
 
-        STREAM_GET_SCHEMA = linker.downcallHandle(lib.find("df_stream_get_schema").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
+        CLOSE_GLOBAL_RUNTIME = linker.downcallHandle(
+            lib.find("df_close_global_runtime").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
 
-        STREAM_NEXT = linker.downcallHandle(lib.find("df_stream_next").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG));
+        CREATE_READER = linker.downcallHandle(
+            lib.find("df_create_reader").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
 
-        STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(),
-            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+        CLOSE_READER = linker.downcallHandle(lib.find("df_close_reader").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+
+        EXECUTE_QUERY = linker.downcallHandle(
+            lib.find("df_execute_query").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        STREAM_GET_SCHEMA = linker.downcallHandle(
+            lib.find("df_stream_get_schema").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        STREAM_NEXT = linker.downcallHandle(
+            lib.find("df_stream_next").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        STREAM_CLOSE = linker.downcallHandle(lib.find("df_stream_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
         // i64 df_sql_to_substrait(shard_ptr, table_ptr, table_len, sql_ptr, sql_len, runtime_ptr, out_ptr, out_cap, out_len)
-        SQL_TO_SUBSTRAIT = linker.downcallHandle(lib.find("df_sql_to_substrait").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG,
+        SQL_TO_SUBSTRAIT = linker.downcallHandle(
+            lib.find("df_sql_to_substrait").orElseThrow(),
+            FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
     }
 
     private NativeBridge() {}
@@ -132,8 +168,7 @@ public final class NativeBridge {
      */
     public static long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit) {
         try (var call = new NativeCall()) {
-            return call.invoke(CREATE_GLOBAL_RUNTIME,
-                memoryLimit, call.str(spillDir), NativeCall.len(spillDir), spillLimit);
+            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, call.str(spillDir), NativeCall.len(spillDir), spillLimit);
         }
     }
 
@@ -160,9 +195,7 @@ public final class NativeBridge {
                 filesPtrArray.setAtIndex(ValueLayout.ADDRESS, i, call.str(files[i]));
                 filesLenArray.setAtIndex(ValueLayout.JAVA_LONG, i, NativeCall.len(files[i]));
             }
-            return call.invoke(CREATE_READER,
-                call.str(path), NativeCall.len(path),
-                filesPtrArray, filesLenArray, (long) files.length);
+            return call.invoke(CREATE_READER, call.str(path), NativeCall.len(path), filesPtrArray, filesLenArray, (long) files.length);
         }
     }
 
@@ -177,15 +210,22 @@ public final class NativeBridge {
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
 
     public static void executeQueryAsync(
-        long readerPtr, String tableName, byte[] substraitPlan,
-        long runtimePtr, ActionListener<Long> listener
+        long readerPtr,
+        String tableName,
+        byte[] substraitPlan,
+        long runtimePtr,
+        ActionListener<Long> listener
     ) {
         try (var call = new NativeCall()) {
-            long result = call.invoke(EXECUTE_QUERY,
+            long result = call.invoke(
+                EXECUTE_QUERY,
                 readerPtr,
-                call.str(tableName), NativeCall.len(tableName),
-                call.bytes(substraitPlan), (long) substraitPlan.length,
-                runtimePtr);
+                call.str(tableName),
+                NativeCall.len(tableName),
+                call.bytes(substraitPlan),
+                (long) substraitPlan.length,
+                runtimePtr
+            );
             listener.onResponse(result);
         } catch (Throwable t) {
             listener.onFailure(t instanceof Exception ? (Exception) t : new RuntimeException(t));
@@ -227,12 +267,18 @@ public final class NativeBridge {
             int outCap = 1024 * 1024;
             var outBuf = call.buf(outCap);
             var outLen = call.longOut();
-            call.invoke(SQL_TO_SUBSTRAIT,
+            call.invoke(
+                SQL_TO_SUBSTRAIT,
                 readerPtr,
-                call.str(tableName), NativeCall.len(tableName),
-                call.str(sql), NativeCall.len(sql),
+                call.str(tableName),
+                NativeCall.len(tableName),
+                call.str(sql),
+                NativeCall.len(sql),
                 runtimePtr,
-                outBuf, (long) outCap, outLen);
+                outBuf,
+                (long) outCap,
+                outLen
+            );
             int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
             return outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
         }

@@ -228,6 +228,9 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         });
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
-        return new DatafusionResultStream(new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle), childAllocator);
+        return new DatafusionResultStream(
+            new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
+            childAllocator
+        );
     }
 }
