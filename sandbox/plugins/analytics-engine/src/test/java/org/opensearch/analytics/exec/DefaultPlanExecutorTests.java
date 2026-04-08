@@ -38,7 +38,6 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -117,7 +116,9 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
             2L,
             Map.of(),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            FileDeleter.NOOP,
+            Map.of(),
+            Map.of(),
+            List.of(),
             null
         );
 

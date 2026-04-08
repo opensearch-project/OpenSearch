@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -46,6 +48,7 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
     private volatile CatalogSnapshot safeCommit;
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile CatalogSnapshot lastCommit;
+    private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
     public CombinedCatalogSnapshotDeletionPolicy(
         Logger logger,
@@ -62,7 +65,7 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
     public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) throws IOException {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         List<CatalogSnapshot> toDelete = onCommit(commits);
-        if (safeCommit != commits.get(commits.size() - 1)) {
+        if (safeCommit != commits.getLast()) {
             throw new IllegalStateException(
                 "Engine is opened, but the last commit isn't safe. Global checkpoint ["
                     + globalCheckpointSupplier.getAsLong()
@@ -71,9 +74,9 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
                     + ", maxSeqNo="
                     + safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)
                     + "], last commit [gen="
-                    + commits.get(commits.size() - 1).getGeneration()
+                    + commits.getLast().getGeneration()
                     + ", maxSeqNo="
-                    + commits.get(commits.size() - 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO)
+                    + commits.getLast().getUserData().get(SequenceNumbers.MAX_SEQ_NO)
                     + "]"
             );
         }
@@ -83,13 +86,14 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
     @Override
     public synchronized List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) throws IOException {
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-        this.lastCommit = commits.get(commits.size() - 1);
+        this.safeCommitInfo = SafeCommitInfo.EMPTY;
+        this.lastCommit = commits.getLast();
         this.safeCommit = commits.get(keptPosition);
 
         List<CatalogSnapshot> toDelete = new ArrayList<>();
         for (int i = 0; i < keptPosition; i++) {
             if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                logger.debug("Delete catalog snapshot commit [gen={}]", commits.get(i).getGeneration());
+                logger.debug("Delete catalog snapshot commit [{}]", commitDescription(commits.get(i)));
                 toDelete.add(commits.get(i));
             }
         }
@@ -102,11 +106,18 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
             this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
         }
 
+        final CatalogSnapshot currentSafeCommit = this.safeCommit;
+        safeCommitInfo = new SafeCommitInfo(
+            Long.parseLong(currentSafeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+            getDocCountOfCommit(currentSafeCommit)
+        );
+
         return toDelete;
     }
 
     private void updateRetentionPolicy() throws IOException {
         assert Thread.holdsLock(this);
+        logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         final long localCheckpointOfSafeCommit = Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
     }
@@ -157,12 +168,73 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
     }
 
     /**
+     * Returns the total document count of a committed catalog snapshot by summing
+     * the row counts across all segments. Asserts that all data formats within a segment
+     * report the same row count.
+     */
+    public static int getDocCountOfCommit(CatalogSnapshot snapshot) {
+        long totalDocs = 0;
+        for (Segment segment : snapshot.getSegments()) {
+            long segmentRows = -1;
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                long numRows = entry.getValue().numRows();
+                if (segmentRows == -1) {
+                    segmentRows = numRows;
+                } else {
+                    assert segmentRows == numRows : "Segment [gen="
+                        + segment.generation()
+                        + "] has inconsistent row counts across data formats: "
+                        + segmentRows
+                        + " vs "
+                        + numRows
+                        + " (format="
+                        + entry.getKey()
+                        + ")";
+                }
+            }
+            if (segmentRows > 0) {
+                totalDocs += segmentRows;
+            }
+        }
+        return Math.toIntExact(totalDocs);
+    }
+
+    /**
+     * Returns information about the safe commit, for making decisions about recoveries.
+     */
+    public SafeCommitInfo getSafeCommitInfo() {
+        return safeCommitInfo;
+    }
+
+    /**
+     * Finds the safe commit point from the given list of commits and global checkpoint.
+     *
+     * @param commits the list of committed catalog snapshots, sorted by age (oldest first)
+     * @param globalCheckpoint the persisted global checkpoint
+     * @return the safe commit
+     */
+    public static CatalogSnapshot findSafeCommitPoint(List<CatalogSnapshot> commits, long globalCheckpoint) throws IOException {
+        if (commits.isEmpty()) {
+            throw new IllegalArgumentException("Commit list must not be empty");
+        }
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpoint);
+        return commits.get(keptPosition);
+    }
+
+    /**
+     * Returns a description for a given {@link CatalogSnapshot}. For logging and debugging only.
+     */
+    public static String commitDescription(CatalogSnapshot snapshot) {
+        return String.format(Locale.ROOT, "CommitPoint{gen[%d], userData%s}", snapshot.getGeneration(), snapshot.getUserData());
+    }
+
+    /**
      * Find the highest index position of a safe commit whose max sequence number
      * is not greater than the global checkpoint. Commits with different translog UUID
      * are filtered out as they don't belong to this engine.
      */
     private static int indexOfKeptCommits(List<CatalogSnapshot> commits, long globalCheckpoint) throws IOException {
-        final String expectedTranslogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final String expectedTranslogUUID = commits.getLast().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         assert expectedTranslogUUID != null : "last commit must have a translog UUID";
 
         for (int i = commits.size() - 1; i >= 0; i--) {

@@ -9,7 +9,10 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
@@ -20,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -33,6 +37,14 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
         userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCP));
         userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
         return new DataformatAwareCatalogSnapshot(gen, gen, 0L, List.of(), 0L, userData);
+    }
+
+    private static CatalogSnapshot snapshotWithDocs(long gen, long maxSeqNo, long localCP, String translogUUID, List<Segment> segments) {
+        Map<String, String> userData = new HashMap<>();
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCP));
+        userData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+        return new DataformatAwareCatalogSnapshot(gen, gen, 0L, segments, 0L, userData);
     }
 
     private CombinedCatalogSnapshotDeletionPolicy createPolicy(AtomicLong globalCP) {
@@ -220,5 +232,96 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
         // Advance globalCP past cs2's maxSeqNo
         globalCP.set(200);
         assertTrue(policy.hasUnreferencedCommits());
+    }
+
+    // ---- getSafeCommitInfo ----
+
+    public void testGetSafeCommitInfoReturnsEmptyBeforeInit() {
+        CombinedCatalogSnapshotDeletionPolicy policy = createPolicy(new AtomicLong(0));
+        assertEquals(SafeCommitInfo.EMPTY, policy.getSafeCommitInfo());
+    }
+
+    public void testGetSafeCommitInfoAfterOnCommit() throws IOException {
+        AtomicLong globalCP = new AtomicLong(100);
+        CombinedCatalogSnapshotDeletionPolicy policy = createPolicy(globalCP);
+
+        List<Segment> segments = List.of(
+            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10))),
+            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 25)))
+        );
+        CatalogSnapshot cs1 = snapshotWithDocs(1, 100, 100, "uuid1", segments);
+        List<CatalogSnapshot> commits = new ArrayList<>(List.of(cs1));
+        policy.onInit(commits);
+
+        SafeCommitInfo info = policy.getSafeCommitInfo();
+        assertEquals(100, info.localCheckpoint);
+        assertEquals(35, info.docCount); // 10 + 25
+    }
+
+    // ---- getDocCountOfCommit ----
+
+    public void testGetDocCountOfCommitSumsAcrossSegments() {
+        List<Segment> segments = List.of(
+            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10))),
+            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 20))),
+            new Segment(2, Map.of("parquet", new WriterFileSet("/data", 2, Set.of("c.parquet"), 30)))
+        );
+        CatalogSnapshot cs = snapshotWithDocs(1, 100, 100, "uuid", segments);
+        assertEquals(60, CombinedCatalogSnapshotDeletionPolicy.getDocCountOfCommit(cs));
+    }
+
+    public void testGetDocCountOfCommitMultiFormatConsistentRows() {
+        List<Segment> segments = List.of(
+            new Segment(
+                0,
+                Map.of(
+                    "parquet",
+                    new WriterFileSet("/data", 0, Set.of("a.parquet"), 15),
+                    "lucene",
+                    new WriterFileSet("/data", 0, Set.of("_0.cfs"), 15)
+                )
+            )
+        );
+        CatalogSnapshot cs = snapshotWithDocs(1, 100, 100, "uuid", segments);
+        assertEquals(15, CombinedCatalogSnapshotDeletionPolicy.getDocCountOfCommit(cs));
+    }
+
+    public void testGetDocCountOfCommitEmptySegments() {
+        CatalogSnapshot cs = snapshotWithDocs(1, 100, 100, "uuid", List.of());
+        assertEquals(0, CombinedCatalogSnapshotDeletionPolicy.getDocCountOfCommit(cs));
+    }
+
+    // ---- findSafeCommitPoint ----
+
+    public void testFindSafeCommitPointSingleCommit() throws IOException {
+        CatalogSnapshot cs1 = snapshot(1, 100, 100, "uuid");
+        assertSame(cs1, CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(cs1), 200));
+    }
+
+    public void testFindSafeCommitPointMultipleCommits() throws IOException {
+        CatalogSnapshot cs1 = snapshot(1, 100, 100, "uuid");
+        CatalogSnapshot cs2 = snapshot(2, 200, 200, "uuid");
+        CatalogSnapshot cs3 = snapshot(3, 300, 300, "uuid");
+
+        // globalCP=200 → cs2 is safe (maxSeqNo=200 ≤ 200)
+        assertSame(cs2, CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(cs1, cs2, cs3), 200));
+        // globalCP=50 → cs1 is fallback (oldest)
+        assertSame(cs1, CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(cs1, cs2, cs3), 50));
+        // globalCP=300 → cs3 is safe
+        assertSame(cs3, CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(cs1, cs2, cs3), 300));
+    }
+
+    public void testFindSafeCommitPointEmptyListThrows() {
+        expectThrows(IllegalArgumentException.class, () -> CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(), 100));
+    }
+
+    // ---- commitDescription ----
+
+    public void testCommitDescription() {
+        CatalogSnapshot cs = snapshot(42, 100, 100, "uuid");
+        String desc = CombinedCatalogSnapshotDeletionPolicy.commitDescription(cs);
+        assertTrue(desc.contains("42"));
+        assertTrue(desc.contains("100"));
+        assertTrue(desc.contains("uuid"));
     }
 }

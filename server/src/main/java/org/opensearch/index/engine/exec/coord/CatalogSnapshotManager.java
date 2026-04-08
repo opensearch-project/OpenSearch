@@ -9,9 +9,12 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.concurrent.GatedBiCloseable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.shard.ShardPath;
 
@@ -41,6 +44,7 @@ public class CatalogSnapshotManager implements Closeable {
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
     private final IndexFileDeleter indexFileDeleter;
     private final CatalogSnapshotDeletionPolicy deletionPolicy;
+    private final List<CatalogSnapshotLifecycleListener> snapshotListeners;
 
     /**
      * Constructs a new CatalogSnapshotManager.
@@ -51,8 +55,10 @@ public class CatalogSnapshotManager implements Closeable {
      * @param segments             the initial segments
      * @param lastWriterGeneration the last writer generation
      * @param userData             user-defined metadata
-     * @param deletionPolicy       decides which committed snapshots to keep, or null if not needed
-     * @param fileDeleter          delegates actual file deletion to the engine, or null if not needed
+     * @param deletionPolicy       decides which committed snapshots to keep
+     * @param fileDeleters         per-format deleters for actual file deletion
+     * @param filesListeners       per-format listeners notified on file add/delete
+     * @param snapshotListeners    listeners notified on snapshot deletion
      * @param shardPath            for orphan cleanup on init, or null if not needed
      */
     public CatalogSnapshotManager(
@@ -63,7 +69,9 @@ public class CatalogSnapshotManager implements Closeable {
         long lastWriterGeneration,
         Map<String, String> userData,
         CatalogSnapshotDeletionPolicy deletionPolicy,
-        FileDeleter fileDeleter,
+        Map<String, FileDeleter> fileDeleters,
+        Map<String, FilesListener> filesListeners,
+        List<CatalogSnapshotLifecycleListener> snapshotListeners,
         ShardPath shardPath
     ) throws IOException {
         DataformatAwareCatalogSnapshot initialSnapshot = new DataformatAwareCatalogSnapshot(
@@ -77,7 +85,8 @@ public class CatalogSnapshotManager implements Closeable {
         this.latestCatalogSnapshot = initialSnapshot;
         catalogSnapshotMap.put(initialSnapshot.getGeneration(), initialSnapshot);
         this.deletionPolicy = deletionPolicy;
-        this.indexFileDeleter = new IndexFileDeleter(deletionPolicy, fileDeleter, initialSnapshot, shardPath);
+        this.snapshotListeners = snapshotListeners;
+        this.indexFileDeleter = new IndexFileDeleter(deletionPolicy, fileDeleters, filesListeners, initialSnapshot, shardPath);
     }
 
     // ---- Refresh path ----
@@ -91,7 +100,9 @@ public class CatalogSnapshotManager implements Closeable {
      * @param refreshedSegments the segments produced by the latest refresh
      */
     public synchronized void commitNewSnapshot(List<Segment> refreshedSegments) {
-        assert closed.get() == false;
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
 
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
             latestCatalogSnapshot.getId() + 1,
@@ -102,7 +113,11 @@ public class CatalogSnapshotManager implements Closeable {
             latestCatalogSnapshot.getUserData()
         );
 
-        indexFileDeleter.addFileReferences(newSnapshot);
+        try {
+            indexFileDeleter.addFileReferences(newSnapshot);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to add file references for snapshot [gen=" + newSnapshot.getGeneration() + "]", e);
+        }
         catalogSnapshotMap.put(newSnapshot.getGeneration(), newSnapshot);
 
         CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
@@ -135,14 +150,18 @@ public class CatalogSnapshotManager implements Closeable {
 
     /**
      * Acquires the current latest snapshot for committing (flushing).
-     * The returned {@link GatedCloseable}'s close will register this snapshot as a commit
-     * with the {@link IndexFileDeleter}, triggering the deletion policy.
-     * The commit takes ownership of the ref — no decRef on close.
+     * <p>
+     * The caller must call {@code markSuccess()} on the returned handle after a successful commit.
+     * On close:
+     * <ul>
+     *   <li>If successful — registers the snapshot with the deletion policy via {@link IndexFileDeleter#onCommit}</li>
+     *   <li>If not successful (failure) — releases the ref via {@link #decRefAndMaybeDelete}</li>
+     * </ul>
      *
-     * @return a {@link GatedCloseable} wrapping the current {@link CatalogSnapshot}
+     * @return a {@link GatedBiCloseable} wrapping the current {@link CatalogSnapshot}
      * @throws IllegalStateException if the manager or snapshot is already closed
      */
-    public GatedCloseable<CatalogSnapshot> acquireSnapshotForCommit() {
+    public GatedBiCloseable<CatalogSnapshot> acquireSnapshotForCommit() {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
@@ -150,13 +169,13 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.tryIncRef() == false) {
             throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
         }
-        return new GatedCloseable<>(snapshot, () -> {
+        return new GatedBiCloseable<>(snapshot, () -> {
             try {
                 indexFileDeleter.onCommit(snapshot);
             } catch (IOException e) {
                 throw new RuntimeException("Failed to register commit [gen=" + snapshot.getGeneration() + "]", e);
             }
-        });
+        }, () -> decRefAndMaybeDelete(snapshot));
     }
 
     // ---- Snapshot protection for _snapshot API / peer recovery ----
@@ -182,6 +201,13 @@ public class CatalogSnapshotManager implements Closeable {
     private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
         final long gen = snapshot.getGeneration();
         if (snapshot.decRef()) {
+            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+                try {
+                    listener.onDeleted(snapshot);
+                } catch (IOException e) {
+                    throw new RuntimeException("Listener failed on snapshot deletion [gen=" + gen + "]", e);
+                }
+            }
             catalogSnapshotMap.remove(gen);
             try {
                 indexFileDeleter.removeFileReferences(snapshot);

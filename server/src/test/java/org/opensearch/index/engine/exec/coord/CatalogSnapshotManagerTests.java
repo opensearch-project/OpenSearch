@@ -8,6 +8,7 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.opensearch.common.concurrent.GatedBiCloseable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
@@ -76,7 +77,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 randomNonNegativeLong(),
                 initialUserData,
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                FileDeleter.NOOP,
+                Map.of(),
+                Map.of(),
+                List.of(),
                 null
             );
             try {
@@ -106,7 +109,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 randomNonNegativeLong(),
                 Collections.emptyMap(),
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                FileDeleter.NOOP,
+                Map.of(),
+                Map.of(),
+                List.of(),
                 null
             );
 
@@ -219,7 +224,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 lastWriterGeneration,
                 userData,
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                FileDeleter.NOOP,
+                Map.of(),
+                Map.of(),
+                List.of(),
                 null
             );
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -296,22 +303,13 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * Tracks files deleted via FileDeleter for assertions.
      */
     private static class TrackingFileDeleter implements FileDeleter {
-        final List<Map<String, Collection<String>>> deletions = new ArrayList<>();
+        final Set<String> deletedFiles = new HashSet<>();
 
         @Override
         public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-            deletions.add(new HashMap<>(filesToDelete));
-        }
-
-        Set<String> allDeletedFiles(String format) {
-            Set<String> result = new HashSet<>();
-            for (Map<String, Collection<String>> deletion : deletions) {
-                Collection<String> files = deletion.get(format);
-                if (files != null) {
-                    result.addAll(files);
-                }
+            for (Collection<String> files : filesToDelete.values()) {
+                deletedFiles.addAll(files);
             }
-            return result;
         }
     }
 
@@ -350,7 +348,19 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         );
         Map<String, String> userData = commitUserData(100, 100, translogUUID);
 
-        CatalogSnapshotManager manager = new CatalogSnapshotManager(1L, 1L, 0L, cs1Segments, 1L, userData, policy, tracker, null);
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            1L,
+            1L,
+            0L,
+            cs1Segments,
+            1L,
+            userData,
+            policy,
+            Map.of("parquet", tracker),
+            Map.of(),
+            List.of(),
+            null
+        );
 
         // Refresh: CS2 adds segment _2, keeps _0 and _1
         List<Segment> cs2Segments = List.of(
@@ -361,18 +371,19 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         manager.commitNewSnapshot(cs2Segments);
 
         // No files deleted yet — CS1's commit ref keeps its files alive
-        assertTrue(tracker.deletions.isEmpty());
+        assertTrue(tracker.deletedFiles.isEmpty());
 
         // Flush: CS2 becomes a commit, policy deletes CS1
         globalCP.set(200);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             // set userData on the snapshot for the policy to read
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
+            commitRef.markSuccess();
         }
 
         // CS1's files that are NOT in CS2 should be deleted
         // But all of CS1's files (_0, _1) are also in CS2, so nothing should be deleted
-        assertTrue("No files should be deleted since CS2 shares all files with CS1", tracker.deletions.isEmpty());
+        assertTrue("No files should be deleted since CS2 shares all files with CS1", tracker.deletedFiles.isEmpty());
 
         manager.close();
     }
@@ -402,7 +413,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             1L,
             commitUserData(100, 100, translogUUID),
             policy,
-            tracker,
+            Map.of("parquet", tracker),
+            Map.of(),
+            List.of(),
             null
         );
 
@@ -412,12 +425,13 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
+            commitRef.markSuccess();
         }
 
         // CS1 deleted by policy → _0_data and _1_data should be deleted (not in CS2)
-        Set<String> deleted = tracker.allDeletedFiles("parquet");
+        Set<String> deleted = tracker.deletedFiles;
         assertTrue("_0_data.parquet should be deleted", deleted.contains("_0_data.parquet"));
         assertTrue("_1_data.parquet should be deleted", deleted.contains("_1_data.parquet"));
         assertFalse("_2_data.parquet should NOT be deleted", deleted.contains("_2_data.parquet"));
@@ -449,13 +463,16 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             1L,
             commitUserData(100, 100, translogUUID),
             policy,
-            tracker,
+            Map.of("parquet", tracker),
+            Map.of(),
+            List.of(),
             null
         );
 
         // Flush CS1 so it's a proper commit
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(100, 100, translogUUID));
+            commitRef.markSuccess();
         }
 
         // Acquire committed snapshot (simulating _snapshot API)
@@ -466,18 +483,19 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
+            commitRef.markSuccess();
         }
 
         // CS1 is snapshotted — should NOT be deleted
-        assertFalse("_0_data should not be deleted while snapshot is held", tracker.allDeletedFiles("parquet").contains("_0_data.parquet"));
+        assertFalse("_0_data should not be deleted while snapshot is held", tracker.deletedFiles.contains("_0_data.parquet"));
 
         // Release the snapshot — triggers revisitPolicy which cleans up
         held.close();
 
         // Now _0_data should be deleted
-        assertTrue("_0_data should be deleted after snapshot release", tracker.allDeletedFiles("parquet").contains("_0_data.parquet"));
+        assertTrue("_0_data should be deleted after snapshot release", tracker.deletedFiles.contains("_0_data.parquet"));
 
         manager.close();
     }
@@ -506,7 +524,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             1L,
             commitUserData(100, 100, translogUUID),
             policy,
-            tracker,
+            Map.of("parquet", tracker),
+            Map.of(),
+            List.of(),
             null
         );
 
@@ -519,19 +539,20 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush latest
         globalCP.set(200);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
+            commitRef.markSuccess();
         }
 
         // CS1's commit ref was released by policy, but reader still holds a ref
         // So CS1's refCount > 0, removeFileReferences not called yet
-        assertFalse("_0_data should not be deleted while reader holds ref", tracker.allDeletedFiles("parquet").contains("_0_data.parquet"));
+        assertFalse("_0_data should not be deleted while reader holds ref", tracker.deletedFiles.contains("_0_data.parquet"));
 
         // Reader releases
         readerRef.close();
 
         // Now CS1 refCount hits 0 → removeFileReferences → _0_data deleted
-        assertTrue("_0_data should be deleted after reader releases", tracker.allDeletedFiles("parquet").contains("_0_data.parquet"));
+        assertTrue("_0_data should be deleted after reader releases", tracker.deletedFiles.contains("_0_data.parquet"));
 
         manager.close();
     }
@@ -559,7 +580,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             1L,
             commitUserData(100, 100, translogUUID),
             policy,
-            tracker,
+            Map.of("parquet", tracker),
+            Map.of(),
+            List.of(),
             null
         );
 
@@ -568,12 +591,13 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
+            commitRef.markSuccess();
         }
 
         // CS1 deleted → _0_data deleted, but _shared survives (still in CS2)
-        Set<String> deleted = tracker.allDeletedFiles("parquet");
+        Set<String> deleted = tracker.deletedFiles;
         assertTrue("_0_data should be deleted", deleted.contains("_0_data.parquet"));
         assertFalse("_shared should NOT be deleted (still in CS2)", deleted.contains("_shared.parquet"));
 
@@ -582,12 +606,13 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS3
         globalCP.set(300);
-        try (GatedCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(300, 300, translogUUID));
+            commitRef.markSuccess();
         }
 
         // Now _shared should be deleted (CS2 commit deleted by policy)
-        assertTrue("_shared should be deleted after CS2 commit removed", tracker.allDeletedFiles("parquet").contains("_shared.parquet"));
+        assertTrue("_shared should be deleted after CS2 commit removed", tracker.deletedFiles.contains("_shared.parquet"));
 
         manager.close();
     }
@@ -640,7 +665,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 randomNonNegativeLong(),
                 Map.of(),
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                FileDeleter.NOOP,
+                Map.of(),
+                Map.of(),
+                List.of(),
                 null
             );
         } catch (IOException e) {

@@ -23,7 +23,6 @@ import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
-import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -265,7 +264,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             1L,
             Map.of(),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            FileDeleter.NOOP,
+            Map.of(),
+            Map.of(),
+            List.of(),
             null
         );
 
@@ -366,7 +367,9 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             1L,
             Map.of(),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-            FileDeleter.NOOP,
+            Map.of(),
+            Map.of(),
+            List.of(),
             null
         );
 

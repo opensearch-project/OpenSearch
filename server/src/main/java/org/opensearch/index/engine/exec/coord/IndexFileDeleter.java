@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.coord;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
+import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
@@ -51,17 +52,20 @@ public class IndexFileDeleter {
 
     private final Map<String, Map<String, AtomicInteger>> fileRefCounts;
     private final CatalogSnapshotDeletionPolicy deletionPolicy;
-    private final FileDeleter fileDeleter;
+    private final Map<String, FileDeleter> fileDeleters;
+    private final Map<String, FilesListener> filesListeners;
     private final List<CatalogSnapshot> committedSnapshots;
 
     public IndexFileDeleter(
         CatalogSnapshotDeletionPolicy deletionPolicy,
-        FileDeleter fileDeleter,
+        Map<String, FileDeleter> fileDeleters,
+        Map<String, FilesListener> filesListeners,
         CatalogSnapshot committedSnapshot,
         ShardPath shardPath
     ) throws IOException {
         this.deletionPolicy = deletionPolicy;
-        this.fileDeleter = fileDeleter;
+        this.fileDeleters = fileDeleters;
+        this.filesListeners = filesListeners;
         this.fileRefCounts = new HashMap<>();
         this.committedSnapshots = new ArrayList<>();
 
@@ -89,7 +93,7 @@ public class IndexFileDeleter {
      *
      * @return files whose ref count went from 0 to 1 (newly visible), grouped by format name
      */
-    public synchronized Map<String, Collection<String>> addFileReferences(CatalogSnapshot snapshot) {
+    public synchronized Map<String, Collection<String>> addFileReferences(CatalogSnapshot snapshot) throws IOException {
         Map<String, Collection<String>> segregated = segregateFilesByFormat(snapshot);
         Map<String, Collection<String>> newFiles = new HashMap<>();
 
@@ -108,6 +112,7 @@ public class IndexFileDeleter {
                 newFiles.put(formatName, added);
             }
         }
+        notifyFilesAdded(newFiles);
         return newFiles;
     }
 
@@ -118,7 +123,8 @@ public class IndexFileDeleter {
     public synchronized void removeFileReferences(CatalogSnapshot snapshot) throws IOException {
         Map<String, Collection<String>> filesToDelete = decRefFiles(snapshot);
         if (filesToDelete.isEmpty() == false) {
-            fileDeleter.deleteFiles(filesToDelete);
+            deleteFiles(filesToDelete);
+            notifyFilesDeleted(filesToDelete);
         }
     }
 
@@ -157,6 +163,35 @@ public class IndexFileDeleter {
             committedSnapshots.remove(old);
             if (old.decRef()) {
                 removeFileReferences(old);
+            }
+        }
+    }
+
+    // ---- Listener notification ----
+
+    private void deleteFiles(Map<String, Collection<String>> filesByFormat) throws IOException {
+        for (Map.Entry<String, Collection<String>> entry : filesByFormat.entrySet()) {
+            FileDeleter deleter = fileDeleters.get(entry.getKey());
+            if (deleter != null) {
+                deleter.deleteFiles(Map.of(entry.getKey(), entry.getValue()));
+            }
+        }
+    }
+
+    private void notifyFilesAdded(Map<String, Collection<String>> newFilesByFormat) throws IOException {
+        for (Map.Entry<String, Collection<String>> entry : newFilesByFormat.entrySet()) {
+            FilesListener listener = filesListeners.get(entry.getKey());
+            if (listener != null) {
+                listener.onFilesAdded(entry.getValue());
+            }
+        }
+    }
+
+    private void notifyFilesDeleted(Map<String, Collection<String>> deletedFilesByFormat) throws IOException {
+        for (Map.Entry<String, Collection<String>> entry : deletedFilesByFormat.entrySet()) {
+            FilesListener listener = filesListeners.get(entry.getKey());
+            if (listener != null) {
+                listener.onFilesDeleted(entry.getValue());
             }
         }
     }
@@ -223,7 +258,7 @@ public class IndexFileDeleter {
             }
         }
         if (orphansByFormat.isEmpty() == false) {
-            fileDeleter.deleteFiles(orphansByFormat);
+            deleteFiles(orphansByFormat);
         }
     }
 

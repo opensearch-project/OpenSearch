@@ -23,7 +23,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -55,26 +54,17 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     }
 
     static class TrackingFileDeleter implements FileDeleter {
-        final List<Map<String, Collection<String>>> deletions = new ArrayList<>();
+        final Set<String> deletedFiles = new HashSet<>();
 
         @Override
         public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-            deletions.add(new HashMap<>(filesToDelete));
-        }
-
-        Set<String> allDeletedFiles(String format) {
-            Set<String> result = new HashSet<>();
-            for (Map<String, Collection<String>> deletion : deletions) {
-                Collection<String> files = deletion.get(format);
-                if (files != null) {
-                    result.addAll(files);
-                }
+            for (Collection<String> files : filesToDelete.values()) {
+                deletedFiles.addAll(files);
             }
-            return result;
         }
 
-        boolean hasDeletedFile(String format, String file) {
-            return allDeletedFiles(format).contains(file);
+        boolean hasDeletedFile(String file) {
+            return deletedFiles.contains(file);
         }
     }
 
@@ -84,7 +74,13 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         TrackingFileDeleter tracker = new TrackingFileDeleter();
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "a.parquet", "b.parquet")), commitUserData(100, 100, "uuid"));
 
-        IndexFileDeleter deleter = new IndexFileDeleter(CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of("parquet", tracker),
+            Map.of(),
+            cs1,
+            null
+        );
 
         Map<String, Collection<String>> newFiles = deleter.addFileReferences(
             snapshot(2, List.of(segment(0, "parquet", "a.parquet", "c.parquet")), commitUserData(200, 200, "uuid"))
@@ -99,7 +95,13 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         TrackingFileDeleter tracker = new TrackingFileDeleter();
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "a.parquet", "b.parquet")), commitUserData(100, 100, "uuid"));
 
-        IndexFileDeleter deleter = new IndexFileDeleter(CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of("parquet", tracker),
+            Map.of(),
+            cs1,
+            null
+        );
 
         // Add cs2 sharing a.parquet but not b.parquet
         CatalogSnapshot cs2 = snapshot(2, List.of(segment(1, "parquet", "a.parquet", "c.parquet")), commitUserData(200, 200, "uuid"));
@@ -109,9 +111,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         deleter.removeFileReferences(cs1);
 
         // b.parquet was only in cs1 → deleted
-        assertTrue(tracker.hasDeletedFile("parquet", "b.parquet"));
+        assertTrue(tracker.hasDeletedFile("b.parquet"));
         // a.parquet shared with cs2 → NOT deleted
-        assertFalse(tracker.hasDeletedFile("parquet", "a.parquet"));
+        assertFalse(tracker.hasDeletedFile("a.parquet"));
     }
 
     // ---- onCommit ----
@@ -132,7 +134,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             commitUserData(100, 100, "uuid")
         );
 
-        IndexFileDeleter deleter = new IndexFileDeleter(policy, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(policy, Map.of("parquet", tracker), Map.of(), cs1, null);
 
         // Refresh: cs2 with merged files
         CatalogSnapshot cs2 = snapshot(2, List.of(segment(2, "parquet", "new_merged.parquet")), commitUserData(200, 200, "uuid"));
@@ -146,9 +148,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         deleter.onCommit(cs2);
 
         // cs1 deleted by policy → old_a and old_b should be deleted
-        assertTrue(tracker.hasDeletedFile("parquet", "old_a.parquet"));
-        assertTrue(tracker.hasDeletedFile("parquet", "old_b.parquet"));
-        assertFalse(tracker.hasDeletedFile("parquet", "new_merged.parquet"));
+        assertTrue(tracker.hasDeletedFile("old_a.parquet"));
+        assertTrue(tracker.hasDeletedFile("old_b.parquet"));
+        assertFalse(tracker.hasDeletedFile("new_merged.parquet"));
     }
 
     public void testOnCommitPreservesSharedFiles() throws IOException {
@@ -167,7 +169,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             commitUserData(100, 100, "uuid")
         );
 
-        IndexFileDeleter deleter = new IndexFileDeleter(policy, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(policy, Map.of("parquet", tracker), Map.of(), cs1, null);
 
         // cs2 keeps shared.parquet, adds new file
         CatalogSnapshot cs2 = snapshot(
@@ -184,8 +186,8 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         deleter.onCommit(cs2);
 
         // only_cs1 deleted, shared survives
-        assertTrue(tracker.hasDeletedFile("parquet", "only_cs1.parquet"));
-        assertFalse(tracker.hasDeletedFile("parquet", "shared.parquet"));
+        assertTrue(tracker.hasDeletedFile("only_cs1.parquet"));
+        assertFalse(tracker.hasDeletedFile("shared.parquet"));
     }
 
     // ---- revisitPolicy ----
@@ -201,7 +203,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         );
 
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "cs1_file.parquet")), commitUserData(100, 100, "uuid"));
-        IndexFileDeleter deleter = new IndexFileDeleter(policy, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(policy, Map.of("parquet", tracker), Map.of(), cs1, null);
 
         // Hold cs1 via snapshot protection
         var held = policy.acquireCommittedSnapshot(false);
@@ -217,20 +219,21 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         deleter.onCommit(cs2);
 
         // cs1 protected — not deleted
-        assertFalse(tracker.hasDeletedFile("parquet", "cs1_file.parquet"));
+        assertFalse(tracker.hasDeletedFile("cs1_file.parquet"));
 
         // Release hold
         held.close();
 
         // revisitPolicy should now delete cs1
         deleter.revisitPolicy();
-        assertTrue(tracker.hasDeletedFile("parquet", "cs1_file.parquet"));
+        assertTrue(tracker.hasDeletedFile("cs1_file.parquet"));
     }
 
     // ---- Multi-format ----
 
     public void testMultiFormatFileDeletion() throws IOException {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        TrackingFileDeleter parquetTracker = new TrackingFileDeleter();
+        TrackingFileDeleter luceneTracker = new TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
 
         CombinedCatalogSnapshotDeletionPolicy policy = new CombinedCatalogSnapshotDeletionPolicy(
@@ -250,7 +253,13 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             )
         );
         CatalogSnapshot cs1 = snapshot(1, List.of(seg), commitUserData(100, 100, "uuid"));
-        IndexFileDeleter deleter = new IndexFileDeleter(policy, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            policy,
+            Map.of("parquet", parquetTracker, "lucene", luceneTracker),
+            Map.of(),
+            cs1,
+            null
+        );
 
         // cs2 has completely different files
         Segment seg2 = new Segment(
@@ -272,10 +281,10 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         deleter.onCommit(cs2);
 
         // Both formats' old files should be deleted
-        assertTrue(tracker.hasDeletedFile("parquet", "data.parquet"));
-        assertTrue(tracker.hasDeletedFile("lucene", "_0.cfs"));
-        assertFalse(tracker.hasDeletedFile("parquet", "data2.parquet"));
-        assertFalse(tracker.hasDeletedFile("lucene", "_1.cfs"));
+        assertTrue(parquetTracker.hasDeletedFile("data.parquet"));
+        assertTrue(luceneTracker.hasDeletedFile("_0.cfs"));
+        assertFalse(parquetTracker.hasDeletedFile("data2.parquet"));
+        assertFalse(luceneTracker.hasDeletedFile("_1.cfs"));
     }
 
     // ---- Lifecycle: commit ref keeps snapshot alive ----
@@ -291,7 +300,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         );
 
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "cs1.parquet")), commitUserData(100, 100, "uuid"));
-        IndexFileDeleter deleter = new IndexFileDeleter(policy, tracker, cs1, null);
+        IndexFileDeleter deleter = new IndexFileDeleter(policy, Map.of("parquet", tracker), Map.of(), cs1, null);
 
         // cs1 has refCount=2 (manager + commit from constructor)
         assertEquals(2, cs1.refCount());
@@ -301,7 +310,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
         assertEquals(1, cs1.refCount());
 
         // Files NOT deleted — commit ref keeps it alive
-        assertTrue(tracker.deletions.isEmpty());
+        assertTrue(tracker.deletedFiles.isEmpty());
 
         // Add cs2 and commit
         CatalogSnapshot cs2 = snapshot(2, List.of(segment(1, "parquet", "cs2.parquet")), commitUserData(200, 200, "uuid"));
@@ -311,7 +320,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         // Policy deletes cs1 → decRef → refCount=0 → removeFileReferences
         assertEquals(0, cs1.refCount());
-        assertTrue(tracker.hasDeletedFile("parquet", "cs1.parquet"));
+        assertTrue(tracker.hasDeletedFile("cs1.parquet"));
     }
 
     // ---- deleteOrphanedFiles ----
@@ -334,11 +343,17 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "known.parquet")), commitUserData(100, 100, "uuid"));
 
-        IndexFileDeleter deleter = new IndexFileDeleter(CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, tracker, cs1, shardPath);
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of("parquet", tracker),
+            Map.of(),
+            cs1,
+            shardPath
+        );
 
-        assertTrue(tracker.hasDeletedFile("parquet", "orphan1.parquet"));
-        assertTrue(tracker.hasDeletedFile("parquet", "orphan2.parquet"));
-        assertFalse(tracker.hasDeletedFile("parquet", "known.parquet"));
+        assertTrue(tracker.hasDeletedFile("orphan1.parquet"));
+        assertTrue(tracker.hasDeletedFile("orphan2.parquet"));
+        assertFalse(tracker.hasDeletedFile("known.parquet"));
     }
 
     public void testDeleteOrphanedFilesSkipsMissingDirectory() throws IOException {
@@ -352,7 +367,13 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
 
         CatalogSnapshot cs1 = snapshot(1, List.of(segment(0, "parquet", "a.parquet")), commitUserData(100, 100, "uuid"));
 
-        IndexFileDeleter deleter = new IndexFileDeleter(CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, tracker, cs1, shardPath);
-        assertTrue(tracker.deletions.isEmpty());
+        IndexFileDeleter deleter = new IndexFileDeleter(
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of("parquet", tracker),
+            Map.of(),
+            cs1,
+            shardPath
+        );
+        assertTrue(tracker.deletedFiles.isEmpty());
     }
 }
