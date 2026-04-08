@@ -33,10 +33,18 @@
 package org.opensearch.dashboards;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.dashboards.action.DeleteSavedObjectAction;
 import org.opensearch.dashboards.action.GetAdvancedSettingsAction;
+import org.opensearch.dashboards.action.GetSavedObjectAction;
+import org.opensearch.dashboards.action.SearchSavedObjectAction;
 import org.opensearch.dashboards.action.WriteAdvancedSettingsAction;
+import org.opensearch.dashboards.action.WriteSavedObjectAction;
+import org.opensearch.dashboards.rest.RestDeleteSavedObjectAction;
 import org.opensearch.dashboards.rest.RestGetAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestGetSavedObjectAction;
+import org.opensearch.dashboards.rest.RestSearchSavedObjectAction;
 import org.opensearch.dashboards.rest.RestWriteAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestWriteSavedObjectAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.RestHandler;
@@ -82,12 +90,18 @@ public class OpenSearchDashboardsModulePluginTests extends OpenSearchTestCase {
         OpenSearchDashboardsModulePlugin plugin = new OpenSearchDashboardsModulePlugin();
         List<? extends ActionPlugin.ActionHandler<?, ?>> actions = plugin.getActions();
 
-        assertEquals(2, actions.size());
+        assertEquals(6, actions.size());
 
         boolean hasGet = actions.stream().anyMatch(h -> h.getAction().name().equals(GetAdvancedSettingsAction.NAME));
         boolean hasWrite = actions.stream().anyMatch(h -> h.getAction().name().equals(WriteAdvancedSettingsAction.NAME));
         assertTrue(hasGet);
         assertTrue(hasWrite);
+
+        // Saved object actions
+        assertTrue(actions.stream().anyMatch(h -> h.getAction().name().equals(GetSavedObjectAction.NAME)));
+        assertTrue(actions.stream().anyMatch(h -> h.getAction().name().equals(WriteSavedObjectAction.NAME)));
+        assertTrue(actions.stream().anyMatch(h -> h.getAction().name().equals(DeleteSavedObjectAction.NAME)));
+        assertTrue(actions.stream().anyMatch(h -> h.getAction().name().equals(SearchSavedObjectAction.NAME)));
     }
 
     public void testGetRestHandlersIncludesAdvancedSettingsHandlers() {
@@ -104,5 +118,11 @@ public class OpenSearchDashboardsModulePluginTests extends OpenSearchTestCase {
 
         assertTrue(handlerNames.contains("get"));
         assertTrue(handlerNames.contains("write"));
+
+        // Saved object REST handlers
+        assertTrue(handlers.stream().anyMatch(h -> h instanceof RestGetSavedObjectAction));
+        assertTrue(handlers.stream().anyMatch(h -> h instanceof RestWriteSavedObjectAction));
+        assertTrue(handlers.stream().anyMatch(h -> h instanceof RestDeleteSavedObjectAction));
+        assertTrue(handlers.stream().anyMatch(h -> h instanceof RestSearchSavedObjectAction));
     }
 }

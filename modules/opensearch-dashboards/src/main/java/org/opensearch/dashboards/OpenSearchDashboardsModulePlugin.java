@@ -42,12 +42,24 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.dashboards.action.DeleteSavedObjectAction;
 import org.opensearch.dashboards.action.GetAdvancedSettingsAction;
+import org.opensearch.dashboards.action.GetSavedObjectAction;
+import org.opensearch.dashboards.action.SearchSavedObjectAction;
+import org.opensearch.dashboards.action.TransportDeleteSavedObjectAction;
 import org.opensearch.dashboards.action.TransportGetAdvancedSettingsAction;
+import org.opensearch.dashboards.action.TransportGetSavedObjectAction;
+import org.opensearch.dashboards.action.TransportSearchSavedObjectAction;
 import org.opensearch.dashboards.action.TransportWriteAdvancedSettingsAction;
+import org.opensearch.dashboards.action.TransportWriteSavedObjectAction;
 import org.opensearch.dashboards.action.WriteAdvancedSettingsAction;
+import org.opensearch.dashboards.action.WriteSavedObjectAction;
+import org.opensearch.dashboards.rest.RestDeleteSavedObjectAction;
 import org.opensearch.dashboards.rest.RestGetAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestGetSavedObjectAction;
+import org.opensearch.dashboards.rest.RestSearchSavedObjectAction;
 import org.opensearch.dashboards.rest.RestWriteAdvancedSettingsAction;
+import org.opensearch.dashboards.rest.RestWriteSavedObjectAction;
 import org.opensearch.index.reindex.RestDeleteByQueryAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.Plugin;
@@ -152,7 +164,12 @@ public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIn
                 new OpenSearchDashboardsWrappedRestHandler(new RestSearchScrollAction()),
                 new OpenSearchDashboardsWrappedRestHandler(new RestClearScrollAction()),
                 new RestGetAdvancedSettingsAction(),
-                new RestWriteAdvancedSettingsAction()
+                new RestWriteAdvancedSettingsAction(),
+                // Saved object CRUD APIs
+                new RestGetSavedObjectAction(),
+                new RestWriteSavedObjectAction(),
+                new RestDeleteSavedObjectAction(),
+                new RestSearchSavedObjectAction()
             )
         );
 
@@ -162,7 +179,12 @@ public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIn
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(GetAdvancedSettingsAction.INSTANCE, TransportGetAdvancedSettingsAction.class),
-            new ActionHandler<>(WriteAdvancedSettingsAction.INSTANCE, TransportWriteAdvancedSettingsAction.class)
+            new ActionHandler<>(WriteAdvancedSettingsAction.INSTANCE, TransportWriteAdvancedSettingsAction.class),
+            // Saved object CRUD actions
+            new ActionHandler<>(GetSavedObjectAction.INSTANCE, TransportGetSavedObjectAction.class),
+            new ActionHandler<>(WriteSavedObjectAction.INSTANCE, TransportWriteSavedObjectAction.class),
+            new ActionHandler<>(DeleteSavedObjectAction.INSTANCE, TransportDeleteSavedObjectAction.class),
+            new ActionHandler<>(SearchSavedObjectAction.INSTANCE, TransportSearchSavedObjectAction.class)
         );
     }
 
