@@ -9,13 +9,13 @@
 package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.List;
-import java.util.Optional;
 
 public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     private final List<DataFormat> formats;
@@ -35,11 +35,7 @@ public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     }
 
     @Override
-    public EngineReaderManager<?> createReaderManager(
-        Optional<IndexStoreProvider> indexStoreProvider,
-        DataFormat format,
-        ShardPath shardPath
-    ) {
+    public EngineReaderManager<?> createReaderManager(ReaderManagerSettings settings) {
         return new MockReaderManager("mock-columnar");
     }
 }

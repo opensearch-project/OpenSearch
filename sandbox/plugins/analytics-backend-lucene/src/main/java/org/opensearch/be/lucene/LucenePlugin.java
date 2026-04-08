@@ -11,6 +11,7 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterSettings;
@@ -52,12 +53,8 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     }
 
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(
-        Optional<IndexStoreProvider> indexStoreProvider,
-        DataFormat format,
-        ShardPath shardPath
-    ) throws IOException {
-        return LuceneSearchBackEnd.createReaderManager(indexStoreProvider, format, shardPath);
+    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerSettings settings) throws IOException {
+        return LuceneSearchBackEnd.createReaderManager(settings);
     }
 
     // --- EnginePlugin ---

@@ -8,7 +8,7 @@
 
 package org.opensearch.index.engine.dataformat;
 
-import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -39,10 +39,8 @@ public class DataFormatRegistry {
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
-    /** Map from data format to a factory that creates an {@link EngineReaderManager} for a given store provider and shard path. */
-    private final Map<
-        DataFormat,
-        CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
+    /** Map from data format to a factory that creates an {@link EngineReaderManager} for the given settings. */
+    private final Map<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
 
@@ -56,10 +54,8 @@ public class DataFormatRegistry {
      */
     public DataFormatRegistry(PluginsService pluginsService) {
         Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
-        Map<
-            DataFormat,
-            CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders =
-                new HashMap<>();
+        Map<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> readerManagerBuilders =
+            new HashMap<>();
         Map<String, DataFormat> dataFormats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
@@ -73,10 +69,7 @@ public class DataFormatRegistry {
 
         for (SearchBackEndPlugin<?> plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
             for (DataFormat format : plugin.getSupportedFormats()) {
-                readerManagerBuilders.put(
-                    format,
-                    (indexStoreProvider, shardPath) -> plugin.createReaderManager(indexStoreProvider, format, shardPath)
-                );
+                readerManagerBuilders.put(format, settings -> plugin.createReaderManager(settings));
             }
         }
 
@@ -167,11 +160,10 @@ public class DataFormatRegistry {
     ) throws IOException {
         // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<
-            DataFormat,
-            CheckedBiFunction<Optional<IndexStoreProvider>, ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
-                .entrySet()) {
-            readerManagers.put(entry.getKey(), entry.getValue().apply(indexStoreProvider, shardPath));
+        for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> entry :
+            readerManagerBuilders.entrySet()) {
+            ReaderManagerSettings settings = new ReaderManagerSettings(indexStoreProvider, entry.getKey(), shardPath);
+            readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
         }
         return readerManagers;
     }
