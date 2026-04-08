@@ -60,6 +60,38 @@ pub struct ResolvedPredicate {
 }
 
 impl BoolNode {
+    /// Count the number of Collector leaves in the tree.
+    pub fn collector_leaf_count(&self) -> usize {
+        match self {
+            BoolNode::And(children) | BoolNode::Or(children) => {
+                children.iter().map(|c| c.collector_leaf_count()).sum()
+            }
+            BoolNode::Not(child) => child.collector_leaf_count(),
+            BoolNode::Collector { .. } => 1,
+            BoolNode::Predicate { .. } => 0,
+        }
+    }
+
+    /// Collect all unique (provider_id, collector_idx) pairs from the tree.
+    pub fn collector_leaves(&self) -> Vec<(u16, usize)> {
+        let mut leaves = Vec::new();
+        self.collect_leaves(&mut leaves);
+        leaves
+    }
+
+    fn collect_leaves(&self, out: &mut Vec<(u16, usize)>) {
+        match self {
+            BoolNode::And(children) | BoolNode::Or(children) => {
+                for c in children { c.collect_leaves(out); }
+            }
+            BoolNode::Not(child) => child.collect_leaves(out),
+            BoolNode::Collector { provider_id, collector_idx } => {
+                out.push((*provider_id, *collector_idx));
+            }
+            BoolNode::Predicate { .. } => {}
+        }
+    }
+
     /// De Morgan's NOT push-down normalization.
     /// After this, NOT only appears directly above Collector or Predicate leaves.
     pub fn push_not_down(self) -> BoolNode {
