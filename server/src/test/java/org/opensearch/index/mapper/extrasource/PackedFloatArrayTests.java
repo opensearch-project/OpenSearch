@@ -8,7 +8,6 @@
 
 package org.opensearch.index.mapper.extrasource;
 
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -16,14 +15,12 @@ import org.opensearch.core.common.bytes.CompositeBytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PackedFloatArrayTests extends OpenSearchTestCase {
@@ -47,11 +44,10 @@ public class PackedFloatArrayTests extends OpenSearchTestCase {
         assertEquals(vals[2], pfa.get(2), 0.0f);
     }
 
-    public void testFromPackedBytes_bytesArraySliceUsesUnderlyingArrayWithoutCompaction() throws Exception {
+    public void testFromPackedBytes_bytesArraySliceUsesUnderlyingArrayWithoutCompaction() {
         final float[] vals = new float[] { 1.25f, 2.5f, -3.75f };
         final byte[] packed = packLE(vals);
 
-        // Place packed bytes into a larger array with an offset
         final byte[] backing = new byte[packed.length + 17];
         final int off = 7;
         System.arraycopy(packed, 0, backing, off, packed.length);
@@ -59,44 +55,40 @@ public class PackedFloatArrayTests extends OpenSearchTestCase {
         BytesReference ref = new BytesArray(backing, off, packed.length);
         PackedFloatArray pfa = PackedFloatArray.fromPackedBytes(ref, vals.length);
 
-        // trigger ensureBytes()
         assertEquals(vals[0], pfa.get(0), 0.0f);
 
-        byte[] internalBytes = (byte[]) getPrivateField(pfa, "bytes");
-        int internalOff = (int) getPrivateField(pfa, "bytesOffset");
+        float mutated = 9.5f;
+        writeFloatLE(backing, off, mutated);
 
-        // If the BytesArray special-case is working, we should be pointing at the original backing array + offset (no copy)
-        assertThat(internalBytes, sameInstance(backing));
-        assertThat(internalOff, is(off));
-
-        // And decoding should still be correct
-        assertThat(pfa.asFloatArray(), equalTo(vals));
+        assertEquals(mutated, pfa.get(0), 0.0f);
+        assertEquals(vals[1], pfa.get(1), 0.0f);
+        assertEquals(vals[2], pfa.get(2), 0.0f);
     }
 
-    public void testFromPackedBytes_compositeMaterializesOnceAndDecodesCorrectly() throws Exception {
+    public void testFromPackedBytes_compositeMaterializesOnceAndDecodesCorrectly() {
         final float[] vals = new float[] { 0.5f, 1.5f, 2.5f, 3.5f, -4.5f };
         final byte[] packed = packLE(vals);
 
         // Split into two segments and wrap as CompositeBytesReference
         int mid = packed.length / 2;
-        BytesReference a = new BytesArray(packed, 0, mid);
-        BytesReference b = new BytesArray(packed, mid, packed.length - mid);
+        byte[] segA = new byte[mid];
+        byte[] segB = new byte[packed.length - mid];
+        System.arraycopy(packed, 0, segA, 0, mid);
+        System.arraycopy(packed, mid, segB, 0, segB.length);
+
+        BytesReference a = new BytesArray(segA);
+        BytesReference b = new BytesArray(segB);
         BytesReference composite = CompositeBytesReference.of(a, b);
 
         PackedFloatArray pfa = PackedFloatArray.fromPackedBytes(composite, vals.length);
 
         // Trigger ensureBytes() via get()
-        assertEquals(vals[4], pfa.get(4), 0.0f);
+        assertEquals(vals[0], pfa.get(0), 0.0f);
 
-        byte[] internalBytes = (byte[]) getPrivateField(pfa, "bytes");
-        int internalOff = (int) getPrivateField(pfa, "bytesOffset");
+        float mutated = 7.25f;
+        writeFloatLE(segA, 0, mutated);
 
-        // For composite, ensureBytes() uses BytesReference.toBytes(..) => compact array, offset 0
-        assertThat(internalBytes, notNullValue());
-        assertThat(internalBytes.length, is(packed.length));
-        assertThat(internalOff, is(0));
-
-        // Must decode correctly
+        assertEquals(vals[0], pfa.get(0), 0.0f);
         assertThat(pfa.asFloatArray(), equalTo(vals));
     }
 
@@ -153,11 +145,11 @@ public class PackedFloatArrayTests extends OpenSearchTestCase {
         return bb.array();
     }
 
-    // TODO remove this
-    @SuppressForbidden(reason = "todo, remove this")
-    private static Object getPrivateField(Object target, String fieldName) throws Exception {
-        Field f = target.getClass().getDeclaredField(fieldName);
-        f.setAccessible(true);
-        return f.get(target);
+    private static void writeFloatLE(byte[] arr, int off, float v) {
+        int bits = Float.floatToRawIntBits(v);
+        arr[off] = (byte) bits;
+        arr[off + 1] = (byte) (bits >>> 8);
+        arr[off + 2] = (byte) (bits >>> 16);
+        arr[off + 3] = (byte) (bits >>> 24);
     }
 }
