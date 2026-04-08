@@ -8,8 +8,8 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
@@ -17,6 +17,7 @@ import org.opensearch.index.engine.exec.commit.CommitterSettings;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.EnginePlugin;
+import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LucenePlugin implements SearchBackEndPlugin<OpenSearchDirectoryReader>, EnginePlugin {
+public class LucenePlugin extends Plugin implements SearchBackEndPlugin<DirectoryReader>, EnginePlugin {
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
@@ -51,7 +52,7 @@ public class LucenePlugin implements SearchBackEndPlugin<OpenSearchDirectoryRead
     }
 
     @Override
-    public EngineReaderManager<OpenSearchDirectoryReader> createReaderManager(
+    public EngineReaderManager<DirectoryReader> createReaderManager(
         IndexStoreProvider indexStoreProvider,
         DataFormat format,
         ShardPath shardPath

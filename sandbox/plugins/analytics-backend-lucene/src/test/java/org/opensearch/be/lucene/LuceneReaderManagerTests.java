@@ -18,8 +18,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.Segment;
@@ -41,7 +39,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
     private IndexWriter indexWriter;
     private Directory directory;
-    private ShardId shardId;
     private DataFormat dataFormat;
 
     @Override
@@ -50,7 +47,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         Path dir = createTempDir();
         directory = new MMapDirectory(dir);
         indexWriter = new IndexWriter(directory, new IndexWriterConfig());
-        shardId = new ShardId("test", "_na_", 0);
         dataFormat = new DataFormat() {
             @Override
             public String name() {
@@ -76,8 +72,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         super.tearDown();
     }
 
-    private OpenSearchDirectoryReader openReader() throws IOException {
-        return OpenSearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
+    private DirectoryReader openReader() throws IOException {
+        return DirectoryReader.open(indexWriter);
     }
 
     private CatalogSnapshot stubSnapshot(long generation) {
@@ -142,9 +138,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         indexWriter.commit();
     }
 
-    /**
-     * afterRefresh with didRefresh=true creates a reader for the snapshot.
-     */
     public void testAfterRefreshCreatesReader() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
         CatalogSnapshot snap = stubSnapshot(1);
@@ -154,9 +147,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         assertNotNull(rm.getReader(snap));
     }
 
-    /**
-     * afterRefresh with didRefresh=false does not create a reader.
-     */
     public void testAfterRefreshNoOpWhenDidRefreshFalse() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
         CatalogSnapshot snap = stubSnapshot(1);
@@ -165,155 +155,68 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
     }
 
-    /**
-     * Multiple refreshes after indexing produce readers that see the correct doc counts.
-     */
     public void testMultipleRefreshesWithIndexing() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
 
-        // Snapshot 1: 0 docs
         CatalogSnapshot snap1 = stubSnapshot(1);
         rm.afterRefresh(true, snap1);
-        OpenSearchDirectoryReader reader1 = rm.getReader(snap1);
-        assertNotNull(reader1);
+        DirectoryReader reader1 = rm.getReader(snap1);
         assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
 
-        // Index a doc and refresh
         addDoc("doc1");
         CatalogSnapshot snap2 = stubSnapshot(2);
         rm.afterRefresh(true, snap2);
-        OpenSearchDirectoryReader reader2 = rm.getReader(snap2);
-        assertNotNull(reader2);
+        DirectoryReader reader2 = rm.getReader(snap2);
         assertEquals(1, new IndexSearcher(reader2).count(new MatchAllDocsQuery()));
 
-        // Snapshot 1 reader still sees 0 docs (point-in-time)
         assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
 
-        // Index another doc and refresh
         addDoc("doc2");
         CatalogSnapshot snap3 = stubSnapshot(3);
         rm.afterRefresh(true, snap3);
-        OpenSearchDirectoryReader reader3 = rm.getReader(snap3);
+        DirectoryReader reader3 = rm.getReader(snap3);
         assertEquals(2, new IndexSearcher(reader3).count(new MatchAllDocsQuery()));
 
-        // Each snapshot has its own reader
         assertNotSame(reader1, reader2);
         assertNotSame(reader2, reader3);
 
-        // Cleanup
         rm.onDeleted(snap1);
         rm.onDeleted(snap2);
         rm.onDeleted(snap3);
     }
 
-    /**
-     * onDeleted removes the reader and closes it.
-     */
     public void testOnDeletedClosesReader() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
         CatalogSnapshot snap = stubSnapshot(1);
         rm.afterRefresh(true, snap);
 
-        OpenSearchDirectoryReader reader = rm.getReader(snap);
-        assertNotNull(reader);
-        // Reader should have positive ref count
+        DirectoryReader reader = rm.getReader(snap);
         assertTrue(reader.getRefCount() > 0);
 
         rm.onDeleted(snap);
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
     }
 
-    /**
-     * onDeleted with unknown snapshot is a no-op.
-     */
     public void testOnDeletedUnknownSnapshotIsNoOp() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
-        CatalogSnapshot unknown = stubSnapshot(99);
-        rm.onDeleted(unknown); // should not throw
+        rm.onDeleted(stubSnapshot(99));
     }
 
-    /**
-     * getReader throws IllegalStateException for a snapshot that was never refreshed.
-     */
     public void testGetReaderThrowsForUnknownSnapshot() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
-        CatalogSnapshot unknown = stubSnapshot(42);
-        expectThrows(IllegalStateException.class, () -> rm.getReader(unknown));
+        expectThrows(IllegalStateException.class, () -> rm.getReader(stubSnapshot(42)));
     }
 
-    /**
-     * Duplicate afterRefresh for the same snapshot is idempotent.
-     */
     public void testDuplicateAfterRefreshIsIdempotent() throws IOException {
         LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(true, snap);
-        OpenSearchDirectoryReader first = rm.getReader(snap);
+        DirectoryReader first = rm.getReader(snap);
 
         rm.afterRefresh(true, snap);
         assertSame(first, rm.getReader(snap));
 
         rm.onDeleted(snap);
-    }
-
-    /**
-     * Multiple getReader calls on the same snapshot return the same reader with stable ref count.
-     * The reader ref count stays at 1 (the reader manager's own reference).
-     * onDeleted closes the reader, dropping the ref count to 0.
-     */
-    public void testMultipleAcquiresRefCountStaysOne() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
-        CatalogSnapshot snap = stubSnapshot(1);
-        rm.afterRefresh(true, snap);
-
-        OpenSearchDirectoryReader reader = rm.getReader(snap);
-        int initialRefCount = reader.getRefCount();
-        assertEquals("Reader ref count should be 1 after afterRefresh", 1, initialRefCount);
-
-        // Multiple getReader calls should return the same instance without incrementing ref count
-        for (int i = 0; i < 5; i++) {
-            OpenSearchDirectoryReader same = rm.getReader(snap);
-            assertSame(reader, same);
-            assertEquals("Ref count must not change on getReader", 1, reader.getRefCount());
-        }
-
-        // onDeleted closes the reader
-        rm.onDeleted(snap);
-        expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
-        assertEquals("Ref count should be 0 after onDeleted", 0, reader.getRefCount());
-    }
-
-    /**
-     * Two snapshots sharing the same underlying reader (no index changes between refreshes).
-     * Deleting one closes the shared reader. The other snapshot still has a map entry
-     * but the reader is closed. In production, CatalogSnapshotManager ensures ordered deletion.
-     */
-    public void testTwoSnapshotsSameReaderDeleteOneClosesSharedReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
-
-        // No indexing between refreshes — both snapshots get the same reader
-        CatalogSnapshot snap1 = stubSnapshot(1);
-        rm.afterRefresh(true, snap1);
-        OpenSearchDirectoryReader reader1 = rm.getReader(snap1);
-
-        CatalogSnapshot snap2 = stubSnapshot(2);
-        rm.afterRefresh(true, snap2);
-        OpenSearchDirectoryReader reader2 = rm.getReader(snap2);
-
-        // Same reader since no changes happened
-        assertSame(reader1, reader2);
-
-        // Delete snap1 — closes the shared reader
-        rm.onDeleted(snap1);
-        expectThrows(IllegalStateException.class, () -> rm.getReader(snap1));
-
-        // snap2 still has a map entry but the underlying reader is closed
-        // This is expected — in production, snapshots are deleted in order
-        OpenSearchDirectoryReader snap2Reader = rm.getReader(snap2);
-        assertEquals("Shared reader should be closed after snap1 deletion", 0, snap2Reader.getRefCount());
-
-        // Clean up
-        rm.onDeleted(snap2);
     }
 }

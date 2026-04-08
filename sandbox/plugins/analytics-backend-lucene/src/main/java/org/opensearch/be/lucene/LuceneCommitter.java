@@ -64,6 +64,7 @@ public class LuceneCommitter implements Committer {
         if (engineConfig == null) {
             return new IndexWriterConfig();
         }
+        // TODO:: Merge Config needs to be wired in
         IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCodec(engineConfig.getCodec());
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -76,8 +77,6 @@ public class LuceneCommitter implements Committer {
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
         return iwc;
     }
-
-    // --- Committer ---
 
     @Override
     public void commit(Map<String, String> commitData) throws IOException {

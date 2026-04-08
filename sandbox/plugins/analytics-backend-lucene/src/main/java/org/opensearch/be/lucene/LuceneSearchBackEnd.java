@@ -11,7 +11,6 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -41,7 +40,7 @@ final class LuceneSearchBackEnd {
      * @return a new reader manager
      * @throws IOException if reader creation fails
      */
-    static EngineReaderManager<OpenSearchDirectoryReader> createReaderManager(
+    static EngineReaderManager<DirectoryReader> createReaderManager(
         IndexStoreProvider indexStoreProvider,
         DataFormat format,
         ShardPath shardPath
@@ -55,7 +54,6 @@ final class LuceneSearchBackEnd {
         } else {
             directoryReader = StandardDirectoryReader.open(indexStoreProvider.getStore().directory());
         }
-        OpenSearchDirectoryReader osReader = OpenSearchDirectoryReader.wrap(directoryReader, shardPath.getShardId());
-        return new LuceneReaderManager(format, osReader);
+        return new LuceneReaderManager(format, directoryReader);
     }
 }
