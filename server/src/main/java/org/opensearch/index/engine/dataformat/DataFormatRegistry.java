@@ -44,7 +44,7 @@ public class DataFormatRegistry {
 
     public static final DataFormatRegistry EMPTY_INSTANCE = new DataFormatRegistry();
 
-    DataFormatRegistry() {
+    private DataFormatRegistry() {
         dataFormatPluginRegistry = Map.of();
         readerManagerBuilders = Map.of();
         dataFormats = Map.of();
