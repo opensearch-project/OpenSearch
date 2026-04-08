@@ -11,6 +11,8 @@ package org.opensearch.be.datafusion;
 import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.test.OpenSearchTestCase;
 
+import org.junit.AfterClass;
+
 import java.nio.file.Path;
 
 /**
@@ -19,6 +21,14 @@ import java.nio.file.Path;
 public class DataFusionServiceTests extends OpenSearchTestCase {
 
     private static boolean runtimeInitialized = false;
+
+    @AfterClass
+    public static void cleanUpRuntime() {
+        if (runtimeInitialized) {
+            NativeBridge.shutdownTokioRuntimeManager();
+            runtimeInitialized = false;
+        }
+    }
 
     private void ensureTokioInit() {
         if (runtimeInitialized == false) {

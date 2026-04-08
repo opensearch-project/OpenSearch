@@ -19,6 +19,8 @@ import org.opensearch.be.datafusion.jni.NativeBridge;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
+import org.junit.AfterClass;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -38,6 +40,14 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
     private long readerPtr;
 
     private static boolean runtimeInitialized = false;
+
+    @AfterClass
+    public static void cleanUpRuntime() {
+        if (runtimeInitialized) {
+            NativeBridge.shutdownTokioRuntimeManager();
+            runtimeInitialized = false;
+        }
+    }
 
     @Override
     public void setUp() throws Exception {
