@@ -11,11 +11,9 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 

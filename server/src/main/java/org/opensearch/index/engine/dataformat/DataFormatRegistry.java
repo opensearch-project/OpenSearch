@@ -160,8 +160,9 @@ public class DataFormatRegistry {
     ) throws IOException {
         // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> entry :
-            readerManagerBuilders.entrySet()) {
+        for (Map.Entry<
+            DataFormat,
+            CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders.entrySet()) {
             ReaderManagerSettings settings = new ReaderManagerSettings(indexStoreProvider, entry.getKey(), shardPath);
             readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
         }

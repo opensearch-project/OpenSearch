@@ -11,8 +11,6 @@ package org.opensearch.index.engine.dataformat.stub;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.List;

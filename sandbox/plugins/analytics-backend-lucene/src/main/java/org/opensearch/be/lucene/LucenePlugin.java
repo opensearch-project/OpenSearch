@@ -15,8 +15,6 @@ import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterSettings;
-import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
