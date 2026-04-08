@@ -30,15 +30,17 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -104,13 +106,15 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
 
         Segment seg1 = Segment.builder(0L).addSearchableFiles(format, fs1).build();
         Segment seg2 = Segment.builder(1L).addSearchableFiles(format, fs2).build();
-        MockCatalogSnapshot snapshot = new MockCatalogSnapshot(1L, List.of(seg1, seg2), format);
+
+        CatalogSnapshotManager snapshotManager = new CatalogSnapshotManager(1L, 1L, 0L, List.of(seg1, seg2), 2L, Map.of());
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
-        readerManager.afterRefresh(true, snapshot);
+        try (GatedCloseable<CatalogSnapshot> ref = snapshotManager.acquireSnapshot()) {
+            readerManager.afterRefresh(true, ref.get());
+        }
 
-        DataFormatAwareEngine engine = new DataFormatAwareEngine(Map.of(format, readerManager));
-        engine.setLatestSnapshot(snapshot);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(Map.of(format, readerManager), snapshotManager);
 
         // Mock shard + cluster wiring
         IndexShard shard = mock(IndexShard.class);
@@ -288,14 +292,16 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void setCatalogSnapshotMap(Map<Long, ? extends CatalogSnapshot> map) {}
-
-        @Override
-        public void setUserData(Map<String, String> userData, boolean b) {}
+        public void setUserData(Map<String, String> userData) {}
 
         @Override
         public Object getReader(DataFormat dataFormat) {
             return null;
+        }
+
+        @Override
+        public MockCatalogSnapshot clone() {
+            return new MockCatalogSnapshot(generation, segments, format);
         }
 
         @Override
@@ -393,15 +399,10 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
-            Object reader = ctx.getReader().getReader(format);
+        public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+            Object reader = ctx.getReader().reader(format);
             long rows = reader instanceof Long ? (Long) reader : 0L;
             return new MockSearchExecEngine(rows);
-        }
-
-        @Override
-        public List<DataFormat> getSupportedFormats() {
-            return List.of(format);
         }
     }
 }

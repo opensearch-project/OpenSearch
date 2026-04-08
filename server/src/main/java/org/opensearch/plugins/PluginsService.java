@@ -356,11 +356,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     static class Bundle {
         final PluginInfo plugin;
         final Set<URL> urls;
+        /** URLs from {@code plugins/lib/<name>/} only — the public API surface exposed to extending plugins. */
+        final Set<URL> libUrls;
 
         Bundle(PluginInfo plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
             Set<URL> urls = new LinkedHashSet<>();
-            // gather urls for jar files
+            // gather urls for jar files in the plugin directory
             try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
                 for (Path jar : jarStream) {
                     // normalize with toRealPath to get symlinks out of our hair
@@ -370,7 +372,26 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                     }
                 }
             }
+            // also gather jars from plugins/lib/<plugin_name>/ if it exists.
+            // opensearch-plugin installs shared library jars there when a plugin zip
+            // contains a top-level lib/ directory.
+            Set<URL> libUrls = new LinkedHashSet<>();
+            if (dir.getParent() != null) {
+                Path sharedLibDir = dir.getParent().resolve("lib").resolve(dir.getFileName());
+                if (Files.isDirectory(sharedLibDir)) {
+                    try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(sharedLibDir, "*.jar")) {
+                        for (Path jar : jarStream) {
+                            URL url = jar.toRealPath().toUri().toURL();
+                            libUrls.add(url);
+                            if (urls.add(url) == false) {
+                                throw new IllegalStateException("duplicate codebase: " + url);
+                            }
+                        }
+                    }
+                }
+            }
             this.urls = Objects.requireNonNull(urls);
+            this.libUrls = Collections.unmodifiableSet(libUrls);
         }
 
         @Override
@@ -444,6 +465,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
+                    // skip the reserved lib/ subdirectory used for shared library jars
+                    if ("lib".equals(plugin.getFileName().toString()) && Files.isDirectory(plugin)) {
+                        continue;
+                    }
                     if (plugin.getFileName().toString().startsWith(".") && !Files.isDirectory(plugin)) {
                         logger.warn(
                             "Non-plugin file located in the plugins folder with the following name: [" + plugin.getFileName() + "]"
@@ -619,11 +644,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
         Map<String, Plugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        // tracks a lib-only classloader per plugin name, used as the parent for extending plugins
+        Map<String, ClassLoader> libLoaders = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
             checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
-            final Plugin plugin = loadBundle(bundle, loaded);
+            final Plugin plugin = loadBundle(bundle, loaded, libLoaders);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
@@ -781,12 +808,15 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     @SuppressWarnings("removal")
-    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
+    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded, Map<String, ClassLoader> libLoaders) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
 
-        // collect loaders of extended plugins
+        // collect lib-only loaders of extended plugins as parents.
+        // this exposes only the SPI jars (plugins/lib/<name>/) of each extended plugin,
+        // not the full implementation classloader, so extending plugins cannot accidentally
+        // depend on internal implementation classes of the plugin they extend.
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
@@ -798,12 +828,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
-            extendedLoaders.add(extendedPlugin.getClass().getClassLoader());
+            // prefer the lib-only classloader if the extended plugin has one; fall back to its full classloader
+            ClassLoader extLoader = libLoaders.getOrDefault(extendedPluginName, extendedPlugin.getClass().getClassLoader());
+            extendedLoaders.add(extLoader);
         }
 
         // create a child to load the plugin in this bundle
         ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
+
+        // if this plugin has lib jars, build a scoped classloader containing only those jars
+        // so that plugins extending this one see only the public API surface
+        if (bundle.libUrls.isEmpty() == false) {
+            ClassLoader libParent = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+            libLoaders.put(name, URLClassLoader.newInstance(bundle.libUrls.toArray(new URL[0]), libParent));
+        }
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);

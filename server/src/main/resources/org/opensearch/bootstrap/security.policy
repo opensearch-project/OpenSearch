@@ -109,6 +109,11 @@ grant codeBase "${codebase.jackson-core}" {
   permission java.net.NetPermission "accessUnixDomainSocket";
 };
 
+grant codeBase "${codebase.jackson3-core}" {
+  permission java.net.SocketPermission "*", "connect,resolve";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
 grant codeBase "${codebase.opensearch-common}" {
   permission java.net.SocketPermission "*", "connect,resolve";
   permission java.net.NetPermission "accessUnixDomainSocket";
