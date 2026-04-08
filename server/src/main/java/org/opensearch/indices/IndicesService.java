@@ -63,7 +63,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -124,7 +123,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
-import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -148,7 +147,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
@@ -428,12 +426,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
-    private final CheckedTriFunction<
-        ShardPath,
-        MapperService,
-        IndexSettings,
-        DataFormatAwareEngineFactory,
-        IOException> dataFormatEngineFactorySupplier;
+    private final DataFormatRegistry dataFormatRegistry;
 
     @Override
     protected void doStart() {
@@ -620,12 +613,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
-        this.dataFormatEngineFactorySupplier = (shardPath, mapperService, indexSettings) -> new DataFormatAwareEngineFactory(
-            pluginsService,
-            shardPath,
-            mapperService,
-            indexSettings
-        );
+        this.dataFormatRegistry = new DataFormatRegistry(pluginsService);
     }
 
     @InternalApi
@@ -1159,7 +1147,7 @@ public class IndicesService extends AbstractLifecycleComponent
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
-            dataFormatEngineFactorySupplier
+            dataFormatRegistry
         );
     }
 

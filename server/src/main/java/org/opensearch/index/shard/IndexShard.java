@@ -145,7 +145,7 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
-import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -407,7 +407,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
-    private final DataFormatAwareEngineFactory dataFormatAwareEngineFactory;
+    private final DataFormatRegistry dataFormatRegistry;
 
     @InternalApi
     public IndexShard(
@@ -449,7 +449,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
         @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
-        @Nullable final DataFormatAwareEngineFactory dataFormatAwareEngineFactory
+        @Nullable final DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -575,9 +575,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 startRefreshTask();
             }
         }
-        this.dataFormatAwareEngineFactory = dataFormatAwareEngineFactory;
-        if (dataFormatAwareEngineFactory != null) {
-            this.currentCompositeEngineReference.set(dataFormatAwareEngineFactory.create());
+        this.dataFormatRegistry = dataFormatRegistry;
+        if (dataFormatRegistry != null) {
+            // TODO: This should go away and we should use indexer directly.
+            this.currentCompositeEngineReference.set(
+                new DataFormatAwareEngine(dataFormatRegistry.getReaderManagers(mapperService, indexSettings, path))
+            );
         }
     }
 
