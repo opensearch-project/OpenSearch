@@ -746,7 +746,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             cpu_executor,
             query_pool,
         )),
-        |env, listener_ref, stream_pointer| set_action_listener_ok_global(env, listener_ref, stream_pointer),
+        move |env, listener_ref, stream| {
+            let handle = QueryStreamHandle { stream, _query_context: query_context };
+            let handle_ptr = Box::into_raw(Box::new(handle)) as jlong;
+            set_action_listener_ok_global(env, listener_ref, handle_ptr);
+        },
     );
 }
 
@@ -837,7 +841,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
             let result = handle.stream.try_next().await;
 
             match result {
-                Some(batch) => {
+                Ok(Some(batch)) => {
                     log_info!("[RUST streamNext] Batch produced: {} rows, {} columns, schema: {:?}",
                         batch.num_rows(), batch.num_columns(), batch.schema().fields().iter().map(|f| f.name().as_str()).collect::<Vec<_>>());
                     // Convert to FFI
@@ -846,11 +850,12 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
                     let ffi_array = FFI_ArrowArray::new(&array_data);
                     Ok(Box::into_raw(Box::new(ffi_array)) as jlong)
                 }
-                None => {
+                Ok(None) => {
                     log_info!("[RUST streamNext] End of stream reached");
                     // End of stream
                     Ok(0)
                 }
+                Err(e) => Err(e)
             }
         }),
         |env, listener_ref, data_pointer| set_action_listener_ok_global(env, listener_ref, data_pointer),
@@ -1166,8 +1171,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeIn
     let result = rx.recv().unwrap_or_else(|_| Err(DataFusionError::Execution("Channel closed".to_string())));
 
     match result {
-        Ok(stream_ptr) => {
-            set_action_listener_ok(&mut env, listener, stream_ptr);
+        Ok(stream) => {
+            let query_context = QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone());
+            let handle = QueryStreamHandle { stream, _query_context: query_context };
+            let handle_ptr = Box::into_raw(Box::new(handle)) as jlong;
+            set_action_listener_ok(&mut env, listener, handle_ptr);
         }
         Err(e) => {
             log_error!("Indexed query execution failed: {}", e);

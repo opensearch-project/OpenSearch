@@ -35,9 +35,9 @@ public final class NativeBridge {
     }
 
     public static void executeQueryPhaseAsync(long readerPtr, String tableName, byte[] plan,
-            boolean isQueryPlanExplainEnabled, int partitionCount, long runtimePtr, ActionListener<Long> listener) {
+            boolean isQueryPlanExplainEnabled, int partitionCount, long runtimePtr, long contextId, ActionListener<Long> listener) {
         org.opensearch.datafusion.jni.NativeBridge.executeQueryPhaseAsync(
-            readerPtr, tableName, plan, isQueryPlanExplainEnabled, partitionCount, runtimePtr, listener);
+            readerPtr, tableName, plan, isQueryPlanExplainEnabled, partitionCount, runtimePtr, contextId, listener);
     }
 
     public static void streamNext(long runtime, long stream, ActionListener<Long> listener) {

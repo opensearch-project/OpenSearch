@@ -56,6 +56,15 @@ public interface EngineBridge<Fragment, Stream extends EngineResultStream, Logic
     Stream execute(Fragment fragment);
 
     /**
+     * Sets the context identifier for native resource tracking.
+     * Implementations that forward to a native engine should store
+     * this value and pass it through JNI calls.
+     *
+     * @param contextId caller-supplied identifier (e.g. task id)
+     */
+    default void setContextId(long contextId) {}
+
+    /**
      * Wraps an externally-obtained native stream pointer into a consumable
      * result stream. Used by the indexed query path where the stream is
      * produced by the Lucene+Parquet indexed table provider rather than

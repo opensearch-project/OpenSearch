@@ -31,7 +31,7 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<DatafusionCo
     public DatafusionContext createContext(Object reader, ShardSearchRequest request,
             SearchShardTarget shardTarget, SearchShardTask task) {
         DatafusionReader nativeReader = (DatafusionReader) reader;
-        return new DatafusionContext(request, shardTarget, nativeReader.getPtr(), runtimePtr);
+        return new DatafusionContext(request, shardTarget, nativeReader.getPtr(), runtimePtr, task != null ? task.getId() : 0L);
     }
 
     @Override

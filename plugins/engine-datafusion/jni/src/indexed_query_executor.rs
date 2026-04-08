@@ -26,11 +26,13 @@ use crate::indexed_table::index::BitsetMode;
 use crate::indexed_table::table_provider::{IndexedTableConfig, IndexedTableProvider};
 use crate::indexed_table::jni_helpers::build_segments;
 
+use crate::cross_rt_stream::CrossRtStream;
 use crate::executor::DedicatedExecutor;
 use crate::query_executor::get_cross_rt_stream;
 use crate::DataFusionRuntime;
 
 use datafusion::common::DataFusionError;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use datafusion_substrait::substrait::proto::Plan;
 use datafusion_substrait::substrait::proto::extensions::simple_extension_declaration::MappingType;
@@ -50,7 +52,7 @@ pub async fn execute_indexed_query_stream(
     searcher_class_ref: jni::objects::GlobalRef,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
-) -> Result<jlong, DataFusionError> {
+) -> Result<RecordBatchStreamAdapter<CrossRtStream>, DataFusionError> {
     let t0 = std::time::Instant::now();
 
     let searcher = Arc::new(crate::indexed_table::JniShardSearcher::new(

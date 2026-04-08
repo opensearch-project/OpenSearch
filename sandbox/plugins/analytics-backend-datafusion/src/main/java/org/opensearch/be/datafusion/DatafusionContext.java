@@ -27,16 +27,18 @@ public class DatafusionContext implements SearchExecutionContext {
     private final SearchShardTarget shardTarget;
     private final long readerPtr;
     private final long runtimePtr;
+    private final long contextId;
 
     private byte[] substraitPlan;
     private String tableName = "";
     private long streamPtr;
 
-    public DatafusionContext(ShardSearchRequest request, SearchShardTarget shardTarget, long readerPtr, long runtimePtr) {
+    public DatafusionContext(ShardSearchRequest request, SearchShardTarget shardTarget, long readerPtr, long runtimePtr, long contextId) {
         this.request = request;
         this.shardTarget = shardTarget;
         this.readerPtr = readerPtr;
         this.runtimePtr = runtimePtr;
+        this.contextId = contextId;
     }
 
     @Override
@@ -79,7 +81,7 @@ public class DatafusionContext implements SearchExecutionContext {
     public void executeQuery() throws IOException {
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryPhaseAsync(
-            readerPtr, tableName, substraitPlan, false, 1, runtimePtr,
+            readerPtr, tableName, substraitPlan, false, 1, runtimePtr, contextId,
             new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long ptr) {

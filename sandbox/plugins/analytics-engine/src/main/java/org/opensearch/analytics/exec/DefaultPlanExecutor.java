@@ -161,6 +161,10 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             EngineBridge<byte[], ? extends EngineResultStream, RelNode> bridge =
                 (EngineBridge<byte[], ? extends EngineResultStream, RelNode>) plugin.bridge(engine, snapshot.getRef());
 
+            if (context instanceof Long) {
+                bridge.setContextId((Long) context);
+            }
+
             byte[] converted = bridge.convertFragment(resolved.getRoot());
 
             // Check if indexed query path is enabled — route through Lucene+Parquet indexed table

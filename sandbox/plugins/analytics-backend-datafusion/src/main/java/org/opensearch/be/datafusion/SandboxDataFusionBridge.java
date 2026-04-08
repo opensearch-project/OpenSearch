@@ -58,11 +58,16 @@ public class SandboxDataFusionBridge implements EngineBridge<byte[], SandboxData
     private final long runtimePtr;
     private final DatafusionReader reader;
     private final BufferAllocator allocator;
+    private long contextId;
 
     public SandboxDataFusionBridge(long runtimePtr, DatafusionReader reader) {
         this.runtimePtr = runtimePtr;
         this.reader = reader;
         this.allocator = new RootAllocator(Long.MAX_VALUE);
+    }
+
+    public void setContextId(long contextId) {
+        this.contextId = contextId;
     }
 
     static SimpleExtension.ExtensionCollection getExtensions() {
@@ -198,7 +203,7 @@ public class SandboxDataFusionBridge implements EngineBridge<byte[], SandboxData
         String tableName = extractTableName(substraitBytes);
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryPhaseAsync(
-            reader.getPtr(), tableName, substraitBytes, false, 1, runtimePtr,
+            reader.getPtr(), tableName, substraitBytes, false, 1, runtimePtr, contextId,
             new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long ptr) {

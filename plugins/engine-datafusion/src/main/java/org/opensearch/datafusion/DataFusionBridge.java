@@ -80,6 +80,7 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
     private final long runtimePointer;
     private final DatafusionReader reader;
     private final BufferAllocator allocator;
+    private long contextId;
 
     /**
      * Creates a new DataFusion bridge.
@@ -92,6 +93,10 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
         this.runtimePointer = runtimePointer;
         this.reader = reader;
         this.allocator = allocator;
+    }
+
+    public void setContextId(long contextId) {
+        this.contextId = contextId;
     }
 
     /**
@@ -204,6 +209,7 @@ public class DataFusionBridge implements EngineBridge<byte[], DataFusionResultSt
             false,    // isQueryPlanExplainEnabled
             0,        // partitionCount — use engine default
             runtimePointer,
+            contextId,
             new ActionListener<Long>() {
                 @Override
                 public void onResponse(Long streamPointer) {
