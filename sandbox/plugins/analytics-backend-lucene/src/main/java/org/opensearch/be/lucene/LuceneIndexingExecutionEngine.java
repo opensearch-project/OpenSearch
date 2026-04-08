@@ -130,10 +130,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
                 try {
                     IOUtils.rm(sourcePath);
                 } catch (IOException e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("Failed to delete source directory [{}] after addIndexes", sourcePath),
-                        e
-                    );
+                    logger.warn(() -> new ParameterizedMessage("Failed to delete source directory [{}] after addIndexes", sourcePath), e);
                 }
             }
         }
