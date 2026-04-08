@@ -75,7 +75,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Validates: Requirements 2.3
      */
     public void testRefreshIncorporatesLuceneSegments() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter());
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
         IndexWriter writer = committer.getIndexWriter();
         assertEquals(0, writer.getDocStats().numDocs);
 
@@ -106,7 +106,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh skips WriterFileSets whose directory does not match the Lucene data format name.
      */
     public void testRefreshSkipsNonLuceneDirectories() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter());
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
         IndexWriter writer = committer.getIndexWriter();
 
         Path parquetDir = createTempDir().resolve("parquet");
@@ -132,7 +132,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh with no files skips addIndexes.
      */
     public void testRefreshWithNoLuceneFilesSkipsAddIndexes() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter());
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
 
         RefreshInput emptyInput = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(emptyInput);
@@ -144,7 +144,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh with no parent writer is a no-op.
      */
     public void testRefreshWithoutParentWriterIsNoOp() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(null);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(null, null);
 
         RefreshInput input = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(input);
@@ -156,7 +156,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh with null input returns empty result.
      */
     public void testRefreshWithNullInputReturnsEmpty() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter());
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
 
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);

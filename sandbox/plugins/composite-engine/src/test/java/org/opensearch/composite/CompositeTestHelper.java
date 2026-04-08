@@ -19,6 +19,7 @@ import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.IndexingEngineSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -27,8 +28,6 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -80,12 +79,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(
-                Committer committer,
-                MapperService mapperService,
-                ShardPath shardPath,
-                IndexSettings indexSettings
-            ) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineSettings settings) {
                 return new StubIndexingExecutionEngine(format);
             }
         };
@@ -100,12 +94,7 @@ final class CompositeTestHelper {
             }
 
             @Override
-            public IndexingExecutionEngine<?, ?> indexingEngine(
-                Committer committer,
-                MapperService mapperService,
-                ShardPath shardPath,
-                IndexSettings indexSettings
-            ) {
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineSettings settings) {
                 return new StubIndexingExecutionEngine(format);
             }
         };

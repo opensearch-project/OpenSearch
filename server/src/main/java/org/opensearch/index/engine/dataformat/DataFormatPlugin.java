@@ -9,10 +9,6 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 
 /**
  * Plugin interface for providing custom data format implementations.
@@ -33,19 +29,9 @@ public interface DataFormatPlugin {
 
     /**
      * Creates the indexing engine for the data format. This should be instantiated per shard.
-     * The {@link Committer} provides access to the backing store so that per-format engines
-     * can share the same writer for segment incorporation and flush.
      *
-     * @param committer the committer, or null if not available
-     * @param mapperService the mapper service for field mapping resolution
-     * @param shardPath the shard path for file storage
-     * @param indexSettings the index settings
+     * @param settings the engine initialization settings
      * @return the indexing execution engine instance
      */
-    IndexingExecutionEngine<?, ?> indexingEngine(
-        Committer committer,
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings
-    );
+    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineSettings settings);
 }

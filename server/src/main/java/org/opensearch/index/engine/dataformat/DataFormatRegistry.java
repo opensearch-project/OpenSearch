@@ -11,7 +11,6 @@ package org.opensearch.index.engine.dataformat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
@@ -83,26 +82,17 @@ public class DataFormatRegistry {
     /**
      * Creates an {@link IndexingExecutionEngine} for the given data format.
      *
-     * @param committer the committer holding the backing store, or null if not available
+     * @param settings the engine initialization settings
      * @param format the data format
-     * @param mapperService the mapper service for field mapping resolution
-     * @param shardPath the shard path for file storage
-     * @param indexSettings the index settings
      * @return the indexing execution engine
      * @throws IllegalArgumentException if the data format is not registered
      */
-    public IndexingExecutionEngine<?, ?> getIndexingEngine(
-        Committer committer,
-        DataFormat format,
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings
-    ) {
+    public IndexingExecutionEngine<?, ?> getIndexingEngine(IndexingEngineSettings settings, DataFormat format) {
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        return plugin.indexingEngine(committer, mapperService, shardPath, indexSettings);
+        return plugin.indexingEngine(settings);
     }
 
     public DataFormat format(String name) {

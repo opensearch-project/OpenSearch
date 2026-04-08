@@ -52,23 +52,36 @@ import java.util.Map;
 public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<DataFormat, DocumentInput<?>>, IndexStoreProvider {
 
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
-    // TODO:: This will go once we implement the Dataformat plugin in Lucene
+
+    // TODO: This will go once we implement the DataFormat plugin in Lucene
     private static final String LUCENE_FORMAT_NAME = "lucene";
 
     private final IndexWriter parentIndexWriter;
-
-    public IndexWriter getWriter() {
-        return parentIndexWriter;
-    }
+    private final Store store;
 
     /**
      * Creates a new LuceneIndexingExecutionEngine.
      *
      * @param parentIndexWriter the IndexWriter from the LuceneCommitter, or null if not available (refresh will be a no-op)
+     * @param store the shard's store, or null if not available
      */
-    public LuceneIndexingExecutionEngine(IndexWriter parentIndexWriter) {
+    public LuceneIndexingExecutionEngine(IndexWriter parentIndexWriter, Store store) {
         this.parentIndexWriter = parentIndexWriter;
+        this.store = store;
     }
+
+    // --- IndexWriter access (used by LuceneSearchBackEnd for NRT readers) ---
+
+    /**
+     * Returns the underlying IndexWriter.
+     *
+     * @return the index writer, or null if not available
+     */
+    IndexWriter getWriter() {
+        return parentIndexWriter;
+    }
+
+    // --- IndexStoreProvider ---
 
     @Override
     public IndexStoreProvider getProvider() {
@@ -77,8 +90,10 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
 
     @Override
     public Store getStore() {
-        return null;
+        return store;
     }
+
+    // --- IndexingExecutionEngine ---
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
@@ -103,7 +118,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
                 parentIndexWriter.addIndexes(directories.toArray(new Directory[0]));
             }
         } finally {
-            // Close directory handles first, then delete source files
             for (Directory dir : directories) {
                 try {
                     dir.close();

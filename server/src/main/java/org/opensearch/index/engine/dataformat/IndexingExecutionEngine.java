@@ -90,5 +90,13 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      */
     P newDocumentInput();
 
+    /**
+     * Returns the {@link IndexStoreProvider} for this engine, giving search backends
+     * access to the shard's {@link org.opensearch.index.store.Store} for opening readers.
+     * <p>
+     * Engines that do not manage a store (e.g., Parquet) may return {@code null}.
+     *
+     * @return the store provider, or null if this engine does not expose one
+     */
     IndexStoreProvider getProvider();
 }
