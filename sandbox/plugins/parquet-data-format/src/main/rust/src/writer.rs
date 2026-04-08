@@ -21,23 +21,30 @@ use crate::{log_info, log_error, log_debug};
 use crate::native_settings::NativeSettings;
 use crate::writer_properties_builder::WriterPropertiesBuilder;
 
-/// Per-writer sort configuration stored at create time, consumed at close time.
-struct SortConfig {
+/// Bundles all per-writer resources so a single `DashMap::remove` atomically
+/// drops the writer, closes the file handle, and cleans up sort config.
+struct WriterState {
+    writer: Arc<Mutex<ArrowWriter<File>>>,
+    file_handle: File,
     sort_columns: Vec<String>,
     reverse_sorts: Vec<bool>,
+    nulls_first: Vec<bool>,
 }
 
 lazy_static! {
-    pub static ref WRITER_MANAGER: DashMap<String, Arc<Mutex<ArrowWriter<File>>>> = DashMap::new();
-    pub static ref FILE_MANAGER: DashMap<String, File> = DashMap::new();
+    /// Unified per-writer registry. Keyed by temp filename.
+    static ref WRITERS: DashMap<String, WriterState> = DashMap::new();
     pub static ref SETTINGS_STORE: DashMap<String, NativeSettings> = DashMap::new();
-    /// Maps temp_filename -> SortConfig so finalize_writer knows how to sort and where to write.
-    static ref SORT_CONFIG: DashMap<String, SortConfig> = DashMap::new();
 }
 
 pub struct NativeParquetWriter;
 
 impl NativeParquetWriter {
+    /// Returns true if a writer is currently open for the given filename.
+    pub fn has_writer(filename: &str) -> bool {
+        let temp_filename = Self::temp_filename(filename);
+        WRITERS.contains_key(&temp_filename)
+    }
     /// Build the temp filename by prepending "temp-" to the basename.
     fn temp_filename(filename: &str) -> String {
         let path = Path::new(filename);
@@ -54,10 +61,11 @@ impl NativeParquetWriter {
         schema_address: i64,
         sort_columns: Vec<String>,
         reverse_sorts: Vec<bool>,
+        nulls_first: Vec<bool>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_info!(
-            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}",
-            filename, index_name, schema_address, sort_columns, reverse_sorts
+            "create_writer called for file: {}, index: {}, schema_address: {}, sort_columns: {:?}, reverse_sorts: {:?}, nulls_first: {:?}",
+            filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first
         );
 
         if (schema_address as *mut u8).is_null() {
@@ -67,7 +75,7 @@ impl NativeParquetWriter {
 
         let temp_filename = Self::temp_filename(&filename);
 
-        if WRITER_MANAGER.contains_key(&temp_filename) {
+        if WRITERS.contains_key(&temp_filename) {
             log_error!("ERROR: Writer already exists for file: {}", temp_filename);
             return Err("Writer already exists for this file".into());
         }
@@ -78,7 +86,6 @@ impl NativeParquetWriter {
 
         let file = File::create(&temp_filename)?;
         let file_clone = file.try_clone()?;
-        FILE_MANAGER.insert(temp_filename.clone(), file_clone);
 
         let config: NativeSettings = SETTINGS_STORE
             .get(&index_name)
@@ -90,19 +97,23 @@ impl NativeParquetWriter {
         SETTINGS_STORE.entry(index_name).and_modify(|s| {
             s.sort_columns = sort_columns.clone();
             s.reverse_sorts = reverse_sorts.clone();
+            s.nulls_first = nulls_first.clone();
         }).or_insert_with(|| {
             let mut s = NativeSettings::default();
             s.sort_columns = sort_columns.clone();
             s.reverse_sorts = reverse_sorts.clone();
+            s.nulls_first = nulls_first.clone();
             s
         });
 
         let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-        WRITER_MANAGER.insert(temp_filename.clone(), Arc::new(Mutex::new(writer)));
 
-        SORT_CONFIG.insert(temp_filename, SortConfig {
+        WRITERS.insert(temp_filename, WriterState {
+            writer: Arc::new(Mutex::new(writer)),
+            file_handle: file_clone,
             sort_columns,
             reverse_sorts,
+            nulls_first,
         });
 
         Ok(())
@@ -128,8 +139,8 @@ impl NativeParquetWriter {
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
                 log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
-                if let Some(writer_arc) = WRITER_MANAGER.get(&temp_filename) {
-                    let mut writer = writer_arc.lock().unwrap();
+                if let Some(state) = WRITERS.get(&temp_filename) {
+                    let mut writer = state.writer.lock().unwrap();
                     writer.write(&record_batch)?;
                     Ok(())
                 } else {
@@ -147,21 +158,17 @@ impl NativeParquetWriter {
         let temp_filename = Self::temp_filename(&filename);
         log_info!("finalize_writer called for file: {} (temp: {})", filename, temp_filename);
 
-        if let Some((_, writer_arc)) = WRITER_MANAGER.remove(&temp_filename) {
+        if let Some((_, state)) = WRITERS.remove(&temp_filename) {
+            let WriterState { writer: writer_arc, file_handle: _file, sort_columns, reverse_sorts, nulls_first } = state;
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
                     let writer = mutex.into_inner().unwrap();
                     match writer.close() {
                         Ok(_) => {
                             log_info!("Successfully closed temp writer for: {}", temp_filename);
+                            // _file is dropped here, closing the file handle
 
-                            let sort_config = SORT_CONFIG.remove(&temp_filename).map(|(_, v)| v);
-                            let (sort_columns, reverse_sorts) = match &sort_config {
-                                Some(cfg) => (cfg.sort_columns.clone(), cfg.reverse_sorts.clone()),
-                                None => (vec![], vec![]),
-                            };
-
-                            Self::sort_and_rewrite_parquet(&temp_filename, &filename, &sort_columns, &reverse_sorts)?;
+                            Self::sort_and_rewrite_parquet(&temp_filename, &filename, &sort_columns, &reverse_sorts, &nulls_first)?;
 
                             let _ = std::fs::remove_file(&temp_filename);
 
@@ -192,10 +199,11 @@ impl NativeParquetWriter {
         output_filename: &str,
         sort_columns: &[String],
         reverse_sorts: &[bool],
+        nulls_first: &[bool],
     ) -> Result<(), Box<dyn std::error::Error>> {
         log_info!(
-            "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}",
-            temp_filename, output_filename, sort_columns, reverse_sorts
+            "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}, nulls_first={:?}",
+            temp_filename, output_filename, sort_columns, reverse_sorts, nulls_first
         );
 
         if sort_columns.is_empty() {
@@ -204,23 +212,17 @@ impl NativeParquetWriter {
             return Ok(());
         }
 
-        let file_size = std::fs::metadata(temp_filename)?.len();
-        const MAX_MEMORY_SIZE: u64 = 32 * 1024 * 1024;
-
-        if file_size <= MAX_MEMORY_SIZE {
-            Self::sort_small_file(temp_filename, output_filename, sort_columns, reverse_sorts)
-        } else {
-            Self::sort_large_file(temp_filename, output_filename, sort_columns, reverse_sorts)
-        }
+        Self::sort_and_write(temp_filename, output_filename, sort_columns, reverse_sorts, nulls_first)
     }
 
-    fn sort_small_file(
+    fn sort_and_write(
         temp_filename: &str,
         output_filename: &str,
         sort_columns: &[String],
         reverse_sorts: &[bool],
+        nulls_first: &[bool],
     ) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("Using in-memory sort for small file: {}", temp_filename);
+        log_info!("Using in-memory sort for file: {}", temp_filename);
 
         let file = File::open(temp_filename)?;
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
@@ -239,64 +241,8 @@ impl NativeParquetWriter {
 
         let schema = batches[0].schema();
         let combined_batch = concat_batches(&schema, &batches)?;
-        let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts)?;
+        let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts, nulls_first)?;
         let final_batch = Self::rewrite_row_ids(&sorted_batch, &schema)?;
-
-        Self::write_final_file(output_filename, &final_batch, schema)?;
-        Ok(())
-    }
-
-    fn sort_large_file(
-        temp_filename: &str,
-        output_filename: &str,
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        log_info!("Using streaming sort for large file: {}", temp_filename);
-
-        let file = File::open(temp_filename)?;
-        let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-        let arrow_reader = builder.with_batch_size(8192).build()?;
-
-        let mut temp_files = Vec::new();
-        let mut batch_count = 0;
-        let temp_dir = std::env::temp_dir();
-
-        for batch_result in arrow_reader {
-            let batch = batch_result?;
-            let schema = batch.schema();
-            let sorted_batch = Self::sort_batch(&batch, sort_columns, reverse_sorts)?;
-
-            let chunk_filename = temp_dir.join(format!(
-                "sort_chunk_{}_{}.parquet", batch_count, std::process::id()
-            ));
-            let chunk_file = File::create(&chunk_filename)?;
-            let config = NativeSettings::default();
-            let props = WriterPropertiesBuilder::build(&config);
-            let mut chunk_writer = ArrowWriter::try_new(chunk_file, schema.clone(), Some(props))?;
-            chunk_writer.write(&sorted_batch)?;
-            chunk_writer.close()?;
-
-            temp_files.push(chunk_filename);
-            batch_count += 1;
-        }
-
-        if temp_files.is_empty() {
-            log_info!("No data to sort in file: {}", temp_filename);
-            std::fs::rename(temp_filename, output_filename)?;
-            return Ok(());
-        }
-
-        log_info!("Created {} sorted chunks, now merging", batch_count);
-
-        let merged_batch = Self::merge_sorted_chunks(&temp_files, sort_columns, reverse_sorts)?;
-
-        for chunk_file in &temp_files {
-            let _ = std::fs::remove_file(chunk_file);
-        }
-
-        let schema = merged_batch.schema();
-        let final_batch = Self::rewrite_row_ids(&merged_batch, &schema)?;
 
         Self::write_final_file(output_filename, &final_batch, schema)?;
         Ok(())
@@ -306,15 +252,17 @@ impl NativeParquetWriter {
         batch: &RecordBatch,
         sort_columns: &[String],
         reverse_sorts: &[bool],
+        nulls_first: &[bool],
     ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
         let columns: Vec<SortColumn> = sort_columns
             .iter()
             .enumerate()
             .map(|(i, col_name)| {
                 let reverse = reverse_sorts.get(i).copied().unwrap_or(false);
+                let nf = nulls_first.get(i).copied().unwrap_or(false);
                 let options = arrow::compute::SortOptions {
                     descending: reverse,
-                    nulls_first: !reverse,
+                    nulls_first: nf,
                 };
                 let col_index = batch.schema().index_of(col_name)
                     .map_err(|_| format!("Sort column '{}' not found in schema", col_name))?;
@@ -333,37 +281,6 @@ impl NativeParquetWriter {
             .collect();
 
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
-    }
-
-    fn merge_sorted_chunks(
-        chunk_files: &[std::path::PathBuf],
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-    ) -> Result<RecordBatch, Box<dyn std::error::Error>> {
-        if chunk_files.len() == 1 {
-            let file = File::open(&chunk_files[0])?;
-            let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-            let mut reader = builder.build()?;
-            return Ok(reader.next().unwrap()?);
-        }
-
-        let mut all_batches = Vec::new();
-        for chunk_file in chunk_files {
-            let file = File::open(chunk_file)?;
-            let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
-            let reader = builder.build()?;
-            for batch_result in reader {
-                all_batches.push(batch_result?);
-            }
-        }
-
-        if all_batches.is_empty() {
-            return Err("No batches to merge".into());
-        }
-
-        let schema = all_batches[0].schema();
-        let combined = concat_batches(&schema, &all_batches)?;
-        Self::sort_batch(&combined, sort_columns, reverse_sorts)
     }
 
     /// If a ___row_id column exists, rewrite it with sequential values 0..N.
@@ -415,8 +332,6 @@ impl NativeParquetWriter {
         match file.sync_all() {
             Ok(_) => {
                 log_debug!("Successfully fsynced file: {}", filename);
-                let temp_filename = Self::temp_filename(&filename);
-                FILE_MANAGER.remove(&temp_filename);
                 Ok(())
             }
             Err(e) => {
@@ -428,9 +343,9 @@ impl NativeParquetWriter {
 
     pub fn get_filtered_writer_memory_usage(path_prefix: String) -> Result<usize, Box<dyn std::error::Error>> {
         let mut total_memory = 0;
-        for entry in WRITER_MANAGER.iter() {
+        for entry in WRITERS.iter() {
             if entry.key().starts_with(&path_prefix) {
-                if let Ok(writer) = entry.value().lock() {
+                if let Ok(writer) = entry.value().writer.lock() {
                     total_memory += writer.memory_size();
                 }
             }

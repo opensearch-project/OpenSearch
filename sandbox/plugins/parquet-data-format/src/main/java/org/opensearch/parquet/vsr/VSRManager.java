@@ -126,7 +126,7 @@ public class VSRManager implements AutoCloseable {
             parquetField.createField(fieldType, activeVSR, pair.getValue());
         }
         int rowIndex = activeVSR.getRowCount();
-        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("_row_id");
+        BigIntVector rowIdVector = (BigIntVector) activeVSR.getVector("___row_id");
         if (rowIdVector != null) {
             rowIdVector.setSafe(rowIndex, doc.getRowId());
         }
@@ -217,11 +217,15 @@ public class VSRManager implements AutoCloseable {
         List<String> sortColumns = IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(indexSettings.getSettings());
         List<SortOrder> sortOrders = IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(indexSettings.getSettings());
         List<Boolean> reverseSorts = sortOrders.stream().map(o -> o == SortOrder.DESC).toList();
+
+        List<String> missingValues = IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(indexSettings.getSettings());
+        List<Boolean> nullsFirst = missingValues.stream().map("_first"::equals).collect(java.util.stream.Collectors.toList());
+
         String indexName = indexSettings.getIndex().getName();
 
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortColumns, reverseSorts);
+            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortColumns, reverseSorts, nullsFirst);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {

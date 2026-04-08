@@ -145,14 +145,14 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
     public void testCreateWriterWithNonExistentDirectory() {
         expectThrows(IOException.class, () -> {
             try (ArrowExport export = exportSchema()) {
-                new NativeParquetWriter("/nonexistent/dir/file.parquet", "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList());
+                new NativeParquetWriter("/nonexistent/dir/file.parquet", "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
             }
         });
     }
 
     public void testCreateWriterWithInvalidSchemaAddress() {
         String filePath = createTempDir().resolve("bad-schema.parquet").toString();
-        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, Collections.emptyList(), Collections.emptyList()));
+        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
     }
 
     public void testWriteWithSchemaMismatch() throws Exception {
@@ -236,7 +236,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {
         try (ArrowExport export = exportSchema()) {
-            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList());
+            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         }
     }
 

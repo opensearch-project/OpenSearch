@@ -21,8 +21,12 @@ pub struct NativeSettings {
     pub row_group_size_bytes: Option<usize>,
     pub field_configs: Option<HashMap<String, FieldConfig>>,
     pub custom_settings: Option<HashMap<String, String>>,
+    pub bloom_filter_enabled: Option<bool>,
+    pub bloom_filter_fpp: Option<f64>,
+    pub bloom_filter_ndv: Option<u64>,
     pub sort_columns: Vec<String>,
     pub reverse_sorts: Vec<bool>,
+    pub nulls_first: Vec<bool>,
 }
 
 impl NativeSettings {
@@ -31,7 +35,7 @@ impl NativeSettings {
     }
 
     pub fn get_compression_type(&self) -> &str {
-        self.compression_type.as_deref().unwrap_or("ZSTD")
+        self.compression_type.as_deref().unwrap_or("LZ4_RAW")
     }
 
     pub fn get_compression_level(&self) -> i32 {
@@ -52,6 +56,18 @@ impl NativeSettings {
 
     pub fn get_row_group_size_bytes(&self) -> usize {
         self.row_group_size_bytes.unwrap_or(128 * 1024 * 1024)
+    }
+
+    pub fn get_bloom_filter_enabled(&self) -> bool {
+        self.bloom_filter_enabled.unwrap_or(true)
+    }
+
+    pub fn get_bloom_filter_fpp(&self) -> f64 {
+        self.bloom_filter_fpp.unwrap_or(0.1)
+    }
+
+    pub fn get_bloom_filter_ndv(&self) -> u64 {
+        self.bloom_filter_ndv.unwrap_or(100_000)
     }
 
     pub fn get_field_config(&self, field_name: &str) -> Option<&FieldConfig> {

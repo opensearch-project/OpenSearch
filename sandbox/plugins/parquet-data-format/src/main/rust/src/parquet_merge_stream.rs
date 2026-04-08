@@ -40,7 +40,7 @@ use arrow::datatypes::{
     DurationMillisecondType, DurationNanosecondType, DurationSecondType,
     Field as ArrowField, Int32Type, Int64Type, Schema as ArrowSchema,
     TimestampMicrosecondType, TimestampMillisecondType, TimestampNanosecondType,
-    TimestampSecondType, UInt32Type, UInt64Type,
+    TimestampSecondType, UInt32Type,
 };
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::arrow_writer::{ArrowRowGroupWriterFactory, compute_leaves};
@@ -515,6 +515,9 @@ struct FileCursor {
 
     /// Arrow data types of the sort columns (cached for fast dispatch).
     sort_col_types: Vec<ArrowDataType>,
+
+    /// Whether nulls sort first for each sort column.
+    nulls_first: Vec<bool>,
 }
 
 impl FileCursor {
@@ -535,6 +538,7 @@ impl FileCursor {
         path: &str,
         file_id: usize,
         sort_columns: &[String],
+        nulls_first: &[bool],
         batch_size: usize,
     ) -> MergeResult<(Self, Arc<ArrowSchema>)> {
         let file = File::open(path)?;
@@ -623,6 +627,7 @@ impl FileCursor {
             file_id,
             sort_col_indices,
             sort_col_types,
+            nulls_first: nulls_first.to_vec(),
         };
 
         // Kick off prefetch for the second batch.
@@ -684,7 +689,7 @@ impl FileCursor {
             .current_batch
             .as_ref()
             .ok_or_else(|| MergeError::Logic("Cursor exhausted".into()))?;
-        get_sort_values(batch, self.row_idx, &self.sort_col_indices, &self.sort_col_types)
+        get_sort_values(batch, self.row_idx, &self.sort_col_indices, &self.sort_col_types, &self.nulls_first)
     }
 
     /// Returns the sort column values at the last row of the current batch.
@@ -699,6 +704,7 @@ impl FileCursor {
             batch.num_rows() - 1,
             &self.sort_col_indices,
             &self.sort_col_types,
+            &self.nulls_first,
         )
     }
 
@@ -744,7 +750,7 @@ impl FileCursor {
 /// value.
 ///
 /// The heap is a standard `BinaryHeap` (max-heap internally). The `Ord`
-/// implementation is parameterised by `reverse_sorts`:
+/// implementation is parameterized by `reverse_sorts`:
 ///
 /// - **ascending** (`reverse_sorts[i] = false`): comparison is *reversed* so
 ///   that the **smallest** `sort_value` has highest priority (min-heap).
@@ -799,6 +805,10 @@ impl PartialOrd for HeapItem {
 
 /// Extracts a sort column value as `i64` from the given row and column.
 ///
+/// If the value is null, returns a sentinel based on `null_first`:
+/// - `null_first = true`: `i64::MIN` (nulls sort smallest, i.e. first in ascending)
+/// - `null_first = false`: `i64::MAX` (nulls sort largest, i.e. last in ascending)
+///
 /// Supports all integer, date, timestamp, and duration types that can be
 /// losslessly represented as `i64`. Returns a `MergeError::Logic` for
 /// unsupported types (e.g. strings, floats).
@@ -813,12 +823,15 @@ fn get_sort_value(
     row: usize,
     col_idx: usize,
     dtype: &ArrowDataType,
+    null_first: bool,
 ) -> MergeResult<i64> {
     let col = batch.column(col_idx);
+    if col.is_null(row) {
+        return Ok(if null_first { i64::MIN } else { i64::MAX });
+    }
     let val = match dtype {
         ArrowDataType::Int64 => col.as_primitive::<Int64Type>().value(row),
         ArrowDataType::Int32 => col.as_primitive::<Int32Type>().value(row) as i64,
-        ArrowDataType::UInt64 => col.as_primitive::<UInt64Type>().value(row) as i64,
         ArrowDataType::UInt32 => col.as_primitive::<UInt32Type>().value(row) as i64,
         ArrowDataType::Date32 => col.as_primitive::<Date32Type>().value(row) as i64,
         ArrowDataType::Date64 => col.as_primitive::<Date64Type>().value(row),
@@ -868,10 +881,12 @@ fn get_sort_values(
     row: usize,
     col_indices: &[usize],
     dtypes: &[ArrowDataType],
+    nulls_first: &[bool],
 ) -> MergeResult<Vec<i64>> {
     let mut values = Vec::with_capacity(col_indices.len());
-    for (col_idx, dtype) in col_indices.iter().zip(dtypes.iter()) {
-        values.push(get_sort_value(batch, row, *col_idx, dtype)?);
+    for (i, (col_idx, dtype)) in col_indices.iter().zip(dtypes.iter()).enumerate() {
+        let nf = nulls_first.get(i).copied().unwrap_or(false);
+        values.push(get_sort_value(batch, row, *col_idx, dtype, nf)?);
     }
     Ok(values)
 }
@@ -940,12 +955,12 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_mergeParque
     };
 
     // Look up sort config from SETTINGS_STORE by index name
-    let (sort_cols, reverse_flags) = SETTINGS_STORE
+    let (sort_cols, reverse_flags, nulls_first_flags) = SETTINGS_STORE
         .get(&idx_name)
-        .map(|s| (s.sort_columns.clone(), s.reverse_sorts.clone()))
+        .map(|s| (s.sort_columns.clone(), s.reverse_sorts.clone(), s.nulls_first.clone()))
         .unwrap_or_default();
 
-    match merge_streaming_full(&input_files_vec, &output_path, &idx_name, &sort_cols, &reverse_flags) {
+    match merge_streaming_full(&input_files_vec, &output_path, &idx_name, &sort_cols, &reverse_flags, &nulls_first_flags) {
         Ok(_) => 0,
         Err(e) => {
             log_error!("[RUST] Merge failed: {:?}", e);
@@ -979,19 +994,24 @@ pub fn merge_streaming(
     sort_columns: &[String],
 ) -> MergeResult<()> {
     let default_reverse = vec![false; sort_columns.len()];
-    merge_streaming_full(input_files, output_path, index_name, sort_columns, &default_reverse)
+    let default_nulls_first = vec![false; sort_columns.len()];
+    merge_streaming_full(input_files, output_path, index_name, sort_columns, &default_reverse, &default_nulls_first)
 }
 
 /// Performs a streaming k-way merge with an explicit sort direction per column.
 ///
 /// Each entry in `reverse_sorts` corresponds to the sort column at the same
 /// index. `true` means descending, `false` means ascending.
+///
+/// Each entry in `nulls_first` corresponds to the sort column at the same
+/// index. `true` means nulls sort before non-null values, `false` means after.
 pub fn merge_streaming_full(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
     sort_columns: &[String],
     reverse_sorts: &[bool],
+    nulls_first: &[bool],
 ) -> MergeResult<()> {
     merge_streaming_with_config(
         input_files,
@@ -999,6 +1019,7 @@ pub fn merge_streaming_full(
         index_name,
         sort_columns,
         reverse_sorts,
+        nulls_first,
         BATCH_SIZE,
         OUTPUT_FLUSH_ROWS,
     )
@@ -1012,6 +1033,7 @@ pub fn merge_streaming_with_config(
     index_name: &str,
     sort_columns: &[String],
     reverse_sorts: &[bool],
+    nulls_first: &[bool],
     batch_size: usize,
     output_flush_rows: usize,
 ) -> MergeResult<()> {
@@ -1062,7 +1084,7 @@ pub fn merge_streaming_with_config(
     for (file_id, path) in input_files.iter().enumerate() {
         log_debug!("[RUST] Opening cursor {} for file: {}", file_id, path);
         let (cursor, projected_schema) =
-            FileCursor::new(path, file_id, sort_columns, batch_size)?;
+            FileCursor::new(path, file_id, sort_columns, nulls_first, batch_size)?;
         cursors.push(cursor);
         all_schemas.push(projected_schema.as_ref().clone());
     }
@@ -1071,8 +1093,7 @@ pub fn merge_streaming_with_config(
 
     // ── Phase 2: Build union Arrow schema ───────────────────────────────
     //
-    // Each file may have a slightly different set of columns (e.g. sparse
-    // fields added by later indexing). We merge all projected schemas into
+    // Each file may have a slightly different set of columns (dynamic mapping). We merge all projected schemas into
     // a single union schema so the output contains every column seen across
     // all inputs. Batches from files missing a column are padded with nulls.
     let union_data_schema = ArrowSchema::try_merge(all_schemas).map_err(|e| {
@@ -1297,6 +1318,7 @@ pub fn merge_streaming_with_config(
                     mid,
                     &cursor.sort_col_indices,
                     &cursor.sort_col_types,
+                    &cursor.nulls_first,
                 )?;
 
                 if comes_before_or_equal(&mid_val, heap_top, reverse_sorts) {

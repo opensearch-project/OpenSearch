@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Wraps the stateless JNI methods in {@link RustBridge} with a file-scoped lifecycle:
  * <ol>
- *   <li>{@code new NativeParquetWriter(filePath, indexName, schemaAddress, sortColumns, reverseSorts)} — creates the native writer</li>
+ *   <li>{@code new NativeParquetWriter(filePath, indexName, schemaAddress, sortColumns, reverseSorts, nullsFirst)} — creates the native writer</li>
  *   <li>{@link #write(long, long)} — sends one or more Arrow batches (repeatable)</li>
  *   <li>{@link #flush()} — finalizes the Parquet file and returns metadata</li>
  *   <li>{@link #sync()} — fsyncs the file to durable storage (calls flush if needed)</li>
@@ -42,6 +42,7 @@ public class NativeParquetWriter {
      * @param schemaAddress the native memory address of the Arrow schema
      * @param sortColumns   the columns to sort by, or empty list for no sorting
      * @param reverseSorts  whether each sort column is descending, or empty list
+     * @param nullsFirst    whether nulls sort first for each column, or empty list
      * @throws IOException if the native writer creation fails
      */
     public NativeParquetWriter(
@@ -49,10 +50,11 @@ public class NativeParquetWriter {
         String indexName,
         long schemaAddress,
         List<String> sortColumns,
-        List<Boolean> reverseSorts
+        List<Boolean> reverseSorts,
+        List<Boolean> nullsFirst
     ) throws IOException {
         this.filePath = filePath;
-        RustBridge.createWriter(filePath, indexName, schemaAddress, sortColumns, reverseSorts);
+        RustBridge.createWriter(filePath, indexName, schemaAddress, sortColumns, reverseSorts, nullsFirst);
     }
 
     /**

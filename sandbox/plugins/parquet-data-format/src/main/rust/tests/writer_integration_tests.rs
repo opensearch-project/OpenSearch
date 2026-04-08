@@ -51,7 +51,7 @@ fn test_concurrent_writer_creation() {
             let file_path = temp_dir_path.join(format!("concurrent_{}.parquet", i));
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
-            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![]).is_ok() {
+            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]).is_ok() {
                 success_count.fetch_add(1, Ordering::SeqCst);
                 let _ = NativeParquetWriter::finalize_writer(filename);
             }
@@ -174,7 +174,7 @@ fn test_concurrent_complete_writer_lifecycle() {
             let filename = file_path.to_string_lossy().to_string();
             let (_schema, schema_ptr) = create_test_ffi_schema();
 
-            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![]).is_ok() {
+            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]).is_ok() {
                 let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
                 let write_ok = NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok();
                 cleanup_ffi_data(array_ptr, data_schema_ptr);

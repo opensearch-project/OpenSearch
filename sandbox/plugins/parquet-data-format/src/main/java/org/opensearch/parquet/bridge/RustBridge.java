@@ -42,7 +42,8 @@ public class RustBridge {
         String indexName,
         long schemaAddress,
         List<String> sortColumns,
-        List<Boolean> reverseSorts
+        List<Boolean> reverseSorts,
+        List<Boolean> nullsFirst
     ) throws IOException;
 
     static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;

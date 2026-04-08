@@ -32,6 +32,7 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_createWrite
     schema_address: jlong,
     sort_columns: JObject,
     reverse_sorts: JObject,
+    nulls_first: JObject,
 ) {
     let filename: String = env.get_string(&file).expect("Couldn't get file string!").into();
     let index_name: String = env.get_string(&index_name).expect("Couldn't get index_name string!").into();
@@ -62,7 +63,20 @@ pub extern "system" fn Java_org_opensearch_parquet_bridge_RustBridge_createWrite
         }
     };
 
-    if let Err(e) = NativeParquetWriter::create_writer(filename, index_name, schema_address as i64, sort_cols, reverse_flags) {
+    let nulls_first_flags: Vec<bool> = if nulls_first.is_null() {
+        vec![]
+    } else {
+        match convert_java_list_to_bool_vec(&mut env, nulls_first) {
+            Ok(v) => v,
+            Err(e) => {
+                log_error!("Failed to convert nulls_first list: {}", e);
+                let _ = env.throw_new("java/io/IOException", &format!("Failed to read nulls_first: {}", e));
+                return;
+            }
+        }
+    };
+
+    if let Err(e) = NativeParquetWriter::create_writer(filename, index_name, schema_address as i64, sort_cols, reverse_flags, nulls_first_flags) {
         log_error!("ERROR: Failed to create writer: {:?}", e);
         let _ = env.throw_new("java/io/IOException", &format!("Failed to create writer: {}", e));
     }
@@ -283,8 +297,12 @@ fn read_native_settings(env: &mut JNIEnv, obj: &JObject) -> Result<NativeSetting
         row_group_size_bytes: get_boxed_long_as_usize!("getRowGroupSizeBytes"),
         field_configs:        None,
         custom_settings:      None,
+        bloom_filter_enabled: None,
+        bloom_filter_fpp:     None,
+        bloom_filter_ndv:     None,
         sort_columns:         vec![],
         reverse_sorts:        vec![],
+        nulls_first:          vec![],
     })
 }
 

@@ -51,6 +51,9 @@ impl WriterPropertiesBuilder {
         // Apply dictionary settings
         builder = Self::apply_dictionary_settings(builder, config);
 
+        // Apply bloom filter settings
+        builder = Self::apply_bloom_filter_settings(builder, config);
+
         // Apply field-level configurations
         builder = Self::apply_field_configs(builder, config);
 
@@ -96,6 +99,17 @@ impl WriterPropertiesBuilder {
         config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
         builder = builder.set_dictionary_page_size_limit(config.get_dict_size_bytes());
+        builder
+    }
+
+    /// Applies bloom filter settings.
+    fn apply_bloom_filter_settings(
+        mut builder: parquet::file::properties::WriterPropertiesBuilder,
+        config: &NativeSettings
+    ) -> parquet::file::properties::WriterPropertiesBuilder {
+        builder = builder.set_bloom_filter_enabled(config.get_bloom_filter_enabled());
+        builder = builder.set_bloom_filter_fpp(config.get_bloom_filter_fpp());
+        builder = builder.set_bloom_filter_ndv(config.get_bloom_filter_ndv());
         builder
     }
 
