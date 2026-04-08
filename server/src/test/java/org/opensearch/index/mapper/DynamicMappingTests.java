@@ -31,6 +31,7 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
@@ -112,6 +114,48 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("count_i").typeName(), equalTo("long"));
         assertNotNull(mapperService.fieldType("name_s"));
         assertThat(mapperService.fieldType("name_s").typeName(), equalTo("keyword"));
+    }
+
+    /**
+     * {@link MappingLookup#fromMapping(Mapping, org.apache.lucene.analysis.Analyzer)} without a
+     * {@link DocumentMapperParser} does not install {@link DynamicPropertyFieldTypeResolver}, so
+     * pattern-only fields have no query-time type.
+     */
+    public void testMappingLookupFromMappingWithoutParserSkipsDynamicPropertyTypes() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        Mapping mapping = mapperService.documentMapper().mapping();
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, new StandardAnalyzer());
+        assertNull(lookup.fieldTypes().get("count_i"));
+        assertNotNull(mapperService.fieldType("count_i"));
+    }
+
+    /** Second {@link MapperService#fieldType} for the same name hits the resolver LRU cache. */
+    public void testDynamicPropertiesFieldTypeLookupUsesResolverCache() throws IOException {
+        MapperService mapperService = createMapperService(
+            topMapping(
+                b -> b.startObject("dynamic_properties")
+                    .startObject("*_i")
+                    .field("type", "long")
+                    .endObject()
+                    .endObject()
+                    .startObject("properties")
+                    .endObject()
+            )
+        );
+        MappedFieldType first = mapperService.fieldType("cache_hit_i");
+        MappedFieldType second = mapperService.fieldType("cache_hit_i");
+        assertNotNull(first);
+        assertSame(first, second);
     }
 
     /** {@link DynamicPropertyFieldTypeResolver} returns null when no pattern matches the field name. */

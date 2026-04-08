@@ -431,6 +431,121 @@ public class RootObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("pattern [*] is not allowed"));
     }
 
+    public void testDynamicPropertiesMustBeObject() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startArray("dynamic_properties")
+            .endArray()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("must be an object"));
+    }
+
+    public void testDynamicPropertiesPatternRequiresWildcard() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("count_i")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("must contain a wildcard"));
+    }
+
+    public void testDynamicPropertiesEntryMustBeMappingObject() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .field("*_i", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("must have a mapping object"));
+    }
+
+    public void testDynamicPropertiesRequiresType() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("*_i")
+            .field("index", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("No type specified"));
+    }
+
+    public void testDynamicPropertiesRejectsUnknownType() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .startObject("*_i")
+            .field("type", "not_a_real_mapper_type_xyz")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE)
+        );
+        assertThat(e.getMessage(), containsString("No handler for type"));
+    }
+
+    /** Empty {@code dynamic_properties: {}} is valid and exercises merge validation on an empty rule list. */
+    public void testDynamicPropertiesEmptyObject() throws Exception {
+        String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("dynamic_properties")
+            .endObject()
+            .startObject("properties")
+            .startObject("title")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .toString();
+        MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(0, mapperService.documentMapper().root().dynamicProperties().length);
+    }
+
     public void testDynamicPropertiesTemplateMergeRejectsExplicitOverlap() throws Exception {
         String explicitFirst = XContentFactory.jsonBuilder()
             .startObject()

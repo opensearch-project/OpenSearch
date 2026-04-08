@@ -15,6 +15,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -66,5 +67,25 @@ public class DynamicPropertyTests extends OpenSearchTestCase {
         builder.endObject();
         assertThat(builder.toString(), containsString("\"*_t\""));
         assertThat(builder.toString(), containsString("\"type\":\"text\""));
+    }
+
+    public void testGetMapping() {
+        Map<String, Object> m = new TreeMap<>(Map.of("type", "keyword", "doc_values", Boolean.FALSE));
+        DynamicProperty dp = new DynamicProperty("*_k", m);
+        assertThat(dp.getMapping().get("type"), equalTo("keyword"));
+        assertThat(dp.getMapping().get("doc_values"), equalTo(Boolean.FALSE));
+    }
+
+    /** Lists and other non-map, non-string values are stored unchanged by {@code mappingForName}. */
+    public void testMappingForNameLeavesListValuesUnsubstituted() {
+        Map<String, Object> mapping = new TreeMap<>();
+        mapping.put("type", "keyword");
+        mapping.put("copy_to", List.of("dest_a", "dest_b"));
+        DynamicProperty dp = new DynamicProperty("*_s", mapping);
+        Map<String, Object> resolved = dp.mappingForName("name_s");
+        assertThat(resolved.get("type"), equalTo("keyword"));
+        @SuppressWarnings("unchecked")
+        List<String> copyTo = (List<String>) resolved.get("copy_to");
+        assertThat(copyTo, equalTo(List.of("dest_a", "dest_b")));
     }
 }
