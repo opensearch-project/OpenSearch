@@ -1,0 +1,47 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+  description = 'DataFusion native execution engine plugin for the query engine.'
+  classname = 'org.opensearch.be.datafusion.DataFusionPlugin'
+  extendedPlugins = ['engine-datafusion']
+}
+
+// Guava comes transitively from calcite-core — forbidden on compile classpaths by OpenSearch.
+// Bypass via a custom config, same pattern as analytics-engine.
+configurations {
+  calciteCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+
+dependencies {
+  // All compileOnly — provided by parent classloaders at runtime
+  compileOnly project(':sandbox:libs:analytics-framework')
+  compileOnly project(':plugins:engine-datafusion')
+  compileOnly project(':libs:opensearch-vectorized-exec-spi')
+  compileOnly "org.apache.arrow:arrow-memory-core:18.3.0"
+  compileOnly "org.apache.arrow:arrow-vector:18.3.0"
+  compileOnly "org.apache.arrow:arrow-c-data:18.3.0"
+  compileOnly "org.apache.arrow:arrow-format:18.3.0"
+  compileOnly "org.apache.calcite:calcite-core:1.41.0"
+  compileOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
+  // Guava for compile — Calcite class files reference ImmutableList at the class-file level
+  calciteCompile "com.google.guava:guava:${versions.guava}"
+
+  // Substrait — only new jars we bundle
+  implementation('io.substrait:core:0.67.0') { transitive = false }
+  implementation('io.substrait:isthmus:0.67.0') { transitive = false }
+}
+
+testingConventions.enabled = false
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Werror'
+}

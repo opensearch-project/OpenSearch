@@ -10,11 +10,13 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -46,6 +48,10 @@ import org.opensearch.index.engine.MergeFailedEngineException;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.SearchExecEngine;
+import org.opensearch.index.engine.exec.CatalogSnapshotAwareReaderManager;
+import org.opensearch.index.engine.exec.IndexFilterProvider;
+import org.opensearch.index.engine.exec.SearchBackendFactory;
+import org.opensearch.index.engine.exec.SourceProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.SoftDeletesPolicy;
@@ -92,6 +98,7 @@ import org.opensearch.index.translog.listener.CompositeTranslogEventListener;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.plugins.PluginsService;
+import org.opensearch.plugins.SearchAnalyticsBackEndPlugin;
 import org.opensearch.plugins.SearchEnginePlugin;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
@@ -168,6 +175,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     private final List<CatalogSnapshotAwareRefreshListener> catalogSnapshotAwareRefreshListeners = new ArrayList<>();
     private final Map<String, List<FileDeletionListener>> fileDeletionListeners = new HashMap<>();
     private final Map<DataFormat, List<SearchExecEngine<?, ?, ?, ?>>> readEngines = new HashMap<>();
+    private final Map<String, SearchExecEngine<?, ?, ?, ?>> readEnginesByName = new HashMap<>();
+    private final Map<String, CatalogSnapshotAwareReaderManager<?>> readerManagersByName = new HashMap<>();
+    @Nullable
+    private final SearchBackendFactory searchBackendFactory;
     private final MergeScheduler mergeScheduler;
     private final MergeHandler mergeHandler;
 
@@ -319,6 +330,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
             logger.debug("While initialising Composite Engine - lst commit generation : " + lastCommittedWriterGeneration.get());
             this.engine = new CompositeIndexingExecutionEngine(
+                engineConfig,
                 mapperService,
                 pluginsService,
                 shardPath,
@@ -398,6 +410,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
 
                     currentSearchEngines.add(newSearchEngine);
                     readEngines.put(dataFormat, currentSearchEngines);
+                    readEnginesByName.put(dataFormat.getName(), newSearchEngine);
 
                     // TODO : figure out how to do internal and external refresh listeners
                     // Maybe external refresh should be managed in opensearch core and plugins should always give
@@ -416,6 +429,27 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 }
             }
             invokeRefreshListeners(true);
+
+            // Initialize search backend factory for pluggable search backends
+            SearchBackendFactory backendFactory = null;
+            try {
+                backendFactory = new SearchBackendFactory(pluginsService, shardPath, mapperService, indexSettings);
+            } catch (Exception e) {
+                logger.warn("Failed to initialize SearchBackendFactory, search backends will be unavailable", e);
+            }
+            this.searchBackendFactory = backendFactory;
+
+            // Populate name-keyed reader managers from SearchAnalyticsBackEndPlugins
+            for (SearchAnalyticsBackEndPlugin backendPlugin : pluginsService.filterPlugins(SearchAnalyticsBackEndPlugin.class)) {
+                for (DataFormat format : backendPlugin.getSupportedFormats()) {
+                    try {
+                        readerManagersByName.put(backendPlugin.name(), backendPlugin.createReaderManager(format, shardPath));
+                    } catch (Exception e) {
+                        logger.warn("Failed to create reader manager for plugin [{}], format [{}]", backendPlugin.name(), format, e);
+                    }
+                }
+            }
+
             success = true;
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -562,9 +596,113 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         return readEngines.values().stream().filter(list -> !list.isEmpty()).findFirst().map(List::getFirst).orElse(null);
     }
 
+    /**
+     * Returns the search backend factory, or null if no backends were discovered.
+     */
+    @Nullable
+    public SearchBackendFactory getSearchBackendFactory() {
+        return searchBackendFactory;
+    }
+
+    /**
+     * Returns the catalog-snapshot-aware reader manager for the given format, or null.
+     */
+    @Nullable
+    public CatalogSnapshotAwareReaderManager<?> getReaderManager(DataFormat format) {
+        return searchBackendFactory != null ? searchBackendFactory.getReaderManagers().get(format) : null;
+    }
+
+    /**
+     * Returns a reader for the given format and catalog snapshot, or null.
+     */
+    @Nullable
+    public Object getReader(DataFormat format, CatalogSnapshot snapshot) throws IOException {
+        CatalogSnapshotAwareReaderManager<?> rm = getReaderManager(format);
+        return rm != null ? rm.getReader(snapshot) : null;
+    }
+
+    public Object getEngine(String name) {
+        return readEnginesByName.get(name);
+    }
+
+    /**
+     * Returns the catalog-snapshot-aware reader manager for the given name, or null.
+     */
+    @Nullable
+    public CatalogSnapshotAwareReaderManager<?> getReaderManager(String name) {
+        return readerManagersByName.get(name);
+    }
+
+    /**
+     * Returns a reader for the given name and catalog snapshot, or null.
+     */
+    @Nullable
+    public Object getReader(String name, CatalogSnapshot snapshot) throws IOException {
+        CatalogSnapshotAwareReaderManager<?> rm = getReaderManager(name);
+        // hack
+        if (rm != null) {
+            rm.afterRefresh(true, snapshot);
+        }
+        return rm != null ? rm.getReader(snapshot) : null;
+    }
+
+    /**
+     * Returns a reader for the given format using the current catalog snapshot.
+     * TODO: return composite reader that spans all formats
+     */
+    @Nullable
+    public Object getReader(DataFormat format) throws Exception {
+        try (ReleasableRef<CatalogSnapshot> ref = acquireSnapshot()) {
+            CatalogSnapshot snapshot = ref.getRef();
+            // Ensure reader manager has a reader for this snapshot
+            CatalogSnapshotAwareReaderManager<?> rm = getReaderManager(format);
+            if (rm != null) {
+                rm.afterRefresh(true, snapshot);
+            }
+            return getReader(format, snapshot);
+        }
+    }
+
+    /**
+     * Returns the search exec engine for the given format, or null.
+     */
+    @Nullable
+    public org.opensearch.index.engine.exec.SearchExecEngine<?, ?> getSearchExecBackendEngine(DataFormat format) throws IOException {
+        if (searchBackendFactory == null) return null;
+        CheckedSupplier<org.opensearch.index.engine.exec.SearchExecEngine<?, ?>, IOException> supplier =
+            searchBackendFactory.getEngineSuppliers().get(format);
+        return supplier != null ? supplier.get() : null;
+    }
+
+    /**
+     * Returns the index filter provider for the given format, or null.
+     */
+    @Nullable
+    public IndexFilterProvider<?, ?> getIndexFilterProvider(DataFormat format) throws IOException {
+        if (searchBackendFactory == null) return null;
+        CheckedSupplier<IndexFilterProvider<?, ?>, IOException> supplier =
+            searchBackendFactory.getIndexFilterProviderSuppliers().get(format);
+        return supplier != null ? supplier.get() : null;
+    }
+
+    /**
+     * Returns the source provider for the given format, or null.
+     */
+    @Nullable
+    public SourceProvider<?, ?> getSourceProvider(DataFormat format) throws IOException {
+        if (searchBackendFactory == null) return null;
+        CheckedSupplier<SourceProvider<?, ?>, IOException> supplier =
+            searchBackendFactory.getSourceProviderSuppliers().get(format);
+        return supplier != null ? supplier.get() : null;
+    }
+
     @Override
     public CompositeDataFormatWriter.CompositeDocumentInput documentInput() {
         return engine.createCompositeWriter().newDocumentInput();
+    }
+
+    public EngineConfig getEngineConfig() {
+        return engineConfig;
     }
 
     public Engine.IndexResult index(Engine.Index index) throws IOException {
@@ -607,6 +745,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                         index.documentInput.setSeqNo(index.seqNo());
                         index.documentInput.setPrimaryTerm(SeqNoFieldMapper.PRIMARY_TERM_NAME, index.primaryTerm());
                         index.documentInput.setVersion(1); // we are not supporting update in parquet
+                         logger.debug("[COMPOSITE_DEBUG] Indexing doc id=[{}] seqNo=[{}] primaryTerm=[{}] — writing to engine",
+                             index.id(), index.seqNo(), index.primaryTerm());
                         WriteResult writeResult = index.documentInput.addToWriter();
                         indexResult =
                             new Engine.IndexResult(writeResult.version(), index.primaryTerm(), index.seqNo(), writeResult.success());
@@ -1035,7 +1175,7 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 boolean shouldPeriodicallyFlush = shouldPeriodicallyFlush();
                 if (force || shouldFlush() || shouldPeriodicallyFlush || getProcessedLocalCheckpoint() > Long.parseLong(
                     readLastCommittedData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY))) {
-
+                    refresh("flush in composite engine");
                     translogManager.ensureCanFlush();
 
                     try {
@@ -1416,5 +1556,12 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
         } else {
             throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
         }
+    }
+
+    public IndexWriter getLuceneIndexWriter() {
+        if (compositeEngineCommitter instanceof LuceneCommitEngine) {
+            return ((LuceneCommitEngine) compositeEngineCommitter).getIndexWriter();
+        }
+        return null;
     }
 }

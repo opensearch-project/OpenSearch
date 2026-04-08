@@ -9,14 +9,20 @@
 package org.opensearch.index.engine.exec.commit;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.CommitStats;
@@ -26,15 +32,20 @@ import org.opensearch.index.engine.SoftDeletesPolicy;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.Segment;
+import org.opensearch.index.engine.exec.lucene.LuceneDataFormat;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Base64;
-import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 public class LuceneCommitEngine implements Committer {
 
@@ -50,6 +61,8 @@ public class LuceneCommitEngine implements Committer {
         this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy, null, globalCheckpointSupplier);
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
         indexWriterConfig.setIndexDeletionPolicy(combinedDeletionPolicy);
+        indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        indexWriterConfig.setParentField(null); // Don't require parent field — existing indexes may not have one
         this.store = store;
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         if (primaryMode) {
@@ -57,21 +70,53 @@ public class LuceneCommitEngine implements Committer {
         }
     }
 
+    public IndexWriter getIndexWriter() {
+        return indexWriter;
+    }
+
     @Override
-    public void addLuceneIndexes(CatalogSnapshot catalogSnapshot) {
-        Collection<WriterFileSet> luceneFileCollection = catalogSnapshot.getSearchableFiles(DataFormat.LUCENE.name());
-        luceneFileCollection.forEach(writerFileSet -> {
+    public synchronized void addLuceneIndexes(List<Segment> segments) throws IOException {
+
+        for(Segment segment : segments) {
+            WriterFileSet wfs = segment.getDFGroupedSearchableFiles().get(LuceneDataFormat.LUCENE.name());
+            if(wfs == null || wfs.refresh()) continue;
+
             try {
-                indexWriter.addIndexes(new NIOFSDirectory(Path.of(writerFileSet.getDirectory())));
+                indexWriter.addIndexes(new HardlinkCopyDirectoryWrapper(new NIOFSDirectory(Path.of(wfs.getDirectory()))));
+                wfs.setRefreshed();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Not able to copy it to the main writer in commiter: {}", e);
             }
-        });
+        }
+
+        final Map<Long, Segment> segmentByGeneration =
+            segments.stream().collect(Collectors.toMap(Segment::getGeneration, Function.identity()));
+
+        try (DirectoryReader dr = DirectoryReader.open(indexWriter)){
+            for(LeafReaderContext leaf : dr.getContext().leaves()) {
+                SegmentCommitInfo segmentCommitInfo = Lucene.segmentReader(leaf.reader()).getSegmentInfo();
+                String generationAttr = segmentCommitInfo.info.getAttribute("writer_generation");
+                if(generationAttr == null) {
+                    throw new RuntimeException("failed to fetch writer generation");
+                }
+                long writerGeneration = Long.parseLong(generationAttr);
+                if (segmentByGeneration.containsKey(writerGeneration)) {
+                    WriterFileSet writerFileSet =
+                        segmentByGeneration.get(writerGeneration).getDFGroupedSearchableFiles().get(DataFormat.LUCENE.name());
+                    Path oldDirectoryPath = Path.of(writerFileSet.getDirectory());
+                    segmentByGeneration.get(writerGeneration).addSearchableFiles(
+                        DataFormat.LUCENE.name(),
+                        writerFileSet.withDirectoryAndFiles(indexWriter.getDirectory().toString(), new HashSet<>(segmentCommitInfo.files()))
+                    );
+                    // Deletes the older path once the file path has been updated
+                    IOUtils.rm(oldDirectoryPath);
+                }
+            }
+        }
     }
 
     @Override
     public synchronized CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
-        addLuceneIndexes(catalogSnapshot);
         indexWriter.setLiveCommitData(commitData);
         try {
             indexWriter.commit();

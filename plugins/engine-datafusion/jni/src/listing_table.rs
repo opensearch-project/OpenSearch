@@ -56,7 +56,7 @@ use datafusion_datasource::{
     file::FileSource,
     file_groups::FileGroup,
     file_scan_config::{FileScanConfig, FileScanConfigBuilder},
-    schema_adapter::{DefaultSchemaAdapterFactory, SchemaAdapter, SchemaAdapterFactory},
+    schema_adapter::SchemaAdapterFactory,
 };
 use datafusion_expr::{dml::InsertOp, Expr, SortExpr, TableProviderFilterPushDown, TableType};
 use futures::future::err;
@@ -948,7 +948,7 @@ pub struct ListingTable {
     schema_source: SchemaSource,
     options: ListingOptions,
     definition: Option<String>,
-    collected_statistics: FileStatisticsCache,
+    collected_statistics: Arc<dyn FileStatisticsCache>,
     constraints: Constraints,
     column_defaults: HashMap<String, Expr>,
     /// Optional [`SchemaAdapterFactory`] for creating schema adapters
@@ -1020,7 +1020,7 @@ impl ListingTable {
     /// multiple times in the same session.
     ///
     /// If `None`, creates a new [`DefaultFileStatisticsCache`] scoped to this query.
-    pub fn with_cache(mut self, cache: Option<FileStatisticsCache>) -> Self {
+    pub fn with_cache(mut self, cache: Option<Arc<dyn FileStatisticsCache>>) -> Self {
         self.collected_statistics =
             cache.unwrap_or_else(|| Arc::new(DefaultFileStatisticsCache::default()));
         self
@@ -1088,17 +1088,15 @@ impl ListingTable {
     ///
     /// Uses the configured schema adapter factory if available, otherwise falls back
     /// to the default implementation.
-    fn create_schema_adapter(&self) -> Box<dyn SchemaAdapter> {
-        let table_schema = self.schema();
-        match &self.schema_adapter_factory {
-            Some(factory) => factory.create_with_projected_schema(Arc::clone(&table_schema)),
-            None => DefaultSchemaAdapterFactory::from_schema(Arc::clone(&table_schema)),
-        }
-    }
-
     /// Creates a file source and applies schema adapter factory if available
     fn create_file_source_with_schema_adapter(&self) -> Result<Arc<dyn FileSource>> {
-        let mut source = self.options.format.file_source();
+        let table_schema = datafusion_datasource::table_schema::TableSchema::new(
+            self.file_schema.clone(),
+            self.options.table_partition_cols.iter().map(|(name, dt)| {
+                Arc::new(Field::new(name, dt.clone(), false)) as _
+            }).collect(),
+        );
+        let mut source = self.options.format.file_source(table_schema);
         // Apply schema adapter to source if available
         //
         // The source will use this SchemaAdapter to adapt data batches as they flow up the plan.
@@ -1309,16 +1307,14 @@ impl TableProvider for ListingTable {
                 state,
                 FileScanConfigBuilder::new(
                     object_store_url,
-                    Arc::clone(&self.file_schema),
                     file_source,
                 )
                 .with_file_groups(partitioned_file_lists)
                 .with_constraints(self.constraints.clone())
                 .with_statistics(statistics)
-                .with_projection_indices(projection.cloned())
+                .with_projection_indices(projection.cloned())?
                 .with_limit(limit)
                 .with_output_ordering(output_ordering)
-                .with_table_partition_cols(table_partition_cols)
                 .with_expr_adapter(self.expr_adapter_factory.clone())
                 .build(),
             )
@@ -1469,17 +1465,21 @@ impl ListingTable {
             inexact_stats,
         )?;
 
-        let schema_adapter = self.create_schema_adapter();
-        let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
-
-        stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
-        file_groups.iter_mut().try_for_each(|file_group| {
-            if let Some(stat) = file_group.statistics_mut() {
-                stat.column_statistics =
-                    schema_mapper.map_column_statistics(&stat.column_statistics)?;
-            }
-            Ok::<_, DataFusionError>(())
-        })?;
+        // In DF 52, SchemaAdapter is deprecated. Skip statistics schema mapping
+        // when no custom adapter is configured — the common case.
+        // The file source handles schema adaptation internally via PhysicalExprAdapterFactory.
+        if let Some(factory) = &self.schema_adapter_factory {
+            let schema_adapter = factory.create_with_projected_schema(self.schema());
+            let (schema_mapper, _) = schema_adapter.map_schema(self.file_schema.as_ref())?;
+            stats.column_statistics = schema_mapper.map_column_statistics(&stats.column_statistics)?;
+            file_groups.iter_mut().try_for_each(|file_group| {
+                if let Some(stat) = file_group.statistics_mut() {
+                    stat.column_statistics =
+                        schema_mapper.map_column_statistics(&stat.column_statistics)?;
+                }
+                Ok::<_, DataFusionError>(())
+            })?;
+        }
         Ok((file_groups, stats))
     }
 

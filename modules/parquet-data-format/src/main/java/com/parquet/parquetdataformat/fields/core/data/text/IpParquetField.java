@@ -1,0 +1,76 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package com.parquet.parquetdataformat.fields.core.data.text;
+
+import org.opensearch.index.engine.exec.FieldCapability;
+import org.opensearch.index.mapper.MappedFieldType;
+import com.parquet.parquetdataformat.fields.ParquetField;
+import com.parquet.parquetdataformat.vsr.ManagedVSR;
+import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
+
+import java.util.EnumSet;
+import java.util.Set;
+
+import java.net.InetAddress;
+
+/**
+ * Parquet field implementation for handling IP address data types in OpenSearch documents.
+ *
+ * <p>This class provides the conversion logic between OpenSearch IP fields and Apache Arrow
+ * Binary        string vectors for columnar storage in Parquet format. IP address values are encoded
+ * using Lucene's {@link InetAddressPoint} encoding and stored using Apache Arrow's
+ * {@link VarBinaryVector}, which provides efficient variable-length binary storage.</p>
+ *
+ * <p>This field type corresponds to OpenSearch's {@code ip} field mapping, which is used
+ * for storing IPv4 and IPv6 addresses. The IP addresses are internally encoded as binary
+ * data using Lucene's point encoding for efficient range queries and storage optimization.</p>
+ *
+ * <p><strong>Usage Example:</strong></p>
+ * <pre>{@code
+ * IpParquetField ipField = new IpParquetField();
+ * ArrowType arrowType = ipField.getArrowType(); // Returns ArrowType.Binary
+ * FieldType fieldType = ipField.getFieldType(); // Returns nullable Binary field type
+ * }</pre>
+ *
+ * @see ParquetField
+ * @see VarBinaryVector
+ * @see InetAddressPoint
+ * @see ArrowType.Utf8
+ * @since 1.0
+ */
+public class IpParquetField extends ParquetField {
+
+    @Override
+    public void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
+        VarBinaryVector varBinaryVector = (VarBinaryVector) managedVSR.getVector(mappedFieldType.name());
+        int rowIndex = managedVSR.getRowCount();
+        final BytesRef bytesRef = new BytesRef(InetAddressPoint.encode((InetAddress) parseValue));
+        varBinaryVector.setSafe(rowIndex, bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    }
+
+    @Override
+    public ArrowType getArrowType() {
+        return new ArrowType.Binary();
+    }
+
+    @Override
+    public FieldType getFieldType() {
+        return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldCapability> getFieldCapabilities() {
+        return EnumSet.of(FieldCapability.DOC_VALUES, FieldCapability.STORE);
+    }
+}

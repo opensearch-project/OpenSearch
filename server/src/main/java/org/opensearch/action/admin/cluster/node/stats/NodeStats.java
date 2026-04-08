@@ -70,6 +70,7 @@ import org.opensearch.tasks.TaskCancellationStats;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
+
 import java.io.IOException;
 import java.util.Map;
 
@@ -166,6 +167,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
 
+    @Nullable
+    private NativeExecutorsStats nativeExecutorsStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -252,6 +256,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
+        // BACKPORT NOTE: Update version gate to match target branch when backporting
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
+        } else {
+            nativeExecutorsStats = null;
+        }
     }
 
     public NodeStats(
@@ -284,7 +294,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable RepositoriesStats repositoriesStats,
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
-        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
+        @Nullable NativeExecutorsStats nativeExecutorsStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -316,6 +327,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
+        this.nativeExecutorsStats = nativeExecutorsStats;
     }
 
     public long getTimestamp() {
@@ -483,6 +495,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return remoteStoreNodeStats;
     }
 
+    @Nullable
+    public NativeExecutorsStats getNativeExecutorsStats() {
+        return nativeExecutorsStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -543,6 +560,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
+        }
+        // BACKPORT NOTE: Update version gate to match target branch when backporting
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeOptionalWriteable(nativeExecutorsStats);
         }
     }
 
@@ -652,6 +673,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
+        }
+        if (getNativeExecutorsStats() != null) {
+            builder.startObject("native_executors");
+            getNativeExecutorsStats().toXContent(builder, params);
+            builder.endObject();
         }
         return builder;
     }

@@ -165,6 +165,7 @@ import org.opensearch.index.autoforcemerge.AutoForceMergeMetrics;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.MergedSegmentWarmerFactory;
+import org.opensearch.index.engine.exec.lucene.LuceneDataSourcePlugin;
 import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
@@ -298,6 +299,9 @@ import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.plugins.spi.vectorized.DataFormat;
 import org.opensearch.plugins.spi.vectorized.DataSourceCodec;
+import org.opensearch.vectorized.execution.metrics.MetricProvider;
+import org.opensearch.vectorized.execution.metrics.DataFusionPluginStats;
+import org.opensearch.common.cache.ServiceCache;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupsStateAccessor;
@@ -330,6 +334,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -551,6 +556,22 @@ public class Node implements Closeable {
 
             // Ensure feature flags from opensearch.yml are valid during plugin initialization.
             FeatureFlags.initializeFeatureFlags(tmpSettings);
+
+            PluginInfo lucenePluginInfo = new PluginInfo(
+                "LuceneDataformatPlugin",
+                "Lucene composite dataformat plugin",
+                "1.0",
+                Version.CURRENT,
+                "1.8",
+                LuceneDataSourcePlugin.class.getName(),
+                null,
+                Collections.emptyList(),
+                false
+            );
+
+            List<PluginInfo> allClasspathPlugins = new ArrayList<>(classpathPlugins);
+            allClasspathPlugins.add(lucenePluginInfo);
+            classpathPlugins = allClasspathPlugins;
 
             this.pluginsService = new PluginsService(
                 tmpSettings,
@@ -1511,6 +1532,22 @@ public class Node implements Closeable {
                 taskCancellationMonitoringSettings
             );
 
+            // Obtain MetricProvider from the DataFusion SearchEnginePlugin
+            @SuppressWarnings("unchecked")
+            final MetricProvider<DataFusionPluginStats> dataFusionMetricProvider =
+                (MetricProvider<DataFusionPluginStats>) pluginsService.filterPlugins(SearchEnginePlugin.class)
+                .stream()
+                .map(SearchEnginePlugin::getMetricProvider)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+            // Construct ServiceCache instance for native metrics if a provider is available
+            ServiceCache<DataFusionPluginStats> dataFusionService = null;
+            if (dataFusionMetricProvider != null) {
+                dataFusionService = new ServiceCache<>(dataFusionMetricProvider::stats, TimeValue.timeValueSeconds(1));
+            }
+
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1537,7 +1574,8 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService
+                cacheService,
+                dataFusionService
             );
 
             if (FeatureFlags.isEnabled(ARROW_STREAMS_SETTING)) {

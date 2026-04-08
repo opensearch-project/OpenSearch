@@ -18,8 +18,9 @@ import java.util.Map;
 
 public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable {
 
-    List<String> supportedFieldTypes();
+    List<String> supportedFieldTypes(boolean isPrimaryEngine);
 
+    // Writer should know it's a primary writer or not?
     Writer<? extends DocumentInput<?>> createWriter(long writerGeneration)
         throws IOException; // A writer responsible for data format vended by this engine.
 
@@ -34,6 +35,14 @@ public interface IndexingExecutionEngine<T extends DataFormat> extends Closeable
 
     default long getNativeBytesUsed() {
         return 0;
+    }
+
+    default void setSortColumn(String sortColumn) {
+        // no-op by default
+    }
+
+    default void setReverseSort(boolean reverseSort) {
+        // no-op by default
     }
 
     void deleteFiles(Map<String, Collection<String>> filesToDelete) throws IOException;

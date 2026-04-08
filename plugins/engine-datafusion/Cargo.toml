@@ -6,14 +6,18 @@ members = [
 
 [workspace.dependencies]
 # DataFusion dependencies
-datafusion = "51.0.0"
-datafusion-expr = "51.0.0"
-datafusion-datasource = "51.0.0"
-arrow-json = "57.1.0"
-arrow = { version = "57.1.0", features = ["ffi", "ipc_compression"] }
-arrow-array = "57.1.0"
-arrow-schema = "57.1.0"
-arrow-buffer = "57.1.0"
+datafusion = "52.1.0"
+datafusion-expr = "52.1.0"
+datafusion-datasource = "52.1.0"
+datafusion-datasource-parquet = "52.1.0"
+datafusion-common = "52.1.0"
+datafusion-execution = "52.1.0"
+datafusion-physical-expr = "52.1.0"
+arrow-json = "57.3.0"
+arrow = { version = "57.3.0", features = ["ffi", "ipc_compression"] }
+arrow-array = "57.3.0"
+arrow-schema = "57.3.0"
+arrow-buffer = "57.3.0"
 downcast-rs = "1.2"
 
 
@@ -21,7 +25,7 @@ downcast-rs = "1.2"
 jni = "0.21"
 
 # Substrait support
-datafusion-substrait = "51.0.0"
+datafusion-substrait = "52.1.0"
 prost = "0.14"
 
 
@@ -42,14 +46,17 @@ thiserror = "1.0"
 # Logging
 log = "0.4"
 # Parquet support
-parquet = "57.1.0"
+parquet = "57.3.0"
 
 # Object store for file access
-object_store = "=0.12.4"
+object_store = "0.12.5"
 url = "2.0"
 
+# Liquid Cache for byte-level caching
+liquid-cache-datafusion-local = "0.1.12"
+
 # Substrait support
-substrait = "0.47"
+substrait = "=0.62.0"
 
 # Temporary directory support
 tempfile = "3.0"
@@ -83,3 +90,23 @@ codegen-units = 1    # More parallel compilation
 incremental = true    # Enable incremental compilation
 debug = "full"
 strip = false
+
+# Patch arrow/parquet to local arrow-rs with sparse column chunk fix
+# Required by indexed-table crate for correct page index handling
+# https://github.com/apache/arrow-rs/pull/9301/changes
+#[patch.crates-io]
+#parquet = { path = "../../../arrow-rs/parquet" }
+#arrow = { path = "../../../arrow-rs/arrow" }
+#arrow-array = { path = "../../../arrow-rs/arrow-array" }
+#arrow-buffer = { path = "../../../arrow-rs/arrow-buffer" }
+#arrow-data = { path = "../../../arrow-rs/arrow-data" }
+#arrow-schema = { path = "../../../arrow-rs/arrow-schema" }
+#arrow-select = { path = "../../../arrow-rs/arrow-select" }
+#arrow-ipc = { path = "../../../arrow-rs/arrow-ipc" }
+#arrow-cast = { path = "../../../arrow-rs/arrow-cast" }
+#arrow-ord = { path = "../../../arrow-rs/arrow-ord" }
+#arrow-string = { path = "../../../arrow-rs/arrow-string" }
+#arrow-row = { path = "../../../arrow-rs/arrow-row" }
+#arrow-csv = { path = "../../../arrow-rs/arrow-csv" }
+#arrow-json = { path = "../../../arrow-rs/arrow-json" }
+#arrow-arith = { path = "../../../arrow-rs/arrow-arith" }

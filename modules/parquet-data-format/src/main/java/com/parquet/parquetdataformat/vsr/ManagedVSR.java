@@ -90,7 +90,7 @@ public class ManagedVSR implements AutoCloseable {
         VSRState oldState = state;
         state = newState;
 
-        logger.debug("State transition: {} -> {} for VSR {}", oldState, newState, id);
+         logger.debug("State transition: {} -> {} for VSR {}", oldState, newState, id);
     }
 
     /**

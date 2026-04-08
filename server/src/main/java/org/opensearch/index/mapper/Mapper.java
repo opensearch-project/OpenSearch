@@ -39,6 +39,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -51,6 +52,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.opensearch.index.IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING;
 
 /**
  * The foundation OpenSearch mapper
@@ -303,6 +306,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return settings.hasValue(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
     }
 
+    public static boolean isOptimisedIndexEnabled(Settings settings) {
+        return FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) &&
+            OPTIMIZED_INDEX_ENABLED_SETTING.get(settings);
+    }
     /**
      * Method to determine, if it is possible to derive source for this field using field mapping parameters
      */

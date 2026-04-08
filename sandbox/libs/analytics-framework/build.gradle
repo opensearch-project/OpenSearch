@@ -1,0 +1,336 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Shared Calcite/Arrow types for the analytics engine plugins.
+ * Contains EngineBridge, QueryPlanExecutor, AnalyticsEngineContext.
+ * Plugins depend on this; the /modules SPI layer does NOT.
+ */
+
+def calciteVersion = '1.41.0'
+
+dependencies {
+  // CatalogSnapshot is referenced by AnalyticsBackEndPlugin.bridge(CatalogSnapshot).
+  // compileOnly so the server jar is not pulled transitively into plugin classpaths
+  // (plugins already get server via the opensearchplugin convention).
+  compileOnly project(':server')
+
+  api "org.apache.calcite:calcite-core:${calciteVersion}"
+  // Calcite's expression tree and Enumerable runtime — required by calcite-core API
+  api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
+  // Calcite's JDBC abstraction layer — required by calcite-core internals
+  runtimeOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
+  // Guava — required by Calcite internally, forbidden on compile classpaths by OpenSearch policy
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  // SLF4J — Calcite's logging facade
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "commons-io:commons-io:${versions.commonsio}"
+
+  // Calcite optional deps required at runtime — BuiltInMethod.<clinit> reflectively loads ALL
+  // methods which triggers class loading for every type referenced in Calcite's SqlFunctions.
+  // Every single one of these is needed or the class initializer fails with NoClassDefFoundError.
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "org.codehaus.janino:janino:3.1.12"
+  runtimeOnly "org.codehaus.janino:commons-compiler:3.1.12"
+  runtimeOnly 'org.jooq:joou-java-6:0.9.4'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  runtimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  runtimeOnly "org.apache.commons:commons-lang3:${versions.commonslang}"
+  runtimeOnly 'org.apache.commons:commons-text:1.11.0'
+  runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+  runtimeOnly 'org.immutables:value-annotations:2.8.8'
+  runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
+  runtimeOnly "net.minidev:json-smart:${versions.json_smart}"
+  runtimeOnly 'net.minidev:accessors-smart:2.5.2'
+  runtimeOnly 'org.ow2.asm:asm:9.7.1'
+  runtimeOnly 'org.apache.calcite.avatica:avatica-metrics:1.27.0'
+  runtimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
+  runtimeOnly 'org.locationtech.jts.io:jts-io-common:1.19.0'
+  runtimeOnly 'org.locationtech.proj4j:proj4j:1.2.2'
+  runtimeOnly 'com.google.uzaygezen:uzaygezen-core:0.2'
+  runtimeOnly 'com.yahoo.datasketches:sketches-core:0.9.0'
+  runtimeOnly 'com.yahoo.datasketches:memory:0.9.0'
+  // Avatica JDBC transport deps (BuiltInConnectionProperty.<clinit> needs httpcore5)
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  runtimeOnly "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
+  // JTS spatial (jts-core needed by jts-io-common)
+  runtimeOnly "org.locationtech.jts:jts-core:${versions.jts}"
+  // jackson-core is on the server classpath — no need to bundle
+  // Checker-qual (Guava/Calcite annotations)
+  runtimeOnly 'org.checkerframework:checker-qual:3.43.0'
+  // Error-prone annotations
+  runtimeOnly 'com.google.errorprone:error_prone_annotations:2.36.0'
+
+  // Calcite bytecode references annotations from apiguardian (@API) and
+  // checker-framework (@EnsuresNonNullIf). compileOnlyApi propagates to
+  // consumers' compile/javadoc classpath without becoming a runtime dep.
+  compileOnlyApi 'org.apiguardian:apiguardian-api:1.1.2'
+  compileOnlyApi 'org.checkerframework:checker-qual:3.43.0'
+}
+
+testingConventions.enabled = false
+
+// analytics-framework uses compileOnly server for CatalogSnapshot
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+  failOnMissingClasses = false
+  ignoreSignaturesOfMissingClasses = true
+}
+
+// Calcite-core's optional runtime-scope transitive deps are not on the classpath.
+// These are features of Calcite we don't use (spatial, JSON path, JDBC pooling, etc.).
+// Split into multiple calls to stay under the JVM method parameter limit.
+tasks.named('thirdPartyAudit').configure {
+  ignoreMissingClasses(
+    // Jackson (optional JSON serialization in Calcite)
+    'com.fasterxml.jackson.core.JsonParser$Feature',
+    'com.fasterxml.jackson.core.PrettyPrinter',
+    'com.fasterxml.jackson.core.type.TypeReference',
+    'com.fasterxml.jackson.core.util.DefaultIndenter',
+    'com.fasterxml.jackson.core.util.DefaultPrettyPrinter',
+    'com.fasterxml.jackson.core.util.Separators',
+    'com.fasterxml.jackson.core.util.Separators$Spacing',
+    'com.fasterxml.jackson.databind.DeserializationFeature',
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.ObjectWriter',
+
+    // Protobuf (Avatica RPC serialization, not used)
+    'com.google.protobuf.AbstractMessageLite$Builder',
+    'com.google.protobuf.AbstractParser',
+    'com.google.protobuf.ByteString',
+    'com.google.protobuf.CodedInputStream',
+    'com.google.protobuf.CodedOutputStream',
+    'com.google.protobuf.Descriptors$Descriptor',
+    'com.google.protobuf.Descriptors$EnumDescriptor',
+    'com.google.protobuf.Descriptors$EnumValueDescriptor',
+    'com.google.protobuf.Descriptors$FieldDescriptor',
+    'com.google.protobuf.Descriptors$FileDescriptor',
+    'com.google.protobuf.Descriptors$OneofDescriptor',
+    'com.google.protobuf.ExtensionRegistry',
+    'com.google.protobuf.ExtensionRegistryLite',
+    'com.google.protobuf.GeneratedMessageV3',
+    'com.google.protobuf.GeneratedMessageV3$Builder',
+    'com.google.protobuf.GeneratedMessageV3$BuilderParent',
+    'com.google.protobuf.GeneratedMessageV3$FieldAccessorTable',
+    'com.google.protobuf.GeneratedMessageV3$UnusedPrivateParameter',
+    'com.google.protobuf.Internal',
+    'com.google.protobuf.Internal$EnumLiteMap',
+    'com.google.protobuf.Internal$IntList',
+    'com.google.protobuf.Internal$LongList',
+    'com.google.protobuf.InvalidProtocolBufferException',
+    'com.google.protobuf.LazyStringArrayList',
+    'com.google.protobuf.MapEntry',
+    'com.google.protobuf.MapEntry$Builder',
+    'com.google.protobuf.MapField',
+    'com.google.protobuf.MapFieldReflectionAccessor',
+    'com.google.protobuf.Message',
+    'com.google.protobuf.MessageOrBuilder',
+    'com.google.protobuf.Parser',
+    'com.google.protobuf.ProtocolMessageEnum',
+    'com.google.protobuf.ProtocolStringList',
+    'com.google.protobuf.RepeatedFieldBuilderV3',
+    'com.google.protobuf.SingleFieldBuilderV3',
+    'com.google.protobuf.TextFormat',
+    'com.google.protobuf.UninitializedMessageException',
+    'com.google.protobuf.UnknownFieldSet',
+    'com.google.protobuf.UnsafeByteOperations',
+    'com.google.protobuf.WireFormat$FieldType',
+
+    // Uzaygezen (optional Hilbert curve spatial indexing)
+    'com.google.uzaygezen.core.BacktrackingQueryBuilder',
+    'com.google.uzaygezen.core.BitVector',
+    'com.google.uzaygezen.core.BitVectorFactories',
+    'com.google.uzaygezen.core.CompactHilbertCurve',
+    'com.google.uzaygezen.core.FilteredIndexRange',
+    'com.google.uzaygezen.core.Query',
+    'com.google.uzaygezen.core.SimpleRegionInspector',
+    'com.google.uzaygezen.core.ranges.LongRange',
+    'com.google.uzaygezen.core.ranges.LongRangeHome',
+
+    // JsonPath (optional JSON path support)
+    'com.jayway.jsonpath.Configuration',
+    'com.jayway.jsonpath.Configuration$ConfigurationBuilder',
+    'com.jayway.jsonpath.DocumentContext',
+    'com.jayway.jsonpath.InvalidPathException',
+    'com.jayway.jsonpath.JsonPath',
+    'com.jayway.jsonpath.Option',
+    'com.jayway.jsonpath.Predicate',
+    'com.jayway.jsonpath.spi.json.JacksonJsonProvider',
+    'com.jayway.jsonpath.spi.mapper.MappingProvider',
+
+    // Yahoo Sketches (optional approximate distinct counting)
+    'com.yahoo.sketches.hll.HllSketch',
+    'com.yahoo.sketches.hll.HllSketchBuilder',
+
+    // Avatica metrics (optional metrics subsystem)
+    'org.apache.calcite.avatica.metrics.MetricsSystem',
+    'org.apache.calcite.avatica.metrics.Timer',
+    'org.apache.calcite.avatica.metrics.Timer$Context',
+    'org.apache.calcite.avatica.metrics.noop.NoopMetricsSystem',
+
+    // Apache Commons (optional Calcite features)
+    'org.apache.commons.codec.binary.Base32',
+    'org.apache.commons.codec.binary.Hex',
+    'org.apache.commons.codec.digest.DigestUtils',
+    'org.apache.commons.codec.language.Soundex',
+    'org.apache.commons.dbcp2.BasicDataSource',
+    'org.apache.commons.io.IOUtils',
+    'org.apache.commons.lang3.StringUtils',
+    'org.apache.commons.lang3.Strings',
+    'org.apache.commons.lang3.mutable.MutableBoolean',
+    'org.apache.commons.math3.fraction.BigFraction',
+    'org.apache.commons.math3.util.CombinatoricsUtils',
+    'org.apache.commons.text.StringEscapeUtils',
+    'org.apache.commons.text.similarity.LevenshteinDistance'
+  )
+
+  ignoreMissingClasses(
+    // HttpClient5 (Avatica remote JDBC transport, not used)
+    'org.apache.hc.client5.http.SystemDefaultDnsResolver',
+    'org.apache.hc.client5.http.auth.AuthScope',
+    'org.apache.hc.client5.http.auth.Credentials',
+    'org.apache.hc.client5.http.auth.CredentialsProvider',
+    'org.apache.hc.client5.http.auth.KerberosConfig',
+    'org.apache.hc.client5.http.auth.KerberosConfig$Builder',
+    'org.apache.hc.client5.http.auth.UsernamePasswordCredentials',
+    'org.apache.hc.client5.http.classic.methods.HttpPost',
+    'org.apache.hc.client5.http.config.RequestConfig',
+    'org.apache.hc.client5.http.config.RequestConfig$Builder',
+    'org.apache.hc.client5.http.impl.auth.BasicAuthCache',
+    'org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider',
+    'org.apache.hc.client5.http.impl.classic.CloseableHttpClient',
+    'org.apache.hc.client5.http.impl.classic.HttpClientBuilder',
+    'org.apache.hc.client5.http.impl.classic.HttpClients',
+    'org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager',
+    'org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder',
+    'org.apache.hc.client5.http.protocol.HttpClientContext',
+    'org.apache.hc.client5.http.routing.RoutingSupport',
+    'org.apache.hc.client5.http.ssl.HttpsSupport',
+    'org.apache.hc.client5.http.ssl.NoopHostnameVerifier',
+    'org.apache.hc.client5.http.ssl.TlsSocketStrategy',
+    'org.apache.hc.core5.http.ClassicHttpResponse',
+    'org.apache.hc.core5.http.ContentType',
+    'org.apache.hc.core5.http.HttpHost',
+    'org.apache.hc.core5.http.config.Lookup',
+    'org.apache.hc.core5.http.config.RegistryBuilder',
+    'org.apache.hc.core5.http.io.entity.EntityUtils',
+    'org.apache.hc.core5.ssl.SSLContextBuilder',
+    'org.apache.hc.core5.ssl.SSLContexts',
+    'org.apache.hc.core5.util.Timeout',
+
+    // Janino (optional code generation for Enumerable pipeline)
+    'org.codehaus.commons.compiler.CompilerFactoryFactory',
+    'org.codehaus.commons.compiler.IClassBodyEvaluator',
+    'org.codehaus.commons.compiler.ICompilerFactory',
+    'org.codehaus.commons.compiler.ISimpleCompiler',
+    'org.codehaus.commons.compiler.util.resource.ResourceFinder',
+    'org.codehaus.janino.ClassBodyEvaluator',
+    'org.codehaus.janino.JavaSourceClassLoader',
+    'org.codehaus.janino.util.ClassFile',
+
+    // jOOU (optional unsigned integer types)
+    'org.joou.UByte',
+    'org.joou.UInteger',
+    'org.joou.ULong',
+    'org.joou.UShort',
+    'org.joou.Unsigned',
+
+    // JTS / Proj4j (optional spatial/geometry support)
+    'org.locationtech.jts.algorithm.InteriorPoint',
+    'org.locationtech.jts.algorithm.LineIntersector',
+    'org.locationtech.jts.algorithm.MinimumBoundingCircle',
+    'org.locationtech.jts.algorithm.MinimumDiameter',
+    'org.locationtech.jts.densify.Densifier',
+    'org.locationtech.jts.geom.Coordinate',
+    'org.locationtech.jts.geom.CoordinateSequence',
+    'org.locationtech.jts.geom.CoordinateSequenceFactory',
+    'org.locationtech.jts.geom.Envelope',
+    'org.locationtech.jts.geom.Geometry',
+    'org.locationtech.jts.geom.GeometryCollection',
+    'org.locationtech.jts.geom.GeometryFactory',
+    'org.locationtech.jts.geom.GeometryFilter',
+    'org.locationtech.jts.geom.IntersectionMatrix',
+    'org.locationtech.jts.geom.LineSegment',
+    'org.locationtech.jts.geom.LineString',
+    'org.locationtech.jts.geom.LinearRing',
+    'org.locationtech.jts.geom.MultiLineString',
+    'org.locationtech.jts.geom.MultiPoint',
+    'org.locationtech.jts.geom.MultiPolygon',
+    'org.locationtech.jts.geom.OctagonalEnvelope',
+    'org.locationtech.jts.geom.Point',
+    'org.locationtech.jts.geom.Polygon',
+    'org.locationtech.jts.geom.util.AffineTransformation',
+    'org.locationtech.jts.geom.util.GeometryEditor',
+    'org.locationtech.jts.geom.util.GeometryEditor$CoordinateOperation',
+    'org.locationtech.jts.geom.util.GeometryFixer',
+    'org.locationtech.jts.geom.util.GeometryTransformer',
+    'org.locationtech.jts.geom.util.LineStringExtracter',
+    'org.locationtech.jts.io.WKBReader',
+    'org.locationtech.jts.io.WKBWriter',
+    'org.locationtech.jts.io.WKTReader',
+    'org.locationtech.jts.io.WKTWriter',
+    'org.locationtech.jts.io.geojson.GeoJsonReader',
+    'org.locationtech.jts.io.geojson.GeoJsonWriter',
+    'org.locationtech.jts.io.gml2.GMLReader',
+    'org.locationtech.jts.io.gml2.GMLWriter',
+    'org.locationtech.jts.linearref.LengthIndexedLine',
+    'org.locationtech.jts.operation.buffer.BufferOp',
+    'org.locationtech.jts.operation.buffer.BufferParameters',
+    'org.locationtech.jts.operation.buffer.OffsetCurve',
+    'org.locationtech.jts.operation.distance.DistanceOp',
+    'org.locationtech.jts.operation.linemerge.LineMerger',
+    'org.locationtech.jts.operation.overlay.snap.GeometrySnapper',
+    'org.locationtech.jts.operation.polygonize.Polygonizer',
+    'org.locationtech.jts.operation.union.UnaryUnionOp',
+    'org.locationtech.jts.precision.GeometryPrecisionReducer',
+    'org.locationtech.jts.simplify.DouglasPeuckerSimplifier',
+    'org.locationtech.jts.simplify.TopologyPreservingSimplifier',
+    'org.locationtech.jts.triangulate.DelaunayTriangulationBuilder',
+    'org.locationtech.jts.triangulate.polygon.ConstrainedDelaunayTriangulator',
+    'org.locationtech.jts.triangulate.quadedge.QuadEdgeSubdivision',
+    'org.locationtech.jts.triangulate.tri.Tri',
+    'org.locationtech.jts.util.GeometricShapeFactory',
+    'org.locationtech.proj4j.CRSFactory',
+    'org.locationtech.proj4j.CoordinateReferenceSystem',
+    'org.locationtech.proj4j.CoordinateTransform',
+    'org.locationtech.proj4j.CoordinateTransformFactory',
+    'org.locationtech.proj4j.ProjCoordinate',
+    'org.locationtech.proj4j.proj.Projection',
+
+    // Pentaho (optional aggregate designer)
+    'org.pentaho.aggdes.algorithm.Algorithm',
+    'org.pentaho.aggdes.algorithm.Algorithm$ParameterEnum',
+    'org.pentaho.aggdes.algorithm.Result',
+    'org.pentaho.aggdes.model.Aggregate',
+    'org.pentaho.aggdes.model.Attribute',
+    'org.pentaho.aggdes.model.Dialect',
+    'org.pentaho.aggdes.model.Schema',
+    'org.pentaho.aggdes.model.StatisticsProvider',
+    'org.pentaho.aggdes.model.Table'
+  )
+
+  // Guava internal Unsafe usage — standard for any module depending on Guava
+  ignoreViolations(
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+  )
+}

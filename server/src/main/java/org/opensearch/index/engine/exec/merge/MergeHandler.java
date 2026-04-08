@@ -45,7 +45,9 @@ public abstract class MergeHandler {
     private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Logger logger;
-    private final ShardId shardId;
+    private final String sortKey;
+    private final boolean reverseSort;
+    private final String indexName;
 
     public MergeHandler(
         CompositeEngine compositeEngine,
@@ -53,12 +55,17 @@ public abstract class MergeHandler {
         Any dataFormats,
         ShardId shardId
     ) {
-        this.shardId = shardId;
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.indexName = shardId.getIndexName();
         this.compositeDataFormat = dataFormats;
         this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
         this.compositeEngine = compositeEngine;
         dataFormatMergerMap = new HashMap<>();
+        org.apache.lucene.search.SortField[] sortFields = compositeEngine.getEngineConfig().getIndexSort() != null
+            ? compositeEngine.getEngineConfig().getIndexSort().getSort()
+            : null;
+        sortKey = (sortFields != null && sortFields.length > 0) ? sortFields[0].getField() : null;
+        reverseSort = (sortFields != null && sortFields.length > 0) && sortFields[0].getReverse();
 
         compositeIndexingExecutionEngine.getDelegates().forEach(engine -> {
             try {
@@ -141,7 +148,6 @@ public abstract class MergeHandler {
         long mergedWriterGeneration = compositeIndexingExecutionEngine.getNextWriterGeneration();
         Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
         boolean mergeSuccessful = false;
-
         try {
             List<WriterFileSet> filesToMerge =
                 getFilesToMerge(oneMerge, compositeDataFormat.getPrimaryDataFormat());
@@ -149,7 +155,7 @@ public abstract class MergeHandler {
             // Merging primary data format
             MergeResult primaryMergeResult = dataFormatMergerMap
                 .get(compositeDataFormat.getPrimaryDataFormat())
-                .merge(filesToMerge, mergedWriterGeneration);
+                .merge(getMergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort));
 
             mergedWriterFileSet.put(
                 compositeDataFormat.getPrimaryDataFormat(),
@@ -164,8 +170,7 @@ public abstract class MergeHandler {
                     List<WriterFileSet> files = getFilesToMerge(oneMerge, df);
 
                     MergeResult secondaryMerge = dataFormatMergerMap.get(df)
-                        .merge(files, primaryMergeResult.getRowIdMapping(), mergedWriterGeneration);
-
+                        .merge(getMergeInput(files, mergedWriterGeneration, sortKey, reverseSort), primaryMergeResult.getRowIdMapping());
                     mergedWriterFileSet.put(df,
                         secondaryMerge.getMergedWriterFileSetForDataformat(df));
                 });
@@ -187,7 +192,7 @@ public abstract class MergeHandler {
                 Path path = Path.of(wfs.getDirectory(), file);
                 try {
                     Files.deleteIfExists(path);
-                    logger.info("Stale Merged File Deleted at : [{}]", path);
+                     logger.info("Stale Merged File Deleted at : [{}]", path);
                 } catch (Exception exception) {
                     logger.error(
                         () -> new ParameterizedMessage(
@@ -199,6 +204,10 @@ public abstract class MergeHandler {
                 }
             }
         }
+    }
+
+    public MergeInput getMergeInput(List<WriterFileSet> filesToMerge, long mergedWriterGeneration, String sortKey, boolean reverseSort) {
+        return new MergeInput(filesToMerge, mergedWriterGeneration, sortKey, reverseSort, indexName);
     }
 
     private List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {

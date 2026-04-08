@@ -27,6 +27,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.analysis.IndexAnalyzers;
 
 import java.net.InetAddress;
@@ -34,6 +35,9 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.opensearch.index.IndexSettings.OPTIMIZED_INDEX_ENABLED_SETTING;
+import static org.opensearch.index.mapper.Mapper.isOptimisedIndexEnabled;
 
 /**
  * Contains logic to get the FieldMapper for a given type of derived field. Also, for a given type of derived field,
@@ -59,12 +63,14 @@ public enum DerivedFieldSupportedTypes {
     DATE("date", (name, context, indexAnalyzers) -> {
         // TODO: should we support mapping settings exposed by a given field type from derived fields too?
         // for example, support `format` for date type?
+        boolean isOptimisedIndexEnabled = isOptimisedIndexEnabled(context.indexSettings());
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(
             name,
             DateFieldMapper.Resolution.MILLISECONDS,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             false,
-            Version.CURRENT
+            Version.CURRENT,
+            isOptimisedIndexEnabled
         );
         return builder.build(context);
     },

@@ -31,7 +31,6 @@ public final class NativeBridge {
     public static native void closeGlobalRuntime(long ptr);
 
     // Tokio runtime
-    public static native long startTokioRuntimeMonitoring();
     // Initialize tokio runtime manager once on startup
     public static native void initTokioRuntimeManager(int cpuThreads);
     // Shutdown tokio runtime manager on datafusion service
@@ -78,9 +77,41 @@ public final class NativeBridge {
     // Other methods
     public static native String getVersionInfo();
 
+
+    /**
+     * Execute an indexed query asynchronously using a pre-built Lucene Weight.
+     *
+     * Java creates the Weight (expensive, once per query), gathers segment metadata,
+     * and passes everything to Rust. Rust builds JniShardSearcher → IndexedTableProvider
+     * → DataFusion pipeline and returns a CrossRtStream pointer.
+     *
+     * @param weightPtr      Pointer to the Java-side Lucene Weight (from LuceneIndexSearcher)
+     * @param segmentMaxDocs Max doc count per segment (long[])
+     * @param parquetPaths   One parquet file path per segment (String[])
+     * @param numPartitions  Number of DataFusion partitions
+     * @param bitsetMode     0 = AND (intersect bitset with page pruner), 1 = OR (union)
+     * @param runtimePtr     Pointer to the DataFusion runtime
+     * @param listener       ActionListener to receive the stream pointer (Long)
+     */
+    public static native void executeIndexedQueryAsync(
+        long weightPtr,
+        long[] segmentMaxDocs,
+        String[] parquetPaths,
+        String tableName,
+        byte[] substraitBytes,
+        int numPartitions,
+        int bitsetMode,
+        boolean isQueryPlanExplainEnabled,
+        long runtimePtr,
+        ActionListener<Long> listener
+    );
+
     /**
      * Test method: Creates a sliced StringArray and returns FFI pointers.
      * Used to verify that sliced arrays across FFI boundary are handled correctly
      **/
     public static native void createTestSlicedArray(int offset, int length, ActionListener<long[]> listener);
+
+    // Flat long[] stats collection (27 elements, see layout.rs)
+    public static native long[] stats();
 }

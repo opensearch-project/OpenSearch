@@ -58,7 +58,6 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -136,9 +135,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NumberType type;
+        private boolean isOptimisedIndexEnabled;
 
         public Builder(String name, NumberType type, Settings settings) {
             this(name, type, IGNORE_MALFORMED_SETTING.get(settings), COERCE_SETTING.get(settings));
+            this.isOptimisedIndexEnabled = isOptimisedIndexEnabled(settings);
         }
 
         public static Builder docValuesOnly(String name, NumberType type) {
@@ -2123,11 +2124,14 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
 
     private final boolean ignoreMalformedByDefault;
     private final boolean coerceByDefault;
+    private final boolean isOptimizedIndexEnabled;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.type = builder.type;
-        this.indexed = builder.indexed.getValue();
+        this.isOptimizedIndexEnabled = builder.isOptimisedIndexEnabled;
+        // Set Index flag to none for NumberFieldMapper
+        this.indexed = builder.indexed.getValue() && !isOptimizedIndexEnabled;
         this.hasDocValues = builder.hasDocValues.getValue();
         this.stored = builder.stored.getValue();
         this.skiplist = builder.skiplist.getValue();

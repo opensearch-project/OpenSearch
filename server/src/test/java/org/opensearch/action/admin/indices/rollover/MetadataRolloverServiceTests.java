@@ -828,7 +828,8 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
                 DateFieldMapper.Resolution.MILLISECONDS,
                 null,
                 false,
-                Version.CURRENT
+                Version.CURRENT,
+                false
             ).build(builderContext);
             MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
             when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");

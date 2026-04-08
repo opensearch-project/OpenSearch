@@ -114,7 +114,7 @@ dependencies {
   implementation 'org.apache.arrow:arrow-c-data:18.3.0'
 
   // Checker Framework annotations (required by Arrow)
-  implementation 'org.checkerframework:checker-qual:3.42.0'
+  implementation 'org.checkerframework:checker-qual:3.43.0'
 
   // Jackson dependencies required by Arrow
   implementation 'com.fasterxml.jackson.core:jackson-core:2.18.2'
