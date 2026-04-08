@@ -831,6 +831,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
+    /**
+     * Same as {@link #executeBulkRequest} but executes synchronously on the calling thread
+     * without dispatching to a thread pool. This is intended for use by pull-based ingestion
+     * where dedicated processor threads can safely block. Do not invoke from a TransportAction
+     * or request thread — use {@link #executeBulkRequest} instead.
+     */
+    public void executeBulkRequestSync(
+        int numberOfActionRequests,
+        Iterable<DocWriteRequest<?>> actionRequests,
+        BiConsumer<Integer, Exception> onFailure,
+        BiConsumer<Thread, Exception> onCompletion,
+        IntConsumer onDropped
+    ) {
+        runBulkRequestInBatch(numberOfActionRequests, actionRequests, onFailure, onCompletion, onDropped);
+    }
+
     private void runBulkRequestInBatch(
         int numberOfActionRequests,
         Iterable<DocWriteRequest<?>> actionRequests,

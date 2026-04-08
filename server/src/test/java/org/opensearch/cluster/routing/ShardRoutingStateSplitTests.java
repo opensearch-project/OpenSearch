@@ -74,4 +74,25 @@ public class ShardRoutingStateSplitTests extends OpenSearchTestCase {
         );
         assertNull(shard.getRecoveringChildShards());
     }
+
+    public void testSplittingShardIsActive() {
+        ShardRouting splitting = new ShardRouting(
+            new ShardId("index", "uuid", 0),
+            "node1",
+            null,
+            true,
+            false,
+            ShardRoutingState.SPLITTING,
+            null,
+            null,
+            AllocationId.newInitializing(),
+            0,
+            null,
+            null
+        );
+        assertTrue(splitting.active());
+        assertTrue(splitting.splitting());
+        assertFalse(splitting.started());
+        assertFalse(splitting.relocating());
+    }
 }

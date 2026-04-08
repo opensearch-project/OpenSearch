@@ -34,9 +34,8 @@ import java.util.Set;
 /**
  * {@link QueryPlanExecutor} default implementation.
  * <p>
- * Acquires a composite reader, creates a per-query {@link SearchExecEngine}
- * bound to the reader, and delegates convert + execute to it.
- * No backend-specific context is exposed to this class.
+ * Acquires a composite reader, selects a {@link AnalyticsSearchBackendPlugin}, and
+ * delegates query execution to it.
  */
 public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
@@ -46,27 +45,26 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
     private final ClusterService clusterService;
 
     /**
-     * Constructs a DefaultPlanExecutor with the given plugins and services.
+     * Constructs a DefaultPlanExecutor.
      *
-     * @param plugins list of analytics search backend plugins
+     * @param providers list of search execution engine providers
      * @param indicesService service for accessing index shards
      * @param clusterService service for accessing cluster state
      */
-    public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> plugins, IndicesService indicesService, ClusterService clusterService) {
+    public DefaultPlanExecutor(List<AnalyticsSearchBackendPlugin> providers, IndicesService indicesService, ClusterService clusterService) {
         this.backEnds = new LinkedHashMap<>();
-        for (AnalyticsSearchBackendPlugin plugin : plugins) {
-            this.backEnds.put(plugin.name(), plugin);
+        for (AnalyticsSearchBackendPlugin provider : providers) {
+            this.backEnds.put(provider.name(), provider);
         }
         this.indicesService = indicesService;
         this.clusterService = clusterService;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Iterable<Object[]> execute(RelNode logicalFragment, Object context) {
         String tableName = extractTableName(logicalFragment);
-        AnalyticsSearchBackendPlugin plugin = selectBackEnd();
-        if (plugin == null) {
+        AnalyticsSearchBackendPlugin provider = selectBackEnd();
+        if (provider == null) {
             return new ArrayList<>();
         }
 
@@ -76,12 +74,12 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             throw new IllegalStateException("No CompositeEngine on shard [" + shard.shardId() + "]");
         }
 
-        SearchShardTask task = null; // TODO : init task
+        SearchShardTask task = null; // TODO: init task
         List<Object[]> rows = new ArrayList<>();
         try (var dataFormatAwareReader = dataFormatAwareEngine.acquireReader()) {
             ExecutionContext ctx = new ExecutionContext(tableName, task, dataFormatAwareReader.get());
-            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = plugin.searcher(ctx)) {
-                logger.info("[DefaultPlanExecutor] Executing via [{}]", plugin.name());
+            try (SearchExecEngine<ExecutionContext, EngineResultStream> engine = provider.createSearchExecEngine(ctx)) {
+                logger.info("[DefaultPlanExecutor] Executing via [{}]", provider.name());
                 try (EngineResultStream resultStream = engine.execute(ctx)) {
                     Iterator<EngineResultBatch> batchIterator = resultStream.iterator();
                     while (batchIterator.hasNext()) {
@@ -98,7 +96,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException("Execution failed for [" + plugin.name() + "]", e);
+            throw new RuntimeException("Execution failed for [" + provider.name() + "]", e);
         }
         return rows;
     }
@@ -128,7 +126,7 @@ public class DefaultPlanExecutor implements QueryPlanExecutor<RelNode, Iterable<
             logger.warn("No back-end plugins registered — queries will return empty results");
             return null;
         }
-        // TODO : This is placeholder - select based on data format
+        // TODO: select based on data format available in the catalog snapshot
         return backEnds.values().iterator().next();
     }
 }

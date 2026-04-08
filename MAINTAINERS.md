@@ -6,7 +6,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 
 | Maintainer        | GitHub ID                                               | Affiliation |
 | ----------------- | ------------------------------------------------------- | ----------- |
-| Anas Alkouz       | [anasalkouz](https://github.com/anasalkouz)             | Amazon      |
 | Andrew Ross       | [andrross](https://github.com/andrross)                 | Amazon      |
 | Andriy Redko      | [reta](https://github.com/reta)                         | Independent |
 | Ankit Jain        | [jainankitk](https://github.com/jainankitk)             | Amazon      |
@@ -14,7 +13,6 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Atri Sharma       | [atris](https://github.com/atris)                       | Apple       |
 | Bharathwaj G      | [bharath-techie](https://github.com/bharath-techie)     | Amazon      |
 | Bukhtawar Khan    | [Bukhtawar](https://github.com/Bukhtawar)               | Amazon      |
-| Charlotte Henkle  | [CEHENKLE](https://github.com/CEHENKLE)                 | Amazon      |
 | Craig Perkins     | [cwperks](https://github.com/cwperks)                   | Amazon      |
 | Dan Widdis        | [dbwiddis](https://github.com/dbwiddis)                 | Amazon      |
 | Binlong Gao       | [gaobinlong](https://github.com/gaobinlong)             | Amazon      |
@@ -24,22 +22,21 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Karen Xu          | [karenyrx](https://github.com/karenyrx)                 | Uber        |
 | Ke Wei            | [kkewwei](https://github.com/kkewwei)                   | ByteDance   |
 | Kunal Kotwani     | [kotwanikunal](https://github.com/kotwanikunal)         | Amazon      |
-| Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Marc Handalian    | [mch2](https://github.com/mch2)                         | Amazon      |
 | Michael Froh      | [msfroh](https://github.com/msfroh)                     | Uber        |
 | Mohit Godwani     | [mgodwan](https://github.com/mgodwan)                   | Amazon      |
-| Nick Knize        | [nknize](https://github.com/nknize)                     | Lucenia     |
 | Owais Kazi        | [owaiskazi19](https://github.com/owaiskazi19)           | Amazon      |
 | Pan Guixin        | [bugmakerrrrrr](https://github.com/bugmakerrrrrr)       | ByteDance   |
 | Peter Nied        | [peternied](https://github.com/peternied)               | Amazon      |
 | Prudhvi Godithi   | [prudhvigodithi](https://github.com/prudhvigodithi)     | Amazon      |
 | Rishabh Maurya    | [rishabhmaurya](https://github.com/rishabhmaurya)       | Amazon      |
-| Rishikesh Pasham  | [Rishikesh1159](https://github.com/Rishikesh1159)       | Amazon      |
+| Rishav Sagar      | [RS146BIJAY](https://github.com/RS146BIJAY)             | Amazon      |
 | Sachin Kale       | [sachinpkale](https://github.com/sachinpkale)           | Amazon      |
 | Sandesh Kumar     | [sandeshkr419](https://github.com/sandeshkr419)         | Amazon      |
 | Sarat Vemulapalli | [saratvemulapalli](https://github.com/saratvemulapalli) | Amazon      |
 | Shweta Thareja    | [shwetathareja](https://github.com/shwetathareja)       | Amazon      |
 | Sorabh Hamirwasia | [sohami](https://github.com/sohami)                     | Amazon      |
+| Varun Bansal      | [linuxpi](https://github.com/linuxpi)                   | Amazon      |
 | Varun Bharadwaj   | [varunbharadwaj](https://github.com/varunbharadwaj)     | Uber        |
 | Yupeng Fu         | [yupeng9](https://github.com/yupeng9)                   | Uber        |
 
@@ -58,3 +55,7 @@ This document contains a list of maintainers in this repo. See [opensearch-proje
 | Suraj Singh              | [dreamer-89](https://github.com/dreamer-89) |
 | Daniel "dB." Doubrovkine | [dblock](https://github.com/dblock)         |
 | Vacha Shah               | [VachaShah](https://github.com/VachaShah)   |
+| Anas Alkouz              | [anasalkouz](https://github.com/anasalkouz) |
+| Charlotte Henkle         | [CEHENKLE](https://github.com/CEHENKLE)     |
+| Nick Knize               | [nknize](https://github.com/nknize)         |
+| Rishikesh Pasham         | [Rishikesh1159](https://github.com/Rishikesh1159) |
