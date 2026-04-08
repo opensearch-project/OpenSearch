@@ -46,6 +46,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -75,6 +76,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -776,7 +778,51 @@ public final class IndexModule {
             segmentReplicationStatsProvider,
             clusterDefaultMaxMergeAtOnceSupplier,
             clusterMergeSchedulerConfig,
-            null
+            DataFormatRegistry.EMPTY_INSTANCE
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts a {@code DataFormatRegistry} parameter.
+     */
+    @Deprecated
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
+        throw new UnsupportedOperationException(
+            "This overload is deprecated. Use the newIndexService() overload that accepts a DataFormatRegistry parameter instead."
         );
     }
 

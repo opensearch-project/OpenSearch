@@ -42,6 +42,14 @@ public class DataFormatRegistry {
 
     private final Map<String, DataFormat> dataFormats;
 
+    public static final DataFormatRegistry EMPTY_INSTANCE = new DataFormatRegistry();
+
+    DataFormatRegistry() {
+        dataFormatPluginRegistry = Map.of();
+        readerManagerBuilders = Map.of();
+        dataFormats = Map.of();
+    }
+
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
      * from the given {@link PluginsService}. Registers each data format with its indexing plugin and reader manager factory.
