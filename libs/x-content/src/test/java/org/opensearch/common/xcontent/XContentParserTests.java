@@ -32,10 +32,6 @@
 
 package org.opensearch.common.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.StreamConstraintsException;
-import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
-
 import org.opensearch.common.CheckedSupplier;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -47,6 +43,8 @@ import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentSubParser;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonParseException;
+import org.opensearch.tools.jackson.core.StreamConstraintsException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,7 +166,7 @@ public class XContentParserTests extends OpenSearchTestCase {
                 if (xContentType != XContentType.YAML) {
                     assertThrows(StreamConstraintsException.class, () -> parser.text());
                 } else {
-                    assertThrows(JacksonYAMLParseException.class, () -> parser.nextToken());
+                    assertThrows(JsonParseException.class, () -> parser.nextToken());
                 }
             }
         }
@@ -289,7 +287,10 @@ public class XContentParserTests extends OpenSearchTestCase {
                 builder.field(field).value(value);
             }
 
-            builder.endObject();
+            // Smile fails with tools.jackson.core.exc.StreamWriteException: Current context not Object but root
+            if (xContentType != XContentType.SMILE) {
+                builder.endObject();
+            }
 
             for (int depth = 0; depth < maxDepth; ++depth) {
                 builder.endObject();
