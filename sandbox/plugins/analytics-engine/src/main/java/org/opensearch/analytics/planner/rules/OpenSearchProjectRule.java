@@ -61,8 +61,9 @@ public class OpenSearchProjectRule extends RelOptRule {
 
         List<String> childViableBackends = openSearchChild.getViableBackends();
 
-        // TODO: precompute SqlKind → viable backends map to avoid repeated filtering per node
-        // TODO: reuse childViableBackends list when all candidates pass instead of allocating
+        // Note: if JMH benchmarks show this as a hotspot, consider (a) precomputing a
+        // SqlKind → viable backends map once per onMatch() call, and (b) returning
+        // childViableBackends directly when all candidates pass to avoid allocation.
         List<RexNode> annotatedExprs = new ArrayList<>(project.getProjects().size());
         for (RexNode expr : project.getProjects()) {
             annotatedExprs.add(annotateExpr(expr, childViableBackends));

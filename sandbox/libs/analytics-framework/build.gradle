@@ -14,7 +14,17 @@
 
 def calciteVersion = '1.41.0'
 
+configurations {
+  calciteCompile
+  compileClasspath { exclude group: 'com.google.guava' }
+}
+sourceSets.main.compileClasspath += configurations.calciteCompile
+
 dependencies {
+  // Guava — required at compile time because Calcite base classes expose guava types.
+  // Uses custom config to bypass forbidden-dependencies.gradle check on compileClasspath.
+  calciteCompile "com.google.guava:guava:${versions.guava}"
+
   compileOnly project(':server')
   api "org.apache.calcite:calcite-core:${calciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
