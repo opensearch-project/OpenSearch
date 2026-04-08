@@ -181,6 +181,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -503,7 +504,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
         when(searchContext.bitsetFilterCache()).thenReturn(
-            new BitsetFilterCache(mock(IndicesBitsetFilterCache.class), mock(IndicesBitsetFilterCache.Listener.class))
+            new BitsetFilterCache(mock(IndicesBitsetFilterCache.class, RETURNS_DEEP_STUBS), mock(IndicesBitsetFilterCache.Listener.class))
         );
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));

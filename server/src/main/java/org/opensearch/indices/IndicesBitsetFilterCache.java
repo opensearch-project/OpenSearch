@@ -25,7 +25,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
@@ -66,8 +66,8 @@ import java.util.function.ToLongBiFunction;
  *
  * @opensearch.api
  */
-@PublicApi(since = "1.0.0")
-public final class IndicesBitsetFilterCache
+@ExperimentalApi
+public class IndicesBitsetFilterCache
     implements
         IndexReader.ClosedListener,
         RemovalListener<IndicesBitsetFilterCache.BitsetCacheKey, IndicesBitsetFilterCache.Value>,
@@ -201,9 +201,9 @@ public final class IndicesBitsetFilterCache
     /**
      * Composite key combining a reader segment key with a query.
      *
-     * @opensearch.api
+     * @opensearch.internal
      */
-    @PublicApi(since = "1.0.0")
+    @ExperimentalApi
     public static final class BitsetCacheKey {
         final IndexReader.CacheKey readerCacheKey;
         final Query query;
@@ -229,9 +229,9 @@ public final class IndicesBitsetFilterCache
     /**
      * Cached value holding the bitset, shard identity, and the per-index listener for stats.
      *
-     * @opensearch.api
+     * @opensearch.internal
      */
-    @PublicApi(since = "1.0.0")
+    @ExperimentalApi
     public static final class Value {
         final BitSet bitset;
         final ShardId shardId;
@@ -255,9 +255,9 @@ public final class IndicesBitsetFilterCache
     /**
      * Listener for per-index cache/removal events, used for shard-level stats tracking.
      *
-     * @opensearch.api
+     * @opensearch.internal
      */
-    @PublicApi(since = "1.0.0")
+    @ExperimentalApi
     public interface Listener {
         void onCache(ShardId shardId, Accountable accountable);
 

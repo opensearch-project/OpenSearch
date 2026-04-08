@@ -49,6 +49,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -1134,10 +1135,11 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         when(queryShardContext.nestedScope()).thenReturn(new NestedScope(indexSettings));
 
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
-            Mockito.mock(IndicesBitsetFilterCache.class),
+            Mockito.mock(IndicesBitsetFilterCache.class, Mockito.RETURNS_DEEP_STUBS),
             Mockito.mock(IndicesBitsetFilterCache.Listener.class)
         );
-        when(queryShardContext.bitsetFilter(any())).thenReturn(bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter()));
+        BitSetProducer nonNestedFilter = bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter());
+        when(queryShardContext.bitsetFilter(any())).thenReturn(nonNestedFilter);
         when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
         when(queryShardContext.getSearchQuoteAnalyzer(any())).thenCallRealMethod();
         when(queryShardContext.getSearchAnalyzer(any())).thenCallRealMethod();

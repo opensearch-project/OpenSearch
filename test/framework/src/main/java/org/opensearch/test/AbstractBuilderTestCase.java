@@ -531,7 +531,9 @@ public abstract class AbstractBuilderTestCase extends OpenSearchTestCase {
         }
 
         @Override
-        public void close() throws IOException {}
+        public void close() throws IOException {
+            indicesBitsetFilterCache.close();
+        }
 
         QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(

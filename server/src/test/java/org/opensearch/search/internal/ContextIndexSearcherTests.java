@@ -92,6 +92,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -258,7 +259,8 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
             }
         };
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
-        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, new TestThreadPool("test"));
+        ThreadPool tp = new TestThreadPool("test");
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, tp);
         BitsetFilterCache cache = new BitsetFilterCache(indicesCache, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
@@ -318,7 +320,8 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(3f, topDocs.scoreDocs[0].score, 0);
 
-        IOUtils.close(reader, w, dir);
+        IOUtils.close(reader, w, dir, indicesCache);
+        ThreadPool.terminate(tp, 10, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     public void testSlicesWithMaxTargetSliceSupplier() throws Exception {
