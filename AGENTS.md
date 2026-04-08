@@ -91,7 +91,7 @@ When adding or removing a dependency in any `build.gradle` (non-test scope):
 
 - Use `Version.onOrAfter` / `Version.before` checks when changing on-disk formats or encodings.
 - Mark public API classes with `@PublicApi` (backwards compatibility guaranteed), `@InternalApi` (no guarantees), `@ExperimentalApi` (may change any time), or `@DeprecatedApi`.
-- User-facing API changes require the `>breaking` PR label, a CHANGELOG entry, and deprecation log messages via `DeprecationLogger`.
+- User-facing API changes require the `>breaking` PR label and deprecation log messages via `DeprecationLogger`.
 - Run `./gradlew japicmp` to check API compatibility against the latest release.
 
 ## Commits
