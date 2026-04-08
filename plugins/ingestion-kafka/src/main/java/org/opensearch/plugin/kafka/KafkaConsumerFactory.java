@@ -11,6 +11,7 @@ package org.opensearch.plugin.kafka;
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -60,6 +61,8 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
         )) {
             cachedPartitionCount = tempConsumer.getPartitionCount();
             return cachedPartitionCount;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to close temporary consumer while querying partition count", e);
         }
     }
 
