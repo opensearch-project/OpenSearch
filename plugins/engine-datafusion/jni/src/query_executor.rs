@@ -45,6 +45,7 @@ use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
 use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::projection::ProjectionExec;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion_expr::{LogicalPlan, Projection};
 use log::error;
 use object_store::path::Path;
@@ -114,7 +115,7 @@ pub async fn execute_query_with_cross_rt_stream(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
-) -> Result<jlong, DataFusionError> {
+) -> Result<RecordBatchStreamAdapter<CrossRtStream>, DataFusionError> {
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
             .iter()
@@ -300,18 +301,16 @@ pub async fn execute_query_with_cross_rt_stream(
     Ok(get_cross_rt_stream(cpu_executor, df_stream))
 }
 
-pub fn get_cross_rt_stream(cpu_executor: DedicatedExecutor, df_stream: SendableRecordBatchStream) -> jlong {
+pub fn get_cross_rt_stream(cpu_executor: DedicatedExecutor, df_stream: SendableRecordBatchStream) -> RecordBatchStreamAdapter<CrossRtStream> {
     let cross_rt_stream = CrossRtStream::new_with_df_error_stream(
         df_stream,
         cpu_executor,
     );
 
-    let wrapped_stream = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+    RecordBatchStreamAdapter::new(
         cross_rt_stream.schema(),
         cross_rt_stream,
-    );
-
-    Box::into_raw(Box::new(wrapped_stream)) as jlong
+    )
 }
 
 /// Executes the fetch phase of a two-phase query execution strategy.
@@ -357,7 +356,7 @@ pub async fn execute_fetch_phase(
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
     query_memory_pool: Option<Arc<dyn MemoryPool>>,
-) -> Result<jlong, DataFusionError> {
+) -> Result<RecordBatchStreamAdapter<CrossRtStream>, DataFusionError> {
     // Create optimized Parquet access plans for targeted row retrieval
     // This converts absolute row IDs back to file-relative positions and creates
     // efficient access patterns for each file's row groups

@@ -80,7 +80,18 @@ use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
 mod eviction_policy;
-mod query_metrics;
+mod query_memory_pool_tracker;
+
+use crate::query_memory_pool_tracker::QueryTrackingContext;
+
+/// Bundles a stream with its query context so that dropping the handle
+/// automatically marks the query completed in the registry.
+struct QueryStreamHandle {
+    stream: RecordBatchStreamAdapter<CrossRtStream>,
+    /// Held for its `Drop` impl — marks the query completed when the
+    /// stream is closed.
+    _query_context: QueryTrackingContext,
+}
 
 struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
@@ -333,9 +344,6 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         custom_cache_manager,
         monitor,
     };
-
-    // Set the global pool limit once — used by QueryMemoryPool's fallback check
-    query_metrics::set_pool_limit(memory_pool_limit as usize);
 
     Box::into_raw(Box::new(runtime)) as jlong
 }
@@ -660,9 +668,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     io_runtime.block_on(async move {
 
-        // Start per-query memory tracking — creates a per-query pool wrapping the global pool
+        // Create per-query context — auto-registers in the global registry
         let global_pool = runtime.runtime_env.memory_pool.clone();
-        let query_pool = query_metrics::start_query_tracking(context_id, global_pool);
+        let query_context = QueryTrackingContext::new(context_id, global_pool);
+        let query_pool = query_context.memory_pool()
+            .map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
         let result = query_executor::execute_query_with_cross_rt_stream(
             table_path,
@@ -673,17 +683,19 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             target_partitions,
             runtime,
             cpu_executor,
-            query_pool.map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>),
+            query_pool,
         ).await;
 
         match result {
-            Ok(stream_ptr) => {
+            Ok(stream) => {
+                let handle = QueryStreamHandle { stream, _query_context: query_context };
+                let handle_ptr = Box::into_raw(Box::new(handle)) as jlong;
                 with_jni_env(|env| {
-                    set_action_listener_ok_global(env, &listener_ref, stream_ptr);
+                    set_action_listener_ok_global(env, &listener_ref, handle_ptr);
                 });
             }
             Err(e) => {
-                query_metrics::stop_query_tracking(context_id);
+                // query_context dropped here → marks completed automatically
                 with_jni_env(|env| {
                     log_error!("Query execution failed: {}", e);
                     set_action_listener_error_global(env, &listener_ref, &e);
@@ -782,9 +794,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     // TODO : Thread leaks in tests if its spawn
     io_runtime.block_on(async move {
 
-        let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+        let stream = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
         // Poll the stream with monitoring
-        let result = stream.try_next().await;
+        let result = stream.stream.try_next().await;
 
         // Uncomment for monitoring stream next
         // let result = STREAM_NEXT_MONITOR.instrument(async {
@@ -832,10 +844,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamGet
         return;
     }
     // Schema access is synchronous and fast - no need for runtime
-    let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+    let stream = unsafe { &mut *(stream_ptr as *mut QueryStreamHandle) };
     //let stream = unsafe { &mut *(stream_ptr as *mut SendableRecordBatchStream) };
 
-    let schema = stream.schema();
+    let schema = stream.stream.schema();
     match FFI_ArrowSchema::try_from(schema.as_ref()) {
         Ok(mut ffi_schema) => {
             set_action_listener_ok(&mut env, listener, addr_of_mut!(ffi_schema) as jlong);
@@ -921,9 +933,11 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     let cpu_executor = manager.cpu_executor();
 
     io_runtime.block_on(async {
-        // Start per-query memory tracking for fetch phase
+        // Create per-query context — auto-registers in the global registry
         let global_pool = runtime.runtime_env.memory_pool.clone();
-        let query_pool = query_metrics::start_query_tracking(context_id, global_pool);
+        let query_context = QueryTrackingContext::new(context_id, global_pool);
+        let query_pool = query_context.memory_pool()
+            .map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
         match query_executor::execute_fetch_phase(
             table_path,
@@ -933,13 +947,14 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
             exclude_fields,
             runtime,
             cpu_executor,
-            query_pool.map(|p| p as std::sync::Arc<dyn datafusion::execution::memory_pool::MemoryPool>),
+            query_pool,
         ).await {
-            Ok(stream_ptr) => stream_ptr,
+            Ok(stream) => {
+                let handle = QueryStreamHandle { stream, _query_context: query_context };
+                Box::into_raw(Box::new(handle)) as jlong
+            }
             Err(e) => {
-                // Snapshot stats and mark completed — Java's error handler
-                // will call drain_completed_query to retrieve native memory stats.
-                query_metrics::stop_query_tracking(context_id);
+                // query_context dropped here → marks completed automatically
                 let _ = env.throw_new(
                     "java/lang/RuntimeException",
                     format!("Failed to execute fetch phase: {}", e),
@@ -957,7 +972,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     stream: jlong,
     context_id: jlong,
 ) {
-    // Stop per-query memory tracking and log final metrics
-    query_metrics::stop_query_tracking(context_id);
-    let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
+    // Dropping the handle drops both the stream and the query context.
+    // The context's Drop impl marks the query completed in the registry.
+    let _ = unsafe { Box::from_raw(stream as *mut QueryStreamHandle) };
 }
