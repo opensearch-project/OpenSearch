@@ -105,11 +105,7 @@ public class TransportHotToWarmTieringAction extends TransportClusterManagerNode
             clusterInfoService.getClusterInfo(),
             diskThresholdSettings
         );
-
-        if (tieringValidationResult.getAcceptedIndices().isEmpty()) {
-            listener.onResponse(tieringValidationResult.constructResponse());
-            return;
-        }
+        listener.onResponse(tieringValidationResult.constructResponse());
     }
 
     private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, TieringIndexRequest request) {
