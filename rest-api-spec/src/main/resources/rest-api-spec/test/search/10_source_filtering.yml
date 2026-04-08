@@ -39,41 +39,66 @@ setup:
   - skip:
       version: " - 3.6.99"
       reason: "validation was added later"
+      features: "warnings"
   - do:
+      warnings:
+        - 'An empty object was provided as [_source]. Provide at least one of [includes] or [excludes] or use `_source: true` to fetch the entire source.'
       search: { body: { _source: {  }, query: { match_all: {} } } }
-      catch: bad_request
-  - match: { status: 400 }
-  - match: { error.type: parsing_exception }
-  - match: { error.reason: "Expected at least one of [includes] or [excludes]" }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
 
 ---
-"_source as an empty includes array":
+"_source as an empty array":
   - skip:
       version: " - 3.6.99"
       reason: "validation was added later"
+      features: "warnings"
   - do:
+      warnings:
+        - 'An empty array was provided as [_source]. Provide at least one field pattern or use `_source: true` to fetch the entire source.'
       search: { body: { _source: [], query: { match_all: {} } } }
-      catch: bad_request
-  - match: { status: 400 }
-  - match: { error.type: parsing_exception }
-  - match: { error.reason: "Expected at least one value for an array of [includes]" }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.count: 1 }
 
 ---
-"_source with an empty excludes array":
+"_source as object with an empty excludes array":
   - skip:
       version: " - 3.6.99"
       reason: "validation was added later"
+      features: "warnings"
   - do:
+      warnings:
+        - 'Expected at least one value for an array of [excludes]'
       search:
         body:
           _source:
             includes: [ include.field1, include.field2 ]
             excludes: []
           query: { match_all: {} }
-      catch: bad_request
-  - match: { status: 400 }
-  - match: { error.type: parsing_exception }
-  - match: { error.reason: "Expected at least one value for an array of [excludes]" }
+  - length:   { hits.hits: 1  }
+  - match:  { hits.hits.0._source.include.field1: v1 }
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - is_false: hits.hits.0._source.count
+
+---
+"_source as object with an empty includes array":
+  - skip:
+      version: " - 3.6.99"
+      reason: "validation was added later"
+      features: "warnings"
+  - do:
+      warnings:
+        - 'Expected at least one value for an array of [includes]'
+      search:
+        body:
+          _source:
+            includes: []
+            excludes: [ include.field1 ]
+          query: { match_all: {} }
+  - length:   { hits.hits: 1  }
+  - is_false: hits.hits.0._source.include.field1
+  - match:  { hits.hits.0._source.include.field2: v2 }
+  - match: { hits.hits.0._source.count: 1 }
 
 ---
 "_source with an ambiguous field":

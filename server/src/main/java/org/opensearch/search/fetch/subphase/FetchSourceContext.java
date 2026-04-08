@@ -35,6 +35,7 @@ package org.opensearch.search.fetch.subphase;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -63,12 +64,13 @@ import java.util.function.Function;
  */
 @PublicApi(since = "1.0.0")
 public class FetchSourceContext implements Writeable, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FetchSourceContext.class);
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
-    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
-    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
+    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, null);
+    public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false, null, null);
 
     private static final String AMBIGUOUS_FIELD_MESSAGE = "The same entry [{}] cannot be both included and excluded in _source.";
 
@@ -162,15 +164,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         XContentParser.Token token = parser.currentToken();
         switch (token) {
             case XContentParser.Token.VALUE_BOOLEAN -> {
-                return new FetchSourceContext(parser.booleanValue());
+                return parser.booleanValue() ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
             }
             case XContentParser.Token.VALUE_STRING -> {
                 String[] includes = new String[] { parser.text() };
                 return new FetchSourceContext(true, includes, null);
             }
             case XContentParser.Token.START_ARRAY -> {
-                String[] includes = parseSourceFieldArray(parser, INCLUDES_FIELD, null).toArray(new String[0]);
-                return new FetchSourceContext(true, includes, null);
+                return parseSourceArray(parser);
             }
             case XContentParser.Token.START_OBJECT -> {
                 return parseSourceObject(parser);
@@ -192,10 +193,42 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 );
             }
         }
-        // MUST never reach here
     }
 
-    public static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
+    static FetchSourceContext parseSourceArray(XContentParser parser) throws IOException {
+        Set<String> includes = new LinkedHashSet<>();
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected a "
+                    + XContentParser.Token.START_ARRAY
+                    + " but got a "
+                    + parser.currentToken()
+                    + " in ["
+                    + parser.currentName()
+                    + "]."
+            );
+        }
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                includes.add(parser.text());
+            } else {
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unknown key for a " + parser.currentToken() + " in [" + parser.currentName() + "]."
+                );
+            }
+        }
+        if (includes.isEmpty()) {
+            deprecationLogger.deprecate(
+                "empty_source_array",
+                "An empty array was provided as [_source]. Provide at least one field pattern or use `_source: true` to fetch the entire source."
+            );
+        }
+        return new FetchSourceContext(true, includes.toArray(new String[0]), null);
+    }
+
+    static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
@@ -257,10 +290,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
         if (includes.isEmpty() && excludes.isEmpty()) {
-            // no valid field names -> empty or unrecognized fields; not allowed
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                "Expected at least one of [" + INCLUDES_FIELD.getPreferredName() + "] or [" + EXCLUDES_FIELD.getPreferredName() + "]"
+            // no valid field names -> empty or unrecognized fields; deprecated
+            deprecationLogger.deprecate(
+                "empty_source_object",
+                "An empty object was provided as [_source]. Provide at least one of ["
+                    + INCLUDES_FIELD.getPreferredName()
+                    + "] or ["
+                    + EXCLUDES_FIELD.getPreferredName()
+                    + "] or use `_source: true` to fetch the entire source."
             );
         }
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
@@ -284,8 +321,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
         if (sourceArr.isEmpty()) {
-            throw new ParsingException(
-                parser.getTokenLocation(),
+            deprecationLogger.deprecate(
+                "empty_source_" + parseField.getPreferredName(),
                 "Expected at least one value for an array of [" + parseField.getPreferredName() + "]"
             );
         }
@@ -294,25 +331,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!fetchSource) {
-            // do not fetch source
-            builder.value(false);
-            return builder;
-        }
-        if (includes.length == 0 && excludes.length == 0) {
-            // no empty arrays
-            builder.value(true);
-            return builder;
-        }
-
-        builder.startObject();
-        if (includes.length > 0) {
+        if (fetchSource) {
+            builder.startObject();
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
-        }
-        if (excludes.length > 0) {
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
+            builder.endObject();
+        } else {
+            builder.value(false);
         }
-        builder.endObject();
         return builder;
     }
 

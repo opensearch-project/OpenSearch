@@ -79,14 +79,14 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
         assertEquals(0, result.excludes().length);
     }
 
-    public void testFetchSourceExplicitEmptyArrayNotAllowed() throws IOException {
+    public void testFetchSourceAsArrayAssertWarningExplicitEmptyArray() throws IOException {
         final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("_source").startArray().endArray().endObject();
         final XContentParser parser = createSourceParser(source);
 
-        ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
-        assertEquals(
-            "Expected at least one value for an array of [" + FetchSourceContext.INCLUDES_FIELD.getPreferredName() + "]",
-            result.getMessage()
+        FetchSourceContext result = FetchSourceContext.fromXContent(parser);
+        assertTrue(result.fetchSource());
+        assertWarnings(
+            "An empty array was provided as [_source]. Provide at least one field pattern or use `_source: true` to fetch the entire source."
         );
     }
 
@@ -134,63 +134,58 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
         assertTrue(Arrays.asList(result.excludes()).containsAll(Arrays.asList("aaa", "bbb")));
     }
 
-    public void testFetchSourceObjectEmptyObjectNotAllowed() throws IOException {
+    public void testFetchSourceAssertWarningEmptyObject() throws IOException {
         final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("_source").startObject().endObject().endObject();
         final XContentParser parser = createSourceParser(source);
 
-        ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
-        assertEquals(
-            "Expected at least one of ["
+        FetchSourceContext result = FetchSourceContext.fromXContent(parser);
+        assertTrue(result.fetchSource());
+        assertWarnings(
+            "An empty object was provided as [_source]. Provide at least one of ["
                 + FetchSourceContext.INCLUDES_FIELD.getPreferredName()
                 + "] or ["
                 + FetchSourceContext.EXCLUDES_FIELD.getPreferredName()
-                + "]",
-            result.getMessage()
+                + "] or use `_source: true` to fetch the entire source."
         );
     }
 
-    public void testFetchSourceObjectExplicitEmptyArraysNotAllowed() throws IOException {
-        {
-            final XContentBuilder source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("_source")
-                .startObject()
-                .field("includes", "include1")
-                .field("excludes")
-                .startArray()
-                .endArray()
-                .endObject()
-                .endObject();
-            final XContentParser parser = createSourceParser(source);
+    public void testFetchSourceObjectAssertWarningExplicitEmptyExcludes() throws IOException {
+        final XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("_source")
+            .startObject()
+            .field("includes", "include1")
+            .field("excludes")
+            .startArray()
+            .endArray()
+            .endObject()
+            .endObject();
+        final XContentParser parser = createSourceParser(source);
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
-            assertEquals(
-                "Expected at least one value for an array of [" + FetchSourceContext.EXCLUDES_FIELD.getPreferredName() + "]",
-                result.getMessage()
-            );
-        }
-        {
-            final XContentBuilder source = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("_source")
-                .startObject()
-                .field("excludes")
-                .startArray()
-                .value("exclude1")
-                .endArray()
-                .field("includes")
-                .startArray()
-                .endArray()
-                .endObject()
-                .endObject();
-            final XContentParser parser = createSourceParser(source);
+        FetchSourceContext result = FetchSourceContext.fromXContent(parser);
+        assertTrue(result.fetchSource());
+        assertWarnings("Expected at least one value for an array of [" + FetchSourceContext.EXCLUDES_FIELD.getPreferredName() + "]");
+    }
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
-            assertEquals(
-                "Expected at least one value for an array of [" + FetchSourceContext.INCLUDES_FIELD.getPreferredName() + "]",
-                result.getMessage()
-            );
-        }
+    public void testFetchSourceObjectAssertWarningExplicitEmptyIncludes() throws IOException {
+        final XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("_source")
+            .startObject()
+            .field("excludes")
+            .startArray()
+            .value("exclude1")
+            .endArray()
+            .field("includes")
+            .startArray()
+            .endArray()
+            .endObject()
+            .endObject();
+        final XContentParser parser = createSourceParser(source);
+
+        FetchSourceContext result = FetchSourceContext.fromXContent(parser);
+        assertTrue(result.fetchSource());
+        assertWarnings("Expected at least one value for an array of [" + FetchSourceContext.INCLUDES_FIELD.getPreferredName() + "]");
     }
 
     public void testFetchSourceAsObjectConflictingEntries() throws IOException {
@@ -276,7 +271,10 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
         final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("_source", true).endObject();
         final XContentParser parser = createSourceParser(source);
 
-        ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.parseSourceObject(parser));
-        assertEquals("Expected a START_OBJECT but got a VALUE_BOOLEAN in [_source].", result.getMessage());
+        ParsingException invalidObject = expectThrows(ParsingException.class, () -> FetchSourceContext.parseSourceObject(parser));
+        assertEquals("Expected a START_OBJECT but got a VALUE_BOOLEAN in [_source].", invalidObject.getMessage());
+
+        ParsingException invalidArray = expectThrows(ParsingException.class, () -> FetchSourceContext.parseSourceArray(parser));
+        assertEquals("Expected a START_ARRAY but got a VALUE_BOOLEAN in [_source].", invalidArray.getMessage());
     }
 }
