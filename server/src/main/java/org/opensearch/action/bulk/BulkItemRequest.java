@@ -90,8 +90,6 @@ public record BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemRespon
     public void writeThin(StreamOutput out) throws IOException {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequestThin(out, request);
-
-        BulkItemResponse primaryResponse = this.primaryResponse; // Read volatile once
         out.writeOptionalWriteable((o, resp) -> resp.writeThin(o), primaryResponse);
     }
 
