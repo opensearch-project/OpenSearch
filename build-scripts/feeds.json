@@ -1,14 +1,14 @@
 {
   "ioc": {
-    "context": "ioc_provider_v3",
-    "consumer": "iocs_v3"
+    "context": "t1-iocs-5",
+    "consumer": "public-iocs-5"
   },
   "cve": {
-    "context": "vd_1.0.0",
-    "consumer": "vd_4.8.0"
+    "context": "t1-vulnerabilities-5",
+    "consumer": "public-vulnerabilities-5"
   },
   "ruleset": {
-    "context": "development_0.0.3",
-    "consumer": "development_0.0.3"
+    "context": "t1-ruleset-5",
+    "consumer": "public-ruleset-5"
   }
 }

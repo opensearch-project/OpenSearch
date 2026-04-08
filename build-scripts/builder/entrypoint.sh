@@ -110,7 +110,7 @@ download_snapshots() {
     echo "----------------------------------------"
 
     bash ~/build-scripts/download_snapshots.sh \
-        --env "https://cti.pre.cloud.wazuh.com/api/v1/" \
+        --env "https://api.pre.cloud.wazuh.com/api/v1" \
         --output-dir ~/artifacts/snapshots
 }
 
