@@ -20,7 +20,6 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterSettings;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;

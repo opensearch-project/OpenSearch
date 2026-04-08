@@ -39,7 +39,9 @@ public class DataFormatRegistry {
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
     /** Map from data format to a factory that creates an {@link EngineReaderManager} for a given store provider and shard path. */
-    private final Map<DataFormat, CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
+    private final Map<
+        DataFormat,
+        CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
 
@@ -162,8 +164,10 @@ public class DataFormatRegistry {
     ) throws IOException {
         // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<DataFormat, CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> entry :
-            readerManagerBuilders.entrySet()) {
+        for (Map.Entry<
+            DataFormat,
+            CheckedBiFunction<IndexStoreProvider, ShardPath, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
+                .entrySet()) {
             readerManagers.put(entry.getKey(), entry.getValue().apply(indexStoreProvider, shardPath));
         }
         return readerManagers;
