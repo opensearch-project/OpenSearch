@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -39,11 +40,9 @@ public class LuceneCommitter implements Committer {
 
     private static final Logger logger = LogManager.getLogger(LuceneCommitter.class);
 
-    /** Subdirectory under the shard data path where the Lucene index is stored. */
-    static final String LUCENE_DIR_NAME = "lucene";
-
     private final Store store;
-    private IndexWriter indexWriter;
+    private final IndexWriter indexWriter;
+    private final SetOnce<Boolean> isClosed = new SetOnce<>();
 
     /**
      * Creates a new LuceneCommitter and opens the IndexWriter.
@@ -80,24 +79,23 @@ public class LuceneCommitter implements Committer {
 
     @Override
     public void commit(Map<String, String> commitData) throws IOException {
-        if (indexWriter == null) {
-            throw new IllegalStateException("LuceneCommitter is closed");
-        }
+        ensureOpen();
         indexWriter.setLiveCommitData(commitData.entrySet());
         indexWriter.commit();
     }
 
     @Override
     public void close() throws IOException {
-        if (indexWriter != null) {
-            indexWriter.close();
-            indexWriter = null;
+        if (isClosed.get() != null) {
+            return;
         }
+        isClosed.set(Boolean.TRUE);
+        indexWriter.close();
     }
 
     @Override
     public Map<String, String> getLastCommittedData() throws IOException {
-        if (indexWriter == null) {
+        if (isClosed()) {
             return Map.of();
         }
         Iterable<Map.Entry<String, String>> liveCommitData = indexWriter.getLiveCommitData();
@@ -113,7 +111,7 @@ public class LuceneCommitter implements Committer {
 
     @Override
     public CommitStats getCommitStats() {
-        if (indexWriter == null) {
+        if (isClosed()) {
             return null;
         }
         try {
@@ -127,20 +125,7 @@ public class LuceneCommitter implements Committer {
 
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
-        if (indexWriter == null) {
-            return SafeCommitInfo.EMPTY;
-        }
-        try {
-            Map<String, String> commitData = getLastCommittedData();
-            long localCheckpoint = Long.parseLong(
-                commitData.getOrDefault(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED))
-            );
-            int docCount = indexWriter.getDocStats().numDocs;
-            return new SafeCommitInfo(localCheckpoint, docCount);
-        } catch (IOException e) {
-            logger.warn("Failed to get safe commit info", e);
-            return SafeCommitInfo.EMPTY;
-        }
+        throw new UnsupportedOperationException("TODO:: with index deleter");
     }
 
     // --- IndexWriter access (package-private for LuceneIndexingExecutionEngine) ---
@@ -152,6 +137,19 @@ public class LuceneCommitter implements Committer {
      * @return the index writer, or null if closed
      */
     IndexWriter getIndexWriter() {
+        if (isClosed()) {
+            return null;
+        }
         return indexWriter;
+    }
+
+    private boolean isClosed() {
+        return isClosed.get() != null;
+    }
+
+    private void ensureOpen() {
+        if (isClosed()) {
+            throw new IllegalStateException("LuceneCommitter is closed");
+        }
     }
 }
