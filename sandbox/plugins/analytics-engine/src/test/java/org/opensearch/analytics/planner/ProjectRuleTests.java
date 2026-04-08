@@ -23,13 +23,9 @@ import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.AnnotatedProjectExpression;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
-import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.OperatorCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 
@@ -89,8 +85,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         RelOptTable table = mockTable("test_index",
             new String[]{"name", "value"}, new SqlTypeName[]{SqlTypeName.VARCHAR, SqlTypeName.INTEGER});
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(castExpr), List.of("casted"));
-        PlannerContext context = buildContext("parquet",
-            Map.of("name", Map.of("type", "keyword"), "value", Map.of("type", "integer")));
+        PlannerContext context = buildContext("parquet", nameValueFields());
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("No backend supports scalar function"));
@@ -108,10 +103,9 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     public void testPainlessErrorsWithoutDelegation() {
-        BackendCapabilityProvider luceneWithPainless = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        // Lucene supports painless but no delegation configured
+        MockLuceneBackend luceneWithPainless = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
         };
@@ -119,7 +113,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(painlessExpr), List.of("scripted_field"));
         PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(DATAFUSION, LUCENE.withCapabilityProvider(luceneWithPainless)));
+            List.of(DATAFUSION, luceneWithPainless));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
@@ -146,16 +140,13 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Opaque natively supported ----
 
     public void testOpaqueOperationSupportedNatively() {
-        BackendCapabilityProvider dfWithPainless = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockDataFusionBackend dfWithPainless = new MockDataFusionBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return combine(scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class)),
                     opaqueCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), "painless"));
             }
         };
-        OpenSearchProject result = runProject("parquet", List.of(DATAFUSION.withCapabilityProvider(dfWithPainless), LUCENE),
+        OpenSearchProject result = runProject("parquet", List.of(dfWithPainless, LUCENE),
             rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0))
         );
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -177,22 +168,17 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Mixed backends in one projection ----
 
     public void testMixedBackendsInProjection() {
-        BackendCapabilityProvider dfWithScalarsAndDelegation = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockDataFusionBackend dfWithScalarsAndDelegation = new MockDataFusionBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        BackendCapabilityProvider luceneAccepting = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
-            @Override public Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
 
         RexNode fieldRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0);
@@ -200,8 +186,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         RexNode castExpr = rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.VARCHAR),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1));
 
-        OpenSearchProject result = runProject("parquet",
-            List.of(DATAFUSION.withCapabilityProvider(dfWithScalarsAndDelegation), LUCENE.withCapabilityProvider(luceneAccepting)),
+        OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting),
             fieldRef, painlessExpr, castExpr);
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -211,22 +196,17 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     public void testScalarWrappingOpaqueOp() {
-        BackendCapabilityProvider dfWithScalarsAndDelegation = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockDataFusionBackend dfWithScalarsAndDelegation = new MockDataFusionBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        BackendCapabilityProvider luceneAccepting = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
-            @Override public Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
 
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
@@ -234,9 +214,7 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.INTEGER), painlessExpr),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1));
 
-        OpenSearchProject result = runProject("parquet",
-            List.of(DATAFUSION.withCapabilityProvider(dfWithScalarsAndDelegation), LUCENE.withCapabilityProvider(luceneAccepting)),
-            plusExpr);
+        OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting), plusExpr);
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
@@ -254,72 +232,61 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Delegation edge cases ----
 
     public void testDelegationFailsWhenAcceptorLacksOpaqueOp() {
-        BackendCapabilityProvider dfWithDelegation = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+        MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        BackendCapabilityProvider luceneAccepting = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless", "highlight");
             }
-            @Override public Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        SqlFunction suggest = new SqlFunction("suggest", SqlKind.OTHER_FUNCTION, ReturnTypes.VARCHAR_2000,
-            null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
-        // Third backend declares "suggest" so isOpaqueOperation returns true
-        BackendCapabilityProvider thirdCaps = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        // Third backend declares "suggest" so isOpaqueOperation returns true, but no acceptor handles it
+        MockLuceneBackend thirdBackend = new MockLuceneBackend() {
+            @Override public String name() { return "mock-third"; }
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "suggest");
             }
         };
-        MockLuceneBackend thirdBackend = new MockLuceneBackend() {
-            @Override public String name() { return "mock-third"; }
-            @Override public BackendCapabilityProvider getCapabilityProvider() { return thirdCaps; }
-        };
 
+        SqlFunction suggest = new SqlFunction("suggest", SqlKind.OTHER_FUNCTION, ReturnTypes.VARCHAR_2000,
+            null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
         RelOptTable table = mockTable("test_index", new String[]{"name"}, new SqlTypeName[]{SqlTypeName.VARCHAR});
         RexNode suggestExpr = rexBuilder.makeCall(suggest, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(suggestExpr), List.of("sg"));
         PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(DATAFUSION.withCapabilityProvider(dfWithDelegation), LUCENE.withCapabilityProvider(luceneAccepting), thirdBackend));
+            List.of(dfWithDelegation, luceneAccepting, thirdBackend));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
     }
 
     public void testDelegationFailsWhenAcceptorRejectsDelegationType() {
-        BackendCapabilityProvider dfWithDelegation = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+        MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        BackendCapabilityProvider luceneWithPainlessNoAccept = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        // Lucene supports painless but doesn't accept PROJECT delegation
+        MockLuceneBackend luceneWithPainlessNoAccept = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
-            // acceptedDelegations() throws by default — no delegation accepted
         };
 
         RelOptTable table = mockTable("test_index", new String[]{"name"}, new SqlTypeName[]{SqlTypeName.VARCHAR});
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(painlessExpr), List.of("scripted"));
         PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(DATAFUSION.withCapabilityProvider(dfWithDelegation), LUCENE.withCapabilityProvider(luceneWithPainlessNoAccept)));
+            List.of(dfWithDelegation, luceneWithPainlessNoAccept));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
     }
 
     // ---- Helpers ----
+
+    private static Map<String, Map<String, Object>> nameValueFields() {
+        return Map.of("name", Map.of("type", "keyword"), "value", Map.of("type", "integer"));
+    }
 
     private void assertAnnotation(RexNode expr, String expectedBackend) {
         assertTrue("Expected AnnotatedProjectExpression, got " + expr.getClass().getSimpleName(),
@@ -337,46 +304,37 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
         List<String> fieldNames = new ArrayList<>();
         for (int i = 0; i < exprs.length; i++) fieldNames.add("col_" + i);
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(exprs), fieldNames);
-        PlannerContext context = buildContext(format,
-            Map.of("name", Map.of("type", "keyword"), "value", Map.of("type", "integer")), backends);
+        PlannerContext context = buildContext(format, nameValueFields(), backends);
         RelNode result = unwrapExchange(runPlanner(project, context));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
         assertTrue("Expected OpenSearchProject", result instanceof OpenSearchProject);
         return (OpenSearchProject) result;
     }
 
+    /** DF backend with all scalar functions declared. */
     private MockDataFusionBackend dfWithScalarFunctions() {
-        BackendCapabilityProvider withScalars = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        return new MockDataFusionBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
         };
-        return DATAFUSION.withCapabilityProvider(withScalars);
     }
 
-    /** Returns DF (with PROJECT delegation) + Lucene (accepting, with given opaque ops). */
+    /** DF (with PROJECT delegation) + Lucene (accepting, with given opaque ops). */
     private List<AnalyticsSearchBackendPlugin> delegationBackends(String... opaqueOps) {
-        BackendCapabilityProvider dfWithDelegation = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return DATAFUSION.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return DATAFUSION.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return DATAFUSION.getCapabilityProvider().aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockDataFusionBackend df = new MockDataFusionBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        BackendCapabilityProvider luceneAccepting = new BackendCapabilityProvider() {
-            @Override public Set<OperatorCapability> supportedOperators() { return LUCENE.getCapabilityProvider().supportedOperators(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return LUCENE.getCapabilityProvider().filterCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() {
+        MockLuceneBackend lucene = new MockLuceneBackend() {
+            @Override protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), opaqueOps);
             }
-            @Override public Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
         };
-        return List.of(DATAFUSION.withCapabilityProvider(dfWithDelegation), LUCENE.withCapabilityProvider(luceneAccepting));
+        return List.of(df, lucene);
     }
 
     @SafeVarargs

@@ -25,7 +25,25 @@ import org.opensearch.analytics.planner.rel.OpenSearchConvention;
  * trait enforcement (via {@code ExpandConversionRule} + {@code OpenSearchDistributionTraitDef})
  * automatically insert an {@code OpenSearchExchangeReducer}.
  *
- * <p>TODO: decompose aggCalls for partial state (e.g. AVG → SUM + COUNT)
+ * <p>TODO (plan forking): aggregate decomposition is intentionally deferred to plan forking
+ * resolution, after a single backend has been chosen per alternative. Decomposition is
+ * backend-specific — different backends may emit different partial state schemas for the
+ * same function (e.g. standard SUM+COUNT for AVG vs a backend's native running state).
+ * Applying decomposition here would force a single schema before backends are resolved,
+ * which breaks the multi-alternative model.
+ *
+ * <p>During plan forking resolution, for each PARTIAL+FINAL pair in a chosen-backend alternative:
+ * <ol>
+ *   <li>Look up {@link org.opensearch.analytics.spi.AggregateCapability#decomposition()} for
+ *       each AggregateCall using the chosen backend.</li>
+ *   <li>If null: apply Calcite's {@code AggregateReduceFunctionsRule} to rewrite
+ *       AVG → SUM/COUNT, STDDEV → SUM(x²)+SUM(x)+COUNT, etc.</li>
+ *   <li>If non-null: use {@link org.opensearch.analytics.spi.AggregateDecomposition#partialCalls()}
+ *       to rewrite PARTIAL's aggCalls and output row type, and
+ *       {@code AggregateDecomposition.finalExpression()} to
+ *       rewrite FINAL's aggCalls. Both must be updated together — the exchange row type
+ *       between them must be consistent within the same plan alternative.</li>
+ * </ol>
  *
  * @opensearch.internal
  */

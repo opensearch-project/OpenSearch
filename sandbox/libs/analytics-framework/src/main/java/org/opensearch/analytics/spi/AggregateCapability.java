@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
+import org.opensearch.common.Nullable;
+
 import java.util.Set;
 
 /**
@@ -19,13 +21,35 @@ import java.util.Set;
  * validate the function type at construction and make backend declarations
  * self-documenting.
  *
+ * <p>{@link #decomposition()} is null for most functions — the planner applies
+ * Calcite's standard decomposition (AVG → SUM/COUNT, STDDEV → SUM(x²)+SUM(x)+COUNT).
+ * Backends with non-standard partial state (e.g. HLL sketches, Welford STDDEV)
+ * provide a custom {@link AggregateDecomposition}.
+ *
+ * <p>TODO (plan forking): during resolution of a plan alternative, after a single
+ * backend is chosen for an aggregate operator, apply decomposition as a paired
+ * rewrite of PARTIAL output schema + FINAL input schema:
+ * <ol>
+ *   <li>If decomposition == null: apply Calcite's AggregateReduceFunctionsRule
+ *       to the PARTIAL+FINAL pair.</li>
+ *   <li>If decomposition != null: use decomposition.partialCalls() to rewrite
+ *       PARTIAL's aggCalls and output row type, then use decomposition.finalExpression()
+ *       to rewrite FINAL's aggCalls. Both must be updated together — the exchange
+ *       row type between them must be consistent.</li>
+ * </ol>
+ *
  * @opensearch.internal
  */
 public record AggregateCapability(AggregateFunction function, FieldType fieldType,
-                                   Set<String> formats) {
+                                   Set<String> formats, @Nullable AggregateDecomposition decomposition) {
 
     public AggregateCapability {
         formats = Set.copyOf(formats);
+    }
+
+    /** Convenience constructor with no custom decomposition (uses Calcite's standard). */
+    public AggregateCapability(AggregateFunction function, FieldType fieldType, Set<String> formats) {
+        this(function, fieldType, formats, null);
     }
 
     public static AggregateCapability simple(AggregateFunction function, FieldType fieldType,

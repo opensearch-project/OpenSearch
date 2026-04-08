@@ -64,6 +64,9 @@ public class PlannerImpl {
         // Rules as a collection so HEP tries all rules at each node in bottom-up
         // tree order. This ensures children are marked before parents regardless
         // of tree shape (e.g. filter above aggregate, aggregate above filter).
+        // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner
+        // moves to its own Gradle module. The OpenSearch monorepo injects -proc:none globally,
+        // blocking the Immutables annotation processor required by RelRule.Config sub-interfaces.
         markingBuilder.addRuleCollection(
             List.of(
                 new OpenSearchTableScanRule(context),

@@ -23,11 +23,8 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.OperatorCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -285,28 +282,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {
         MockDataFusionBackend df = new MockDataFusionBackend() {
-            @Override
-            public BackendCapabilityProvider getCapabilityProvider() {
-                BackendCapabilityProvider parent = super.getCapabilityProvider();
-                return new BackendCapabilityProvider() {
-                    @Override public Set<OperatorCapability> supportedOperators() { return parent.supportedOperators(); }
-                    @Override public Set<FilterCapability> filterCapabilities() { return parent.filterCapabilities(); }
-                    @Override public Set<AggregateCapability> aggregateCapabilities() { return parent.aggregateCapabilities(); }
-                    @Override public Set<OperatorCapability> arrowCompatibleOperators() { return parent.arrowCompatibleOperators(); }
-                    @Override public Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.FILTER); }
-                };
-            }
+            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.FILTER); }
         };
         MockLuceneBackend lucene = new MockLuceneBackend() {
-            @Override
-            public BackendCapabilityProvider getCapabilityProvider() {
-                BackendCapabilityProvider parent = super.getCapabilityProvider();
-                return new BackendCapabilityProvider() {
-                    @Override public Set<OperatorCapability> supportedOperators() { return parent.supportedOperators(); }
-                    @Override public Set<FilterCapability> filterCapabilities() { return parent.filterCapabilities(); }
-                    @Override public Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.FILTER); }
-                };
-            }
+            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.FILTER); }
         };
         return List.of(df, lucene);
     }

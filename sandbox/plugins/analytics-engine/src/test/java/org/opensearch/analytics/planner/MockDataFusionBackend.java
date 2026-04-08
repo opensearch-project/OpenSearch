@@ -10,16 +10,10 @@ package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.BackendCapabilityProvider;
-import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.OperatorCapability;
-import org.opensearch.analytics.spi.ProjectCapability;
-import org.opensearch.analytics.spi.ShuffleCapability;
-import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -36,8 +30,11 @@ import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capab
  * Mock DataFusion backend for tests. Supports parquet format with columnar storage,
  * standard filter operators on NUMERIC/KEYWORD/DATE/BOOLEAN, and common aggregates.
  * No full-text support.
+ *
+ * <p>Tests override only the capability methods they need — everything else
+ * falls through to the defaults declared here.
  */
-public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin<Object> {
+public class MockDataFusionBackend extends MockBackend implements SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-parquet";
     public static final String PARQUET_DATA_FORMAT = "parquet";
@@ -101,32 +98,12 @@ public class MockDataFusionBackend implements AnalyticsSearchBackendPlugin, Sear
         OperatorCapability.SORT, OperatorCapability.PROJECT
     );
 
-    private static final BackendCapabilityProvider CAPABILITY_PROVIDER = new BackendCapabilityProvider() {
-        @Override
-        public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
+    @Override public String name() { return NAME; }
 
-        @Override
-        public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
-
-        @Override
-        public Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }
-
-        @Override
-        public Set<OperatorCapability> arrowCompatibleOperators() { return ARROW_COMPATIBLE_OPS; }
-    };
-
-    @Override
-    public String name() { return NAME; }
-
-    @Override
-    public BackendCapabilityProvider getCapabilityProvider() { return CAPABILITY_PROVIDER; }
-
-    /** Returns a new instance with the given capability provider, for test customization. */
-    public MockDataFusionBackend withCapabilityProvider(BackendCapabilityProvider override) {
-        return new MockDataFusionBackend() {
-            @Override public BackendCapabilityProvider getCapabilityProvider() { return override; }
-        };
-    }
+    @Override protected Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
+    @Override protected Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
+    @Override protected Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }
+    @Override protected Set<OperatorCapability> arrowCompatibleOperators() { return ARROW_COMPATIBLE_OPS; }
 
     // ---- SearchBackEndPlugin (storage) ----
 

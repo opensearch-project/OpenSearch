@@ -24,7 +24,13 @@ import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.AggregateCapability;
+import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.FieldType;
+import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -40,6 +46,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,6 +198,17 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
 
     protected RexNode makeAnd(RexNode... operands) {
         return rexBuilder.makeCall(SqlStdOperatorTable.AND, operands);
+    }
+
+    /** Builds a set of AggregateCapability for the given function→fieldTypes mapping. */
+    protected static Set<AggregateCapability> aggCaps(Set<String> formats, Map<AggregateFunction, Set<FieldType>> funcToTypes) {
+        Set<AggregateCapability> caps = new HashSet<>();
+        for (var entry : funcToTypes.entrySet()) {
+            for (FieldType type : entry.getValue()) {
+                caps.add(new AggregateCapability(entry.getKey(), type, formats));
+            }
+        }
+        return caps;
     }
 
     // ---- Stub ----

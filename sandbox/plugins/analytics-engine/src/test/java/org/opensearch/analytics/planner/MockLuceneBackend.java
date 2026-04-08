@@ -8,17 +8,10 @@
 
 package org.opensearch.analytics.planner;
 
-import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.BackendCapabilityProvider;
-import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.OperatorCapability;
-import org.opensearch.analytics.spi.AggregateCapability;
-import org.opensearch.analytics.spi.ProjectCapability;
-import org.opensearch.analytics.spi.ShuffleCapability;
-import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -37,8 +30,11 @@ import static org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capab
  * Mock Lucene backend for tests. Supports lucene format with index structures
  * (full-text, point range) and stored fields. Standard + full-text filter capabilities.
  * SCAN + FILTER only (no AGGREGATE).
+ *
+ * <p>Tests override only the capability methods they need — everything else
+ * falls through to the defaults declared here.
  */
-public class MockLuceneBackend implements AnalyticsSearchBackendPlugin, SearchBackEndPlugin<Object> {
+public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugin<Object> {
 
     public static final String NAME = "mock-lucene";
     public static final String LUCENE_DATA_FORMAT = "lucene";
@@ -90,26 +86,10 @@ public class MockLuceneBackend implements AnalyticsSearchBackendPlugin, SearchBa
         FILTER_CAPS = caps;
     }
 
-    private static final BackendCapabilityProvider CAPABILITY_PROVIDER = new BackendCapabilityProvider() {
-        @Override
-        public Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
+    @Override public String name() { return NAME; }
 
-        @Override
-        public Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
-    };
-
-    @Override
-    public String name() { return NAME; }
-
-    @Override
-    public BackendCapabilityProvider getCapabilityProvider() { return CAPABILITY_PROVIDER; }
-
-    /** Returns a new instance with the given capability provider, for test customization. */
-    public MockLuceneBackend withCapabilityProvider(BackendCapabilityProvider override) {
-        return new MockLuceneBackend() {
-            @Override public BackendCapabilityProvider getCapabilityProvider() { return override; }
-        };
-    }
+    @Override protected Set<OperatorCapability> supportedOperators() { return OPERATOR_CAPS; }
+    @Override protected Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
 
     // ---- SearchBackEndPlugin (storage) ----
 
