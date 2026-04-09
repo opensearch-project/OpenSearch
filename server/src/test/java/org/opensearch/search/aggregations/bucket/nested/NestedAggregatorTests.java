@@ -78,7 +78,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.support.NestedScope;
 import org.opensearch.indices.IndicesBitsetFilterCache;
-import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptEngine;
@@ -107,6 +106,7 @@ import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregati
 import org.opensearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.opensearch.search.aggregations.support.AggregationInspectionHelper;
 import org.opensearch.search.aggregations.support.ValueType;
+import org.opensearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1140,8 +1140,9 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
         }
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
+            indexSettings,
             aggTestIndicesBitsetFilterCache,
-            Mockito.mock(IndicesBitsetFilterCache.Listener.class)
+            Mockito.mock(BitsetFilterCache.Listener.class)
         );
         BitSetProducer nonNestedFilter = bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter());
         when(queryShardContext.bitsetFilter(any())).thenReturn(nonNestedFilter);

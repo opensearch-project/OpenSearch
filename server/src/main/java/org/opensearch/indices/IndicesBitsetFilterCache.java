@@ -42,6 +42,7 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexWarmer;
 import org.opensearch.index.IndexWarmer.TerminationHandle;
+import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
@@ -111,7 +112,7 @@ public class IndicesBitsetFilterCache
         threadPool.schedule(cacheCleaner, cleanInterval, ThreadPool.Names.SAME);
     }
 
-    public BitSetProducer getBitSetProducer(Query query, Listener listener) {
+    public BitSetProducer getBitSetProducer(Query query, BitsetFilterCache.Listener listener) {
         return new QueryWrapperBitSetProducer(query, listener);
     }
 
@@ -132,7 +133,8 @@ public class IndicesBitsetFilterCache
         }
     }
 
-    BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context, final Listener listener) throws ExecutionException {
+    BitSet getAndLoadIfNotPresent(final Query query, final LeafReaderContext context, final BitsetFilterCache.Listener listener)
+        throws ExecutionException {
         final IndexReader.CacheHelper cacheHelper = FilterLeafReader.unwrap(context.reader()).getCoreCacheHelper();
         if (cacheHelper == null) {
             throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
@@ -226,18 +228,13 @@ public class IndicesBitsetFilterCache
         }
     }
 
-    /**
-     * Cached value holding the bitset, shard identity, and the per-index listener for stats.
-     *
-     * @opensearch.internal
-     */
     @ExperimentalApi
     public static final class Value {
         final BitSet bitset;
         final ShardId shardId;
-        final Listener listener;
+        final BitsetFilterCache.Listener listener;
 
-        public Value(BitSet bitset, ShardId shardId, Listener listener) {
+        Value(BitSet bitset, ShardId shardId, BitsetFilterCache.Listener listener) {
             this.bitset = bitset;
             this.shardId = shardId;
             this.listener = listener;
@@ -252,23 +249,11 @@ public class IndicesBitsetFilterCache
         }
     }
 
-    /**
-     * Listener for per-index cache/removal events, used for shard-level stats tracking.
-     *
-     * @opensearch.internal
-     */
-    @ExperimentalApi
-    public interface Listener {
-        void onCache(ShardId shardId, Accountable accountable);
-
-        void onRemoval(ShardId shardId, Accountable accountable);
-    }
-
     final class QueryWrapperBitSetProducer implements BitSetProducer {
         final Query query;
-        final Listener listener;
+        final BitsetFilterCache.Listener listener;
 
-        QueryWrapperBitSetProducer(Query query, Listener listener) {
+        QueryWrapperBitSetProducer(Query query, BitsetFilterCache.Listener listener) {
             this.query = Objects.requireNonNull(query);
             this.listener = Objects.requireNonNull(listener);
         }
@@ -335,7 +320,7 @@ public class IndicesBitsetFilterCache
             }
 
             // Build a listener that routes stats to the correct shard.
-            final Listener listener = new Listener() {
+            final BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
                     if (shardId != null && accountable != null) {

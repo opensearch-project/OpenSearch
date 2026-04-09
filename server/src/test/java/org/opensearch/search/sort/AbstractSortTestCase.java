@@ -210,8 +210,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(
+            idxSettings,
             Mockito.mock(IndicesBitsetFilterCache.class, Mockito.RETURNS_DEEP_STUBS),
-            Mockito.mock(IndicesBitsetFilterCache.Listener.class)
+            Mockito.mock(BitsetFilterCache.Listener.class)
         );
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
             fieldType,

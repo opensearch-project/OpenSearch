@@ -307,7 +307,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = indicesBitsetFilterCache != null
-                ? new BitsetFilterCache(indicesBitsetFilterCache, new BitsetCacheListener(this))
+                ? new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this))
                 : null;
             this.warmer = new IndexWarmer(
                 threadPool,
@@ -577,6 +577,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } finally {
                 IOUtils.close(
+                    bitsetFilterCache,
                     indexCache,
                     indexFieldData,
                     mapperService,
@@ -1132,7 +1133,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      *
      * @opensearch.internal
      */
-    private static final class BitsetCacheListener implements IndicesBitsetFilterCache.Listener {
+    private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
         final IndexService indexService;
 
         private BitsetCacheListener(IndexService indexService) {

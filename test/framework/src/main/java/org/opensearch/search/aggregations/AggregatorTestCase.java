@@ -128,8 +128,6 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.indices.IndicesBitsetFilterCache;
-import org.opensearch.threadpool.TestThreadPool;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.SearchPlugin;
@@ -154,6 +152,8 @@ import org.opensearch.search.startree.StarTreeQueryContext;
 import org.opensearch.search.streaming.FlushMode;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -511,7 +511,7 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             aggTestIndicesBitsetFilterCache = new IndicesBitsetFilterCache(Settings.EMPTY, aggTestThreadPool);
         }
         when(searchContext.bitsetFilterCache()).thenReturn(
-            new BitsetFilterCache(aggTestIndicesBitsetFilterCache, mock(IndicesBitsetFilterCache.Listener.class))
+            new BitsetFilterCache(indexSettings, aggTestIndicesBitsetFilterCache, mock(BitsetFilterCache.Listener.class))
         );
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));

@@ -54,7 +54,9 @@ import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.IndicesBitsetFilterCache;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -68,6 +70,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
     private ThreadPool threadPool;
 
     @Override
@@ -117,7 +120,7 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         reader = OpenSearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
 
         IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
-        BitsetFilterCache cache = new BitsetFilterCache(indicesCache, new IndicesBitsetFilterCache.Listener() {
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {}
 
@@ -172,7 +175,7 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         final AtomicInteger onRemoveCalls = new AtomicInteger();
 
         IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
-        BitsetFilterCache cache = new BitsetFilterCache(indicesCache, new IndicesBitsetFilterCache.Listener() {
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
                 onCacheCalls.incrementAndGet();
@@ -214,7 +217,7 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
     public void testSetNullListener() {
         try {
-            new BitsetFilterCache(new IndicesBitsetFilterCache(Settings.EMPTY, threadPool), null);
+            new BitsetFilterCache(INDEX_SETTINGS, new IndicesBitsetFilterCache(Settings.EMPTY, threadPool), null);
             fail("listener can't be null");
         } catch (IllegalArgumentException ex) {
             assertEquals("listener must not be null", ex.getMessage());
@@ -223,7 +226,7 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
     public void testRejectOtherIndex() throws IOException {
         IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
-        BitsetFilterCache cache = new BitsetFilterCache(indicesCache, new IndicesBitsetFilterCache.Listener() {
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {}
 

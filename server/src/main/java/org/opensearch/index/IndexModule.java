@@ -785,6 +785,78 @@ public final class IndexModule {
     }
 
     /**
+     * @deprecated Use the overload that accepts {@code indicesBitsetFilterCache} and {@code dataFormatRegistry} parameters.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            null,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    /**
      * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
      */
     @Deprecated(forRemoval = true)

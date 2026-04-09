@@ -247,7 +247,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         w.deleteDocuments(new Term("delete", "yes"));
 
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
-        IndicesBitsetFilterCache.Listener listener = new IndicesBitsetFilterCache.Listener() {
+        BitsetFilterCache.Listener listener = new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -261,7 +261,7 @@ public class ContextIndexSearcherTests extends OpenSearchTestCase {
         DirectoryReader reader = OpenSearchDirectoryReader.wrap(DirectoryReader.open(w), new ShardId(settings.getIndex(), 0));
         ThreadPool tp = new TestThreadPool("test");
         IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, tp);
-        BitsetFilterCache cache = new BitsetFilterCache(indicesCache, listener);
+        BitsetFilterCache cache = new BitsetFilterCache(settings, indicesCache, listener);
         Query roleQuery = new TermQuery(new Term("allowed", "yes"));
         BitSet bitSet = cache.getBitSetProducer(roleQuery).getBitSet(reader.leaves().get(0));
         if (sparse) {

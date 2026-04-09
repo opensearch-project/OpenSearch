@@ -32,28 +32,61 @@
 
 package org.opensearch.index.cache.bitset;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BitSet;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.cache.Cache;
+import org.opensearch.common.cache.RemovalListener;
+import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.AbstractIndexComponent;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexWarmer;
 import org.opensearch.indices.IndicesBitsetFilterCache;
+import org.opensearch.threadpool.ThreadPool;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
  * Per-index view into the node-level {@link IndicesBitsetFilterCache}.
- * Binds a per-index {@link IndicesBitsetFilterCache.Listener} so that callers can obtain
- * a {@link BitSetProducer} without needing to supply a listener at every call site.
+ * <p>
+ * This is a cache for {@link BitDocIdSet} based filters. Use this cache with care, only components
+ * that require a filter to be materialized as a {@link BitDocIdSet} and require that it should always
+ * be around should use this cache, otherwise the
+ * {@link org.opensearch.index.cache.query.QueryCache} should be used instead.
  *
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public final class BitsetFilterCache {
+public final class BitsetFilterCache extends AbstractIndexComponent
+    implements
+        IndexReader.ClosedListener,
+        RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>,
+        Closeable {
+
+    public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
+        IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING;
 
     private final IndicesBitsetFilterCache indicesCache;
-    private final IndicesBitsetFilterCache.Listener listener;
+    private final Listener listener;
 
-    public BitsetFilterCache(IndicesBitsetFilterCache indicesCache, IndicesBitsetFilterCache.Listener listener) {
-        if (indicesCache == null) {
-            throw new IllegalArgumentException("indicesCache must not be null");
-        }
+    /**
+     * @deprecated Use {@link #BitsetFilterCache(IndexSettings, IndicesBitsetFilterCache, Listener)} instead.
+     */
+    @Deprecated
+    public BitsetFilterCache(IndexSettings indexSettings, Listener listener) {
+        this(indexSettings, null, listener);
+    }
+
+    public BitsetFilterCache(IndexSettings indexSettings, IndicesBitsetFilterCache indicesCache, Listener listener) {
+        super(indexSettings);
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
@@ -61,7 +94,84 @@ public final class BitsetFilterCache {
         this.listener = listener;
     }
 
+    public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {
+        return IndicesBitsetFilterCache.bitsetFromQuery(query, context);
+    }
+
+    /**
+     * @deprecated The warmer is now created by {@link IndicesBitsetFilterCache#createListener(ThreadPool)}.
+     */
+    @Deprecated
+    public IndexWarmer.Listener createListener(ThreadPool threadPool) {
+        if (indicesCache != null) {
+            return indicesCache.createListener(threadPool);
+        }
+        return null;
+    }
+
     public BitSetProducer getBitSetProducer(Query query) {
-        return indicesCache.getBitSetProducer(query, listener);
+        if (indicesCache != null) {
+            return indicesCache.getBitSetProducer(query, listener);
+        }
+        throw new IllegalStateException("IndicesBitsetFilterCache is not available");
+    }
+
+    @Override
+    public void onClose(IndexReader.CacheKey ownerCoreCacheKey) {
+        // Delegated to node-level cache
+    }
+
+    @Override
+    public void close() {
+        // Per-index close is a no-op; the node-level cache manages the lifecycle.
+    }
+
+    public void clear(String reason) {
+        logger.debug("clearing all bitsets because [{}]", reason);
+        // Per-index clear is a no-op; entries are evicted by the node-level cache.
+    }
+
+    @Override
+    public void onRemoval(RemovalNotification<IndexReader.CacheKey, Cache<Query, Value>> notification) {
+        // Delegated to node-level cache
+    }
+
+    /**
+     * Value for bitset filter cache
+     *
+     * @opensearch.api
+     */
+    @PublicApi(since = "1.0.0")
+    public static final class Value {
+
+        final BitSet bitset;
+        final ShardId shardId;
+
+        public Value(BitSet bitset, ShardId shardId) {
+            this.bitset = bitset;
+            this.shardId = shardId;
+        }
+    }
+
+    /**
+     * A listener interface that is executed for each onCache / onRemoval event
+     *
+     * @opensearch.internal
+     */
+    @PublicApi(since = "1.0.0")
+    public interface Listener {
+        /**
+         * Called for each cached bitset on the cache event.
+         * @param shardId the shard id the bitset was cached for. This can be <code>null</code>
+         * @param accountable the bitsets ram representation
+         */
+        void onCache(ShardId shardId, Accountable accountable);
+
+        /**
+         * Called for each cached bitset on the removal event.
+         * @param shardId the shard id the bitset was cached for. This can be <code>null</code>
+         * @param accountable the bitsets ram representation
+         */
+        void onRemoval(ShardId shardId, Accountable accountable);
     }
 }
