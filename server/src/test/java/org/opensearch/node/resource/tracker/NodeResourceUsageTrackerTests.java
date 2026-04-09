@@ -51,6 +51,8 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
     public void testStats() throws Exception {
         Settings settings = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), new TimeValue(500, TimeUnit.MILLISECONDS))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), new TimeValue(500, TimeUnit.MILLISECONDS))
+
             .build();
         NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(
             mock(FsService.class),
@@ -64,6 +66,7 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
          * cpu percent used is mostly 0, so skipping assertion for that
          */
         assertBusy(() -> assertThat(tracker.getMemoryUtilizationPercent(), greaterThan(0.0)), 5, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(tracker.getNativeMemoryUtilizationPercent(), greaterThan(0.0)), 5, TimeUnit.SECONDS);
         tracker.stop();
         tracker.close();
     }
@@ -79,6 +82,7 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
         assertEquals(tracker.getResourceTrackerSettings().getCpuWindowDuration().getSeconds(), 30);
         assertEquals(tracker.getResourceTrackerSettings().getMemoryWindowDuration().getSeconds(), 30);
         assertEquals(tracker.getResourceTrackerSettings().getIoWindowDuration().getSeconds(), 120);
+        assertEquals(tracker.getResourceTrackerSettings().getNativeMemoryWindowDuration().getSeconds(), 30);
 
         Settings settings = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), "10s")
@@ -104,6 +108,15 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
         assertEquals(
             "20s",
             response.getPersistentSettings().get(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey())
+        );
+
+        Settings nativeMemorySettings = Settings.builder()
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), "15s")
+            .build();
+        response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(nativeMemorySettings).get();
+        assertEquals(
+            "15s",
+            response.getPersistentSettings().get(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey())
         );
     }
 }
