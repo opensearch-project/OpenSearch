@@ -11,11 +11,11 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.LongArray;
-import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -67,16 +67,9 @@ public class MultiValueDocCountAggregator extends NumericMetricsAggregator.Singl
             }
         }
 
-        else if (valuesSource instanceof ValuesSource.Bytes.GeoPoint) {
-            MultiGeoPointValues values = ((ValuesSource.GeoPoint) valuesSource).geoPointValues(ctx);
-            if (FieldData.unwrapSingleton(values) != null) {
-                return true;
-            }
-        }
-
-        else if (valuesSource instanceof ValuesSource.Bytes) {
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-            if (FieldData.unwrapSingleton(values) != null) {
+        else if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
+            SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
+            if (DocValues.unwrapSingleton(values) != null) {
                 return true;
             }
         }
@@ -125,6 +118,7 @@ public class MultiValueDocCountAggregator extends NumericMetricsAggregator.Singl
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
+                int i = values.docValueCount();
                 if (values.advanceExact(doc) && values.docValueCount() > 1) {
                     counts.increment(bucket, 1);
                 }
@@ -157,6 +151,8 @@ public class MultiValueDocCountAggregator extends NumericMetricsAggregator.Singl
 
     @Override
     public void doClose() {
-        Releasables.close(counts);
+        if (counts != null) {
+            Releasables.close(counts);
+        }
     }
 }

@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -323,6 +324,7 @@ public class MultiValueDocCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(multiRecord))));
         }, count -> {
+            // multivalue_count_doc_aggregator didn't support range field
             assertEquals(0, count.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(count));
         }, fieldType);
@@ -478,6 +480,61 @@ public class MultiValueDocCountAggregatorTests extends AggregatorTestCase {
         }, 3, fieldType);
         assertEquals(3L, internalValueCount.getValue());
         assertTrue(AggregationInspectionHelper.hasValue(internalValueCount));
+    }
+
+    public void testSingleValueGeoPoint() throws IOException {
+        final String geoPointField = "geoPoint";
+        MultiValueDocCountAggregationBuilder aggregationBuilder = new MultiValueDocCountAggregationBuilder("name").field(geoPointField);
+        MappedFieldType mappedFieldType = createMappedFieldType(geoPointField, ValueType.GEOPOINT);
+        InternalValueCount internalValueCount = testAggregation(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            for (int i = 0; i < 9; i++) {
+                Document document = new Document();
+                document.add(new LatLonDocValuesField(geoPointField, 10 + i, 20 + i));
+                iw.addDocument(document);
+            }
+        }, 9, mappedFieldType);
+
+        assertEquals(0L, internalValueCount.getValue());
+        assertFalse(AggregationInspectionHelper.hasValue(internalValueCount));
+    }
+
+    public void testMultiValueKeywords() throws IOException {
+        final String field = "keywords";
+        MultiValueDocCountAggregationBuilder aggregationBuilder = new MultiValueDocCountAggregationBuilder("name").field(field);
+        MappedFieldType mappedFieldType = createMappedFieldType(field, ValueType.STRING);
+
+        InternalValueCount internalValueCount = testAggregation(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            Document document = new Document();
+            document.add(new SortedSetDocValuesField(field, new BytesRef("1")));
+            document.add(new SortedSetDocValuesField(field, new BytesRef("2")));
+            iw.addDocument(document);
+
+            Document document2 = new Document();
+            document2.add(new SortedSetDocValuesField(field, new BytesRef("4")));
+            document2.add(new SortedSetDocValuesField(field, new BytesRef("5")));
+            iw.addDocument(document2);
+
+            Document document3 = new Document();
+            document3.add(new SortedSetDocValuesField(field, new BytesRef("0")));
+            iw.addDocument(document3);
+        }, 3, mappedFieldType);
+
+        assertEquals(2L, internalValueCount.getValue());
+        assertTrue(AggregationInspectionHelper.hasValue(internalValueCount));
+    }
+
+    public void testEmptyValues() throws IOException {
+        final String field = "keywords";
+        MultiValueDocCountAggregationBuilder aggregationBuilder = new MultiValueDocCountAggregationBuilder("name").field(field);
+        MappedFieldType mappedFieldType = createMappedFieldType(field, ValueType.STRING);
+
+        InternalValueCount internalValueCount = testAggregation(new MatchAllDocsQuery(), aggregationBuilder, iw -> {
+            Document document = new Document();
+            iw.addDocument(document);
+        }, 0, mappedFieldType);
+
+        assertEquals(0L, internalValueCount.getValue());
+        assertFalse(AggregationInspectionHelper.hasValue(internalValueCount));
     }
 
     private <A extends InternalAggregation> A testAggregation(
