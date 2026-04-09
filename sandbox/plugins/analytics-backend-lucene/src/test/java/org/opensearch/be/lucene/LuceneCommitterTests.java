@@ -61,7 +61,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
         assertNotNull(committer.getIndexWriter());
 
         committer.close();
-        assertNull(committer.getIndexWriter());
+        expectThrows(IllegalStateException.class, committer::getIndexWriter);
         settings.store().close();
     }
 
