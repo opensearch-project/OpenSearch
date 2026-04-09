@@ -174,10 +174,7 @@ def javadocProjects = [
   project(":server"),
 ]
 // Sandbox projects — only present when -Dsandbox.enabled=true
-[":sandbox:libs:native-bridge-spi", ":sandbox:plugins:parquet-data-format"].each { path ->
-  def p = findProject(path)
-  if (p != null) { javadocProjects.add(p) }
-}
+rootProject.allprojects.findAll { it.path.startsWith(':sandbox:') }.each { javadocProjects.add(it) }
 
 configure(javadocProjects) {
   project.tasks.withType(MissingJavadocTask) {
