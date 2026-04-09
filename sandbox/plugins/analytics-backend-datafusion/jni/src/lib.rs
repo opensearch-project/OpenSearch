@@ -20,10 +20,12 @@ use std::cell::RefCell;
 use std::sync::{Arc, OnceLock};
 
 use datafusion::common::DataFusionError;
-use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString};
+use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JObjectArray, JString};
 use jni::sys::{jint, jlong};
 use jni::{JNIEnv, JavaVM};
 use log::error;
+use std::future::Future;
+use futures::FutureExt;
 
 pub mod api;
 pub mod cross_rt_stream;
@@ -67,6 +69,55 @@ fn get_tokio_rt_manager() -> Result<&'static Arc<RuntimeManager>, DataFusionErro
     TOKIO_RUNTIME_MANAGER
         .get()
         .ok_or_else(|| DataFusionError::Execution("Runtime manager not initialized".to_string()))
+}
+
+/// Extract a human-readable message from a panic payload.
+fn panic_message(payload: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic payload".to_string()
+    }
+}
+
+/// Spawn an async task on `runtime` that calls an ActionListener exactly once.
+///
+/// The entire `task` future runs inside `catch_unwind`. Any panic is converted
+/// to a `DataFusionError` and surfaced to the Java caller via `listener_ref`.
+/// This ensures the `CompletableFuture` on the Java side is always completed,
+/// never left hanging.
+fn spawn_jni_task<Fut, T, FOk>(
+    runtime: &tokio::runtime::Handle,
+    task_name: &'static str,
+    listener_ref: GlobalRef,
+    task: Fut,
+    on_ok: FOk,
+)
+where
+    Fut: Future<Output = Result<T, DataFusionError>> + Send + 'static,
+    T: Send + 'static,
+    FOk: FnOnce(&mut JNIEnv, &GlobalRef, T) + Send + 'static,
+{
+    let _ = runtime.spawn(async move {
+        let result = std::panic::AssertUnwindSafe(task)
+            .catch_unwind()
+            .await
+            .unwrap_or_else(|panic| {
+                let msg = panic_message(&panic);
+                error!("{} panicked: {}", task_name, msg);
+                Err(DataFusionError::Execution(format!("{} panicked: {}", task_name, msg)))
+            });
+
+        with_jni_env(|env| match result {
+            Ok(value) => on_ok(env, &listener_ref, value),
+            Err(e) => {
+                error!("{} failed: {}", task_name, e);
+                set_action_listener_error_global(env, &listener_ref, &e);
+            }
+        });
+    });
 }
 
 // Tokio runtime management
@@ -224,18 +275,16 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_execut
         }
     };
 
-    // Delegate to bridge-agnostic API — bridge does the block_on
-    let result = tokio_rt_mgr.io_runtime.block_on(unsafe {
-        api::execute_query(shard_view_ptr as i64, &table_name, &plan_bytes, runtime_ptr as i64, tokio_rt_mgr)
-    });
-
-    with_jni_env(|env| match result {
-        Ok(stream_ptr) => set_action_listener_ok_global(env, &listener_ref, stream_ptr as jlong),
-        Err(e) => {
-            error!("Query execution failed: {}", e);
-            set_action_listener_error_global(env, &listener_ref, &e);
-        }
-    });
+    // Delegate to bridge-agnostic API — non-blocking spawn
+    spawn_jni_task(
+        &tokio_rt_mgr.io_runtime,
+        "executeQueryAsync",
+        listener_ref,
+        async move {
+            unsafe { api::execute_query(shard_view_ptr as i64, &table_name, &plan_bytes, runtime_ptr as i64, tokio_rt_mgr) }.await
+        },
+        |env, listener_ref, stream_ptr| set_action_listener_ok_global(env, listener_ref, stream_ptr as jlong),
+    );
 }
 
 // Get schema for the stream
@@ -282,15 +331,13 @@ pub extern "system" fn Java_org_opensearch_be_datafusion_jni_NativeBridge_stream
         }
     };
 
-    let result = manager.io_runtime.block_on(unsafe { api::stream_next(stream_ptr as i64) });
-
-    with_jni_env(|env| match result {
-        Ok(array_ptr) => set_action_listener_ok_global(env, &listener_ref, array_ptr as jlong),
-        Err(e) => {
-            error!("Stream next failed: {}", e);
-            set_action_listener_error_global(env, &listener_ref, &e);
-        }
-    });
+    spawn_jni_task(
+        &manager.io_runtime,
+        "streamNext",
+        listener_ref,
+        unsafe { api::stream_next(stream_ptr as i64) },
+        |env, listener_ref, array_ptr| set_action_listener_ok_global(env, listener_ref, array_ptr as jlong),
+    );
 }
 
 #[jni_safe]
