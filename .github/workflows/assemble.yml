@@ -20,7 +20,6 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-15, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v6
-      # https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
       - name: Install protoc (Linux)
         if: ${{ runner.os == 'Linux' }}
         run: |
@@ -40,6 +39,7 @@ jobs:
       - name: Install protoc (macOS)
         if: ${{ runner.os == 'macOS' }}
         run: brew install protobuf
+      # https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
       - name: Remove unnecessary files Linux
         if: ${{ runner.os == 'Linux' }}
         run: |
