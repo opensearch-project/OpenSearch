@@ -89,10 +89,7 @@ public class NativeHandleTests extends OpenSearchTestCase {
     public void testValidatePointerThrowsAfterClose() {
         TestHandle handle = new TestHandle(201L);
         handle.close();
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> NativeHandle.validatePointer(201L, "test")
-        );
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> NativeHandle.validatePointer(201L, "test"));
         assertTrue(ex.getMessage().contains("test"));
         assertTrue(ex.getMessage().contains("not a live handle"));
     }
@@ -102,10 +99,7 @@ public class NativeHandleTests extends OpenSearchTestCase {
     }
 
     public void testValidatePointerThrowsForUnknownPointer() {
-        expectThrows(
-            IllegalStateException.class,
-            () -> NativeHandle.validatePointer(888888L, "unknown")
-        );
+        expectThrows(IllegalStateException.class, () -> NativeHandle.validatePointer(888888L, "unknown"));
     }
 
     public void testLiveHandleCountTracksOpenHandles() {

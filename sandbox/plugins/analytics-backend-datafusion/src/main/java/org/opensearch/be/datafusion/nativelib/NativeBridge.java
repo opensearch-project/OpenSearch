@@ -25,7 +25,7 @@ import java.lang.invoke.MethodHandle;
  * <h2>Pointer lifecycle (no Arena needed)</h2>
  * <p>Native pointers returned by {@code createGlobalRuntime}, {@code createDatafusionReader},
  * and {@code executeQueryAsync} are opaque {@code long} values — Rust heap addresses cast to
- * {@code i64}. They are <b>not</b> {@link MemorySegment}s and do not require an Arena. They
+ * {@code i64}. They are <b>not</b> {@code MemorySegment}s and do not require an Arena. They
  * live until explicitly freed by the corresponding close method.</p>
  *
  * <h2>Arena usage</h2>

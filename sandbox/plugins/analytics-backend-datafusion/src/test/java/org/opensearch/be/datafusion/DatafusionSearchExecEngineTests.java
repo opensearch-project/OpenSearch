@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -26,7 +27,7 @@ import java.util.List;
  */
 public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
-    private long readerPtr;
+    private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
 
     @Override
@@ -40,12 +41,12 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         Path dataDir = createTempDir("datafusion-data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerPtr = NativeBridge.createDatafusionReader(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
     }
 
     @Override
     public void tearDown() throws Exception {
-        NativeBridge.closeDatafusionReader(readerPtr);
+        readerHandle.close();
         // NativeRuntimeHandle.close() calls closeGlobalRuntime
         runtimeHandle.close();
         super.tearDown();
@@ -53,7 +54,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     public void testEngineExecuteSelectAll() throws Exception {
         byte[] substrait = NativeBridge.sqlToSubstrait(
-            readerPtr,
+            readerHandle.getPointer(),
             "test_table",
             "SELECT message, message2 FROM test_table",
             runtimeHandle.get()
@@ -83,7 +84,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     public void testEngineExecuteAggregation() throws Exception {
         byte[] substrait = NativeBridge.sqlToSubstrait(
-            readerPtr,
+            readerHandle.getPointer(),
             "test_table",
             "SELECT SUM(message) as total FROM test_table",
             runtimeHandle.get()
@@ -109,7 +110,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     public void testEngineExecuteFilter() throws Exception {
         byte[] substrait = NativeBridge.sqlToSubstrait(
-            readerPtr,
+            readerHandle.getPointer(),
             "test_table",
             "SELECT message FROM test_table WHERE message = 3",
             runtimeHandle.get()
@@ -135,7 +136,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     private DatafusionReader createReader() {
         // Wrap the raw pointer in a ReaderHandle via the existing native pointer
-        return new DatafusionReader(readerPtr);
+        return new DatafusionReader(readerHandle.getPointer());
     }
 
     private List<Object[]> collectRows(EngineResultStream stream) {

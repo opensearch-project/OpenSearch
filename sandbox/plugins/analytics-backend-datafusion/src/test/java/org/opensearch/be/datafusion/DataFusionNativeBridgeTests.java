@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Files;
@@ -50,11 +51,11 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
 
         // Create reader
-        long readerPtr = NativeBridge.createDatafusionReader(dataDir.toString(), new String[] { "test.parquet" });
-        assertTrue("Reader pointer should be non-zero", readerPtr != 0);
+        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+        assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
         // Close reader
-        NativeBridge.closeDatafusionReader(readerPtr);
+        readerHandle.close();
 
         NativeBridge.closeGlobalRuntime(runtimePtr);
         NativeBridge.shutdownTokioRuntimeManager();
