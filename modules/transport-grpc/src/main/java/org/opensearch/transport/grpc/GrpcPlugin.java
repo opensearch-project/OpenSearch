@@ -123,13 +123,21 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             // Note: ThreadContext will be provided during component creation
             // For now, we collect providers to be initialized later with ThreadContext
             this.interceptorProviders = providers;
-            logger.info("Found {} gRPC interceptor providers, will initialize during component creation", providers.size());
+            logger.info(
+                "Found {} gRPC interceptor providers [{}], will initialize during component creation",
+                providers.size(),
+                providers.stream().map(p -> p.getClass().getName()).collect(Collectors.joining(", "))
+            );
         }
         // Load discovered gRPC service factories
         List<GrpcServiceFactory> services = loader.loadExtensions(GrpcServiceFactory.class);
         if (services != null) {
             servicesFactory.addAll(services);
-            logger.info("Successfully loaded {} GrpcServiceFactory extensions", services.size());
+            logger.info(
+                "Successfully loaded {} GrpcServiceFactory extensions [{}]",
+                services.size(),
+                services.stream().map(GrpcServiceFactory::plugin).collect(Collectors.joining(", "))
+            );
         }
     }
 
@@ -385,7 +393,13 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 // This ensures proper ordering and exception handling
                 serverInterceptor.addInterceptors(orderedList);
 
-                logger.info("Loaded {} gRPC interceptors into chain", orderedList.size());
+                logger.info(
+                    "Loaded {} gRPC interceptors into chain in order: [{}]",
+                    orderedList.size(),
+                    orderedList.stream()
+                        .map(i -> i.getInterceptor().getClass().getName() + "(order=" + i.order() + ")")
+                        .collect(Collectors.joining(", "))
+                );
             }
         }
 

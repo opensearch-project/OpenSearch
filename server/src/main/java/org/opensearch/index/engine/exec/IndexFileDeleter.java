@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;

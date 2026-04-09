@@ -16,6 +16,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.LifecycleAware;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogManager;
 

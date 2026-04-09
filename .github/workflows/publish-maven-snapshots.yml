@@ -25,6 +25,15 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      - name: Install protoc (Linux)
+        run: |
+          if [ "$(uname -m)" = "x86_64" ]; then \
+              curl -SfL https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-x86_64.zip -o protoc.zip; \
+          else \
+              curl -SfL https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-aarch_64.zip -o protoc.zip; \
+          fi; \
+          unzip protoc.zip -d $HOME/.local && rm -v protoc.zip && protoc --version
+
       - name: Load secret
         uses: 1password/load-secrets-action@v3
         with:

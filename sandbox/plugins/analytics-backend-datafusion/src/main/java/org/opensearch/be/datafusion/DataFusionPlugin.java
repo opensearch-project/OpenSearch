@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * per-shard {@link DatafusionSearchExecEngine} instances via the
  * {@link AnalyticsSearchBackendPlugin} SPI.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, AnalyticsSearchBackendPlugin {
+public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -90,11 +90,16 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        // TODO : Get the spill directory from configuration
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
-        dataFusionService = new DataFusionService(memoryPoolLimit, spillDir, spillMemoryLimit);
+        dataFusionService = DataFusionService.builder()
+            .memoryPoolLimit(memoryPoolLimit)
+            .spillMemoryLimit(spillMemoryLimit)
+            .spillDirectory(spillDir)
+            .build();
         dataFusionService.start();
-        logger.info("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
         return Collections.singletonList(dataFusionService);
     }
@@ -105,18 +110,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
     }
 
     @Override
-    public SearchExecEngine<ExecutionContext, EngineResultStream> searcher(ExecutionContext ctx) {
-        // TODO: resolve DataFormat properly instead of passing null
-        DatafusionReader dfReader = (DatafusionReader) ctx.getReader().reader(null);
-        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
-        DatafusionSearchExecEngine datafusionSearchExecEngine = new DatafusionSearchExecEngine(context);
-        datafusionSearchExecEngine.prepare(ctx);
-        return datafusionSearchExecEngine;
-    }
-
-    @Override
-    public EngineReaderManager<?> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
-        return new DatafusionReaderManager(format, shardPath);
+    public EngineReaderManager<DatafusionReader> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException {
+        return new DatafusionReaderManager(format, shardPath, dataFusionService);
     }
 
     /**
@@ -124,6 +119,27 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin, Ana
      */
     public List<DataFormat> getSupportedFormats() {
         return null; // TODO : List.of("parquet");
+    }
+
+    @Override
+    public SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx) {
+        DatafusionReader dfReader = null;
+        List<DataFormat> formats = getSupportedFormats();
+        if (formats != null) {
+            for (DataFormat format : formats) {
+                dfReader = ctx.getReader().getReader(format, DatafusionReader.class);
+                if (dfReader != null) {
+                    break;
+                }
+            }
+        }
+        if (dfReader == null) {
+            throw new IllegalStateException("No DatafusionReader available in the acquired reader");
+        }
+        DatafusionContext context = new DatafusionContext(ctx.getTask(), dfReader, dataFusionService.getNativeRuntime());
+        DatafusionSearchExecEngine engine = new DatafusionSearchExecEngine(context, dataFusionService::newChildAllocator);
+        engine.prepare(ctx);
+        return engine;
     }
 
     @Override

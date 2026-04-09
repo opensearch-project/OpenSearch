@@ -8,9 +8,9 @@
 
 package org.opensearch.index.engine.dataformat.stub;
 
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.ArrayList;
 import java.util.Collection;

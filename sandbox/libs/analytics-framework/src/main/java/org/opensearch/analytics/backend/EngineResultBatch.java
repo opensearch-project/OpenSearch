@@ -13,6 +13,12 @@ import java.util.List;
 /**
  * Read-only view of a single record batch. Provides field names, row count,
  * and positional access to field values.
+ * <p>
+ * A batch is only valid until the next call to {@link java.util.Iterator#next()}
+ * on the parent stream's iterator. The underlying data buffers may be reused
+ * across batches, so callers must extract all needed values before advancing
+ * the iterator. Accessing a batch after the iterator has advanced may throw
+ * {@link IllegalStateException}.
  *
  * @opensearch.internal
  */

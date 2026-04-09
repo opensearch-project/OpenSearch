@@ -32,8 +32,6 @@
 
 package org.opensearch.action.search;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
@@ -52,6 +50,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
  * The request-level search slow log implementation
