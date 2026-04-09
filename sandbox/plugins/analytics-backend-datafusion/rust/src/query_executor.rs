@@ -39,6 +39,7 @@ pub async fn execute_query(
     plan_bytes: Vec<u8>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -50,7 +51,7 @@ pub async fn execute_query(
 
     // Build a per-query RuntimeEnv sharing the global memory pool + caches,
     // but with a fresh list-files cache for this query's shard files.
-    let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
             CacheManagerConfig::default()
                 .with_list_files_cache(Some(list_file_cache))
@@ -60,7 +61,15 @@ pub async fn execute_query(
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
-        )
+        );
+
+    // If a per-query memory pool is provided, set it on the same builder.
+    // The per-query pool wraps the global pool, so global limits are still enforced.
+    if let Some(pool) = query_memory_pool {
+        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
+    }
+
+    let runtime_env = runtime_env_builder
         .build()
         .map_err(|e| {
             error!("Failed to build runtime env: {}", e);
