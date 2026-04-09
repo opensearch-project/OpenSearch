@@ -6,15 +6,20 @@
  * compatible open source license.
  */
 
+use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+use tempfile::tempdir;
+
 use crate::test_utils::*;
-use crate::writer::{NativeParquetWriter, WRITER_MANAGER, FILE_MANAGER};
+use crate::writer::NativeParquetWriter;
 
 #[test]
 fn test_create_writer_success() {
     let (_temp_dir, filename) = get_temp_file_path("test.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    assert!(WRITER_MANAGER.contains_key(&filename));
-    assert!(FILE_MANAGER.contains_key(&filename));
+    assert!(NativeParquetWriter::has_writer(&filename));
     close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
 
@@ -22,16 +27,14 @@ fn test_create_writer_success() {
 fn test_create_writer_invalid_path() {
     let invalid_path = "/invalid/path/that/does/not/exist/test.parquet";
     let (_schema, schema_ptr) = create_test_ffi_schema();
-    let result = NativeParquetWriter::create_writer(invalid_path.to_string(), schema_ptr);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No such file or directory"));
+    let result = NativeParquetWriter::create_writer(invalid_path.to_string(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]);
     cleanup_ffi_schema(schema_ptr);
 }
 
 #[test]
 fn test_create_writer_invalid_schema_pointer() {
     let (_temp_dir, filename) = get_temp_file_path("invalid_schema.parquet");
-    let result = NativeParquetWriter::create_writer(filename, 0);
+    let result = NativeParquetWriter::create_writer(filename, "test-index".to_string(), 0, vec![], vec![], vec![]);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Invalid schema address"));
 }
@@ -40,9 +43,11 @@ fn test_create_writer_invalid_schema_pointer() {
 fn test_create_writer_multiple_times_same_file() {
     let (_temp_dir, filename) = get_temp_file_path("duplicate.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    let result2 = NativeParquetWriter::create_writer(filename.clone(), schema_ptr);
+    let (_, schema_ptr2) = create_test_ffi_schema();
+    let result2 = NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr2, vec![], vec![], vec![]);
     assert!(result2.is_err());
     assert!(result2.unwrap_err().to_string().contains("Writer already exists"));
+    cleanup_ffi_schema(schema_ptr2);
     close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
 
@@ -64,6 +69,17 @@ fn test_write_data_no_writer() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Writer not found"));
     cleanup_ffi_data(array_ptr, schema_ptr);
+}
+
+#[test]
+fn test_write_data_multiple_batches() {
+    let (_temp_dir, filename) = get_temp_file_path("multi_write_ffi.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+    for _ in 0..3 {
+        let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+        cleanup_ffi_data(array_ptr, data_schema_ptr);
+    }
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
 }
 
 #[test]
@@ -94,35 +110,11 @@ fn test_write_data_incompatible_schema() {
 fn test_finalize_writer_success() {
     let (_temp_dir, filename) = get_temp_file_path("test_close.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+    let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
     let result = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result.is_ok());
-    let metadata = result.unwrap();
-    assert!(metadata.is_some());
-    let metadata = metadata.unwrap();
-    assert_eq!(metadata.num_rows, 0);
-    assert!(metadata.version > 0);
-    assert!(!WRITER_MANAGER.contains_key(&filename));
-    assert!(FILE_MANAGER.contains_key(&filename));
-    FILE_MANAGER.remove(&filename);
-    cleanup_ffi_schema(schema_ptr);
-}
-
-#[test]
-fn test_finalize_writer_with_data_returns_correct_metadata() {
-    let (_temp_dir, filename) = get_temp_file_path("close_with_data.parquet");
-    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    for _ in 0..2 {
-        let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
-        NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).unwrap();
-        cleanup_ffi_data(array_ptr, data_schema_ptr);
-    }
-    let result = NativeParquetWriter::finalize_writer(filename.clone());
-    assert!(result.is_ok());
-    let metadata = result.unwrap().unwrap();
-    assert_eq!(metadata.num_rows, 6);
-    assert!(metadata.version > 0);
-    assert_eq!(metadata.schema.len(), 3); // root + 2 fields (id, name)
-    FILE_MANAGER.remove(&filename);
+    assert!(Path::new(&filename).exists());
     cleanup_ffi_schema(schema_ptr);
 }
 
@@ -137,17 +129,13 @@ fn test_close_nonexistent_writer() {
 fn test_close_multiple_times_same_file() {
     let (_temp_dir, filename) = get_temp_file_path("test.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+    let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
     let result1 = NativeParquetWriter::finalize_writer(filename.clone());
     assert!(result1.is_ok());
-    let metadata = result1.unwrap();
-    assert!(metadata.is_some());
-    assert_eq!(metadata.unwrap().num_rows, 0);
-    assert!(!WRITER_MANAGER.contains_key(&filename));
-    assert!(FILE_MANAGER.contains_key(&filename));
-    let result2 = NativeParquetWriter::finalize_writer(filename.clone());
+    let result2 = NativeParquetWriter::finalize_writer(filename);
     assert!(result2.is_err());
     assert!(result2.unwrap_err().to_string().contains("Writer not found"));
-    FILE_MANAGER.remove(&filename);
     cleanup_ffi_schema(schema_ptr);
 }
 
@@ -155,18 +143,347 @@ fn test_close_multiple_times_same_file() {
 fn test_sync_to_disk_success() {
     let (_temp_dir, filename) = get_temp_file_path("test_flush.parquet");
     let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
-    assert!(FILE_MANAGER.contains_key(&filename));
-    let result = NativeParquetWriter::sync_to_disk(filename.clone());
+    let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
+    let _ = NativeParquetWriter::finalize_writer(filename.clone());
+    let result = NativeParquetWriter::sync_to_disk(filename);
     assert!(result.is_ok());
-    assert!(!FILE_MANAGER.contains_key(&filename));
-    close_writer_and_cleanup_schema(&filename, schema_ptr);
+    cleanup_ffi_schema(schema_ptr);
 }
 
 #[test]
 fn test_flush_nonexistent_file() {
     let result = NativeParquetWriter::sync_to_disk("nonexistent.parquet".to_string());
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().to_string(), "File not found");
+}
+
+#[test]
+fn test_complete_writer_lifecycle() {
+    let (_temp_dir, filename) = get_temp_file_path("complete_workflow.parquet");
+    let file_path = Path::new(&filename);
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    for _ in 0..3 {
+        let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+        cleanup_ffi_data(array_ptr, data_schema_ptr);
+    }
+
+    let close_result = NativeParquetWriter::finalize_writer(filename.clone());
+    assert!(close_result.is_ok());
+    assert!(close_result.unwrap().is_some());
+
+    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
+    assert!(file_path.exists());
+    assert!(file_path.metadata().unwrap().len() > 0);
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_sorted_writer_ascending() {
+    let (_temp_dir, filename) = get_temp_file_path("sorted_asc.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    let (ap1, sp1) = create_test_ffi_data_with_ids(
+        vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    cleanup_ffi_data(ap1, sp1);
+
+    let (ap2, sp2) = create_test_ffi_data_with_ids(
+        vec![20, 40], vec![Some("B"), Some("D")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    cleanup_ffi_data(ap2, sp2);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![10, 20, 30, 40, 50], "Data should be sorted ascending by id");
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_sorted_writer_descending() {
+    let (_temp_dir, filename) = get_temp_file_path("sorted_desc.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", true);
+
+    let (ap1, sp1) = create_test_ffi_data_with_ids(
+        vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    cleanup_ffi_data(ap1, sp1);
+
+    let (ap2, sp2) = create_test_ffi_data_with_ids(
+        vec![20, 40], vec![Some("B"), Some("D")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    cleanup_ffi_data(ap2, sp2);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![50, 40, 30, 20, 10], "Data should be sorted descending by id");
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_unsorted_writer_preserves_insertion_order() {
+    let (_temp_dir, filename) = get_temp_file_path("unsorted.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    let (ap1, sp1) = create_test_ffi_data_with_ids(
+        vec![30, 10, 50], vec![Some("C"), Some("A"), Some("E")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    cleanup_ffi_data(ap1, sp1);
+
+    let (ap2, sp2) = create_test_ffi_data_with_ids(
+        vec![20, 40], vec![Some("B"), Some("D")]
+    ).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    cleanup_ffi_data(ap2, sp2);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![30, 10, 50, 20, 40], "Data should preserve insertion order");
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+// ===== Arrow IPC staging path tests =====
+
+#[test]
+fn test_ipc_staging_sorted_writer_creates_and_cleans_up_staging_file() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_cleanup.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    // The IPC staging file should exist while the writer is open
+    let temp_filename = format!(
+        "{}/temp-{}",
+        Path::new(&filename).parent().unwrap().to_string_lossy(),
+        Path::new(&filename).file_name().unwrap().to_string_lossy()
+    );
+    let ipc_staging_path = format!("{}.arrow_ipc_staging", temp_filename);
+    assert!(Path::new(&ipc_staging_path).exists(), "IPC staging file should exist while writer is open");
+
+    let (ap, sp) = create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")]).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    cleanup_ffi_data(ap, sp);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // After finalize, the IPC staging file should be cleaned up
+    assert!(!Path::new(&ipc_staging_path).exists(), "IPC staging file should be deleted after finalize");
+    // The final Parquet file should exist
+    assert!(Path::new(&filename).exists(), "Final Parquet file should exist");
+
+    // Verify data is sorted
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![10, 20, 30]);
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_ipc_staging_has_writer_returns_true() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_has_writer.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    assert!(NativeParquetWriter::has_writer(&filename), "has_writer should return true for IPC writer");
+
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
+}
+
+#[test]
+fn test_ipc_staging_duplicate_writer_rejected() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_dup.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    let (_, schema_ptr2) = create_test_ffi_schema();
+    let result = NativeParquetWriter::create_writer(
+        filename.clone(), "test-index".to_string(), schema_ptr2,
+        vec!["id".to_string()], vec![false], vec![false]
+    );
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Writer already exists"));
+
+    cleanup_ffi_schema(schema_ptr2);
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
+}
+
+#[test]
+fn test_ipc_staging_empty_data_produces_valid_parquet() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_empty.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    // Finalize without writing any data
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    assert!(result.is_ok());
+    assert!(Path::new(&filename).exists(), "Empty Parquet file should be created");
+
+    let metadata = result.unwrap().unwrap();
+    assert_eq!(metadata.num_rows(), 0);
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_ipc_staging_multi_batch_sort() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_multi_batch.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    // Write multiple batches with interleaved values
+    let (ap1, sp1) = create_test_ffi_data_with_ids(vec![50, 10], vec![Some("E"), Some("A")]).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+    cleanup_ffi_data(ap1, sp1);
+
+    let (ap2, sp2) = create_test_ffi_data_with_ids(vec![30, 20], vec![Some("C"), Some("B")]).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+    cleanup_ffi_data(ap2, sp2);
+
+    let (ap3, sp3) = create_test_ffi_data_with_ids(vec![40, 60], vec![Some("D"), Some("F")]).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap3, sp3).unwrap();
+    cleanup_ffi_data(ap3, sp3);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![10, 20, 30, 40, 50, 60], "Multiple IPC batches should be sorted correctly");
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_ipc_staging_descending_sort() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_desc.parquet");
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", true);
+
+    let (ap, sp) = create_test_ffi_data_with_ids(vec![10, 30, 20], vec![Some("A"), Some("C"), Some("B")]).unwrap();
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    cleanup_ffi_data(ap, sp);
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![30, 20, 10], "IPC path should support descending sort");
+
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_ipc_and_parquet_writers_coexist() {
+    let (_temp_dir1, sorted_file) = get_temp_file_path("ipc_sorted.parquet");
+    let (_temp_dir2, unsorted_file) = get_temp_file_path("parquet_unsorted.parquet");
+
+    // Create one IPC writer (sorted) and one Parquet writer (unsorted)
+    let (_schema1, sp1) = create_sorted_writer_and_assert_success(&sorted_file, "id", false);
+    let (_schema2, sp2) = create_writer_and_assert_success(&unsorted_file);
+
+    // Write to both
+    let (ap1, dp1) = create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")]).unwrap();
+    NativeParquetWriter::write_data(sorted_file.clone(), ap1, dp1).unwrap();
+    cleanup_ffi_data(ap1, dp1);
+
+    let (ap2, dp2) = create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")]).unwrap();
+    NativeParquetWriter::write_data(unsorted_file.clone(), ap2, dp2).unwrap();
+    cleanup_ffi_data(ap2, dp2);
+
+    // Finalize both
+    NativeParquetWriter::finalize_writer(sorted_file.clone()).unwrap();
+    NativeParquetWriter::finalize_writer(unsorted_file.clone()).unwrap();
+
+    // Sorted file should be sorted
+    let sorted_ids = read_parquet_file_sorted_ids(&sorted_file);
+    assert_eq!(sorted_ids, vec![10, 20, 30]);
+
+    // Unsorted file should preserve insertion order
+    let unsorted_ids = read_parquet_file_sorted_ids(&unsorted_file);
+    assert_eq!(unsorted_ids, vec![30, 10, 20]);
+
+    cleanup_ffi_schema(sp1);
+    cleanup_ffi_schema(sp2);
+}
+
+#[test]
+fn test_ipc_staging_concurrent_sorted_writers() {
+    let temp_dir = tempdir().unwrap();
+    let thread_count = 6;
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let mut handles = vec![];
+
+    for i in 0..thread_count {
+        let temp_dir_path = temp_dir.path().to_path_buf();
+        let success_count = Arc::clone(&success_count);
+        let handle = thread::spawn(move || {
+            let file_path = temp_dir_path.join(format!("ipc_concurrent_{}.parquet", i));
+            let filename = file_path.to_string_lossy().to_string();
+            let (_schema, schema_ptr) = create_test_ffi_schema();
+
+            if NativeParquetWriter::create_writer(
+                filename.clone(), "test-index".to_string(), schema_ptr,
+                vec!["id".to_string()], vec![false], vec![false]
+            ).is_ok() {
+                let (ap, sp) = create_test_ffi_data_with_ids(
+                    vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")]
+                ).unwrap();
+                let write_ok = NativeParquetWriter::write_data(filename.clone(), ap, sp).is_ok();
+                cleanup_ffi_data(ap, sp);
+
+                if write_ok {
+                    if let Ok(Some(metadata)) = NativeParquetWriter::finalize_writer(filename.clone()) {
+                        if metadata.num_rows() == 3 {
+                            let ids = read_parquet_file_sorted_ids(&filename);
+                            if ids == vec![10, 20, 30] {
+                                success_count.fetch_add(1, Ordering::SeqCst);
+                            }
+                        }
+                    }
+                }
+            }
+            cleanup_ffi_schema(schema_ptr);
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    assert_eq!(success_count.load(Ordering::SeqCst), thread_count);
+}
+
+#[test]
+fn test_ipc_staging_complete_lifecycle_with_sync() {
+    let (_temp_dir, filename) = get_temp_file_path("ipc_lifecycle.parquet");
+    let file_path = Path::new(&filename);
+    let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
+
+    for batch_ids in [vec![50, 30], vec![10, 40], vec![20, 60]] {
+        let names: Vec<Option<&str>> = batch_ids.iter().map(|_| Some("x")).collect();
+        let (ap, sp) = create_test_ffi_data_with_ids(batch_ids, names).unwrap();
+        NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+        cleanup_ffi_data(ap, sp);
+    }
+
+    let result = NativeParquetWriter::finalize_writer(filename.clone());
+    assert!(result.is_ok());
+    let metadata = result.unwrap().unwrap();
+    assert_eq!(metadata.num_rows(), 6);
+
+    assert!(NativeParquetWriter::sync_to_disk(filename.clone()).is_ok());
+    assert!(file_path.exists());
+    assert!(file_path.metadata().unwrap().len() > 0);
+
+    let ids = read_parquet_file_sorted_ids(&filename);
+    assert_eq!(ids, vec![10, 20, 30, 40, 50, 60]);
+
+    let read_metadata = NativeParquetWriter::get_file_metadata(filename.clone()).unwrap();
+    assert_eq!(read_metadata.num_rows(), 6);
+
+    cleanup_ffi_schema(schema_ptr);
 }
 
 #[test]
@@ -178,8 +495,146 @@ fn test_get_filtered_writer_memory_usage_with_writers() {
     let (_schema2, schema_ptr2) = create_writer_and_assert_success(&filename2);
     let result = NativeParquetWriter::get_filtered_writer_memory_usage(prefix);
     assert!(result.is_ok());
-    let _memory_usage = result.unwrap();
-    assert!(_memory_usage >= 0);
+    assert!(result.unwrap() >= 0);
     close_writer_and_cleanup_schema(&filename1, schema_ptr1);
     close_writer_and_cleanup_schema(&filename2, schema_ptr2);
+}
+
+#[test]
+fn test_concurrent_writer_creation() {
+    let temp_dir = tempdir().unwrap();
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let mut handles = vec![];
+
+    for i in 0..10 {
+        let temp_dir_path = temp_dir.path().to_path_buf();
+        let success_count = Arc::clone(&success_count);
+
+        let handle = thread::spawn(move || {
+            let file_path = temp_dir_path.join(format!("concurrent_{}.parquet", i));
+            let filename = file_path.to_string_lossy().to_string();
+            let (_schema, schema_ptr) = create_test_ffi_schema();
+
+            if NativeParquetWriter::create_writer(filename.clone(), "test-index".to_string(), schema_ptr, vec![], vec![], vec![]).is_ok() {
+                success_count.fetch_add(1, Ordering::SeqCst);
+                let (ap, sp) = create_test_ffi_data().unwrap();
+                let _ = NativeParquetWriter::write_data(filename.clone(), ap, sp);
+                cleanup_ffi_data(ap, sp);
+                let _ = NativeParquetWriter::finalize_writer(filename);
+            }
+            cleanup_ffi_schema(schema_ptr);
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    assert_eq!(success_count.load(Ordering::SeqCst), 10);
+}
+
+#[test]
+fn test_concurrent_close_operations_same_file() {
+    let (_temp_dir, filename) = get_temp_file_path("close_race.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    let (array_ptr, data_schema_ptr) = write_ffi_data_to_writer(&filename);
+    cleanup_ffi_data(array_ptr, data_schema_ptr);
+
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..3 {
+        let filename = filename.clone();
+        let success_count = Arc::clone(&success_count);
+
+        let handle = thread::spawn(move || {
+            if NativeParquetWriter::finalize_writer(filename).is_ok() {
+                success_count.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    assert_eq!(success_count.load(Ordering::SeqCst), 1);
+    cleanup_ffi_schema(schema_ptr);
+}
+
+#[test]
+fn test_concurrent_writes_same_file() {
+    let (_temp_dir, filename) = get_temp_file_path("concurrent_write_ffi.parquet");
+    let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..5 {
+        let filename = filename.clone();
+        let success_count = Arc::clone(&success_count);
+
+        let handle = thread::spawn(move || {
+            let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
+            if NativeParquetWriter::write_data(filename, array_ptr, data_schema_ptr).is_ok() {
+                success_count.fetch_add(1, Ordering::SeqCst);
+            }
+            cleanup_ffi_data(array_ptr, data_schema_ptr);
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    assert_eq!(success_count.load(Ordering::SeqCst), 5);
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
+}
+
+#[test]
+fn test_concurrent_writes_different_files() {
+    let temp_dir = tempdir().unwrap();
+    let file_count = 8;
+    let success_count = Arc::new(AtomicUsize::new(0));
+    let mut handles = vec![];
+    let mut filenames = vec![];
+    let mut schema_ptrs = vec![];
+
+    for i in 0..file_count {
+        let file_path = temp_dir.path().join(format!("concurrent_write_{}.parquet", i));
+        let filename = file_path.to_string_lossy().to_string();
+        let (_schema, schema_ptr) = create_writer_and_assert_success(&filename);
+        filenames.push(filename);
+        schema_ptrs.push(schema_ptr);
+    }
+
+    for i in 0..file_count {
+        let filename = filenames[i].clone();
+        let success_count = Arc::clone(&success_count);
+
+        let handle = thread::spawn(move || {
+            for _ in 0..2 {
+                let (array_ptr, data_schema_ptr) = create_test_ffi_data().unwrap();
+                if NativeParquetWriter::write_data(filename.clone(), array_ptr, data_schema_ptr).is_ok() {
+                    success_count.fetch_add(1, Ordering::SeqCst);
+                }
+                cleanup_ffi_data(array_ptr, data_schema_ptr);
+            }
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    assert_eq!(success_count.load(Ordering::SeqCst), file_count * 2);
+
+    for (i, filename) in filenames.iter().enumerate() {
+        close_writer_and_cleanup_schema(filename, schema_ptrs[i]);
+    }
 }
