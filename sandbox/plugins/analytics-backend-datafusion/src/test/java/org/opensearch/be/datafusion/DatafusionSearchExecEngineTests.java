@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.be.datafusion.jni.NativeBridge;
@@ -24,7 +25,7 @@ import java.util.List;
  * DatafusionReader → DatafusionContext → DatafusionSearchExecEngine → EngineResultStream → EngineResultBatch.
  * Uses sqlToSubstrait to generate plan bytes, then exercises the real plugin classes.
  */
-@AwaitsFix(url = "https://github.com/opensearch-project/OpenSearch/issues/21195")
+@AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21195")
 public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     private long readerPtr;
