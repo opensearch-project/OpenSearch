@@ -318,7 +318,6 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         // It won't be fully closed until a flush triggers the deletion policy.
         assertFalse("Snapshot1 should still be alive due to commit ref", ((DataformatAwareCatalogSnapshot) snapshot1).isClosed());
 
-        // Snapshot1 is now dead — tryIncRef would fail (verified via new acquire returning snapshot2)
         // Snapshot 2 works
         try (var cr2 = dataFormatAwareEngine.acquireReader()) {
             MockReader r2 = (MockReader) cr2.get().reader(format);

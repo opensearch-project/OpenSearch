@@ -23,9 +23,6 @@ import java.util.Map;
 @FunctionalInterface
 @ExperimentalApi
 public interface FileDeleter {
-    /** A no-op deleter that discards all delete requests. */
-    FileDeleter NOOP = filesToDelete -> {};
-
     /**
      * @param filesToDelete map of data format name to collection of file names to delete
      */

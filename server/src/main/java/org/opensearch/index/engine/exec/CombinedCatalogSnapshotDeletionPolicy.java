@@ -169,8 +169,10 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
 
     /**
      * Returns the total document count of a committed catalog snapshot by summing
-     * the row counts across all segments. Asserts that all data formats within a segment
+     * the row counts across all segments. Validates that all data formats within a segment
      * report the same row count.
+     *
+     * @throws IllegalStateException if a segment has inconsistent row counts across data formats
      */
     public static int getDocCountOfCommit(CatalogSnapshot snapshot) {
         long totalDocs = 0;
@@ -180,16 +182,18 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
                 long numRows = entry.getValue().numRows();
                 if (segmentRows == -1) {
                     segmentRows = numRows;
-                } else {
-                    assert segmentRows == numRows : "Segment [gen="
-                        + segment.generation()
-                        + "] has inconsistent row counts across data formats: "
-                        + segmentRows
-                        + " vs "
-                        + numRows
-                        + " (format="
-                        + entry.getKey()
-                        + ")";
+                } else if (segmentRows != numRows) {
+                    throw new IllegalStateException(
+                        "Segment [gen="
+                            + segment.generation()
+                            + "] has inconsistent row counts across data formats: "
+                            + segmentRows
+                            + " vs "
+                            + numRows
+                            + " (format="
+                            + entry.getKey()
+                            + ")"
+                    );
                 }
             }
             if (segmentRows > 0) {

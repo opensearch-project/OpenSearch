@@ -9,8 +9,8 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.concurrent.GatedBiCloseable;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.FileDeleter;
@@ -158,10 +158,10 @@ public class CatalogSnapshotManager implements Closeable {
      *   <li>If not successful (failure) — releases the ref via {@link #decRefAndMaybeDelete}</li>
      * </ul>
      *
-     * @return a {@link GatedBiCloseable} wrapping the current {@link CatalogSnapshot}
+     * @return a {@link GatedConditionalCloseable} wrapping the current {@link CatalogSnapshot}
      * @throws IllegalStateException if the manager or snapshot is already closed
      */
-    public GatedBiCloseable<CatalogSnapshot> acquireSnapshotForCommit() {
+    public GatedConditionalCloseable<CatalogSnapshot> acquireSnapshotForCommit() {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
@@ -169,7 +169,7 @@ public class CatalogSnapshotManager implements Closeable {
         if (snapshot.tryIncRef() == false) {
             throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
         }
-        return new GatedBiCloseable<>(snapshot, () -> {
+        return new GatedConditionalCloseable<>(snapshot, () -> {
             try {
                 indexFileDeleter.onCommit(snapshot);
             } catch (IOException e) {
@@ -191,8 +191,12 @@ public class CatalogSnapshotManager implements Closeable {
     public GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
         GatedCloseable<CatalogSnapshot> policyRef = deletionPolicy.acquireCommittedSnapshot(acquiringSafe);
         return new GatedCloseable<>(policyRef.get(), () -> {
-            policyRef.close();
-            indexFileDeleter.revisitPolicy();
+            try {
+                policyRef.close();
+                indexFileDeleter.revisitPolicy();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to release committed snapshot [gen=" + policyRef.get().getGeneration() + "]", e);
+            }
         });
     }
 
@@ -201,18 +205,18 @@ public class CatalogSnapshotManager implements Closeable {
     private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
         final long gen = snapshot.getGeneration();
         if (snapshot.decRef()) {
+            catalogSnapshotMap.remove(gen);
+            try {
+                indexFileDeleter.removeFileReferences(snapshot);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to clean up files for snapshot [gen=" + gen + "]", e);
+            }
             for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
                 try {
                     listener.onDeleted(snapshot);
                 } catch (IOException e) {
                     throw new RuntimeException("Listener failed on snapshot deletion [gen=" + gen + "]", e);
                 }
-            }
-            catalogSnapshotMap.remove(gen);
-            try {
-                indexFileDeleter.removeFileReferences(snapshot);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to clean up files for snapshot [gen=" + gen + "]", e);
             }
         }
     }

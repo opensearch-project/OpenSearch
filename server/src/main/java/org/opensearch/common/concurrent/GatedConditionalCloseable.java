@@ -9,7 +9,7 @@
 package org.opensearch.common.concurrent;
 
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -24,17 +24,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  * Typical usage:
  * <pre>{@code
- * try (GatedBiCloseable<Resource> handle = acquireResource()) {
+ * try (GatedConditionalCloseable<Resource> handle = acquireResource()) {
  *     doWork(handle.get());
  *     handle.markSuccess();
  * }
  * // close() runs onSuccess if markSuccess() was called, onFailure otherwise
  * }</pre>
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "2.19.0")
-public class GatedBiCloseable<T> implements Closeable {
+@ExperimentalApi
+public class GatedConditionalCloseable<T> implements Closeable {
 
     private final T ref;
     private final CheckedRunnable<IOException> onSuccess;
@@ -42,7 +42,7 @@ public class GatedBiCloseable<T> implements Closeable {
     private final AtomicBoolean succeeded = new AtomicBoolean(false);
     private final OneWayGate gate = new OneWayGate();
 
-    public GatedBiCloseable(T ref, CheckedRunnable<IOException> onSuccess, CheckedRunnable<IOException> onFailure) {
+    public GatedConditionalCloseable(T ref, CheckedRunnable<IOException> onSuccess, CheckedRunnable<IOException> onFailure) {
         this.ref = ref;
         this.onSuccess = onSuccess;
         this.onFailure = onFailure;

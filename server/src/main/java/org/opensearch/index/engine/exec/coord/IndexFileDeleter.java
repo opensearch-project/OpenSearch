@@ -70,7 +70,9 @@ public class IndexFileDeleter {
         this.committedSnapshots = new ArrayList<>();
 
         // incRef for the commit (manager already holds one ref as "latest")
-        committedSnapshot.tryIncRef();
+        if (committedSnapshot.tryIncRef() == false) {
+            throw new IllegalStateException("Initial committed snapshot [gen=" + committedSnapshot.getGeneration() + "] is already closed");
+        }
         committedSnapshots.add(committedSnapshot);
         addFileReferences(committedSnapshot);
 

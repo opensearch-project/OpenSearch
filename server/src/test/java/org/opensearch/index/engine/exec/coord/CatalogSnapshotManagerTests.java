@@ -8,11 +8,10 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.opensearch.common.concurrent.GatedBiCloseable;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
-import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -22,7 +21,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -299,20 +297,6 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     // --- File deletion and commit lifecycle tests ---
 
-    /**
-     * Tracks files deleted via FileDeleter for assertions.
-     */
-    private static class TrackingFileDeleter implements FileDeleter {
-        final Set<String> deletedFiles = new HashSet<>();
-
-        @Override
-        public void deleteFiles(Map<String, Collection<String>> filesToDelete) {
-            for (Collection<String> files : filesToDelete.values()) {
-                deletedFiles.addAll(files);
-            }
-        }
-    }
-
     private static Map<String, String> commitUserData(long maxSeqNo, long localCheckpoint, String translogUUID) {
         Map<String, String> userData = new HashMap<>();
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
@@ -331,7 +315,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * old committed snapshot's files are deleted when policy removes it.
      */
     public void testRefreshThenFlushDeletesOldCommitFiles() throws Exception {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
         String translogUUID = "test-uuid";
 
@@ -375,7 +359,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush: CS2 becomes a commit, policy deletes CS1
         globalCP.set(200);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             // set userData on the snapshot for the policy to read
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
             commitRef.markSuccess();
@@ -392,7 +376,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * After merge, old pre-merge files are deleted when the commit referencing them is removed.
      */
     public void testMergedFilesDeletedAfterCommit() throws Exception {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
         String translogUUID = "test-uuid";
 
@@ -425,7 +409,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
             commitRef.markSuccess();
         }
@@ -444,7 +428,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * Snapshot protection: a held snapshot prevents file deletion even after a new commit.
      */
     public void testSnapshotProtectionPreventsFileDeletion() throws Exception {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
         String translogUUID = "test-uuid";
 
@@ -470,7 +454,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         );
 
         // Flush CS1 so it's a proper commit
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(100, 100, translogUUID));
             commitRef.markSuccess();
         }
@@ -483,7 +467,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
             commitRef.markSuccess();
         }
@@ -505,7 +489,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * files only deleted after reader releases AND commit is deleted by policy.
      */
     public void testReaderHoldsSnapshotAliveAcrossRefreshes() throws Exception {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
         String translogUUID = "test-uuid";
 
@@ -539,7 +523,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush latest
         globalCP.set(200);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
             commitRef.markSuccess();
         }
@@ -561,7 +545,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
      * Shared files between commits: file only deleted when ALL snapshots referencing it are gone.
      */
     public void testSharedFilesDeletedOnlyWhenAllRefsGone() throws Exception {
-        TrackingFileDeleter tracker = new TrackingFileDeleter();
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
         AtomicLong globalCP = new AtomicLong(100);
         String translogUUID = "test-uuid";
 
@@ -591,7 +575,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS2
         globalCP.set(200);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(200, 200, translogUUID));
             commitRef.markSuccess();
         }
@@ -606,7 +590,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Flush CS3
         globalCP.set(300);
-        try (GatedBiCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
             commitRef.get().setUserData(commitUserData(300, 300, translogUUID));
             commitRef.markSuccess();
         }

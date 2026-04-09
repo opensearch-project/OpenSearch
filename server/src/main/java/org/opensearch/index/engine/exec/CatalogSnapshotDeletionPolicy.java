@@ -26,7 +26,10 @@ import java.util.List;
 @ExperimentalApi
 public interface CatalogSnapshotDeletionPolicy {
 
-    /** A policy that keeps only the latest commit and deletes all older ones. */
+    /**
+     * A policy that keeps only the latest commit and deletes all older ones.
+     * Used in tests; production code uses {@link CombinedCatalogSnapshotDeletionPolicy}.
+     */
     CatalogSnapshotDeletionPolicy KEEP_LATEST_ONLY = new CatalogSnapshotDeletionPolicy() {
         @Override
         public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) {

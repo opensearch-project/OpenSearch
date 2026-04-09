@@ -13,10 +13,10 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class GatedBiCloseableTests extends OpenSearchTestCase {
+public class GatedConditionalCloseableTests extends OpenSearchTestCase {
 
     public void testGet() {
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("value", () -> {}, () -> {});
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>("value", () -> {}, () -> {});
         assertEquals("value", handle.get());
     }
 
@@ -24,7 +24,11 @@ public class GatedBiCloseableTests extends OpenSearchTestCase {
         AtomicBoolean successRan = new AtomicBoolean(false);
         AtomicBoolean failureRan = new AtomicBoolean(false);
 
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("v", () -> successRan.set(true), () -> failureRan.set(true));
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>(
+            "v",
+            () -> successRan.set(true),
+            () -> failureRan.set(true)
+        );
         handle.close();
 
         assertFalse(successRan.get());
@@ -35,7 +39,11 @@ public class GatedBiCloseableTests extends OpenSearchTestCase {
         AtomicBoolean successRan = new AtomicBoolean(false);
         AtomicBoolean failureRan = new AtomicBoolean(false);
 
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("v", () -> successRan.set(true), () -> failureRan.set(true));
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>(
+            "v",
+            () -> successRan.set(true),
+            () -> failureRan.set(true)
+        );
         handle.markSuccess();
         handle.close();
 
@@ -47,7 +55,7 @@ public class GatedBiCloseableTests extends OpenSearchTestCase {
         AtomicBoolean failureRan = new AtomicBoolean(false);
         int[] count = { 0 };
 
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("v", () -> {}, () -> count[0]++);
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>("v", () -> {}, () -> count[0]++);
         handle.close();
         handle.close();
         handle.close();
@@ -56,13 +64,13 @@ public class GatedBiCloseableTests extends OpenSearchTestCase {
     }
 
     public void testOnSuccessException() {
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("v", () -> { throw new IOException("boom"); }, () -> {});
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>("v", () -> { throw new IOException("boom"); }, () -> {});
         handle.markSuccess();
         assertThrows(IOException.class, handle::close);
     }
 
     public void testOnFailureException() {
-        GatedBiCloseable<String> handle = new GatedBiCloseable<>("v", () -> {}, () -> { throw new IOException("boom"); });
+        GatedConditionalCloseable<String> handle = new GatedConditionalCloseable<>("v", () -> {}, () -> { throw new IOException("boom"); });
         assertThrows(IOException.class, handle::close);
     }
 }
