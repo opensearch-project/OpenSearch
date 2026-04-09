@@ -9,13 +9,24 @@
 package org.opensearch.analytics.backend.jni;
 
 import java.lang.ref.Cleaner;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base class for type-safe native pointer wrappers.
- * Provides automatic resource management and prevents use-after-close errors.
- * Subclasses must implement {@link #doClose()} to release native resources.
+ *
+ * <p>Provides automatic resource management, prevents use-after-close errors,
+ * and tracks all live handles in a global registry to detect stale pointer usage.
+ *
+ * <p>Subclasses must implement {@link #doClose()} to release native resources.
  * Cleaner is used to ensure resources are cleaned up even if the object is not explicitly closed.
+ *
+ * <h2>Stale pointer detection</h2>
+ * <p>All live native pointers are tracked in a global {@link #LIVE_HANDLES} set.
+ * When a handle is created, its pointer is registered. When closed, it is unregistered.
+ * Use {@link #isLivePointer(long)} to check if a raw pointer value is still valid
+ * before passing it to native code.
  */
 public abstract class NativeHandle implements AutoCloseable {
 
@@ -29,6 +40,13 @@ public abstract class NativeHandle implements AutoCloseable {
     private static final Cleaner CLEANER = Cleaner.create();
 
     /**
+     * Global registry of all live native pointers.
+     * Used to detect use-after-free: if a pointer is not in this set, it has
+     * either been closed or was never created by a NativeHandle.
+     */
+    private static final Set<Long> LIVE_HANDLES = ConcurrentHashMap.newKeySet();
+
+    /**
      * Creates a new native handle.
      * @param ptr the native pointer (must not be 0)
      * @throws IllegalArgumentException if ptr is 0
@@ -38,6 +56,7 @@ public abstract class NativeHandle implements AutoCloseable {
             throw new IllegalArgumentException("Null native pointer");
         }
         this.ptr = ptr;
+        LIVE_HANDLES.add(ptr);
         this.cleanable = CLEANER.register(this, new CleanupAction(ptr, this::doClose));
     }
 
@@ -47,7 +66,9 @@ public abstract class NativeHandle implements AutoCloseable {
      */
     public void ensureOpen() {
         if (closed.get()) {
-            throw new IllegalStateException("Handle already closed");
+            throw new IllegalStateException(
+                getClass().getSimpleName() + " already closed (ptr=0x" + Long.toHexString(ptr) + ")"
+            );
         }
     }
 
@@ -58,12 +79,15 @@ public abstract class NativeHandle implements AutoCloseable {
      */
     public long getPointer() {
         ensureOpen();
+        assert LIVE_HANDLES.contains(ptr) : "pointer 0x" + Long.toHexString(ptr) + " not in live registry";
         return ptr;
     }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
+            assert LIVE_HANDLES.contains(ptr) : "closing handle not in live registry: 0x" + Long.toHexString(ptr);
+            LIVE_HANDLES.remove(ptr);
             cleanable.clean();
         }
     }
@@ -75,9 +99,52 @@ public abstract class NativeHandle implements AutoCloseable {
      */
     protected abstract void doClose();
 
+    // ---- Stale pointer detection (static API) ----
+
+    /**
+     * Checks if a raw pointer value corresponds to a live, open NativeHandle.
+     * Use this before passing raw pointer values to native code to detect
+     * use-after-free bugs.
+     *
+     * @param ptr the raw pointer value to check
+     * @return true if the pointer is tracked and has not been closed
+     */
+    public static boolean isLivePointer(long ptr) {
+        return LIVE_HANDLES.contains(ptr);
+    }
+
+    /**
+     * Validates that a raw pointer value is live, throwing if it is stale or unknown.
+     * Use this as a guard before FFM downcalls that accept raw pointer arguments.
+     *
+     * @param ptr the raw pointer value to validate
+     * @param name a descriptive name for error messages (e.g., "stream", "reader")
+     * @throws IllegalStateException if the pointer is not in the live handle registry
+     */
+    public static void validatePointer(long ptr, String name) {
+        if (ptr == NULL_POINTER) {
+            throw new IllegalArgumentException(name + " pointer is null (0)");
+        }
+        if (LIVE_HANDLES.contains(ptr) == false) {
+            throw new IllegalStateException(
+                name + " pointer 0x" + Long.toHexString(ptr) + " is not a live handle — "
+                    + "it may have been closed or was never created by NativeHandle"
+            );
+        }
+    }
+
+    /**
+     * Returns the number of currently live handles. Useful for leak detection in tests.
+     *
+     * @return the count of open native handles
+     */
+    public static int liveHandleCount() {
+        return LIVE_HANDLES.size();
+    }
+
     /**
      * Cleans up the native resource.
-     * Called by the cleaner when the handle is garbage collected.
+     * Called by the cleaner when the handle is garbage collected without explicit close.
      */
     private static final class CleanupAction implements Runnable {
         private final long ptr;
@@ -90,6 +157,7 @@ public abstract class NativeHandle implements AutoCloseable {
 
         @Override
         public void run() {
+            LIVE_HANDLES.remove(ptr);
             doClose.run();
         }
     }

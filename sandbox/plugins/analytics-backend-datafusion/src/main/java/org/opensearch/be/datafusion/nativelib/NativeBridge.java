@@ -8,13 +8,13 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -144,19 +144,11 @@ public final class NativeBridge {
     // ---- Tokio runtime management (no Arena needed — no string/buffer args) ----
 
     public static void initTokioRuntimeManager(int cpuThreads) {
-        try {
-            INIT_RUNTIME_MANAGER.invokeExact(cpuThreads);
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads);
     }
 
     public static void shutdownTokioRuntimeManager() {
-        try {
-            SHUTDOWN_RUNTIME_MANAGER.invokeExact();
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        NativeCall.invokeVoid(SHUTDOWN_RUNTIME_MANAGER);
     }
 
     // ---- DataFusion runtime (confined Arena for spillDir string only) ----
@@ -168,17 +160,14 @@ public final class NativeBridge {
      */
     public static long createGlobalRuntime(long memoryLimit, long cacheManagerPtr, String spillDir, long spillLimit) {
         try (var call = new NativeCall()) {
-            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, call.str(spillDir), NativeCall.len(spillDir), spillLimit);
+            var dir = call.str(spillDir);
+            return call.invoke(CREATE_GLOBAL_RUNTIME, memoryLimit, dir.segment(), dir.len(), spillLimit);
         }
     }
 
     /** Frees the native runtime. Safe to call once. */
     public static void closeGlobalRuntime(long ptr) {
-        try {
-            CLOSE_GLOBAL_RUNTIME.invokeExact(ptr);
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        NativeCall.invokeVoid(CLOSE_GLOBAL_RUNTIME, ptr);
     }
 
     // ---- Reader management (confined Arena for path + file strings) ----
@@ -189,22 +178,14 @@ public final class NativeBridge {
      */
     public static long createDatafusionReader(String path, String[] files) {
         try (var call = new NativeCall()) {
-            MemorySegment filesPtrArray = call.buf(files.length * 8);
-            MemorySegment filesLenArray = call.buf(files.length * 8);
-            for (int i = 0; i < files.length; i++) {
-                filesPtrArray.setAtIndex(ValueLayout.ADDRESS, i, call.str(files[i]));
-                filesLenArray.setAtIndex(ValueLayout.JAVA_LONG, i, NativeCall.len(files[i]));
-            }
-            return call.invoke(CREATE_READER, call.str(path), NativeCall.len(path), filesPtrArray, filesLenArray, (long) files.length);
+            var p = call.str(path);
+            var f = call.strArray(files);
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count());
         }
     }
 
     public static void closeDatafusionReader(long ptr) {
-        try {
-            CLOSE_READER.invokeExact(ptr);
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        NativeCall.invokeVoid(CLOSE_READER, ptr);
     }
 
     // ---- Query execution (confined Arena for tableName + plan bytes) ----
@@ -216,12 +197,20 @@ public final class NativeBridge {
         long runtimePtr,
         ActionListener<Long> listener
     ) {
+        try {
+            NativeHandle.validatePointer(readerPtr, "reader");
+            NativeHandle.validatePointer(runtimePtr, "runtime");
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         try (var call = new NativeCall()) {
+            var table = call.str(tableName);
             long result = call.invoke(
                 EXECUTE_QUERY,
                 readerPtr,
-                call.str(tableName),
-                NativeCall.len(tableName),
+                table.segment(),
+                table.len(),
                 call.bytes(substraitPlan),
                 (long) substraitPlan.length,
                 runtimePtr
@@ -236,6 +225,7 @@ public final class NativeBridge {
 
     public static void streamGetSchema(long streamPtr, ActionListener<Long> listener) {
         try {
+            NativeHandle.validatePointer(streamPtr, "stream");
             long result = NativeLibraryLoader.checkResult((long) STREAM_GET_SCHEMA.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
@@ -245,6 +235,7 @@ public final class NativeBridge {
 
     public static void streamNext(long runtimePtr, long streamPtr, ActionListener<Long> listener) {
         try {
+            NativeHandle.validatePointer(streamPtr, "stream");
             long result = NativeLibraryLoader.checkResult((long) STREAM_NEXT.invokeExact(streamPtr));
             listener.onResponse(result);
         } catch (Throwable t) {
@@ -253,34 +244,31 @@ public final class NativeBridge {
     }
 
     public static void streamClose(long streamPtr) {
-        try {
-            STREAM_CLOSE.invokeExact(streamPtr);
-        } catch (Throwable t) {
-            throw new RuntimeException(t);
-        }
+        NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
     }
 
     // ---- Stubs ----
 
     public static byte[] sqlToSubstrait(long readerPtr, String tableName, String sql, long runtimePtr) {
+        NativeHandle.validatePointer(readerPtr, "reader");
+        NativeHandle.validatePointer(runtimePtr, "runtime");
         try (var call = new NativeCall()) {
-            int outCap = 1024 * 1024;
-            var outBuf = call.buf(outCap);
-            var outLen = call.longOut();
+            var table = call.str(tableName);
+            var query = call.str(sql);
+            var out = call.outBuffer(1024 * 1024);
             call.invoke(
                 SQL_TO_SUBSTRAIT,
                 readerPtr,
-                call.str(tableName),
-                NativeCall.len(tableName),
-                call.str(sql),
-                NativeCall.len(sql),
+                table.segment(),
+                table.len(),
+                query.segment(),
+                query.len(),
                 runtimePtr,
-                outBuf,
-                (long) outCap,
-                outLen
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
             );
-            int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
-            return outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE);
+            return out.toByteArray();
         }
     }
 

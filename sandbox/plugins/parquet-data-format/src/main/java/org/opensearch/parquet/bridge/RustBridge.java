@@ -85,58 +85,62 @@ public class RustBridge {
 
     static void createWriter(String file, long schemaAddress) throws IOException {
         try (var call = new NativeCall()) {
-            call.invokeIO(CREATE_WRITER, call.str(file), NativeCall.len(file), schemaAddress);
+            var f = call.str(file);
+            call.invokeIO(CREATE_WRITER, f.segment(), f.len(), schemaAddress);
         }
     }
 
     static void write(String file, long arrayAddress, long schemaAddress) throws IOException {
         try (var call = new NativeCall()) {
-            call.invokeIO(WRITE, call.str(file), NativeCall.len(file), arrayAddress, schemaAddress);
+            var f = call.str(file);
+            call.invokeIO(WRITE, f.segment(), f.len(), arrayAddress, schemaAddress);
         }
     }
 
     static ParquetFileMetadata finalizeWriter(String file) throws IOException {
         try (var call = new NativeCall()) {
+            var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
-            var cbBuf = call.buf(1024);
-            var cbLen = call.longOut();
-            long rc = call.invokeIO(FINALIZE_WRITER, call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
+            var out = call.outBuffer(1024);
+            long rc = call.invokeIO(FINALIZE_WRITER, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
             if (rc == 1) return null;
-            long createdByLen = cbLen.get(ValueLayout.JAVA_LONG, 0);
+            int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0 ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
+                createdByLen >= 0 ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
             );
         }
     }
 
     static void syncToDisk(String file) throws IOException {
         try (var call = new NativeCall()) {
-            call.invokeIO(SYNC_TO_DISK, call.str(file), NativeCall.len(file));
+            var f = call.str(file);
+            call.invokeIO(SYNC_TO_DISK, f.segment(), f.len());
         }
     }
 
     public static ParquetFileMetadata getFileMetadata(String file) throws IOException {
         try (var call = new NativeCall()) {
+            var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
-            var cbBuf = call.buf(1024);
-            var cbLen = call.longOut();
-            call.invokeIO(GET_FILE_METADATA, call.str(file), NativeCall.len(file), versionOut, numRowsOut, cbBuf, 1024L, cbLen);
-            long createdByLen = cbLen.get(ValueLayout.JAVA_LONG, 0);
+            var out = call.outBuffer(1024);
+            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
+            int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0 ? new String(cbBuf.asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
+                createdByLen >= 0 ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
             );
         }
     }
 
     public static long getFilteredNativeBytesUsed(String pathPrefix) {
         try (var call = new NativeCall()) {
-            return call.invoke(GET_FILTERED_BYTES, call.str(pathPrefix), NativeCall.len(pathPrefix));
+            var p = call.str(pathPrefix);
+            return call.invoke(GET_FILTERED_BYTES, p.segment(), p.len());
         }
     }
 
