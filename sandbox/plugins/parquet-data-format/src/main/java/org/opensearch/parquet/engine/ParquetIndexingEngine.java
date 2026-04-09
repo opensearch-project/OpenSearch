@@ -179,7 +179,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat,
             schemaSupplier.get(),
             bufferPool,
-            settings,
+            indexSettings,
             threadPool,
             checksumStrategy
         );

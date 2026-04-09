@@ -17,6 +17,7 @@ members = [
 # Arrow / Parquet
 arrow = { version = "57.3.0", features = ["ffi"] }
 arrow-array = "57.3.0"
+arrow-ipc = "57.3.0"
 arrow-schema = "57.3.0"
 arrow-buffer = "57.3.0"
 parquet = "57.3.0"
