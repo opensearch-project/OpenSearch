@@ -65,7 +65,8 @@ public final class NativeCall implements AutoCloseable {
      * @param segment the native memory segment containing UTF-8 bytes
      * @param len the byte length of the UTF-8 encoding
      */
-    public record Str(MemorySegment segment, long len) {}
+    public record Str(MemorySegment segment, long len) {
+    }
 
     /**
      * Allocate a UTF-8 string and return both the segment and its byte length.
@@ -95,7 +96,8 @@ public final class NativeCall implements AutoCloseable {
      * @param lens memory segment containing the byte length of each string
      * @param count the number of strings
      */
-    public record StrArray(MemorySegment ptrs, MemorySegment lens, long count) {}
+    public record StrArray(MemorySegment ptrs, MemorySegment lens, long count) {
+    }
 
     /**
      * Marshal a Java string array into parallel native arrays of pointers and lengths.
@@ -147,9 +149,7 @@ public final class NativeCall implements AutoCloseable {
                 throw new IllegalStateException("Native output reported negative length: " + len);
             }
             if (len > capacity) {
-                throw new IllegalStateException(
-                    "Native output (" + len + " bytes) exceeds buffer capacity (" + capacity + " bytes)"
-                );
+                throw new IllegalStateException("Native output (" + len + " bytes) exceeds buffer capacity (" + capacity + " bytes)");
             }
             return len;
         }

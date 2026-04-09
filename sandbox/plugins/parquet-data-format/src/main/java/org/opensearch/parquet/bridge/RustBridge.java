@@ -103,13 +103,24 @@ public class RustBridge {
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
             var out = call.outBuffer(1024);
-            long rc = call.invokeIO(FINALIZE_WRITER, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
+            long rc = call.invokeIO(
+                FINALIZE_WRITER,
+                f.segment(),
+                f.len(),
+                versionOut,
+                numRowsOut,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
             if (rc == 1) return null;
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0 ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
+                createdByLen >= 0
+                    ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null
             );
         }
     }
@@ -132,7 +143,9 @@ public class RustBridge {
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
                 numRowsOut.get(ValueLayout.JAVA_LONG, 0),
-                createdByLen >= 0 ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8) : null
+                createdByLen >= 0
+                    ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null
             );
         }
     }

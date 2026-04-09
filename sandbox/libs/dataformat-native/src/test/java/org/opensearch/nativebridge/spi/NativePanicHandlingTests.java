@@ -46,7 +46,8 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
     public void testPanicIsCaughtAsException() {
         RuntimeException ex = expectThrows(RuntimeException.class, () -> {
             try (var call = new NativeCall()) {
-                call.invoke(TEST_PANIC, call.str("test panic message"), NativeCall.len("test panic message"));
+                var msg = call.str("test panic message");
+                call.invoke(TEST_PANIC, msg.segment(), msg.len());
             }
         });
         assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("test panic message"));
@@ -55,7 +56,8 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
     public void testErrorIsCaughtAsException() {
         RuntimeException ex = expectThrows(RuntimeException.class, () -> {
             try (var call = new NativeCall()) {
-                call.invoke(TEST_ERROR, call.str("test error message"), NativeCall.len("test error message"));
+                var msg = call.str("test error message");
+                call.invoke(TEST_ERROR, msg.segment(), msg.len());
             }
         });
         assertTrue("Should contain error message, got: " + ex.getMessage(), ex.getMessage().contains("test error message"));
@@ -64,7 +66,8 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
     public void testPanicMessagePreservedThroughCheckResultIO() {
         Exception ex = expectThrows(Exception.class, () -> {
             try (var call = new NativeCall()) {
-                call.invokeIO(TEST_PANIC, call.str("io panic test"), NativeCall.len("io panic test"));
+                var msg = call.str("io panic test");
+                call.invokeIO(TEST_PANIC, msg.segment(), msg.len());
             }
         });
         assertTrue("Should contain panic message, got: " + ex.getMessage(), ex.getMessage().contains("io panic test"));
@@ -91,7 +94,8 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
     public void testNegativeLengthReturnsError() {
         RuntimeException ex = expectThrows(RuntimeException.class, () -> {
             try (var call = new NativeCall()) {
-                call.invoke(TEST_VALIDATE_STR, call.str("hello"), -1L);
+                var s = call.str("hello");
+                call.invoke(TEST_VALIDATE_STR, s.segment(), -1L);
             }
         });
         assertTrue("Should mention negative, got: " + ex.getMessage(), ex.getMessage().contains("negative"));
@@ -99,7 +103,8 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
 
     public void testValidUtf8Succeeds() {
         try (var call = new NativeCall()) {
-            long result = call.invoke(TEST_VALIDATE_STR, call.str("hello"), NativeCall.len("hello"));
+            var s = call.str("hello");
+            long result = call.invoke(TEST_VALIDATE_STR, s.segment(), s.len());
             assertEquals(0L, result);
         }
     }

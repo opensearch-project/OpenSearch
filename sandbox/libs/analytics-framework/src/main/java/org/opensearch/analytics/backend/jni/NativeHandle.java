@@ -66,9 +66,7 @@ public abstract class NativeHandle implements AutoCloseable {
      */
     public void ensureOpen() {
         if (closed.get()) {
-            throw new IllegalStateException(
-                getClass().getSimpleName() + " already closed (ptr=0x" + Long.toHexString(ptr) + ")"
-            );
+            throw new IllegalStateException(getClass().getSimpleName() + " already closed (ptr=0x" + Long.toHexString(ptr) + ")");
         }
     }
 
@@ -127,7 +125,10 @@ public abstract class NativeHandle implements AutoCloseable {
         }
         if (LIVE_HANDLES.contains(ptr) == false) {
             throw new IllegalStateException(
-                name + " pointer 0x" + Long.toHexString(ptr) + " is not a live handle — "
+                name
+                    + " pointer 0x"
+                    + Long.toHexString(ptr)
+                    + " is not a live handle — "
                     + "it may have been closed or was never created by NativeHandle"
             );
         }
