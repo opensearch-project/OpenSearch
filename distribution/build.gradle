@@ -241,8 +241,8 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 // copy all sandbox modules if the distribution is a snapshot
 if (VersionProperties.isOpenSearchSnapshot()) {
   Properties sysProps = System.getProperties();
-  // setting this property to false will exclude the sandbox modules from the distribution
-  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "true");
+  // setting this property to true will include the sandbox modules in the distribution
+  final String enableSandbox = sysProps.getProperty("sandbox.enabled", "false");
   if(sysProps != null && enableSandbox == "true") {
     tasks.withType(NoticeTask).configureEach {
       project(':sandbox:libs').subprojects.each { Project lib ->
