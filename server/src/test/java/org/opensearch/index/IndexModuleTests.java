@@ -874,4 +874,46 @@ public class IndexModuleTests extends OpenSearchTestCase {
             return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
         }
     }
+
+    @SuppressWarnings("removal")
+    public void testLegacyConstructors() throws IOException {
+        final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            engineFactory,
+            new EngineConfigFactory(indexSettings),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            Collections.emptyMap()
+        );
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (a, b) -> new InternalTranslogFactory();
+        module.newIndexService(
+            CREATE_INDEX,
+            nodeEnvironment,
+            xContentRegistry(),
+            deleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            null,
+            indicesQueryCache,
+            mapperRegistry,
+            new IndicesFieldDataCache(settings, listener, clusterService, threadPool),
+            writableRegistry(),
+            () -> false,
+            null,
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService, threadPool, ""),
+            translogFactorySupplier,
+            () -> IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            () -> Boolean.FALSE,
+            () -> Boolean.FALSE,
+            DefaultRecoverySettings.INSTANCE,
+            DefaultRemoteStoreSettings.INSTANCE,
+            () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE
+        );
+    }
 }
