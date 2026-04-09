@@ -20,8 +20,15 @@ use crate::runtime_manager::RuntimeManager;
 
 static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
-unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> &'a str {
-    str::from_utf8_unchecked(slice::from_raw_parts(ptr, len as usize))
+unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
+    if ptr.is_null() {
+        return Err("null string pointer".to_string());
+    }
+    if len < 0 {
+        return Err(format!("negative string length: {}", len));
+    }
+    let bytes = slice::from_raw_parts(ptr, len as usize);
+    str::from_utf8(bytes).map_err(|e| format!("invalid UTF-8: {}", e))
 }
 
 fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
@@ -53,7 +60,7 @@ pub unsafe extern "C" fn df_create_global_runtime(
     spill_dir_len: i64,
     spill_limit: i64,
 ) -> i64 {
-    let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len);
+    let spill_dir = str_from_raw(spill_dir_ptr, spill_dir_len).map_err(|e| format!("df_create_global_runtime: {}", e))?;
     api::create_global_runtime(memory_pool_limit, spill_dir, spill_limit)
         .map_err(|e| e.to_string())
 }
@@ -72,12 +79,12 @@ pub unsafe extern "C" fn df_create_reader(
     files_len_ptr: *const i64,
     files_count: i64,
 ) -> i64 {
-    let table_path = str_from_raw(table_path_ptr, table_path_len);
+    let table_path = str_from_raw(table_path_ptr, table_path_len).map_err(|e| format!("df_create_reader: {}", e))?;
     let mut filenames = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
-        filenames.push(str_from_raw(ptr, len).to_string());
+        filenames.push(str_from_raw(ptr, len).map_err(|e| format!("df_create_reader: {}", e))?.to_string());
     }
     let mgr = get_rt_manager()?;
     api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
@@ -99,7 +106,7 @@ pub unsafe extern "C" fn df_execute_query(
     runtime_ptr: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    let table_name = str_from_raw(table_name_ptr, table_name_len);
+    let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_execute_query: {}", e))?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     mgr.io_runtime
         .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr))
@@ -140,12 +147,18 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     out_len: *mut i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
-    let table_name = str_from_raw(table_name_ptr, table_name_len);
-    let sql = str_from_raw(sql_ptr, sql_len);
+    let table_name = str_from_raw(table_name_ptr, table_name_len).map_err(|e| format!("df_sql_to_substrait: table_name: {}", e))?;
+    let sql = str_from_raw(sql_ptr, sql_len).map_err(|e| format!("df_sql_to_substrait: sql: {}", e))?;
     let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, &mgr)
         .map_err(|e| e.to_string())?;
-    let copy_len = bytes.len().min(out_cap as usize);
-    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);
+    if bytes.len() > out_cap as usize {
+        return Err(format!(
+            "substrait plan size {} exceeds buffer capacity {}",
+            bytes.len(),
+            out_cap
+        ));
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, bytes.len());
     if !out_len.is_null() {
         *out_len = bytes.len() as i64;
     }

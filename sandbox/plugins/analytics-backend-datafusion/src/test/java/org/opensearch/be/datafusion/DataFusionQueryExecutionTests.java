@@ -37,7 +37,6 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
     private long runtimePtr;
     private long readerPtr;
 
-
     @Override
     public void setUp() throws Exception {
         super.setUp();

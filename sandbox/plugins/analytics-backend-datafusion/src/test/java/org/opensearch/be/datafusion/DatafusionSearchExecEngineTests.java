@@ -29,7 +29,6 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private long readerPtr;
     private NativeRuntimeHandle runtimeHandle;
 
-
     @Override
     public void setUp() throws Exception {
         super.setUp();

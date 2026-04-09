@@ -18,8 +18,15 @@ use native_bridge_common::ffm_safe;
 
 use crate::writer::NativeParquetWriter;
 
-unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> &'a str {
-    str::from_utf8_unchecked(slice::from_raw_parts(ptr, len as usize))
+unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> Result<&'a str, String> {
+    if ptr.is_null() {
+        return Err("null string pointer".to_string());
+    }
+    if len < 0 {
+        return Err(format!("negative string length: {}", len));
+    }
+    let bytes = slice::from_raw_parts(ptr, len as usize);
+    str::from_utf8(bytes).map_err(|e| format!("invalid UTF-8: {}", e))
 }
 
 #[ffm_safe]
@@ -29,7 +36,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     file_len: i64,
     schema_address: i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).to_string();
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_create_writer: {}", e))?.to_string();
     NativeParquetWriter::create_writer(filename, schema_address)
         .map(|_| 0)
         .map_err(|e| e.to_string())
@@ -43,7 +50,7 @@ pub unsafe extern "C" fn parquet_write(
     array_address: i64,
     schema_address: i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).to_string();
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_write: {}", e))?.to_string();
     NativeParquetWriter::write_data(filename, array_address, schema_address)
         .map(|_| 0)
         .map_err(|e| e.to_string())
@@ -61,7 +68,7 @@ pub unsafe extern "C" fn parquet_finalize_writer(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).to_string();
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_finalize_writer: {}", e))?.to_string();
     match NativeParquetWriter::finalize_writer(filename) {
         Ok(Some(metadata)) => {
             if !version_out.is_null() { *version_out = metadata.version; }
@@ -89,7 +96,7 @@ pub unsafe extern "C" fn parquet_sync_to_disk(
     file_ptr: *const u8,
     file_len: i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).to_string();
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_sync_to_disk: {}", e))?.to_string();
     NativeParquetWriter::sync_to_disk(filename)
         .map(|_| 0)
         .map_err(|e| e.to_string())
@@ -106,7 +113,7 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
 ) -> i64 {
-    let filename = str_from_raw(file_ptr, file_len).to_string();
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_file_metadata: {}", e))?.to_string();
     let fm = NativeParquetWriter::get_file_metadata(filename).map_err(|e| e.to_string())?;
     if !version_out.is_null() { *version_out = fm.version(); }
     if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
@@ -128,6 +135,6 @@ pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,
     prefix_len: i64,
 ) -> i64 {
-    let prefix = str_from_raw(prefix_ptr, prefix_len).to_string();
+    let prefix = str_from_raw(prefix_ptr, prefix_len).unwrap_or("").to_string();
     NativeParquetWriter::get_filtered_writer_memory_usage(prefix).unwrap_or(0) as i64
 }

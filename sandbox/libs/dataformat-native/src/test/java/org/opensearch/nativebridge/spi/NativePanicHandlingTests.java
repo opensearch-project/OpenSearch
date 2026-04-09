@@ -12,6 +12,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -23,6 +24,7 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
 
     private static final MethodHandle TEST_PANIC;
     private static final MethodHandle TEST_ERROR;
+    private static final MethodHandle TEST_VALIDATE_STR;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -33,6 +35,10 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
         );
         TEST_ERROR = linker.downcallHandle(
             lib.find("native_test_error").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        TEST_VALIDATE_STR = linker.downcallHandle(
+            lib.find("native_test_validate_str").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
     }
@@ -71,5 +77,30 @@ public class NativePanicHandlingTests extends OpenSearchTestCase {
         assertEquals(0L, NativeLibraryLoader.checkResult(0));
         assertEquals(42L, NativeLibraryLoader.checkResult(42));
         assertEquals(Long.MAX_VALUE, NativeLibraryLoader.checkResult(Long.MAX_VALUE));
+    }
+
+    public void testNullPointerReturnsError() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                call.invoke(TEST_VALIDATE_STR, MemorySegment.NULL, 5L);
+            }
+        });
+        assertTrue("Should mention null, got: " + ex.getMessage(), ex.getMessage().contains("null"));
+    }
+
+    public void testNegativeLengthReturnsError() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> {
+            try (var call = new NativeCall()) {
+                call.invoke(TEST_VALIDATE_STR, call.str("hello"), -1L);
+            }
+        });
+        assertTrue("Should mention negative, got: " + ex.getMessage(), ex.getMessage().contains("negative"));
+    }
+
+    public void testValidUtf8Succeeds() {
+        try (var call = new NativeCall()) {
+            long result = call.invoke(TEST_VALIDATE_STR, call.str("hello"), NativeCall.len("hello"));
+            assertEquals(0L, result);
+        }
     }
 }

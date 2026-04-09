@@ -65,3 +65,20 @@ pub unsafe extern "C" fn native_test_error(msg_ptr: *const u8, msg_len: i64) -> 
     let msg = std::str::from_utf8_unchecked(std::slice::from_raw_parts(msg_ptr, msg_len as usize));
     into_error_ptr(msg.to_string())
 }
+
+/// Validates a string from (ptr, len). Returns 0 on valid UTF-8, error pointer on invalid input.
+/// Used for testing input validation (null ptr, negative len, bad UTF-8).
+#[no_mangle]
+pub unsafe extern "C" fn native_test_validate_str(ptr: *const u8, len: i64) -> i64 {
+    if ptr.is_null() {
+        return into_error_ptr("null string pointer".to_string());
+    }
+    if len < 0 {
+        return into_error_ptr(format!("negative string length: {}", len));
+    }
+    let bytes = std::slice::from_raw_parts(ptr, len as usize);
+    match std::str::from_utf8(bytes) {
+        Ok(_) => 0,
+        Err(e) => into_error_ptr(format!("invalid UTF-8: {}", e)),
+    }
+}

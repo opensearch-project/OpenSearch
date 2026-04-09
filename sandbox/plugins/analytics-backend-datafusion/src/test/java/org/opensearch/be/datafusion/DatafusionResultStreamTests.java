@@ -31,7 +31,6 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
 
-
     @Override
     public void setUp() throws Exception {
         super.setUp();

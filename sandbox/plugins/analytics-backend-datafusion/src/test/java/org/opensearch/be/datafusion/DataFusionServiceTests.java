@@ -18,7 +18,6 @@ import java.nio.file.Path;
  */
 public class DataFusionServiceTests extends OpenSearchTestCase {
 
-
     private void ensureTokioInit() {
         NativeBridge.initTokioRuntimeManager(2);
     }
