@@ -10,7 +10,7 @@ package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
-import org.opensearch.index.engine.dataformat.IndexingEngineSettings;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 
 /**
@@ -33,7 +33,7 @@ public class MockDataFormatPlugin implements DataFormatPlugin {
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineSettings settings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new MockIndexingExecutionEngine(dataFormat);
     }
 }

@@ -33,5 +33,5 @@ public interface DataFormatPlugin {
      * @param settings the engine initialization settings
      * @return the indexing execution engine instance
      */
-    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineSettings settings);
+    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 }

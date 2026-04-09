@@ -23,7 +23,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -110,7 +110,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     @Override
-    public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerSettings settings) throws IOException {
+    public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
     }
 

@@ -22,7 +22,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.DummyShardLock;
@@ -49,7 +49,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        CommitterSettings settings = new CommitterSettings(shardPath, indexSettings, null, store);
+        CommitterConfig settings = new CommitterConfig(indexSettings, null, store);
         return new LuceneCommitter(settings);
     }
 
@@ -75,7 +75,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Validates: Requirements 2.3
      */
     public void testRefreshIncorporatesLuceneSegments() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
         IndexWriter writer = committer.getIndexWriter();
         assertEquals(0, writer.getDocStats().numDocs);
 
@@ -106,7 +106,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh skips WriterFileSets whose directory does not match the Lucene data format name.
      */
     public void testRefreshSkipsNonLuceneDirectories() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
         IndexWriter writer = committer.getIndexWriter();
 
         Path parquetDir = createTempDir().resolve("parquet");
@@ -132,7 +132,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh with no files skips addIndexes.
      */
     public void testRefreshWithNoLuceneFilesSkipsAddIndexes() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
 
         RefreshInput emptyInput = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(emptyInput);
@@ -141,22 +141,17 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
     }
 
     /**
-     * Refresh with no parent writer is a no-op.
+     * Constructor with null committer throws IllegalArgumentException.
      */
-    public void testRefreshWithoutParentWriterIsNoOp() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(null, null);
-
-        RefreshInput input = RefreshInput.builder().build();
-        RefreshResult result = engine.refresh(input);
-        assertNotNull(result);
-        assertTrue(result.refreshedSegments().isEmpty());
+    public void testConstructorWithNullCommitterThrows() {
+        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null));
     }
 
     /**
      * Refresh with null input returns empty result.
      */
     public void testRefreshWithNullInputReturnsEmpty() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer.getIndexWriter(), store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
 
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);

@@ -13,7 +13,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.DummyShardLock;
@@ -45,7 +45,7 @@ public class LucenePluginTests extends OpenSearchTestCase {
 
         try {
             LucenePlugin plugin = new LucenePlugin();
-            CommitterSettings settings = new CommitterSettings(shardPath, indexSettings, null, store);
+            CommitterConfig settings = new CommitterConfig(indexSettings, null, store);
             Optional<Committer> committer = plugin.getCommitter(settings);
 
             assertTrue("getCommitter() should return a non-empty Optional", committer.isPresent());

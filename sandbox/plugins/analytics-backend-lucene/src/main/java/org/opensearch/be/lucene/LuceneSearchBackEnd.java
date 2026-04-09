@@ -8,10 +8,12 @@
 
 package org.opensearch.be.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
@@ -25,6 +27,8 @@ import java.io.IOException;
 @ExperimentalApi
 final class LuceneSearchBackEnd {
 
+    private static final Logger logger = LogManager.getLogger(LuceneSearchBackEnd.class);
+
     private LuceneSearchBackEnd() {}
 
     /**
@@ -37,13 +41,14 @@ final class LuceneSearchBackEnd {
      * @return a new reader manager
      * @throws IOException if reader creation fails
      */
-    static EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerSettings settings) throws IOException {
+    static EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
         if (provider instanceof LuceneIndexingExecutionEngine luceneProvider) {
             directoryReader = DirectoryReader.open(luceneProvider.getWriter());
         } else {
+            logger.warn("Initialising it with a DirectorReader instead of a writer");
             directoryReader = StandardDirectoryReader.open(provider.getStore().directory());
         }
         return new LuceneReaderManager(settings.format(), directoryReader);

@@ -144,7 +144,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
         IndexingExecutionEngine<?, ?> engine = registry.getIndexingEngine(
-            new IndexingEngineSettings(null, mapperService, shardPath, indexSettings, null),
+            new IndexingEngineConfig(null, mapperService, shardPath, indexSettings, null),
             format
         );
         assertNotNull(engine);
@@ -160,7 +160,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.getIndexingEngine(new IndexingEngineSettings(null, mapperService, shardPath, indexSettings, null), unregistered)
+            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, shardPath, indexSettings, null), unregistered)
         );
         assertTrue(e.getMessage().contains("unknown"));
     }

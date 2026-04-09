@@ -40,7 +40,7 @@ public class DataFormatRegistry {
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
 
     /** Map from data format to a factory that creates an {@link EngineReaderManager} for the given settings. */
-    private final Map<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> readerManagerBuilders;
+    private final Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders;
 
     private final Map<String, DataFormat> dataFormats;
 
@@ -54,8 +54,7 @@ public class DataFormatRegistry {
      */
     public DataFormatRegistry(PluginsService pluginsService) {
         Map<DataFormat, DataFormatPlugin> dataFormatPlugiRegistry = new HashMap<>();
-        Map<DataFormat, CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> readerManagerBuilders =
-            new HashMap<>();
+        Map<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> readerManagerBuilders = new HashMap<>();
         Map<String, DataFormat> dataFormats = new HashMap<>();
 
         for (DataFormatPlugin plugin : pluginsService.filterPlugins(DataFormatPlugin.class)) {
@@ -96,7 +95,7 @@ public class DataFormatRegistry {
      * @return the indexing execution engine
      * @throws IllegalArgumentException if the data format is not registered
      */
-    public IndexingExecutionEngine<?, ?> getIndexingEngine(IndexingEngineSettings settings, DataFormat format) {
+    public IndexingExecutionEngine<?, ?> getIndexingEngine(IndexingEngineConfig settings, DataFormat format) {
         DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
@@ -160,10 +159,9 @@ public class DataFormatRegistry {
     ) throws IOException {
         // TODO: Filter based on index settings
         Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
-        for (Map.Entry<
-            DataFormat,
-            CheckedFunction<ReaderManagerSettings, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders.entrySet()) {
-            ReaderManagerSettings settings = new ReaderManagerSettings(indexStoreProvider, entry.getKey(), shardPath);
+        for (Map.Entry<DataFormat, CheckedFunction<ReaderManagerConfig, EngineReaderManager<?>, IOException>> entry : readerManagerBuilders
+            .entrySet()) {
+            ReaderManagerConfig settings = new ReaderManagerConfig(indexStoreProvider, entry.getKey(), shardPath);
             readerManagers.put(entry.getKey(), entry.getValue().apply(settings));
         }
         return readerManagers;

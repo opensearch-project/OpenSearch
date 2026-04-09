@@ -11,7 +11,7 @@ package org.opensearch.index.engine.exec;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
@@ -62,7 +62,7 @@ public class DataFormatAwareEngineFactory {
         for (SearchBackEndPlugin<?> plugin : searchBackEndPlugins) {
             for (DataFormat format : plugin.getSupportedFormats()) {
                 // TODO: use mapperService and indexSettings to filter formats relevant to this index
-                readerManagers.put(format, plugin.createReaderManager(new ReaderManagerSettings(indexStoreProvider, format, shardPath)));
+                readerManagers.put(format, plugin.createReaderManager(new ReaderManagerConfig(indexStoreProvider, format, shardPath)));
             }
         }
         return readerManagers;

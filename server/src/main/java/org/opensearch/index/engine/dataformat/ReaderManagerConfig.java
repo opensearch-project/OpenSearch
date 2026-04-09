@@ -26,5 +26,5 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record ReaderManagerSettings(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, ShardPath shardPath) {
+public record ReaderManagerConfig(Optional<IndexStoreProvider> indexStoreProvider, DataFormat format, ShardPath shardPath) {
 }

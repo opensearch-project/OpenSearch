@@ -9,7 +9,7 @@
 package org.opensearch.plugins;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 
 import java.io.IOException;
@@ -44,5 +44,5 @@ public interface SearchBackEndPlugin<R> {
      * @return the reader manager
      * @throws IOException if reader creation fails
      */
-    EngineReaderManager<?> createReaderManager(ReaderManagerSettings settings) throws IOException;
+    EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
 }

@@ -19,7 +19,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
-import org.opensearch.index.engine.dataformat.IndexingEngineSettings;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -113,7 +113,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         validateFormatsRegistered(dataFormatPlugins, primaryFormatName, secondaryFormatNames);
 
-        IndexingEngineSettings engineSettings = new IndexingEngineSettings(committer, mapperService, shardPath, indexSettings, null);
+        IndexingEngineConfig engineSettings = new IndexingEngineConfig(committer, mapperService, shardPath, indexSettings, null);
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);

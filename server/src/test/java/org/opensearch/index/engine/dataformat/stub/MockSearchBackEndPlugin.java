@@ -9,7 +9,7 @@
 package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -33,7 +33,7 @@ public class MockSearchBackEndPlugin implements SearchBackEndPlugin<Object> {
     }
 
     @Override
-    public EngineReaderManager<?> createReaderManager(ReaderManagerSettings settings) {
+    public EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) {
         return new MockReaderManager("mock-columnar");
     }
 }

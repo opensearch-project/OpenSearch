@@ -12,6 +12,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -100,9 +101,7 @@ public class CompositeEnginePluginTests extends OpenSearchTestCase {
             }
 
             @Override
-            public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(
-                org.opensearch.index.engine.dataformat.IndexingEngineSettings settings
-            ) {
+            public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
                 return null;
             }
         };

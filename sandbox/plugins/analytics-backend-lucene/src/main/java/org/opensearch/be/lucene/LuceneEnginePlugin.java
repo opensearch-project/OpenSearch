@@ -10,7 +10,7 @@ package org.opensearch.be.lucene;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 
 import java.io.IOException;
 
@@ -31,7 +31,7 @@ final class LuceneEnginePlugin {
      * @return a new committer
      * @throws IOException if committer initialization fails
      */
-    static Committer createCommitter(CommitterSettings committerSettings) throws IOException {
+    static Committer createCommitter(CommitterConfig committerSettings) throws IOException {
         return new LuceneCommitter(committerSettings);
     }
 }

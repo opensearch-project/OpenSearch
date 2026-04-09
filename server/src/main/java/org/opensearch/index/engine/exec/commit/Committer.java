@@ -26,7 +26,7 @@ import java.util.Map;
  * The caller is responsible for serializing any higher-level state (e.g., CatalogSnapshot)
  * into the commit data before calling {@link #commit}.
  * <p>
- * Implementations are constructed with {@link CommitterSettings} which provides the shard path,
+ * Implementations are constructed with {@link CommitterConfig} which provides the shard path,
  * index settings, and engine config needed to open the backing store. There is no separate
  * {@code init()} method — the constructor handles all initialization.
  *

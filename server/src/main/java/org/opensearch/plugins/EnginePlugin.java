@@ -32,13 +32,14 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -127,11 +128,12 @@ public interface EnginePlugin {
      * <p>
      * The returned Committer is fully initialized — there is no separate {@code init()} call.
      *
-     * @param committerSettings the committer settings (shard path, index settings, engine config)
+     * @param committerConfig the committer settings (shard path, index settings, engine config)
      * @return an optional committer
      * @throws IOException if committer initialization fails
      */
-    default Optional<Committer> getCommitter(CommitterSettings committerSettings) throws IOException {
+    @ExperimentalApi
+    default Optional<Committer> getCommitter(CommitterConfig committerConfig) throws IOException {
         return Optional.empty();
     }
 }

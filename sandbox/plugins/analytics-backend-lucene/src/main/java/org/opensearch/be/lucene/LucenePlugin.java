@@ -11,10 +11,10 @@ package org.opensearch.be.lucene;
 import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.ReaderManagerSettings;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -38,11 +38,9 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
 
-    // --- SearchBackEndPlugin ---
-
     @Override
     public String name() {
-        return "lucene-analytics-backend";
+        return "lucene";
     }
 
     @Override
@@ -51,14 +49,12 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     }
 
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerSettings settings) throws IOException {
+    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return LuceneSearchBackEnd.createReaderManager(settings);
     }
 
-    // --- EnginePlugin ---
-
     @Override
-    public Optional<Committer> getCommitter(CommitterSettings committerSettings) throws IOException {
-        return Optional.of(LuceneEnginePlugin.createCommitter(committerSettings));
+    public Optional<Committer> getCommitter(CommitterConfig committerConfig) throws IOException {
+        return Optional.of(LuceneEnginePlugin.createCommitter(committerConfig));
     }
 }

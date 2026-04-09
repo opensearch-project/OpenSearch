@@ -19,7 +19,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterSettings;
+import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Map;
 /**
  * Lucene-specific {@link Committer} that owns the {@link IndexWriter} lifecycle.
  * <p>
- * The constructor takes {@link CommitterSettings} and opens the IndexWriter immediately.
+ * The constructor takes {@link CommitterConfig} and opens the IndexWriter immediately.
  * No separate {@code init()} call is needed.
  *
  * @opensearch.experimental
@@ -49,8 +49,9 @@ public class LuceneCommitter implements Committer {
      * @param settings the committer settings (shard path, index settings, engine config, store)
      * @throws IOException if opening the IndexWriter fails
      */
-    public LuceneCommitter(CommitterSettings settings) throws IOException {
+    public LuceneCommitter(CommitterConfig settings) throws IOException {
         this.store = settings.store();
+        this.store.incRef();
         if (this.store == null) {
             throw new IllegalArgumentException("CommitterSettings must provide a non-null Store");
         }
@@ -77,7 +78,7 @@ public class LuceneCommitter implements Committer {
     }
 
     @Override
-    public void commit(Map<String, String> commitData) throws IOException {
+    public synchronized void commit(Map<String, String> commitData) throws IOException {
         ensureOpen();
         indexWriter.setLiveCommitData(commitData.entrySet());
         indexWriter.commit();
@@ -88,6 +89,7 @@ public class LuceneCommitter implements Committer {
         if (isClosed.get() != null) {
             return;
         }
+        this.store.decRef();
         isClosed.set(Boolean.TRUE);
         indexWriter.close();
     }
@@ -136,9 +138,7 @@ public class LuceneCommitter implements Committer {
      * @return the index writer, or null if closed
      */
     IndexWriter getIndexWriter() {
-        if (isClosed()) {
-            return null;
-        }
+        ensureOpen();
         return indexWriter;
     }
 

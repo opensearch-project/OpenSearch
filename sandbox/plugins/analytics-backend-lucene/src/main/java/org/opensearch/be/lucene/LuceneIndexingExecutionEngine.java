@@ -57,17 +57,20 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
     // TODO: This will go once we implement the DataFormat plugin in Lucene
     private static final String LUCENE_FORMAT_NAME = "lucene";
 
-    private final IndexWriter parentIndexWriter;
+    private final LuceneCommitter luceneCommitter;
     private final Store store;
 
     /**
      * Creates a new LuceneIndexingExecutionEngine.
      *
-     * @param parentIndexWriter the IndexWriter from the LuceneCommitter, or null if not available (refresh will be a no-op)
+     * @param luceneCommitter the LuceneCommitter that owns the IndexWriter lifecycle, must not be null
      * @param store the shard's store, or null if not available
      */
-    public LuceneIndexingExecutionEngine(IndexWriter parentIndexWriter, Store store) {
-        this.parentIndexWriter = parentIndexWriter;
+    public LuceneIndexingExecutionEngine(LuceneCommitter luceneCommitter, Store store) {
+        if (luceneCommitter == null) {
+            throw new IllegalArgumentException("LuceneCommitter must not be null");
+        }
+        this.luceneCommitter = luceneCommitter;
         this.store = store;
     }
 
@@ -79,7 +82,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
      * @return the index writer, or null if not available
      */
     IndexWriter getWriter() {
-        return parentIndexWriter;
+        return luceneCommitter.getIndexWriter();
     }
 
     // --- IndexStoreProvider ---
@@ -98,7 +101,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        if (refreshInput == null || parentIndexWriter == null) {
+        if (refreshInput == null || luceneCommitter.getIndexWriter() == null) {
             return new RefreshResult(List.of());
         }
 
@@ -116,7 +119,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Da
                 }
             }
             if (directories.isEmpty() == false) {
-                parentIndexWriter.addIndexes(directories.toArray(new Directory[0]));
+                luceneCommitter.getIndexWriter().addIndexes(directories.toArray(new Directory[0]));
             }
         } finally {
             for (Directory dir : directories) {
