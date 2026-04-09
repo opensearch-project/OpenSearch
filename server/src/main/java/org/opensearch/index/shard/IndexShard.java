@@ -243,6 +243,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
@@ -324,6 +325,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
+    private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
+    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -545,6 +548,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             readerWrapper = indexReaderWrapper;
         }
+
+        nonClosingReaderWrapperSupplier = directoryReader -> {
+            int[] fromCache = new int[] { 0 };
+            try {
+                // To prevent instantiating a new NonClosingReaderWrapper per query/get/update request,
+                // the wrapper can be shared across all uses of the same NonClosingReaderWrapper.
+                return nonClosingReaderWrapperCache.computeIfAbsent(directoryReader, key -> {
+                    try {
+                        NonClosingReaderWrapper closingReaderWrapper = new NonClosingReaderWrapper(key);
+                        fromCache[0] = 1;
+                        return closingReaderWrapper;
+                    } catch (IOException e) {
+                        fromCache[0] = 2;
+                        throw new OpenSearchException("failed to wrap searcher", e);
+                    }
+                });
+            } finally {
+                if (fromCache[0] == 1) {
+                    OpenSearchDirectoryReader.addReaderCloseListener(
+                        directoryReader,
+                        cacheKey -> nonClosingReaderWrapperCache.remove(directoryReader)
+                    );
+                } else if (fromCache[0] == 2) {
+                    nonClosingReaderWrapperCache.remove(directoryReader);
+                }
+            }
+        };
+
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -2253,7 +2284,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = readerWrapper == null
+                ? searcher
+                : wrapSearcher(searcher, readerWrapper, nonClosingReaderWrapperSupplier);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -2273,14 +2306,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
+        return wrapSearcher(engineSearcher, readerWrapper, null);
+    }
+
+    public static Engine.Searcher wrapSearcher(
+        Engine.Searcher engineSearcher,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
+    ) throws IOException {
         assert readerWrapper != null;
-        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(
-            engineSearcher.getDirectoryReader()
-        );
+        DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
+        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(directoryReader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
-        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+
+        DirectoryReader nonClosingReaderWrapper;
+        if (nonClosingReaderWrapperSupplier == null) {
+            nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
+        } else {
+            nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
+            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
+        }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
@@ -2377,6 +2424,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
+                nonClosingReaderWrapperCache.clear();
                 final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
@@ -6041,5 +6089,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalStateException("Cannot apply function on indexer " + indexer.getClass() + " directly on IndexShard");
         }
+    }
+
+    // Visible for testing
+    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
+        return nonClosingReaderWrapperSupplier;
+    }
+
+    // Visible for testing
+    ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache() {
+        return nonClosingReaderWrapperCache;
     }
 }
