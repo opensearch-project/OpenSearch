@@ -196,6 +196,40 @@ public class QueryPhaseResultConsumerTests extends OpenSearchTestCase {
         return querySearchResult;
     }
 
+    /**
+     * Tests that reduce() does not throw a NullPointerException when the search request has aggregations
+     * but all shards failed (no results consumed). This reproduces a bug where hasAggs=true but
+     * reducedQueryPhase returns null aggregations due to the empty results and the early-termination path in
+     * SearchPhaseController.reducedQueryPhase(). Ensure we do not exit early with a NPE particularly when
+     * allow_partial_search_results is enabled.
+     */
+    public void testReduceWithAggsAndPartialResultsAllowedReturnsEmptyResult() throws Exception {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(AggregationBuilders.max("test").field("value")));
+        searchRequest.setBatchedReduceSize(2);
+        searchRequest.allowPartialSearchResults(true);
+
+        QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            searchPhaseController,
+            SearchProgressListener.NOOP,
+            writableRegistry(),
+            10,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+
+        // No results consumed — all shards failed.
+        SearchPhaseController.ReducedQueryPhase result = consumer.reduce();
+        assertTrue("result should be marked as empty", result.isEmptyResult);
+        assertNull("aggregations should be null when no shards returned results", result.aggregations);
+        assertEquals(0, result.totalHits.value());
+        assertEquals(0, result.sortedTopDocs.scoreDocs.length);
+    }
+
     private static class ThrowingSearchProgressListener extends SearchProgressListener {
         private final AtomicInteger onQueryResult = new AtomicInteger(0);
         private final AtomicInteger onPartialReduce = new AtomicInteger(0);
