@@ -929,7 +929,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
                         randomDoubleBetween(1.0, 100.0, true),
-                        new IoUsageStats(100.0)
+                        new IoUsageStats(100.0),
+                        randomDoubleBetween(1.0, 100.0, true)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
                 }

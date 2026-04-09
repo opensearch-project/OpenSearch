@@ -24,6 +24,7 @@ import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -40,6 +41,9 @@ import static org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdm
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
+import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
@@ -57,7 +61,11 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
 
     @After
     public void cleanup() {
-        client().admin().indices().prepareDelete(INDEX_NAME).get();
+        try {
+            client().admin().indices().prepareDelete(INDEX_NAME).get();
+        } catch (Exception e) {
+            // index may not exist if test didn't create it
+        }
         assertAcked(
             client().admin()
                 .cluster()
@@ -74,6 +82,7 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
             .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
             .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_CPU_USAGE_LIMIT.getKey(), 0)
             .put(INDEXING_CPU_USAGE_LIMIT.getKey(), 0)
@@ -415,6 +424,229 @@ public class AdmissionControlSingleNodeTests extends OpenSearchSingleNodeTestCas
         } else {
             assertNull(acStats.get(IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER));
         }
+    }
+
+    public void testNativeMemoryAdmissionControllerRegistered() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
+        // Native memory controller should always be registered
+        assertNotNull(acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER));
+        assertEquals(
+            0,
+            acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER).getRejectionCount().size()
+        );
+    }
+
+    public void testNativeMemoryAdmissionControllerDisabledByDefault() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        NativeMemoryBasedAdmissionController nativeMemoryController = (NativeMemoryBasedAdmissionController) admissionControlService
+            .getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
+        assertNotNull(nativeMemoryController);
+        // Default mode is disabled (inherits from global setting)
+        assertFalse(
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.settings.getTransportLayerAdmissionControllerMode()
+            )
+        );
+
+        // Enable it via settings update
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(
+            Settings.builder()
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        assertTrue(
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.settings.getTransportLayerAdmissionControllerMode()
+            )
+        );
+    }
+
+    public void testNativeMemoryAdmissionControlRejectionEnforcedMode() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+        client().admin().indices().prepareCreate(INDEX_NAME).execute().actionGet();
+
+        // Disable CPU controller, enable native memory controller in enforced mode with limit 0 to force rejections
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(
+            Settings.builder()
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
+                .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+                .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 3; i++) {
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
+        }
+
+        // verify bulk request hits 429
+        BulkResponse res = client().bulk(bulk.request()).actionGet();
+        assertEquals(429, res.getItems()[0].getFailure().getStatus().getStatus());
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            1,
+            (long) acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount()
+                .get(AdmissionControlActionType.INDEXING.getType())
+        );
+
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        // verify search request hits 429
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
+        try {
+            client().search(searchRequest).actionGet();
+        } catch (Exception e) {
+            assertTrue(((SearchPhaseExecutionException) e).getDetailedMessage().contains("OpenSearchRejectedExecutionException"));
+        }
+        acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            1,
+            (long) acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount()
+                .get(AdmissionControlActionType.SEARCH.getType())
+        );
+    }
+
+    public void testNativeMemoryAdmissionControlRejectionMonitorMode() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+
+        // Disable CPU controller, enable native memory controller in monitor mode with limit 0
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(
+            Settings.builder()
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+                .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+                .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 3; i++) {
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
+        }
+
+        // verify bulk request succeeds but rejection stats are recorded
+        BulkResponse res = client().bulk(bulk.request()).actionGet();
+        assertFalse(res.hasFailures());
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            1,
+            (long) acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount()
+                .get(AdmissionControlActionType.INDEXING.getType())
+        );
+
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        // verify search request succeeds but rejection stats are recorded
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(3, searchResponse.getHits().getHits().length);
+        acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            1,
+            (long) acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount()
+                .get(AdmissionControlActionType.SEARCH.getType())
+        );
+    }
+
+    public void testNativeMemoryAdmissionControlDisabledMode() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+
+        // Disable CPU and IO controllers, disable native memory controller explicitly
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(
+            Settings.builder()
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+                .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 0)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 3; i++) {
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
+        }
+
+        // verify bulk request succeeds with no rejections
+        BulkResponse res = client().bulk(bulk.request()).actionGet();
+        assertFalse(res.hasFailures());
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            0,
+            acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER).getRejectionCount().size()
+        );
+
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        // verify search request succeeds with no rejections
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(3, searchResponse.getHits().getHits().length);
+        acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            0,
+            acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER).getRejectionCount().size()
+        );
+    }
+
+    public void testNativeMemoryAdmissionControlWithinLimits() throws Exception {
+        assertBusy(() -> assertEquals(1, getInstanceFromNode(ResourceUsageCollectorService.class).getAllNodeStatistics().size()));
+
+        // Enable native memory controller in enforced mode but with high limits so nothing gets rejected
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(
+            Settings.builder()
+                .put(CPU_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.DISABLED.getMode())
+                .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
+                .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 101)
+                .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 101)
+        );
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 3; i++) {
+            bulk.add(client().prepareIndex(INDEX_NAME).setSource("foo", "bar " + i));
+        }
+
+        // verify bulk request succeeds with no rejections
+        BulkResponse res = client().bulk(bulk.request()).actionGet();
+        assertFalse(res.hasFailures());
+        AdmissionControlService admissionControlService = getInstanceFromNode(AdmissionControlService.class);
+        Map<String, AdmissionControllerStats> acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            0,
+            acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER).getRejectionCount().size()
+        );
+
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+        // verify search request succeeds with no rejections
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME);
+        SearchResponse searchResponse = client().search(searchRequest).actionGet();
+        assertEquals(3, searchResponse.getHits().getHits().length);
+        acStats = this.getAdmissionControlStats(admissionControlService);
+        assertEquals(
+            0,
+            acStats.get(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER).getRejectionCount().size()
+        );
     }
 
     Map<String, AdmissionControllerStats> getAdmissionControlStats(AdmissionControlService admissionControlService) {
