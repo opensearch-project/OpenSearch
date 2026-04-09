@@ -166,7 +166,8 @@ configure([
   }
 }
 
-configure([
+// Core projects — always present
+def javadocProjects = [
   project(":libs:opensearch-common"),
   project(":libs:opensearch-core"),
   project(":libs:opensearch-compress"),

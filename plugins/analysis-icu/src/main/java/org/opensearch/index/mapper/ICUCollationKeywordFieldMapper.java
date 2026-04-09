@@ -793,6 +793,33 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
+        final BytesRef binaryValue = parseCollationKey(context);
+        if (binaryValue == null) {
+            return;
+        }
+
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
+            context.doc().add(field);
+        }
+
+        if (fieldType().hasDocValues()) {
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            createFieldNamesField(context);
+        }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final BytesRef binaryValue = parseCollationKey(context);
+        if (binaryValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), binaryValue);
+    }
+
+    private BytesRef parseCollationKey(ParseContext context) throws IOException {
         final String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
@@ -806,22 +833,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value == null || value.length() > ignoreAbove) {
-            return;
+            return null;
         }
 
         RawCollationKey key = collator.getRawCollationKey(value, null);
-        final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
-
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new Field(mappedFieldType.name(), binaryValue, fieldType);
-            context.doc().add(field);
-        }
-
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
-        } else if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            createFieldNamesField(context);
-        }
+        return new BytesRef(key.bytes, 0, key.size);
     }
 
 }
