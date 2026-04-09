@@ -17,6 +17,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.store.FormatChecksumStrategy;
@@ -48,7 +49,7 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeDataFormatPlugin extends Plugin implements ExtensiblePlugin, DataFormatPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
     private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
@@ -76,57 +77,8 @@ public class CompositeDataFormatPlugin extends Plugin implements ExtensiblePlugi
         Setting.Property.Final
     );
 
-    /**
-     * Discovered {@link DataFormatPlugin} instances keyed by format name.
-     * When multiple plugins declare the same format name, the one with the highest
-     * {@link DataFormat#priority()} is retained.
-     */
-    private volatile Map<String, DataFormatPlugin> dataFormatPlugins = Map.of();
-    private volatile Map<String, DataFormatDescriptor> lastDescriptors = Map.of();
-
     /** Creates a new composite engine plugin. */
     public CompositeDataFormatPlugin() {}
-
-    @Override
-    public void loadExtensions(ExtensionLoader loader) {
-        List<DataFormatPlugin> formatPlugins = loader.loadExtensions(DataFormatPlugin.class);
-        Map<String, DataFormatPlugin> registry = new HashMap<>();
-        for (DataFormatPlugin plugin : formatPlugins) {
-            DataFormat format = plugin.getDataFormat();
-            if (format == null) {
-                logger.warn("DataFormatPlugin [{}] returned null DataFormat, skipping", plugin.getClass().getName());
-                continue;
-            }
-            String name = format.name();
-            if (name == null || name.isBlank()) {
-                logger.warn("DataFormatPlugin [{}] returned a DataFormat with null/blank name, skipping", plugin.getClass().getName());
-                continue;
-            }
-            DataFormatPlugin existing = registry.get(name);
-            if (existing != null) {
-                long existingPriority = existing.getDataFormat().priority();
-                if (format.priority() <= existingPriority) {
-                    logger.debug(
-                        "Skipping DataFormatPlugin [{}] for format [{}] (priority {} <= existing {})",
-                        plugin.getClass().getName(),
-                        name,
-                        format.priority(),
-                        existingPriority
-                    );
-                    continue;
-                }
-                logger.info(
-                    "Replacing DataFormatPlugin for format [{}] (priority {} > existing {})",
-                    name,
-                    format.priority(),
-                    existingPriority
-                );
-            }
-            registry.put(name, plugin);
-            logger.info("Registered DataFormatPlugin [{}] for format [{}]", plugin.getClass().getName(), name);
-        }
-        this.dataFormatPlugins = Map.copyOf(registry);
-    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -136,52 +88,40 @@ public class CompositeDataFormatPlugin extends Plugin implements ExtensiblePlugi
     @Override
     public DataFormat getDataFormat() {
         // TODO: Dataformat for Composite is per index, while this one talks about cluster level. Switching it off for now
-        return null;
+        return new CompositeDataFormat();
     }
 
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
         Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : lastDescriptors.entrySet()) {
+        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry()).entrySet()) {
             strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
         }
         return new CompositeIndexingExecutionEngine(
-            dataFormatPlugins,
             settings.indexSettings(),
             settings.mapperService(),
-            settings.shardPath(),
             settings.committer(),
+            settings.registry(),
+            settings.store(),
             strategies
         );
     }
 
     @Override
-    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         Settings settings = indexSettings.getSettings();
         String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
         List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
 
         Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
-        DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);
-        if (primaryPlugin != null) {
-            descriptors.putAll(primaryPlugin.getFormatDescriptors(indexSettings));
+        if (primaryFormatName != null) {
+            descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
         }
         for (String secondaryName : secondaryFormatNames) {
-            DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
-            if (secondaryPlugin != null) {
-                descriptors.putAll(secondaryPlugin.getFormatDescriptors(indexSettings));
+            if (secondaryName != null) {
+                descriptors.putAll(dataFormatRegistry.getFormatDescriptors(indexSettings));
             }
         }
-        lastDescriptors = Map.copyOf(descriptors);
-        return lastDescriptors;
-    }
-
-    /**
-     * Returns the discovered data format plugins keyed by format name.
-     *
-     * @return unmodifiable map of format name to plugin
-     */
-    public Map<String, DataFormatPlugin> getDataFormatPlugins() {
-        return dataFormatPlugins;
+        return Map.copyOf(descriptors);
     }
 }

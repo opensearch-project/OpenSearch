@@ -30,6 +30,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.RemoteDirectory;
@@ -83,7 +84,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         if (primary) {
@@ -185,7 +186,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
+        indexShard = newStartedShard(false, indexSettings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
 
         // Mocking the IndexShard methods and dependent classes.
         ShardId shardId = new ShardId("index1", "_na_", 1);
@@ -707,7 +708,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         RemoteSegmentTransferTracker tracker = indexShard.getRemoteStoreStatsTrackerFactory()
@@ -941,7 +942,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "temp-fs")
                 .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .build(),
-            new InternalEngineFactory()
+            new EngineBackedIndexerFactory(new InternalEngineFactory())
         );
 
         indexDocs(1, 3);

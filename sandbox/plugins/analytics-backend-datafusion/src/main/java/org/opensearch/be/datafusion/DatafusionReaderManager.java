@@ -95,4 +95,12 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {
         return fileNames.stream().map(f -> directoryPath + "/" + f).collect(Collectors.toList());
     }
+
+    @Override
+    public void close() throws IOException {
+        for (DatafusionReader reader : readers.values()) {
+            reader.close();
+        }
+        readers.clear();
+    }
 }

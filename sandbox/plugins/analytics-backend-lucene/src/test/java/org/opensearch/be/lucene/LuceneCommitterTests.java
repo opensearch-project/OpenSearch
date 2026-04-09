@@ -21,7 +21,6 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
@@ -86,9 +85,11 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
+            null,
             null
         );
-        return new CommitterConfig(indexSettings, engineConfig, store, mock(CatalogSnapshotManager.class));
+        return new CommitterConfig(engineConfig);
     }
 
     public void testConstructorOpensIndexWriter() throws IOException {
@@ -100,7 +101,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertTrue(writer.isOpen());
         } finally {
             committer.close();
-            settings.store().close();
+            settings.engineConfig().getStore().close();
         }
     }
 
@@ -111,7 +112,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
 
         committer.close();
         expectThrows(IllegalStateException.class, committer::getIndexWriter);
-        settings.store().close();
+        settings.engineConfig().getStore().close();
     }
 
     public void testCommitRoundTrip() throws IOException {
@@ -132,7 +133,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertEquals(readBack, stats.getUserData());
         } finally {
             committer.close();
-            settings.store().close();
+            settings.engineConfig().getStore().close();
         }
     }
 
@@ -144,7 +145,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             assertTrue(committer.getLastCommittedData().isEmpty());
         } finally {
             committer.close();
-            settings.store().close();
+            settings.engineConfig().getStore().close();
         }
     }
 
@@ -154,6 +155,6 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
         committer.close();
 
         expectThrows(IllegalStateException.class, () -> committer.commit(Map.of("key", "value")));
-        config.store().close();
+        config.engineConfig().getStore().close();
     }
 }

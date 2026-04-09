@@ -15,7 +15,6 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
 import java.nio.file.Path;
@@ -53,11 +52,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
 
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) {
-        List<Segment> segments = new ArrayList<>();
-        long gen = 0;
-        for (WriterFileSet wfs : refreshInput.writerFiles()) {
-            segments.add(Segment.builder(gen++).addSearchableFiles(dataFormat, wfs).build());
-        }
+        List<Segment> segments = new ArrayList<>(refreshInput.existingSegments());
+        segments.addAll(refreshInput.writerFiles());
         return new RefreshResult(segments);
     }
 
@@ -84,5 +80,10 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     @Override
     public IndexStoreProvider getProvider() {
         return null;
+    }
+
+    @Override
+    public void close() {
+        // no-op for mock
     }
 }

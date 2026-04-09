@@ -18,6 +18,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -66,11 +67,11 @@ public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelRepli
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        primaryShard = newStartedShard(true, settings, new InternalEngineFactory());
+        primaryShard = newStartedShard(true, settings, new EngineBackedIndexerFactory(new InternalEngineFactory()));
         indexDoc(primaryShard, "_doc", "1");
         indexDoc(primaryShard, "_doc", "2");
         primaryShard.refresh("test");
-        replicaShard = newStartedShard(false, settings, new NRTReplicationEngineFactory());
+        replicaShard = newStartedShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
     }
 
     @Override
