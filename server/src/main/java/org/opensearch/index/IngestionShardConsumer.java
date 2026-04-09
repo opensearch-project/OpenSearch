@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A consumer for reading messages from an ingestion shard.
@@ -116,4 +117,18 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return pointer based lag if available, else 0.
      */
     long getPointerBasedLag(IngestionShardPointer expectedStartPointer);
+
+    /**
+     * Seek multiple partitions to their respective offsets in a single operation. Used during recovery
+     * when a shard consumes from multiple source partitions and each partition must resume from its
+     * own checkpoint.
+     * <p>
+     * The default implementation is a no-op. Consumers that support multi-partition consumption
+     * should override this method.
+     *
+     * @param partitionOffsets map of source partition ID to the offset to seek to
+     */
+    default void seekToPartitionOffsets(Map<Integer, ? extends IngestionShardPointer> partitionOffsets) {
+        // no-op for single-partition consumers
+    }
 }
