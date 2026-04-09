@@ -253,6 +253,44 @@ public class OsProbe {
         return lines.get(0);
     }
 
+    /**
+     * Returns the available memory in bytes on Linux by reading {@code MemAvailable} from {@code /proc/meminfo}.
+     * Available memory is a better estimate than free memory as it accounts for reclaimable page cache and slab memory.
+     * Returns -1 if not on Linux or if the value cannot be read.
+     */
+    public long getAvailableMemorySize() {
+        if (!Constants.LINUX) {
+            return -1;
+        }
+        try {
+            return readAvailableMemoryFromProcMeminfo();
+        } catch (Exception e) {
+            logger.debug("error reading available memory from /proc/meminfo", e);
+            return -1;
+        }
+    }
+
+    /**
+     * Reads {@code MemAvailable} from {@code /proc/meminfo}.
+     *
+     * @return the available memory in bytes, or -1 if not found
+     * @throws IOException if an I/O exception occurs reading {@code /proc/meminfo}
+     */
+    @SuppressForbidden(reason = "access /proc/meminfo")
+    long readAvailableMemoryFromProcMeminfo() throws IOException {
+        final List<String> lines = Files.readAllLines(PathUtils.get("/proc/meminfo"));
+        for (final String line : lines) {
+            if (line.startsWith("MemAvailable:")) {
+                final String[] parts = line.split("\\s+");
+                if (parts.length >= 2) {
+                    // Value in /proc/meminfo is in kB
+                    return Long.parseLong(parts[1]) * 1024;
+                }
+            }
+        }
+        return -1;
+    }
+
     // this property is to support a hack to workaround an issue with Docker containers mounting the cgroups hierarchy inconsistently with
     // respect to /proc/self/cgroup; for Docker containers this should be set to "/"
     private static final String CONTROL_GROUPS_HIERARCHY_OVERRIDE = System.getProperty("opensearch.cgroups.hierarchy.override");
