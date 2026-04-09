@@ -71,6 +71,11 @@ public class KafkaOffset implements IngestionShardPointer {
         if (o == null) {
             throw new IllegalArgumentException("the pointer is null");
         }
+        if (o instanceof KafkaPartitionOffset) {
+            // KafkaOffset always sorts before KafkaPartitionOffset, matching the inverse in
+            // KafkaPartitionOffset.compareTo(KafkaOffset) which returns 1.
+            return -1;
+        }
         if (!(o instanceof KafkaOffset other)) {
             throw new IllegalArgumentException("the pointer is of type " + o.getClass() + " and not KafkaOffset");
         }
