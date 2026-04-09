@@ -39,6 +39,17 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         Assert.assertEquals("Offset value should be correctly parsed", 12345L, offset.getOffset());
     }
 
+    public void testParsePartitionOffsetFromString() {
+        KafkaConsumerFactory factory = new KafkaConsumerFactory();
+        KafkaOffset offset = factory.parsePointerFromString("3:42");
+
+        Assert.assertNotNull("Offset should be parsed", offset);
+        Assert.assertTrue("Should be KafkaPartitionOffset", offset instanceof KafkaPartitionOffset);
+        KafkaPartitionOffset partitionOffset = (KafkaPartitionOffset) offset;
+        Assert.assertEquals("Partition should be correctly parsed", 3, partitionOffset.getPartition());
+        Assert.assertEquals("Offset should be correctly parsed", 42L, partitionOffset.getOffset());
+    }
+
     public void testGetSourcePartitionCountBeforeInitialize() {
         KafkaConsumerFactory factory = new KafkaConsumerFactory();
         // Before initialize, config is null — calling getSourcePartitionCount should fail gracefully
@@ -52,8 +63,8 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         params.put("bootstrap_servers", "localhost:9092");
         factory.initialize(new IngestionSource.Builder("KAFKA").setParams(params).build());
 
-        // Single partition should delegate to createShardConsumer — will fail connecting to Kafka
-        // but we can verify it doesn't throw UnsupportedOperationException
+        // Single partition delegates to createShardConsumer — will fail connecting to Kafka
+        // but we verify it doesn't throw UnsupportedOperationException
         try {
             factory.createMultiPartitionShardConsumer("test-client", 0, List.of(0));
             fail("Expected exception connecting to Kafka");
@@ -71,11 +82,15 @@ public class KafkaConsumerFactoryTests extends OpenSearchTestCase {
         params.put("bootstrap_servers", "localhost:9092");
         factory.initialize(new IngestionSource.Builder("KAFKA").setParams(params).build());
 
-        // Multiple partitions should throw UnsupportedOperationException until KafkaMultiPartitionConsumer is implemented
-        UnsupportedOperationException e = expectThrows(
-            UnsupportedOperationException.class,
-            () -> factory.createMultiPartitionShardConsumer("test-client", 0, List.of(0, 4, 8))
-        );
-        assertTrue(e.getMessage().contains("Multi-partition consumer not yet implemented"));
+        // Multiple partitions creates KafkaMultiPartitionConsumer — will fail connecting to Kafka
+        // but we verify it doesn't throw UnsupportedOperationException
+        try {
+            factory.createMultiPartitionShardConsumer("test-client", 0, List.of(0, 4, 8));
+            fail("Expected exception connecting to Kafka");
+        } catch (UnsupportedOperationException e) {
+            fail("Multi-partition should not throw UnsupportedOperationException");
+        } catch (Exception e) {
+            // Expected — Kafka broker not available in unit test
+        }
     }
 }

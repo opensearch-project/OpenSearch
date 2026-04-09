@@ -10,14 +10,20 @@ package org.opensearch.plugin.kafka;
 
 import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionShardConsumer;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * Factory for creating Kafka consumers
+ * Factory for creating Kafka consumers.
+ * <p>
+ * The type parameter uses {@code IngestionShardConsumer<KafkaOffset, KafkaMessage>} rather than a
+ * concrete consumer class, allowing the factory to return either {@link KafkaPartitionConsumer}
+ * (single-partition) or {@link KafkaMultiPartitionConsumer} (multi-partition) from different methods.
  */
-public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
+public class KafkaConsumerFactory
+    implements IngestionConsumerFactory<IngestionShardConsumer<KafkaOffset, KafkaMessage>, KafkaOffset> {
 
     /**
      * Configuration for the Kafka source
@@ -37,13 +43,18 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     }
 
     @Override
-    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
+    public IngestionShardConsumer<KafkaOffset, KafkaMessage> createShardConsumer(String clientId, int shardId) {
         assert config != null;
         return new KafkaPartitionConsumer(clientId, config, shardId);
     }
 
     @Override
     public KafkaOffset parsePointerFromString(String pointer) {
+        if (pointer.contains(":")) {
+            // Multi-partition format: "partition:offset"
+            String[] parts = pointer.split(":");
+            return new KafkaPartitionOffset(Integer.parseInt(parts[0]), Long.parseLong(parts[1]));
+        }
         return new KafkaOffset(Long.valueOf(pointer));
     }
 
@@ -53,7 +64,9 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
             return cachedPartitionCount;
         }
         assert config != null;
-        // Create a temporary consumer to query partition metadata
+        // TODO: Consider using Kafka AdminClient instead of creating a full consumer just for
+        // partition metadata. AdminClient is lighter (no group coordinator handshake). Acceptable
+        // for now since the result is cached and called once per shard lifecycle.
         try (KafkaPartitionConsumer tempConsumer = new KafkaPartitionConsumer(
             "partition-count-query",
             config,
@@ -67,14 +80,11 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     }
 
     @Override
-    public KafkaPartitionConsumer createMultiPartitionShardConsumer(String clientId, int shardId, List<Integer> partitionIds) {
+    public IngestionShardConsumer<KafkaOffset, KafkaMessage> createMultiPartitionShardConsumer(String clientId, int shardId, List<Integer> partitionIds) {
         assert config != null;
         if (partitionIds.size() == 1) {
             return new KafkaPartitionConsumer(clientId, config, partitionIds.get(0));
         }
-        // TODO: Return KafkaMultiPartitionConsumer once implemented (PR 3)
-        throw new UnsupportedOperationException(
-            "Multi-partition consumer not yet implemented. Assign a single partition per shard or use partition_strategy=fixed."
-        );
+        return new KafkaMultiPartitionConsumer(clientId, config, shardId, partitionIds);
     }
 }
