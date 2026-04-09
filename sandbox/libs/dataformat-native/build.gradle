@@ -37,6 +37,12 @@ java {
     targetCompatibility = JavaVersion.toVersion(25)
 }
 
+// missingJavadoc hardcodes --release 21 which hides FFM types (stable since JDK 22).
+// Disable for this module until the framework supports per-project release overrides.
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}
+
 tasks.withType(Test).configureEach {
     jvmArgs += ['--enable-native-access=ALL-UNNAMED']
 }

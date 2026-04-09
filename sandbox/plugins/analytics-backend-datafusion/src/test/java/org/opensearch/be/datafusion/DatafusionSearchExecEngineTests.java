@@ -29,15 +29,11 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
     private long readerPtr;
     private NativeRuntimeHandle runtimeHandle;
 
-    private static boolean runtimeInitialized = false;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (runtimeInitialized == false) {
-            NativeBridge.initTokioRuntimeManager(2);
-            runtimeInitialized = true;
-        }
+        NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);

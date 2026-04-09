@@ -10,33 +10,37 @@
 
 use std::slice;
 use std::str;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 use native_bridge_common::ffm_safe;
+use parking_lot::RwLock;
 
 use crate::api;
 use crate::runtime_manager::RuntimeManager;
 
-static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
+static TOKIO_RUNTIME_MANAGER: RwLock<Option<Arc<RuntimeManager>>> = RwLock::new(None);
 
 unsafe fn str_from_raw<'a>(ptr: *const u8, len: i64) -> &'a str {
     str::from_utf8_unchecked(slice::from_raw_parts(ptr, len as usize))
 }
 
-fn get_rt_manager() -> Result<&'static Arc<RuntimeManager>, String> {
+fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
     TOKIO_RUNTIME_MANAGER
-        .get()
+        .read()
+        .clone()
         .ok_or_else(|| "Runtime manager not initialized".to_string())
 }
 
 #[no_mangle]
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32) {
-    TOKIO_RUNTIME_MANAGER.get_or_init(|| Arc::new(RuntimeManager::new(cpu_threads as usize)));
+    let mut guard = TOKIO_RUNTIME_MANAGER.write();
+    *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize)));
 }
 
 #[no_mangle]
 pub extern "C" fn df_shutdown_runtime_manager() {
-    if let Some(mgr) = TOKIO_RUNTIME_MANAGER.get() {
+    let mgr = TOKIO_RUNTIME_MANAGER.write().take();
+    if let Some(mgr) = mgr {
         mgr.shutdown();
     }
 }
@@ -76,7 +80,7 @@ pub unsafe extern "C" fn df_create_reader(
         filenames.push(str_from_raw(ptr, len).to_string());
     }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, mgr).map_err(|e| e.to_string())
+    api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -98,7 +102,7 @@ pub unsafe extern "C" fn df_execute_query(
     let table_name = str_from_raw(table_name_ptr, table_name_len);
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     mgr.io_runtime
-        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, mgr))
+        .block_on(api::execute_query(shard_view_ptr, table_name, plan_bytes, runtime_ptr, &mgr))
         .map_err(|e| e.to_string())
 }
 
@@ -138,7 +142,7 @@ pub unsafe extern "C" fn df_sql_to_substrait(
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len);
     let sql = str_from_raw(sql_ptr, sql_len);
-    let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, mgr)
+    let bytes = api::sql_to_substrait(shard_view_ptr, table_name, sql, runtime_ptr, &mgr)
         .map_err(|e| e.to_string())?;
     let copy_len = bytes.len().min(out_cap as usize);
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_ptr, copy_len);

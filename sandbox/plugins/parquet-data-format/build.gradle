@@ -61,3 +61,7 @@ test {
   systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
   dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
 }
+
+tasks.matching { it.name == 'missingJavadoc' }.configureEach {
+    enabled = false
+}

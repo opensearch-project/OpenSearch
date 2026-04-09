@@ -18,13 +18,9 @@ import java.nio.file.Path;
  */
 public class DataFusionServiceTests extends OpenSearchTestCase {
 
-    private static boolean runtimeInitialized = false;
 
     private void ensureTokioInit() {
-        if (runtimeInitialized == false) {
-            NativeBridge.initTokioRuntimeManager(2);
-            runtimeInitialized = true;
-        }
+        NativeBridge.initTokioRuntimeManager(2);
     }
 
     public void testServiceStartStop() {

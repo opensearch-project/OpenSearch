@@ -31,15 +31,11 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
 
-    private static boolean runtimeInitialized = false;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (runtimeInitialized == false) {
-            NativeBridge.initTokioRuntimeManager(2);
-            runtimeInitialized = true;
-        }
+        NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("spill");
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
