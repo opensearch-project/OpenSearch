@@ -24,6 +24,7 @@ import java.util.List;
  * DatafusionReader → DatafusionContext → DatafusionSearchExecEngine → EngineResultStream → EngineResultBatch.
  * Uses sqlToSubstrait to generate plan bytes, then exercises the real plugin classes.
  */
+@AwaitsFix(url = "https://github.com/opensearch-project/OpenSearch/issues/21195")
 public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
 
     private long readerPtr;
