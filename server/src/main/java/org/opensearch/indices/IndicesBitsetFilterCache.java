@@ -228,6 +228,11 @@ public class IndicesBitsetFilterCache
         }
     }
 
+    /**
+     * Cached value holding the bitset, shard identity, and the per-index listener for stats.
+     *
+     * @opensearch.internal
+     */
     @ExperimentalApi
     public static final class Value {
         final BitSet bitset;
