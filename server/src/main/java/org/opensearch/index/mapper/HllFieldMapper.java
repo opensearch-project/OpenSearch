@@ -184,26 +184,38 @@ public class HllFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        // Parse binary HLL++ sketch data
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
-        }
-
+        byte[] value = parseHllValue(context);
         if (value == null) {
             return;
         }
 
-        // Validate the sketch data
         BytesRef sketchBytes = new BytesRef(value);
         validateSketchData(sketchBytes);
-
-        // Store as binary doc value
         context.doc().add(new BinaryDocValuesField(fieldType().name(), sketchBytes));
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        byte[] value = parseHllValue(context);
+        if (value == null) {
+            return;
+        }
+
+        BytesRef sketchBytes = new BytesRef(value);
+        validateSketchData(sketchBytes);
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private byte[] parseHllValue(ParseContext context) throws IOException {
+        byte[] value = context.parseExternalValue(byte[].class);
+        if (value == null) {
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            } else {
+                value = context.parser().binaryValue();
+            }
+        }
+        return value;
     }
 
     /**
