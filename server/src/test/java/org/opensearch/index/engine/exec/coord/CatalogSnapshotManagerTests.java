@@ -12,6 +12,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -67,19 +68,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int iter = 0; iter < 100; iter++) {
             Map<String, String> initialUserData = randomUserData(randomIntBetween(1, 5));
             long initGen = randomIntBetween(0, 100);
-            CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                randomNonNegativeLong(),
-                initGen,
-                randomNonNegativeLong(),
-                randomSegments(),
-                randomNonNegativeLong(),
-                initialUserData,
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                Map.of(),
-                Map.of(),
-                List.of(),
-                null
-            );
+            CatalogSnapshotManager manager = createManager(randomSegments(), initialUserData);
             try {
                 manager.commitNewSnapshot(randomSegments());
                 try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -99,19 +88,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     public void testReferenceCountingLifecycle() throws Exception {
         for (int iter = 0; iter < 100; iter++) {
             long initGen = randomIntBetween(0, 100);
-            CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                randomNonNegativeLong(),
-                initGen,
-                randomNonNegativeLong(),
-                randomSegments(),
-                randomNonNegativeLong(),
-                Collections.emptyMap(),
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                Map.of(),
-                Map.of(),
-                List.of(),
-                null
-            );
+            CatalogSnapshotManager manager = createManager(randomSegments(), Collections.emptyMap());
 
             CatalogSnapshot initialSnapshot;
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -215,12 +192,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map<String, String> userData = randomUserData(randomIntBetween(0, 4));
 
             CatalogSnapshotManager manager = new CatalogSnapshotManager(
-                id,
-                generation,
-                version,
-                segments,
-                lastWriterGeneration,
-                userData,
+                List.of(new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData)),
                 CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
                 Map.of(),
                 Map.of(),
@@ -333,12 +305,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         Map<String, String> userData = commitUserData(100, 100, translogUUID);
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            cs1Segments,
-            1L,
-            userData,
+            List.of(new DataformatAwareCatalogSnapshot(1L, 1L, 0L, cs1Segments, 1L, userData)),
             policy,
             Map.of("parquet", tracker),
             Map.of(),
@@ -390,12 +357,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         List<Segment> cs1Segments = List.of(segment(0, "parquet", "_0_data.parquet"), segment(1, "parquet", "_1_data.parquet"));
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            cs1Segments,
-            1L,
-            commitUserData(100, 100, translogUUID),
+            List.of(new DataformatAwareCatalogSnapshot(1L, 1L, 0L, cs1Segments, 1L, commitUserData(100, 100, translogUUID))),
             policy,
             Map.of("parquet", tracker),
             Map.of(),
@@ -440,12 +402,16 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // CS1: segment _0
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            List.of(segment(0, "parquet", "_0_data.parquet")),
-            1L,
-            commitUserData(100, 100, translogUUID),
+            List.of(
+                new DataformatAwareCatalogSnapshot(
+                    1L,
+                    1L,
+                    0L,
+                    List.of(segment(0, "parquet", "_0_data.parquet")),
+                    1L,
+                    commitUserData(100, 100, translogUUID)
+                )
+            ),
             policy,
             Map.of("parquet", tracker),
             Map.of(),
@@ -501,12 +467,16 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // CS1: segment _0
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            List.of(segment(0, "parquet", "_0_data.parquet")),
-            1L,
-            commitUserData(100, 100, translogUUID),
+            List.of(
+                new DataformatAwareCatalogSnapshot(
+                    1L,
+                    1L,
+                    0L,
+                    List.of(segment(0, "parquet", "_0_data.parquet")),
+                    1L,
+                    commitUserData(100, 100, translogUUID)
+                )
+            ),
             policy,
             Map.of("parquet", tracker),
             Map.of(),
@@ -557,12 +527,16 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // CS1: _0 and _1
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            List.of(segment(0, "parquet", "_0_data.parquet"), segment(1, "parquet", "_shared.parquet")),
-            1L,
-            commitUserData(100, 100, translogUUID),
+            List.of(
+                new DataformatAwareCatalogSnapshot(
+                    1L,
+                    1L,
+                    0L,
+                    List.of(segment(0, "parquet", "_0_data.parquet"), segment(1, "parquet", "_shared.parquet")),
+                    1L,
+                    commitUserData(100, 100, translogUUID)
+                )
+            ),
             policy,
             Map.of("parquet", tracker),
             Map.of(),
@@ -641,21 +615,23 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     private CatalogSnapshotManager createRandomManager() {
         try {
-            return new CatalogSnapshotManager(
-                randomNonNegativeLong(),
-                randomIntBetween(0, 100),
-                randomNonNegativeLong(),
-                randomSegments(),
-                randomNonNegativeLong(),
-                Map.of(),
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                Map.of(),
-                Map.of(),
-                List.of(),
-                null
-            );
+            return createManager(randomSegments(), Map.of());
         } catch (IOException e) {
             throw new AssertionError("unreachable", e);
         }
+    }
+
+    private CatalogSnapshotManager createManager(List<Segment> segments, Map<String, String> userData) throws IOException {
+        return createManager(segments, userData, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY, Map.of());
+    }
+
+    private CatalogSnapshotManager createManager(
+        List<Segment> segments,
+        Map<String, String> userData,
+        CatalogSnapshotDeletionPolicy policy,
+        Map<String, FileDeleter> fileDeleters
+    ) throws IOException {
+        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, segments, 1L, userData);
+        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleters, Map.of(), List.of(), null);
     }
 }

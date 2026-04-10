@@ -60,7 +60,7 @@ public class IndexFileDeleter {
         CatalogSnapshotDeletionPolicy deletionPolicy,
         Map<String, FileDeleter> fileDeleters,
         Map<String, FilesListener> filesListeners,
-        CatalogSnapshot committedSnapshot,
+        List<CatalogSnapshot> initialCommittedSnapshots,
         ShardPath shardPath
     ) throws IOException {
         this.deletionPolicy = deletionPolicy;
@@ -69,12 +69,13 @@ public class IndexFileDeleter {
         this.fileRefCounts = new HashMap<>();
         this.committedSnapshots = new ArrayList<>();
 
-        // incRef for the commit (manager already holds one ref as "latest")
-        if (committedSnapshot.tryIncRef() == false) {
-            throw new IllegalStateException("Initial committed snapshot [gen=" + committedSnapshot.getGeneration() + "] is already closed");
+        for (CatalogSnapshot cs : initialCommittedSnapshots) {
+            if (cs.tryIncRef() == false) {
+                throw new IllegalStateException("Committed snapshot [gen=" + cs.getGeneration() + "] is already closed");
+            }
+            this.committedSnapshots.add(cs);
+            addFileReferences(cs);
         }
-        committedSnapshots.add(committedSnapshot);
-        addFileReferences(committedSnapshot);
 
         List<CatalogSnapshot> toDelete = deletionPolicy.onInit(committedSnapshots);
         for (CatalogSnapshot old : toDelete) {

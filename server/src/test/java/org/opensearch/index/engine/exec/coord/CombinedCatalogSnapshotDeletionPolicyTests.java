@@ -315,6 +315,24 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
         expectThrows(IllegalArgumentException.class, () -> CombinedCatalogSnapshotDeletionPolicy.findSafeCommitPoint(List.of(), 100));
     }
 
+    // ---- findSafeCommit ----
+
+    public void testFindSafeCommitDelegatesToFindSafeCommitPoint() throws IOException {
+        AtomicLong globalCP = new AtomicLong(200);
+        CombinedCatalogSnapshotDeletionPolicy policy = createPolicy(globalCP);
+
+        CatalogSnapshot cs1 = snapshot(1, 100, 100, "uuid");
+        CatalogSnapshot cs2 = snapshot(2, 200, 200, "uuid");
+        CatalogSnapshot cs3 = snapshot(3, 300, 300, "uuid");
+
+        // globalCP=200 → cs2 is safe (maxSeqNo=200 ≤ 200)
+        assertSame(cs2, policy.findSafeCommit(List.of(cs1, cs2, cs3)));
+
+        // Advance globalCP → cs3 becomes safe
+        globalCP.set(300);
+        assertSame(cs3, policy.findSafeCommit(List.of(cs1, cs2, cs3)));
+    }
+
     // ---- commitDescription ----
 
     public void testCommitDescription() {

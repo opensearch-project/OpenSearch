@@ -167,6 +167,11 @@ public class CombinedCatalogSnapshotDeletionPolicy implements CatalogSnapshotDel
         return lastCommit;
     }
 
+    @Override
+    public CatalogSnapshot findSafeCommit(List<CatalogSnapshot> commits) throws IOException {
+        return findSafeCommitPoint(commits, globalCheckpointSupplier.getAsLong());
+    }
+
     /**
      * Returns the total document count of a committed catalog snapshot by summing
      * the row counts across all segments. Validates that all data formats within a segment

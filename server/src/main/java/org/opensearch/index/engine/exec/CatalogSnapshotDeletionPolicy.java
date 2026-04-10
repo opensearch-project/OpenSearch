@@ -70,4 +70,15 @@ public interface CatalogSnapshotDeletionPolicy {
     default GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
         throw new UnsupportedOperationException("acquireCommittedSnapshot not supported by this policy");
     }
+
+    /**
+     * Finds the safe commit from the given list using this policy's global checkpoint.
+     * Used during startup to trim unsafe commits before the policy is fully initialized.
+     *
+     * @param commits all committed snapshots, ordered oldest first
+     * @return the safe commit
+     */
+    default CatalogSnapshot findSafeCommit(List<CatalogSnapshot> commits) throws IOException {
+        throw new UnsupportedOperationException("findSafeCommit not supported by this policy");
+    }
 }

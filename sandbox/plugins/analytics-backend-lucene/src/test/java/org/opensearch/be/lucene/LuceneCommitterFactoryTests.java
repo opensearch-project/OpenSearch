@@ -45,7 +45,12 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
         Committer committer = null;
         try {
             LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();
-            CommitterConfig settings = new CommitterConfig(indexSettings, null, store, null);
+            CommitterConfig settings = new CommitterConfig(
+                indexSettings,
+                null,
+                store,
+                java.util.Optional.of(org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY)
+            );
             committer = committerFactory.getCommitter(settings);
 
             assertTrue("getCommitter() should return a LuceneCommitter instance", committer instanceof LuceneCommitter);

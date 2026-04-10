@@ -257,12 +257,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         RefreshResult rr1 = indexEngine.refresh(RefreshInput.builder().addWriterFileSet(fs1).build());
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            rr1.refreshedSegments(),
-            1L,
-            Map.of(),
+            List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, rr1.refreshedSegments(), 1L, Map.of())),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
             Map.of(),
             Map.of(),
@@ -359,12 +354,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         Segment seg = Segment.builder(0L).addSearchableFiles(format1, wfs1).addSearchableFiles(format2, wfs2).build();
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            List.of(seg),
-            1L,
-            Map.of(),
+            List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, List.of(seg), 1L, Map.of())),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
             Map.of(),
             Map.of(),

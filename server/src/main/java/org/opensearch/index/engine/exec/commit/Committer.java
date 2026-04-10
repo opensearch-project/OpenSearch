@@ -11,9 +11,11 @@ package org.opensearch.index.engine.exec.commit;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -65,4 +67,14 @@ public interface Committer extends Closeable {
      * @return the safe commit info
      */
     SafeCommitInfo getSafeCommitInfo();
+
+    /**
+     * Discovers all persisted committed catalog snapshots from the backing store.
+     * Returns them ordered oldest-first (by generation).
+     * Returns empty list if no catalog snapshots have been committed.
+     *
+     * @return the list of committed catalog snapshots
+     * @throws IOException if reading commits fails
+     */
+    List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
 }

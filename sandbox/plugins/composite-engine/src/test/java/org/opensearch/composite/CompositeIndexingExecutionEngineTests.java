@@ -16,6 +16,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.RefreshInput;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.test.OpenSearchTestCase;
@@ -279,6 +280,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             public SafeCommitInfo getSafeCommitInfo() {
                 return SafeCommitInfo.EMPTY;
             }
+
+            @Override
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
         };
 
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
@@ -299,7 +305,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, tracking);
 
-        CatalogSnapshotManager csm = new CatalogSnapshotManager(0, 0, 0, List.of(), 0, Map.of());
+        CatalogSnapshotManager csm = new CatalogSnapshotManager(
+            List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), 0L, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null
+        );
         engine.setCatalogSnapshotManager(csm);
 
         engine.flush();
@@ -307,7 +320,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         assertNotNull("commit() must receive commit data", tracking.lastCommitData);
     }
 
-    public void testFlushPropagatesIOExceptionFromCommit() {
+    public void testFlushPropagatesIOExceptionFromCommit() throws IOException {
         Committer failingCommit = new Committer() {
             @Override
             public void commit(Map<String, String> commitData) throws IOException {
@@ -331,6 +344,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             public SafeCommitInfo getSafeCommitInfo() {
                 return SafeCommitInfo.EMPTY;
             }
+
+            @Override
+            public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+                return java.util.List.of();
+            }
         };
 
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
@@ -339,7 +357,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, failingCommit);
 
-        CatalogSnapshotManager csm = new CatalogSnapshotManager(0, 0, 0, List.of(), 0, Map.of());
+        CatalogSnapshotManager csm = new CatalogSnapshotManager(
+            List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), 0L, Map.of())),
+            CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+            Map.of(),
+            Map.of(),
+            List.of(),
+            null
+        );
         engine.setCatalogSnapshotManager(csm);
 
         IOException ex = expectThrows(IOException.class, engine::flush);
@@ -385,6 +410,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         @Override
         public SafeCommitInfo getSafeCommitInfo() {
             return SafeCommitInfo.EMPTY;
+        }
+
+        @Override
+        public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
+            return java.util.List.of();
         }
     }
 

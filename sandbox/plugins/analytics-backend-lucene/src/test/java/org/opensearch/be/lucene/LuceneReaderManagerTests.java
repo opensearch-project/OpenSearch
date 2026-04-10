@@ -243,7 +243,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
-        CommitterConfig cs = new CommitterConfig(idxSettings, null, store, null);
+        CommitterConfig cs = new CommitterConfig(
+            idxSettings,
+            null,
+            store,
+            java.util.Optional.of(org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY)
+        );
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {

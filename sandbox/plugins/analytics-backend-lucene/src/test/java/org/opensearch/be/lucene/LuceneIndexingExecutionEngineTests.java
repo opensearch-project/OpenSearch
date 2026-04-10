@@ -49,7 +49,12 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        CommitterConfig settings = new CommitterConfig(indexSettings, null, store, null);
+        CommitterConfig settings = new CommitterConfig(
+            indexSettings,
+            null,
+            store,
+            java.util.Optional.of(org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY)
+        );
         return new LuceneCommitter(settings);
     }
 

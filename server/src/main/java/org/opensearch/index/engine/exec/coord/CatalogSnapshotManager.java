@@ -47,14 +47,32 @@ public class CatalogSnapshotManager implements Closeable {
     private final List<CatalogSnapshotLifecycleListener> snapshotListeners;
 
     /**
-     * Constructs a new CatalogSnapshotManager.
+     * Creates a new {@link DataformatAwareCatalogSnapshot} for use in tests.
+     * <p>
+     * This is a convenience method for test code that cannot access the package-private
+     * {@link DataformatAwareCatalogSnapshot} constructor. The returned snapshot is NOT managed
+     * by a {@link CatalogSnapshotManager} — its reference count is not tracked, and callers
+     * must not rely on ref-counting semantics.
+     */
+    public static CatalogSnapshot createInitialSnapshot(
+        long id,
+        long generation,
+        long version,
+        List<Segment> segments,
+        long lastWriterGeneration,
+        Map<String, String> userData
+    ) {
+        return new DataformatAwareCatalogSnapshot(id, generation, version, segments, lastWriterGeneration, userData);
+    }
+
+    /**
+     * Constructs a new CatalogSnapshotManager from committed snapshots.
+     * <p>
+     * Typically called after {@link org.opensearch.index.engine.exec.commit.Committer#listCommittedSnapshots()}
+     * discovers the surviving commits on startup. For fresh indices, the caller creates a single initial
+     * snapshot and passes it as a singleton list.
      *
-     * @param id                   the unique snapshot identifier
-     * @param generation           the initial generation number
-     * @param version              the schema version
-     * @param segments             the initial segments
-     * @param lastWriterGeneration the last writer generation
-     * @param userData             user-defined metadata
+     * @param committedSnapshots   the committed snapshots, ordered oldest first; must not be empty
      * @param deletionPolicy       decides which committed snapshots to keep
      * @param fileDeleters         per-format deleters for actual file deletion
      * @param filesListeners       per-format listeners notified on file add/delete
@@ -62,31 +80,23 @@ public class CatalogSnapshotManager implements Closeable {
      * @param shardPath            for orphan cleanup on init, or null if not needed
      */
     public CatalogSnapshotManager(
-        long id,
-        long generation,
-        long version,
-        List<Segment> segments,
-        long lastWriterGeneration,
-        Map<String, String> userData,
+        List<CatalogSnapshot> committedSnapshots,
         CatalogSnapshotDeletionPolicy deletionPolicy,
         Map<String, FileDeleter> fileDeleters,
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshotLifecycleListener> snapshotListeners,
         ShardPath shardPath
     ) throws IOException {
-        DataformatAwareCatalogSnapshot initialSnapshot = new DataformatAwareCatalogSnapshot(
-            id,
-            generation,
-            version,
-            segments,
-            lastWriterGeneration,
-            userData
-        );
-        this.latestCatalogSnapshot = initialSnapshot;
-        catalogSnapshotMap.put(initialSnapshot.getGeneration(), initialSnapshot);
+        if (committedSnapshots.isEmpty()) {
+            throw new IllegalArgumentException("committedSnapshots must not be empty");
+        }
         this.deletionPolicy = deletionPolicy;
         this.snapshotListeners = snapshotListeners;
-        this.indexFileDeleter = new IndexFileDeleter(deletionPolicy, fileDeleters, filesListeners, initialSnapshot, shardPath);
+        this.latestCatalogSnapshot = committedSnapshots.getLast();
+        for (CatalogSnapshot cs : committedSnapshots) {
+            catalogSnapshotMap.put(cs.getGeneration(), cs);
+        }
+        this.indexFileDeleter = new IndexFileDeleter(deletionPolicy, fileDeleters, filesListeners, committedSnapshots, shardPath);
     }
 
     // ---- Refresh path ----

@@ -109,12 +109,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         Segment seg2 = Segment.builder(1L).addSearchableFiles(format, fs2).build();
 
         CatalogSnapshotManager snapshotManager = new CatalogSnapshotManager(
-            1L,
-            1L,
-            0L,
-            List.of(seg1, seg2),
-            2L,
-            Map.of(),
+            List.of(CatalogSnapshotManager.createInitialSnapshot(1L, 1L, 0L, List.of(seg1, seg2), 2L, Map.of())),
             CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
             Map.of(),
             Map.of(),
