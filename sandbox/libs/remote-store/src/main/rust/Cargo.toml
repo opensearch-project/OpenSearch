@@ -1,0 +1,24 @@
+[package]
+name = "opensearch-remote-store"
+version = "0.1.0"
+edition = "2021"
+description = "Remote object store backends (S3, GCS, Azure, FS) for OpenSearch sandbox"
+license = "Apache-2.0"
+workspace = "../../../../dataformat-native/rust"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+object_store = { workspace = true, features = ["aws", "gcp", "azure"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+async-trait = "0.1"
+bytes = "1"
+futures = { workspace = true }
+native-bridge-common = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
