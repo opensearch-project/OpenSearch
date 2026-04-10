@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
 import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_LOCATION;
@@ -61,7 +62,7 @@ public class IngestionEngine extends InternalEngine {
 
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
-    private final DocumentMapperForType documentMapperForType;
+    private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestService ingestService;
     private volatile IngestionShardPointer lastCommittedBatchStartPointer;
 
@@ -73,7 +74,7 @@ public class IngestionEngine extends InternalEngine {
         super(engineConfig);
         this.ingestionConsumerFactory = Objects.requireNonNull(ingestionConsumerFactory);
         this.ingestService = ingestService;
-        this.documentMapperForType = engineConfig.getDocumentMapperForTypeSupplier().get();
+        this.documentMapperForTypeSupplier = engineConfig.getDocumentMapperForTypeSupplier();
         registerDynamicIndexSettingsHandlers();
     }
 
@@ -497,7 +498,7 @@ public class IngestionEngine extends InternalEngine {
     }
 
     public DocumentMapperForType getDocumentMapperForType() {
-        return documentMapperForType;
+        return documentMapperForTypeSupplier.get();
     }
 
     @Override
