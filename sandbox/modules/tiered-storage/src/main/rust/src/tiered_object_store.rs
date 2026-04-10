@@ -427,7 +427,6 @@ impl ObjectStore for TieredObjectStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::registry::FileRegistry as _;
     use futures::StreamExt;
     use object_store::memory::InMemory;
     use object_store::PutPayload;
@@ -451,7 +450,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_opts_routes_to_remote_for_remote_file() {
-        let (registry, _local, remote, tiered) = setup();
+        let (_registry, _local, remote, tiered) = setup();
 
         let remote_path = Path::from("remote/a.parquet");
         remote

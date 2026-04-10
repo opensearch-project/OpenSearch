@@ -36,8 +36,6 @@ pub struct TieredStorageRegistry {
     files: DashMap<String, TieredFileEntry>,
     /// Total acquire calls (monotonic counter for monitoring).
     acquire_count: AtomicU64,
-    /// Total release calls (monotonic counter for monitoring).
-    release_count: AtomicU64,
     /// Total remove calls (monotonic counter for monitoring).
     remove_count: AtomicU64,
 }
@@ -53,17 +51,15 @@ impl TieredStorageRegistry {
         Self {
             files: DashMap::new(),
             acquire_count: AtomicU64::new(0),
-            release_count: AtomicU64::new(0),
             remove_count: AtomicU64::new(0),
         }
     }
 
-    /// Monitoring metrics: `(acquires, releases, removes)`.
+    /// Monitoring metrics: `(acquires, removes)`.
     #[must_use]
-    pub fn metrics(&self) -> (u64, u64, u64) {
+    pub fn metrics(&self) -> (u64, u64) {
         (
             self.acquire_count.load(Ordering::Relaxed),
-            self.release_count.load(Ordering::Relaxed),
             self.remove_count.load(Ordering::Relaxed),
         )
     }
@@ -450,7 +446,7 @@ mod tests {
         let _g = reg.get("/a.parquet");
         drop(_g);
         reg.remove("/a.parquet", true);
-        let (acq, _rel, rem) = reg.metrics();
+        let (acq, rem) = reg.metrics();
         assert_eq!(acq, 1);
         assert_eq!(rem, 1);
     }
