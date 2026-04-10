@@ -11,6 +11,7 @@ members = [
     "../../../plugins/native-repository-azure/src/main/rust",
     "../../../plugins/native-repository-fs/src/main/rust",
     "../../../libs/tiered-storage/src/main/rust",
+    "../../../modules/foyer-page-cache/rust",
 ]
 
 [workspace.dependencies]
