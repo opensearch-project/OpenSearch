@@ -63,7 +63,6 @@ public final class FoyerBridge {
             lib.find("foyer_destroy_cache").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
-
         logger.info("[FoyerBridge] FFM handles resolved");
     }
 
