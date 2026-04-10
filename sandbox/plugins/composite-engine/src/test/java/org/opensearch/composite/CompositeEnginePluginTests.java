@@ -10,9 +10,9 @@ package org.opensearch.composite;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -101,11 +101,7 @@ public class CompositeEnginePluginTests extends OpenSearchTestCase {
             }
 
             @Override
-            public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(
-                org.opensearch.index.mapper.MapperService mapperService,
-                org.opensearch.index.shard.ShardPath shardPath,
-                IndexSettings indexSettings
-            ) {
+            public org.opensearch.index.engine.dataformat.IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
                 return null;
             }
         };
