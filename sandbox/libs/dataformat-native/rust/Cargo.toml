@@ -6,6 +6,7 @@ members = [
     "lib",
     "../../../plugins/analytics-backend-datafusion/rust",
     "../../../plugins/parquet-data-format/src/main/rust",
+    "../../../modules/foyer-page-cache/rust",
 ]
 
 [workspace.dependencies]
@@ -39,6 +40,11 @@ log = "0.4"
 
 # Allocator
 mimalloc = { version = "0.1.48", default-features = false }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11"
+bytes = "1.5"
+foyer = "0.11"
 
 # Misc
 dashmap = "5.5"
