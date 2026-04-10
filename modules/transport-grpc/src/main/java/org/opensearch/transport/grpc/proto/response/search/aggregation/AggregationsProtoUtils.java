@@ -33,19 +33,13 @@ public class AggregationsProtoUtils {
      * @throws IOException if an error occurs during conversion
      * @see Aggregations#toXContentInternal
      */
-    public static void toProto(
-        Aggregations aggregations,
-        org.opensearch.protobufs.SearchResponse.Builder builder
-    ) throws IOException {
+    public static void toProto(Aggregations aggregations, org.opensearch.protobufs.SearchResponse.Builder builder) throws IOException {
         if (aggregations == null) {
             return;
         }
 
         for (Aggregation agg : aggregations.asList()) {
-            builder.putAggregations(
-                agg.getName(),
-                AggregateProtoUtils.toProto(agg)
-            );
+            builder.putAggregations(agg.getName(), AggregateProtoUtils.toProto(agg));
         }
     }
 }

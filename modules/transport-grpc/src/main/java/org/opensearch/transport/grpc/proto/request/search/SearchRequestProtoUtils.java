@@ -83,7 +83,14 @@ public class SearchRequestProtoUtils {
          */
         IntConsumer setSize = size -> searchRequest.source().size(size);
         // TODO avoid hidden cast to NodeClient here
-        parseSearchRequest(searchRequest, request, ((NodeClient) client).getNamedWriteableRegistry(), setSize, queryUtils, aggregationRegistry);
+        parseSearchRequest(
+            searchRequest,
+            request,
+            ((NodeClient) client).getNamedWriteableRegistry(),
+            setSize,
+            queryUtils,
+            aggregationRegistry
+        );
         return searchRequest;
     }
 

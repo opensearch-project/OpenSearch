@@ -89,19 +89,19 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
 
         // TODO: Nested aggregations not yet supported in proto definition
         // if (container.getAggregationsCount() > 0) {
-        //     AggregatorFactories.Builder subFactories = new AggregatorFactories.Builder();
+        // AggregatorFactories.Builder subFactories = new AggregatorFactories.Builder();
         //
-        //     for (Map.Entry<String, AggregationContainer> entry : container.getAggregationsMap().entrySet()) {
-        //         String subAggName = entry.getKey();
-        //         AggregationContainer subAggContainer = entry.getValue();
+        // for (Map.Entry<String, AggregationContainer> entry : container.getAggregationsMap().entrySet()) {
+        // String subAggName = entry.getKey();
+        // AggregationContainer subAggContainer = entry.getValue();
         //
-        //         logger.debug("Parsing subaggregation '{}' for parent '{}'", subAggName, name);
-        //         AggregationBuilder subAgg = fromProto(subAggName, subAggContainer);
-        //         subFactories.addAggregator(subAgg);
-        //     }
+        // logger.debug("Parsing subaggregation '{}' for parent '{}'", subAggName, name);
+        // AggregationBuilder subAgg = fromProto(subAggName, subAggContainer);
+        // subFactories.addAggregator(subAgg);
+        // }
         //
-        //     builder.subAggregations(subFactories);
-        //     logger.debug("Added {} subaggregation(s) to aggregation '{}'", container.getAggregationsCount(), name);
+        // builder.subAggregations(subFactories);
+        // logger.debug("Added {} subaggregation(s) to aggregation '{}'", container.getAggregationsCount(), name);
         // }
 
         return builder;
@@ -141,9 +141,7 @@ public class AggregationBuilderProtoConverterSpiRegistry implements AggregationB
         AggregationContainer.AggregationContainerCase aggregationCase = converter.getHandledAggregationCase();
 
         if (aggregationCase == null) {
-            throw new IllegalArgumentException(
-                "Handled aggregation case cannot be null for converter: " + converter.getClass().getName()
-            );
+            throw new IllegalArgumentException("Handled aggregation case cannot be null for converter: " + converter.getClass().getName());
         }
 
         if (aggregationCase == AggregationContainer.AggregationContainerCase.AGGREGATIONCONTAINER_NOT_SET) {

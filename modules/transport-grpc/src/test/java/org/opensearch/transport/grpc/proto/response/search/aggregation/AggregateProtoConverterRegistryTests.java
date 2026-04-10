@@ -21,7 +21,6 @@ import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,15 +29,11 @@ import java.util.Map;
  */
 public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
 
-    // ========================================
-    // Registry Registration Tests
-    // ========================================
-
     public void testRegistryLoadsBuiltInConverters() {
         AggregateProtoConverterRegistryImpl registry = new AggregateProtoConverterRegistryImpl();
         AggregateProtoConverterSpiRegistry spiRegistry = registry.getSpiRegistry();
 
-        assertEquals("Should have 2 built-in converters", 2, spiRegistry.size());
+        assertEquals("Should have 7 built-in converters", 7, spiRegistry.size());
     }
 
     public void testRegisterConverterSucceeds() {
@@ -53,10 +48,7 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
     public void testRegisterNullConverterThrowsException() {
         AggregateProtoConverterSpiRegistry registry = new AggregateProtoConverterSpiRegistry();
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.registerConverter(null)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(null));
         assertTrue("Exception message should mention null converter", ex.getMessage().contains("Converter cannot be null"));
     }
 
@@ -75,19 +67,9 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
             }
         };
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.registerConverter(converter)
-        );
-        assertTrue(
-            "Exception message should mention null type",
-            ex.getMessage().contains("Handled aggregation type cannot be null")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.registerConverter(converter));
+        assertTrue("Exception message should mention null type", ex.getMessage().contains("Handled aggregation type cannot be null"));
     }
-
-    // ========================================
-    // Conversion Tests
-    // ========================================
 
     public void testRegisterAndConvertMinAggregation() throws IOException {
         AggregateProtoConverterSpiRegistry registry = new AggregateProtoConverterSpiRegistry();
@@ -98,10 +80,10 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMin);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have value set", result.hasValue());
-        assertTrue("Value should be double", result.getValue().hasDouble());
-        assertEquals("Value should match", 10.5, result.getValue().getDouble(), 0.001);
-        assertFalse("Should not have metadata", result.hasMeta());
+        assertTrue("Should have min set", result.hasMin());
+        assertTrue("Value should be double", result.getMin().getValue().hasDouble());
+        assertEquals("Value should match", 10.5, result.getMin().getValue().getDouble(), 0.001);
+        assertFalse("Should not have metadata", result.getMin().hasMeta());
     }
 
     public void testRegisterAndConvertMaxAggregation() throws IOException {
@@ -113,32 +95,25 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have value set", result.hasValue());
-        assertTrue("Value should be double", result.getValue().hasDouble());
-        assertEquals("Value should match", 99.9, result.getValue().getDouble(), 0.001);
-        assertFalse("Should not have metadata", result.hasMeta());
+        assertTrue("Should have max set", result.hasMax());
+        assertTrue("Value should be double", result.getMax().getValue().hasDouble());
+        assertEquals("Value should match", 99.9, result.getMax().getValue().getDouble(), 0.001);
+        assertFalse("Should not have metadata", result.getMax().hasMeta());
     }
 
     public void testConvertNullAggregationThrowsException() {
         AggregateProtoConverterSpiRegistry registry = new AggregateProtoConverterSpiRegistry();
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.toProto(null)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.toProto(null));
         assertTrue("Exception message should mention null", ex.getMessage().contains("must not be null"));
     }
 
     public void testConvertUnregisteredTypeThrowsException() {
         AggregateProtoConverterSpiRegistry registry = new AggregateProtoConverterSpiRegistry();
-        // Do not register any converters
 
         InternalMin internalMin = new InternalMin("min_price", 10.5, DocValueFormat.RAW, Collections.emptyMap());
 
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.toProto(internalMin)
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.toProto(internalMin));
         assertTrue("Exception message should mention unsupported type", ex.getMessage().contains("Unsupported aggregation type"));
         assertTrue("Exception message should include class name", ex.getMessage().contains("InternalMin"));
     }
@@ -156,14 +131,13 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMin);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have metadata", result.hasMeta());
-        ObjectMap metaMap = result.getMeta();
+        assertTrue("Should have metadata", result.getMin().hasMeta());
+        ObjectMap metaMap = result.getMin().getMeta();
         assertTrue("Metadata should contain key1", metaMap.getFieldsMap().containsKey("key1"));
         assertTrue("Metadata should contain key2", metaMap.getFieldsMap().containsKey("key2"));
 
-        // Also check the value is correct
-        assertTrue("Should have value set", result.hasValue());
-        assertEquals("Value should match", 15.5, result.getValue().getDouble(), 0.001);
+        assertTrue("Should have value set", result.getMin().hasValue());
+        assertEquals("Value should match", 15.5, result.getMin().getValue().getDouble(), 0.001);
     }
 
     public void testConverterWithEmptyMetadataDoesNotSetMeta() throws IOException {
@@ -175,12 +149,8 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMin);
 
         assertNotNull("Result should not be null", result);
-        assertFalse("Should not have metadata for empty map", result.hasMeta());
+        assertFalse("Should not have metadata for empty map", result.getMin().hasMeta());
     }
-
-    // ========================================
-    // Public Registry Wrapper Tests
-    // ========================================
 
     public void testPublicRegistryConvertsMinAggregation() throws IOException {
         AggregateProtoConverterRegistryImpl registry = new AggregateProtoConverterRegistryImpl();
@@ -190,8 +160,8 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMin);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have value set", result.hasValue());
-        assertEquals("Value should match", 10.5, result.getValue().getDouble(), 0.001);
+        assertTrue("Should have min set", result.hasMin());
+        assertEquals("Value should match", 10.5, result.getMin().getValue().getDouble(), 0.001);
     }
 
     public void testPublicRegistryConvertsMaxAggregation() throws IOException {
@@ -202,7 +172,7 @@ public class AggregateProtoConverterRegistryTests extends OpenSearchTestCase {
         Aggregate result = registry.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
-        assertTrue("Should have value set", result.hasValue());
-        assertEquals("Value should match", 99.9, result.getValue().getDouble(), 0.001);
+        assertTrue("Should have max set", result.hasMax());
+        assertEquals("Value should match", 99.9, result.getMax().getValue().getDouble(), 0.001);
     }
 }

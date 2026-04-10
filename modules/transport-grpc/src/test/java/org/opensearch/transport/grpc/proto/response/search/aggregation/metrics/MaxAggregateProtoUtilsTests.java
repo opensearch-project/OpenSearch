@@ -7,8 +7,8 @@
  */
 package org.opensearch.transport.grpc.proto.response.search.aggregation.metrics;
 
-import org.opensearch.protobufs.Aggregate;
 import org.opensearch.protobufs.NullValue;
+import org.opensearch.protobufs.SingleMetricAggregateBase;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.test.OpenSearchTestCase;
@@ -22,14 +22,10 @@ import java.util.Map;
  */
 public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
 
-    // ========================================
-    // Line 100-101: hasValue and value field tests
-    // ========================================
-
     public void testToProtoWithValidValue() {
         InternalMax internalMax = new InternalMax("max_price", 99.99, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Value should be set as double", result.getValue().hasDouble());
@@ -41,7 +37,7 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
         // When no documents match, max returns NEGATIVE_INFINITY (REST line 100)
         InternalMax internalMax = new InternalMax("max_price", Double.NEGATIVE_INFINITY, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as null", result.getValue().hasNullValue());
         assertEquals("Value should be NULL_VALUE", NullValue.NULL_VALUE_NULL, result.getValue().getNullValue());
@@ -49,10 +45,9 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testToProtoWithPositiveInfinity() {
-        // Edge case: POSITIVE_INFINITY should also be treated as null
         InternalMax internalMax = new InternalMax("max_price", Double.POSITIVE_INFINITY, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as null", result.getValue().hasNullValue());
         assertEquals("Value should be NULL_VALUE", NullValue.NULL_VALUE_NULL, result.getValue().getNullValue());
@@ -63,7 +58,7 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
         // Edge case: Zero is a valid value
         InternalMax internalMax = new InternalMax("max_discount", 0.0, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as double", result.getValue().hasDouble());
         assertEquals("Value should be 0.0", 0.0, result.getValue().getDouble(), 0.001);
@@ -73,7 +68,7 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
     public void testToProtoWithNegativeValue() {
         InternalMax internalMax = new InternalMax("max_temp", -10.5, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as double", result.getValue().hasDouble());
         assertEquals("Value should be -10.5", -10.5, result.getValue().getDouble(), 0.001);
@@ -85,10 +80,9 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
     // ========================================
 
     public void testToProtoWithRawFormat() {
-        // REST line 102: format != DocValueFormat.RAW condition
         InternalMax internalMax = new InternalMax("max_price", 99.99, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Value should be set as double", result.getValue().hasDouble());
@@ -97,11 +91,10 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testToProtoWithDecimalFormat() {
-        // REST line 103: format.format(max).toString()
         DocValueFormat format = new DocValueFormat.Decimal("0.00");
         InternalMax internalMax = new InternalMax("max_price", 99.99, format, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Value should be set as double", result.getValue().hasDouble());
@@ -114,7 +107,7 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
         DocValueFormat format = new DocValueFormat.Decimal("0.00");
         InternalMax internalMax = new InternalMax("max_price", 1234.5, format, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as double", result.getValue().hasDouble());
         assertEquals("Value should match", 1234.5, result.getValue().getDouble(), 0.001);
@@ -123,61 +116,52 @@ public class MaxAggregateProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testToProtoWithInfinityAndCustomFormat() {
-        // REST line 102: hasValue condition prevents value_as_string for infinity
         DocValueFormat format = new DocValueFormat.Decimal("0.00");
         InternalMax internalMax = new InternalMax("max_price", Double.NEGATIVE_INFINITY, format, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as null", result.getValue().hasNullValue());
         assertFalse("value_as_string should NOT be set even with custom format when value is infinity", result.hasValueAsString());
     }
 
-    // ========================================
-    // Metadata tests
-    // Note: Metadata is handled centrally by AggregateProtoUtils.toProto()
-    // These tests verify that toProto() does NOT include metadata (as expected)
-    // ========================================
-
-    public void testToProtoBuilderWithMetadata() {
+    public void testToProtoWithMetadata() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("color", "blue");
         metadata.put("priority", 5);
 
         InternalMax internalMax = new InternalMax("max_price", 99.99, DocValueFormat.RAW, metadata);
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
-        // Metadata is NOT included - it's handled by AggregateProtoUtils.toProto()
-        assertTrue("Value should be set as double", result.getValue().hasDouble());
-        assertFalse("value_as_string should NOT be set with RAW format", result.hasValueAsString());
+        assertTrue("Should have metadata", result.hasMeta());
+        assertTrue("Metadata should contain color", result.getMeta().getFieldsMap().containsKey("color"));
+        assertTrue("Metadata should contain priority", result.getMeta().getFieldsMap().containsKey("priority"));
     }
 
-    public void testToProtoBuilderWithEmptyMetadata() {
+    public void testToProtoWithEmptyMetadata() {
         InternalMax internalMax = new InternalMax("max_price", 99.99, DocValueFormat.RAW, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set", result.hasValue());
+        assertFalse("Should not have metadata for empty map", result.hasMeta());
     }
 
-    public void testToProtoBuilderWithNullMetadata() {
+    public void testToProtoWithNullMetadata() {
         InternalMax internalMax = new InternalMax("max_price", 99.99, DocValueFormat.RAW, null);
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set", result.hasValue());
+        assertFalse("Should not have metadata for null", result.hasMeta());
     }
 
-    // ========================================
-    // Combined scenarios
-    // ========================================
-
-    public void testToProtoBuilderWithFormattedValue() {
+    public void testToProtoWithFormattedValue() {
         DocValueFormat format = new DocValueFormat.Decimal("0.00");
         InternalMax internalMax = new InternalMax("max_price", 1234.56, format, new HashMap<>());
 
-        Aggregate result = MaxAggregateProtoUtils.toProto(internalMax);
+        SingleMetricAggregateBase result = MaxAggregateProtoUtils.toProto(internalMax);
 
         assertTrue("Value should be set as double", result.getValue().hasDouble());
         assertEquals("Value should match", 1234.56, result.getValue().getDouble(), 0.001);

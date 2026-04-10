@@ -200,7 +200,8 @@ public class SearchSourceBuilderProtoUtils {
                 DerivedField derivedFieldProto = entry.getValue();
 
                 // Convert protobuf DerivedField to OpenSearch DerivedField using the REST side pattern
-                // This uses simple constructor + conditional setters (matches {@link org.opensearch.index.mapper.DerivedFieldMapper.Builder#build()})
+                // This uses simple constructor + conditional setters (matches {@link
+                // org.opensearch.index.mapper.DerivedFieldMapper.Builder#build()})
                 org.opensearch.index.mapper.DerivedField derivedField = DerivedFieldProtoUtils.fromProto(name, derivedFieldProto);
 
                 // Add to SearchSourceBuilder - check if any optional fields are set to choose the right method

@@ -8,13 +8,14 @@
 package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
 import org.opensearch.protobufs.Aggregate;
-import org.opensearch.protobufs.NullValue;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.transport.grpc.proto.response.common.ObjectMapProtoUtils;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 /**
  * Converts InternalAggregation to Aggregate protobuf.
@@ -64,26 +65,20 @@ public class AggregateProtoUtils {
         return registry.toProto((InternalAggregation) aggregation);
     }
 
-    public static ObjectMap.Value newValue(ObjectMap value) {
-        return ObjectMap.Value.newBuilder().setObjectMap(value).build();
+    /**
+     * Adds metadata from an InternalAggregation to a typed aggregate builder
+     * via the provided setter function.
+     *
+     * @param metaSetter the setMeta method reference on the typed builder
+     * @param aggregation the source aggregation
+     */
+    public static void addMetadata(Consumer<ObjectMap> metaSetter, InternalAggregation aggregation) {
+        if (aggregation.getMetadata() != null && !aggregation.getMetadata().isEmpty()) {
+            ObjectMap.Value metaValue = ObjectMapProtoUtils.toProto(aggregation.getMetadata());
+            if (metaValue.hasObjectMap()) {
+                metaSetter.accept(metaValue.getObjectMap());
+            }
+        }
     }
 
-    public static ObjectMap.Value newValue(ObjectMap.ListValue value) {
-        return ObjectMap.Value.newBuilder().setListValue(value).build();
-    }
-
-    public static ObjectMap.Value newValue(long value) {
-        return ObjectMap.Value.newBuilder().setInt64(value).build();
-    }
-
-    public static ObjectMap.Value newValue(double value) {
-        return ObjectMap.Value.newBuilder().setDouble(value).build();
-    }
-    public static ObjectMap.Value newValue(String value) {
-        return ObjectMap.Value.newBuilder().setString(value).build();
-    }
-
-    public static ObjectMap.Value newValue(NullValue nullValue) {
-        return ObjectMap.Value.newBuilder().setNullValue(nullValue).build();
-    }
 }

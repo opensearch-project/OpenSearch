@@ -9,7 +9,6 @@ package org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.t
 
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.opensearch.test.OpenSearchTestCase;
@@ -19,7 +18,6 @@ import java.util.Collections;
 
 /**
  * Tests for {@link UnmappedTermsAggregateConverter}.
- * Mirrors {@link UnmappedTerms#doXContentBody} which always writes zero counts and empty buckets.
  */
 public class UnmappedTermsAggregateConverterTests extends OpenSearchTestCase {
 
@@ -29,7 +27,7 @@ public class UnmappedTermsAggregateConverterTests extends OpenSearchTestCase {
         assertEquals(UnmappedTerms.class, converter.getHandledAggregationType());
     }
 
-    public void testToProtoReturnsZeroCounts() throws IOException {
+    public void testToProtoWrapsAsUmterms() throws IOException {
         UnmappedTerms unmappedTerms = new UnmappedTerms(
             "unmapped_field",
             BucketOrder.count(false),
@@ -38,11 +36,8 @@ public class UnmappedTermsAggregateConverterTests extends OpenSearchTestCase {
         );
 
         Aggregate.Builder result = converter.toProto(unmappedTerms);
-        assertNotNull(result);
-
         Aggregate aggregate = result.build();
-        assertEquals(0, aggregate.getDocCountErrorUpperBound());
-        assertEquals(0, aggregate.getSumOtherDocCount());
-        assertEquals(0, aggregate.getBucketsCount());
+
+        assertTrue("Should have umterms set", aggregate.hasUmterms());
     }
 }

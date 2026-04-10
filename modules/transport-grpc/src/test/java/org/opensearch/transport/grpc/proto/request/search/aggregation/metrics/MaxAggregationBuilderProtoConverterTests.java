@@ -8,11 +8,9 @@
 package org.opensearch.transport.grpc.proto.request.search.aggregation.metrics;
 
 import org.opensearch.protobufs.AggregationContainer;
-import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.Script;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -35,11 +33,7 @@ public class MaxAggregationBuilderProtoConverterTests extends OpenSearchTestCase
      * Test that the converter reports the correct aggregation case.
      */
     public void testGetHandledAggregationCase() {
-        assertEquals(
-            "Should handle MAX case",
-            AggregationContainer.AggregationContainerCase.MAX,
-            converter.getHandledAggregationCase()
-        );
+        assertEquals("Should handle MAX case", AggregationContainer.AggregationContainerCase.MAX, converter.getHandledAggregationCase());
     }
 
     /**
@@ -64,12 +58,7 @@ public class MaxAggregationBuilderProtoConverterTests extends OpenSearchTestCase
      */
     public void testMaxAggregationWithFormat() {
         AggregationContainer container = AggregationContainer.newBuilder()
-            .setMax(
-                MaxAggregation.newBuilder()
-                    .setField("price")
-                    .setFormat("###.00")
-                    .build()
-            )
+            .setMax(MaxAggregation.newBuilder().setField("price").setFormat("###.00").build())
             .build();
 
         AggregationBuilder builder = converter.fromProto("max_price", container);
@@ -87,15 +76,7 @@ public class MaxAggregationBuilderProtoConverterTests extends OpenSearchTestCase
         AggregationContainer container = AggregationContainer.newBuilder()
             .setMax(
                 MaxAggregation.newBuilder()
-                    .setScript(
-                        Script.newBuilder()
-                            .setInline(
-                                InlineScript.newBuilder()
-                                    .setSource("doc['price'].value * 2")
-                                    .build()
-                            )
-                            .build()
-                    )
+                    .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['price'].value * 2").build()).build())
                     .build()
             )
             .build();
@@ -115,10 +96,7 @@ public class MaxAggregationBuilderProtoConverterTests extends OpenSearchTestCase
     public void testContainerWithoutMax() {
         AggregationContainer container = AggregationContainer.newBuilder().build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> converter.fromProto("test", container)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto("test", container));
         assertTrue(
             "Exception should mention missing Max aggregation",
             exception.getMessage().contains("Container does not contain Max aggregation")

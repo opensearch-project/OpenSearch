@@ -114,8 +114,7 @@ public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
             DocValueFormat.RAW,
             DocValueFormat.BOOLEAN,
             DocValueFormat.GEOHASH,
-            DocValueFormat.IP
-        };
+            DocValueFormat.IP };
 
         for (DocValueFormat format : formats) {
             InternalMin min = new InternalMin("test_min", randomDouble(), format, null);

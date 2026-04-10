@@ -9,8 +9,8 @@ package org.opensearch.transport.grpc.proto.request.search.aggregation.support;
 
 import org.opensearch.core.ParseField;
 import org.opensearch.script.Script;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValueType;
+import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.opensearch.transport.grpc.util.ProtobufEnumUtils;
 
 /**
@@ -145,9 +145,7 @@ public class ValuesSourceAggregationProtoUtils {
         }
 
         if (timezoneAware) {
-            throw new UnsupportedOperationException(
-                "Timezone field is not yet supported in gRPC aggregations"
-            );
+            throw new UnsupportedOperationException("Timezone field is not yet supported in gRPC aggregations");
         }
     }
 }

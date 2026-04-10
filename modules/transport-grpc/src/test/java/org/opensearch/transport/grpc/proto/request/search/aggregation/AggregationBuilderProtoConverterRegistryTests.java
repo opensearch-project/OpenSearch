@@ -95,20 +95,20 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
         //
         // // Create a container with Terms aggregation (not implemented yet)
         // AggregationContainer termsContainer = AggregationContainer.newBuilder()
-        //     .setTerms(
-        //         org.opensearch.protobufs.TermsAggregationFields.newBuilder()
-        //             .setField("category")
-        //             .build()
-        //     )
-        //     .build();
+        // .setTerms(
+        // org.opensearch.protobufs.TermsAggregationFields.newBuilder()
+        // .setField("category")
+        // .build()
+        // )
+        // .build();
         //
         // IllegalArgumentException exception = expectThrows(
-        //     IllegalArgumentException.class,
-        //     () -> registry.fromProto("category_terms", termsContainer)
+        // IllegalArgumentException.class,
+        // () -> registry.fromProto("category_terms", termsContainer)
         // );
         // assertTrue(
-        //     "Exception should mention unsupported aggregation type",
-        //     exception.getMessage().contains("Unsupported aggregation type")
+        // "Exception should mention unsupported aggregation type",
+        // exception.getMessage().contains("Unsupported aggregation type")
         // );
     }
 
@@ -148,14 +148,8 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
             .setMin(MinAggregation.newBuilder().setField("price").build())
             .build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto(null, container)
-        );
-        assertTrue(
-            "Exception should mention null or empty name",
-            exception.getMessage().contains("cannot be null or empty")
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto(null, container));
+        assertTrue("Exception should mention null or empty name", exception.getMessage().contains("cannot be null or empty"));
     }
 
     /**
@@ -168,14 +162,8 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
             .setMin(MinAggregation.newBuilder().setField("price").build())
             .build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto("", container)
-        );
-        assertTrue(
-            "Exception should mention null or empty name",
-            exception.getMessage().contains("cannot be null or empty")
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto("", container));
+        assertTrue("Exception should mention null or empty name", exception.getMessage().contains("cannot be null or empty"));
     }
 
     /**
@@ -184,14 +172,8 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
     public void testNullAggregationContainer() {
         AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto("test_agg", null)
-        );
-        assertTrue(
-            "Exception should mention null container",
-            exception.getMessage().contains("cannot be null")
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> registry.fromProto("test_agg", null));
+        assertTrue("Exception should mention null container", exception.getMessage().contains("cannot be null"));
     }
 
     /**
@@ -266,26 +248,26 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
         //
         // // Create a nested aggregation structure
         // AggregationContainer subAgg = AggregationContainer.newBuilder()
-        //     .setMax(MaxAggregation.newBuilder().setField("price").build())
-        //     .build();
+        // .setMax(MaxAggregation.newBuilder().setField("price").build())
+        // .build();
         //
         // Map<String, AggregationContainer> subAggMap = new HashMap<>();
         // subAggMap.put("max_price", subAgg);
         //
         // AggregationContainer container = AggregationContainer.newBuilder()
-        //     .setMin(MinAggregation.newBuilder().setField("quantity").build())
-        //     .putAllAggregations(subAggMap)
-        //     .build();
+        // .setMin(MinAggregation.newBuilder().setField("quantity").build())
+        // .putAllAggregations(subAggMap)
+        // .build();
         //
         // // Min explicitly rejects subaggregations, so this should throw
         // // This proves that the registry infrastructure is correctly attempting to add them
         // org.opensearch.search.aggregations.AggregationInitializationException exception = expectThrows(
-        //     org.opensearch.search.aggregations.AggregationInitializationException.class,
-        //     () -> registry.fromProto("min_quantity", container)
+        // org.opensearch.search.aggregations.AggregationInitializationException.class,
+        // () -> registry.fromProto("min_quantity", container)
         // );
         // assertTrue(
-        //     "Exception should mention that min cannot accept sub-aggregations",
-        //     exception.getMessage().contains("cannot accept sub-aggregations")
+        // "Exception should mention that min cannot accept sub-aggregations",
+        // exception.getMessage().contains("cannot accept sub-aggregations")
         // );
     }
 
@@ -301,38 +283,17 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
             .build();
 
         // Test name with '[' character
-        IllegalArgumentException ex1 = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto("invalid[name", container)
-        );
-        assertTrue(
-            "Exception should mention invalid aggregation name",
-            ex1.getMessage().contains("Invalid aggregation name")
-        );
-        assertTrue(
-            "Exception should mention forbidden characters",
-            ex1.getMessage().contains("'[', ']', and '>'")
-        );
+        IllegalArgumentException ex1 = expectThrows(IllegalArgumentException.class, () -> registry.fromProto("invalid[name", container));
+        assertTrue("Exception should mention invalid aggregation name", ex1.getMessage().contains("Invalid aggregation name"));
+        assertTrue("Exception should mention forbidden characters", ex1.getMessage().contains("'[', ']', and '>'"));
 
         // Test name with ']' character
-        IllegalArgumentException ex2 = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto("invalid]name", container)
-        );
-        assertTrue(
-            "Exception should mention invalid aggregation name",
-            ex2.getMessage().contains("Invalid aggregation name")
-        );
+        IllegalArgumentException ex2 = expectThrows(IllegalArgumentException.class, () -> registry.fromProto("invalid]name", container));
+        assertTrue("Exception should mention invalid aggregation name", ex2.getMessage().contains("Invalid aggregation name"));
 
         // Test name with '>' character
-        IllegalArgumentException ex3 = expectThrows(
-            IllegalArgumentException.class,
-            () -> registry.fromProto("invalid>name", container)
-        );
-        assertTrue(
-            "Exception should mention invalid aggregation name",
-            ex3.getMessage().contains("Invalid aggregation name")
-        );
+        IllegalArgumentException ex3 = expectThrows(IllegalArgumentException.class, () -> registry.fromProto("invalid>name", container));
+        assertTrue("Exception should mention invalid aggregation name", ex3.getMessage().contains("Invalid aggregation name"));
 
         // Test that valid names work fine
         AggregationBuilder validBuilder = registry.fromProto("valid_name-with.dots:and_more", container);

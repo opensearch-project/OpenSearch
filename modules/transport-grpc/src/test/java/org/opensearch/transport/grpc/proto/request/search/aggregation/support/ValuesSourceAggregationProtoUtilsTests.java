@@ -30,15 +30,9 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithField() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .field("price")
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().field("price").build();
 
-        ValuesSourceAggregationProtoUtils.declareFields(
-            builder,
-            fields,
-            true, true, false, true
-        );
+        ValuesSourceAggregationProtoUtils.declareFields(builder, fields, true, true, false, true);
 
         assertEquals("price", builder.field());
     }
@@ -46,20 +40,14 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithMissing() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        FieldValue missingValue = FieldValue.newBuilder()
-            .setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(10.5).build())
-            .build();
+        FieldValue missingValue = FieldValue.newBuilder().setGeneralNumber(GeneralNumber.newBuilder().setDoubleValue(10.5).build()).build();
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .field("price")
             .missing(FieldValueProtoUtils.fromProto(missingValue))
             .build();
 
-        ValuesSourceAggregationProtoUtils.declareFields(
-            builder,
-            fields,
-            true, true, false, true
-        );
+        ValuesSourceAggregationProtoUtils.declareFields(builder, fields, true, true, false, true);
 
         assertEquals(10.5, builder.missing());
     }
@@ -67,16 +55,9 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithValueType() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .field("price")
-            .valueType(ValueType.VALUE_TYPE_STRING)
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().field("price").valueType(ValueType.VALUE_TYPE_STRING).build();
 
-        ValuesSourceAggregationProtoUtils.declareFields(
-            builder,
-            fields,
-            true, true, false, true
-        );
+        ValuesSourceAggregationProtoUtils.declareFields(builder, fields, true, true, false, true);
 
         assertNotNull(builder.userValueTypeHint());
         assertEquals(org.opensearch.search.aggregations.support.ValueType.STRING, builder.userValueTypeHint());
@@ -85,15 +66,15 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithFormat() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .field("price")
-            .format("0.00")
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().field("price").format("0.00").build();
 
         ValuesSourceAggregationProtoUtils.declareFields(
             builder,
             fields,
-            true, true, false, true  // formattable=true
+            true,
+            true,
+            false,
+            true  // formattable=true
         );
 
         assertEquals("0.00", builder.format());
@@ -102,15 +83,15 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsIgnoresFormatWhenNotFormattable() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .field("price")
-            .format("0.00")
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().field("price").format("0.00").build();
 
         ValuesSourceAggregationProtoUtils.declareFields(
             builder,
             fields,
-            true, false, false, true  // formattable=false
+            true,
+            false,
+            false,
+            true  // formattable=false
         );
 
         assertNull(builder.format());
@@ -119,9 +100,7 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithScript() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        Script scriptProto = Script.newBuilder()
-            .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
-            .build();
+        Script scriptProto = Script.newBuilder().setInline(InlineScript.newBuilder().setSource("_value * 2").build()).build();
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .field("price")
@@ -131,7 +110,10 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
         ValuesSourceAggregationProtoUtils.declareFields(
             builder,
             fields,
-            true, true, false, true  // scriptable=true
+            true,
+            true,
+            false,
+            true  // scriptable=true
         );
 
         assertNotNull(builder.script());
@@ -140,9 +122,7 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithScriptOnly() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        Script scriptProto = Script.newBuilder()
-            .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
-            .build();
+        Script scriptProto = Script.newBuilder().setInline(InlineScript.newBuilder().setSource("_value * 2").build()).build();
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .script(ScriptProtoUtils.parseFromProtoRequest(scriptProto))
@@ -151,7 +131,10 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
         ValuesSourceAggregationProtoUtils.declareFields(
             builder,
             fields,
-            true, true, false, true  // scriptable=true, fieldRequired=true
+            true,
+            true,
+            false,
+            true  // scriptable=true, fieldRequired=true
         );
 
         assertNotNull(builder.script());
@@ -160,15 +143,17 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsThrowsWhenNeitherFieldNorScript() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().build();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> ValuesSourceAggregationProtoUtils.declareFields(
                 builder,
                 fields,
-                true, true, false, true  // scriptable=true, fieldRequired=true
+                true,
+                true,
+                false,
+                true  // scriptable=true, fieldRequired=true
             )
         );
 
@@ -179,15 +164,17 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsThrowsWhenNotScriptableButNoField() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().build();
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> ValuesSourceAggregationProtoUtils.declareFields(
                 builder,
                 fields,
-                false, true, false, true  // scriptable=false, fieldRequired=true
+                false,
+                true,
+                false,
+                true  // scriptable=false, fieldRequired=true
             )
         );
 
@@ -198,13 +185,15 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsSucceedsWhenFieldNotRequired() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().build();
 
         ValuesSourceAggregationProtoUtils.declareFields(
             builder,
             fields,
-            false, true, false, false  // scriptable=false, fieldRequired=false
+            false,
+            true,
+            false,
+            false  // scriptable=false, fieldRequired=false
         );
 
         // No exception = success
@@ -213,20 +202,14 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsWithBothFieldAndScript() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        Script scriptProto = Script.newBuilder()
-            .setInline(InlineScript.newBuilder().setSource("_value * 2").build())
-            .build();
+        Script scriptProto = Script.newBuilder().setInline(InlineScript.newBuilder().setSource("_value * 2").build()).build();
 
         ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
             .field("price")
             .script(ScriptProtoUtils.parseFromProtoRequest(scriptProto))
             .build();
 
-        ValuesSourceAggregationProtoUtils.declareFields(
-            builder,
-            fields,
-            true, true, false, true
-        );
+        ValuesSourceAggregationProtoUtils.declareFields(builder, fields, true, true, false, true);
 
         assertNotNull(builder.script());
     }
@@ -234,16 +217,17 @@ public class ValuesSourceAggregationProtoUtilsTests extends OpenSearchTestCase {
     public void testDeclareFieldsThrowsForTimezoneAware() {
         MinAggregationBuilder builder = new MinAggregationBuilder("test");
 
-        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder()
-            .field("price")
-            .build();
+        ValuesSourceProtoFields fields = ValuesSourceProtoFields.builder().field("price").build();
 
         UnsupportedOperationException ex = expectThrows(
             UnsupportedOperationException.class,
             () -> ValuesSourceAggregationProtoUtils.declareFields(
                 builder,
                 fields,
-                true, true, true, true  // timezoneAware=true
+                true,
+                true,
+                true,
+                true  // timezoneAware=true
             )
         );
 

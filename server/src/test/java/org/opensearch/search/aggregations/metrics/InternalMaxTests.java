@@ -115,8 +115,7 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
             DocValueFormat.RAW,
             DocValueFormat.BOOLEAN,
             DocValueFormat.GEOHASH,
-            DocValueFormat.IP
-        };
+            DocValueFormat.IP };
 
         for (DocValueFormat format : formats) {
             InternalMax max = new InternalMax("test_max", randomDouble(), format, null);

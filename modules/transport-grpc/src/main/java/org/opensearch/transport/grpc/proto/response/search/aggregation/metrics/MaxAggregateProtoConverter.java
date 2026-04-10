@@ -16,7 +16,6 @@ import java.io.IOException;
 
 /**
  * Converter for {@link InternalMax} aggregations to Protocol Buffer Aggregate messages.
- * Delegates the actual conversion logic to {@link MaxAggregateProtoUtils}.
  */
 public class MaxAggregateProtoConverter implements AggregateProtoConverter {
 
@@ -32,7 +31,6 @@ public class MaxAggregateProtoConverter implements AggregateProtoConverter {
 
     @Override
     public Aggregate.Builder toProto(InternalAggregation aggregation) throws IOException {
-        Aggregate aggregate = MaxAggregateProtoUtils.toProto((InternalMax) aggregation);
-        return aggregate.toBuilder();
+        return Aggregate.newBuilder().setMax(MaxAggregateProtoUtils.toProto((InternalMax) aggregation));
     }
 }

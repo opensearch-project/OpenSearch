@@ -72,7 +72,7 @@ apply from: 'gradle/missing-javadoc.gradle'
 apply from: 'gradle/code-coverage.gradle'
 
 // Apply security setup if opensearch-security is in installedPlugins
-if (project.hasProperty('installedPlugins') && 
+if (project.hasProperty('installedPlugins') &&
     project.property('installedPlugins').toString().contains('opensearch-security')) {
   apply from: 'gradle/security-setup.gradle'
 }
@@ -87,11 +87,6 @@ allprojects {
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
-
-  // Add local Maven repository for protobuf development
-  repositories {
-    mavenLocal()
-  }
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {

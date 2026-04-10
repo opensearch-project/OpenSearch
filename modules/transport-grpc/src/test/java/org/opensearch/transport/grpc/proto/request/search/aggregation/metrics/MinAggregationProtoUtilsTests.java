@@ -12,7 +12,6 @@ import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.ValueType;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MinAggregationProtoUtils;
 
 public class MinAggregationProtoUtilsTests extends OpenSearchTestCase {
 
@@ -60,10 +59,7 @@ public class MinAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeUnsignedLong() {
-        MinAggregation proto = MinAggregation.newBuilder()
-            .setField("price")
-            .setValueType(ValueType.VALUE_TYPE_UNSIGNED_LONG)
-            .build();
+        MinAggregation proto = MinAggregation.newBuilder().setField("price").setValueType(ValueType.VALUE_TYPE_UNSIGNED_LONG).build();
 
         MinAggregationBuilder result = MinAggregationProtoUtils.fromProto("min_price", proto);
 
@@ -74,10 +70,7 @@ public class MinAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeLong() {
-        MinAggregation proto = MinAggregation.newBuilder()
-            .setField("count")
-            .setValueType(ValueType.VALUE_TYPE_LONG)
-            .build();
+        MinAggregation proto = MinAggregation.newBuilder().setField("count").setValueType(ValueType.VALUE_TYPE_LONG).build();
 
         MinAggregationBuilder result = MinAggregationProtoUtils.fromProto("min_count", proto);
 
@@ -86,10 +79,7 @@ public class MinAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeDouble() {
-        MinAggregation proto = MinAggregation.newBuilder()
-            .setField("rating")
-            .setValueType(ValueType.VALUE_TYPE_DOUBLE)
-            .build();
+        MinAggregation proto = MinAggregation.newBuilder().setField("rating").setValueType(ValueType.VALUE_TYPE_DOUBLE).build();
 
         MinAggregationBuilder result = MinAggregationProtoUtils.fromProto("min_rating", proto);
 

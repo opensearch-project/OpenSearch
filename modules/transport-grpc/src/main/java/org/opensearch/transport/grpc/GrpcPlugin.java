@@ -490,10 +490,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
         // Inject registry into external aggregation converters and register them
         if (!aggregationConverters.isEmpty()) {
-            logger.info(
-                "Injecting registry and registering {} external AggregationBuilderProtoConverter(s)",
-                aggregationConverters.size()
-            );
+            logger.info("Injecting registry and registering {} external AggregationBuilderProtoConverter(s)", aggregationConverters.size());
             for (AggregationBuilderProtoConverter converter : aggregationConverters) {
                 logger.info(
                     "Processing external aggregation converter: {} (handles: {})",
@@ -508,7 +505,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 // Register the converter
                 aggregationRegistry.registerConverter(converter);
             }
-            logger.info("Successfully injected registry and registered all {} external aggregation converters", aggregationConverters.size());
+            logger.info(
+                "Successfully injected registry and registered all {} external aggregation converters",
+                aggregationConverters.size()
+            );
 
             // Update the registry on all converters (including built-in ones) so they can access external converters
             aggregationRegistry.updateRegistryOnAllConverters();
@@ -519,10 +519,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
 
         // Register external aggregate converters (response-side)
         if (!aggregateConverters.isEmpty()) {
-            logger.info(
-                "Registering {} external AggregateProtoConverter(s)",
-                aggregateConverters.size()
-            );
+            logger.info("Registering {} external AggregateProtoConverter(s)", aggregateConverters.size());
             for (AggregateProtoConverter converter : aggregateConverters) {
                 logger.info(
                     "Processing external aggregate converter: {} (handles: {})",

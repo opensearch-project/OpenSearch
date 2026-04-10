@@ -39,16 +39,11 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
     }
 
     public void testGetHandledAggregationCase() {
-        assertEquals(
-            AggregationContainer.AggregationContainerCase.TERMS_AGGREGATION,
-            converter.getHandledAggregationCase()
-        );
+        assertEquals(AggregationContainer.AggregationContainerCase.TERMS_AGGREGATION, converter.getHandledAggregationCase());
     }
 
     public void testBasicFieldOnly() {
-        AggregationContainer container = buildContainer(
-            TermsAggregationFields.newBuilder().setField("status").build()
-        );
+        AggregationContainer container = buildContainer(TermsAggregationFields.newBuilder().setField("status").build());
 
         AggregationBuilder builder = converter.fromProto("by_status", container);
         assertNotNull(builder);
@@ -60,11 +55,7 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
     public void testScriptOnly() {
         AggregationContainer container = buildContainer(
             TermsAggregationFields.newBuilder()
-                .setScript(
-                    Script.newBuilder()
-                        .setInline(InlineScript.newBuilder().setSource("doc['status'].value").build())
-                        .build()
-                )
+                .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['status'].value").build()).build())
                 .build()
         );
 
@@ -105,58 +96,79 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
 
     public void testOrderVariants() {
         // _count desc
-        TermsAggregationBuilder countDesc = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .addOrder(SortOrderSingleMap.newBuilder().setField("_count").setSortOrder(SortOrder.SORT_ORDER_DESC).build())
-                .build()
-        ));
+        TermsAggregationBuilder countDesc = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .addOrder(SortOrderSingleMap.newBuilder().setField("_count").setSortOrder(SortOrder.SORT_ORDER_DESC).build())
+                    .build()
+            )
+        );
         assertEquals(BucketOrder.compound(BucketOrder.count(false)), countDesc.order());
 
         // _key asc (key order is a tie-breaker itself, not wrapped in compound)
-        TermsAggregationBuilder keyAsc = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .addOrder(SortOrderSingleMap.newBuilder().setField("_key").setSortOrder(SortOrder.SORT_ORDER_ASC).build())
-                .build()
-        ));
+        TermsAggregationBuilder keyAsc = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .addOrder(SortOrderSingleMap.newBuilder().setField("_key").setSortOrder(SortOrder.SORT_ORDER_ASC).build())
+                    .build()
+            )
+        );
         assertEquals(BucketOrder.key(true), keyAsc.order());
 
         // sub-aggregation path
-        TermsAggregationBuilder subAgg = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .addOrder(SortOrderSingleMap.newBuilder().setField("avg_price").setSortOrder(SortOrder.SORT_ORDER_DESC).build())
-                .build()
-        ));
+        TermsAggregationBuilder subAgg = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .addOrder(SortOrderSingleMap.newBuilder().setField("avg_price").setSortOrder(SortOrder.SORT_ORDER_DESC).build())
+                    .build()
+            )
+        );
         assertEquals(BucketOrder.compound(BucketOrder.aggregation("avg_price", false)), subAgg.order());
     }
 
     public void testIncludeExcludeVariants() {
         // include by terms
-        TermsAggregationBuilder withInclude = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .setInclude(TermsInclude.newBuilder()
-                    .setTerms(StringArray.newBuilder().addStringArray("a").addStringArray("b").build())
-                    .build())
-                .build()
-        ));
+        TermsAggregationBuilder withInclude = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .setInclude(
+                        TermsInclude.newBuilder().setTerms(StringArray.newBuilder().addStringArray("a").addStringArray("b").build()).build()
+                    )
+                    .build()
+            )
+        );
         assertNotNull(withInclude.includeExclude());
 
         // include by partition
-        TermsAggregationBuilder withPartition = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .setInclude(TermsInclude.newBuilder()
-                    .setPartition(TermsPartition.newBuilder().setPartition(0).setNumPartitions(5).build())
-                    .build())
-                .build()
-        ));
+        TermsAggregationBuilder withPartition = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .setInclude(
+                        TermsInclude.newBuilder()
+                            .setPartition(TermsPartition.newBuilder().setPartition(0).setNumPartitions(5).build())
+                            .build()
+                    )
+                    .build()
+            )
+        );
         assertNotNull(withPartition.includeExclude());
         assertTrue(withPartition.includeExclude().isPartitionBased());
 
         // exclude only
-        TermsAggregationBuilder withExclude = (TermsAggregationBuilder) converter.fromProto("t", buildContainer(
-            TermsAggregationFields.newBuilder().setField("f")
-                .addExclude("x").addExclude("y")
-                .build()
-        ));
+        TermsAggregationBuilder withExclude = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(TermsAggregationFields.newBuilder().setField("f").addExclude("x").addExclude("y").build())
+        );
         assertNotNull(withExclude.includeExclude());
     }
 
@@ -173,8 +185,6 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
     }
 
     private static AggregationContainer buildContainer(TermsAggregationFields fields) {
-        return AggregationContainer.newBuilder()
-            .setTermsAggregation(TermsAggregation.newBuilder().setTerms(fields).build())
-            .build();
+        return AggregationContainer.newBuilder().setTermsAggregation(TermsAggregation.newBuilder().setTerms(fields).build()).build();
     }
 }

@@ -12,7 +12,6 @@ import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.ValueType;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MaxAggregationProtoUtils;
 
 public class MaxAggregationProtoUtilsTests extends OpenSearchTestCase {
 
@@ -60,10 +59,7 @@ public class MaxAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeUnsignedLong() {
-        MaxAggregation proto = MaxAggregation.newBuilder()
-            .setField("price")
-            .setValueType(ValueType.VALUE_TYPE_UNSIGNED_LONG)
-            .build();
+        MaxAggregation proto = MaxAggregation.newBuilder().setField("price").setValueType(ValueType.VALUE_TYPE_UNSIGNED_LONG).build();
 
         MaxAggregationBuilder result = MaxAggregationProtoUtils.fromProto("max_price", proto);
 
@@ -74,10 +70,7 @@ public class MaxAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeLong() {
-        MaxAggregation proto = MaxAggregation.newBuilder()
-            .setField("count")
-            .setValueType(ValueType.VALUE_TYPE_LONG)
-            .build();
+        MaxAggregation proto = MaxAggregation.newBuilder().setField("count").setValueType(ValueType.VALUE_TYPE_LONG).build();
 
         MaxAggregationBuilder result = MaxAggregationProtoUtils.fromProto("max_count", proto);
 
@@ -86,10 +79,7 @@ public class MaxAggregationProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testFromProtoWithValueTypeDouble() {
-        MaxAggregation proto = MaxAggregation.newBuilder()
-            .setField("rating")
-            .setValueType(ValueType.VALUE_TYPE_DOUBLE)
-            .build();
+        MaxAggregation proto = MaxAggregation.newBuilder().setField("rating").setValueType(ValueType.VALUE_TYPE_DOUBLE).build();
 
         MaxAggregationBuilder result = MaxAggregationProtoUtils.fromProto("max_rating", proto);
 

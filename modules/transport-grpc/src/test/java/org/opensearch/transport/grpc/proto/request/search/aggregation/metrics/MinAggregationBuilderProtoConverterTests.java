@@ -8,11 +8,9 @@
 package org.opensearch.transport.grpc.proto.request.search.aggregation.metrics;
 
 import org.opensearch.protobufs.AggregationContainer;
-import org.opensearch.protobufs.FieldValue;
 import org.opensearch.protobufs.InlineScript;
 import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.Script;
-import org.opensearch.protobufs.ValueType;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -35,11 +33,7 @@ public class MinAggregationBuilderProtoConverterTests extends OpenSearchTestCase
      * Test that the converter reports the correct aggregation case.
      */
     public void testGetHandledAggregationCase() {
-        assertEquals(
-            "Should handle MIN case",
-            AggregationContainer.AggregationContainerCase.MIN,
-            converter.getHandledAggregationCase()
-        );
+        assertEquals("Should handle MIN case", AggregationContainer.AggregationContainerCase.MIN, converter.getHandledAggregationCase());
     }
 
     /**
@@ -64,12 +58,7 @@ public class MinAggregationBuilderProtoConverterTests extends OpenSearchTestCase
      */
     public void testMinAggregationWithFormat() {
         AggregationContainer container = AggregationContainer.newBuilder()
-            .setMin(
-                MinAggregation.newBuilder()
-                    .setField("price")
-                    .setFormat("###.00")
-                    .build()
-            )
+            .setMin(MinAggregation.newBuilder().setField("price").setFormat("###.00").build())
             .build();
 
         AggregationBuilder builder = converter.fromProto("min_price", container);
@@ -87,15 +76,7 @@ public class MinAggregationBuilderProtoConverterTests extends OpenSearchTestCase
         AggregationContainer container = AggregationContainer.newBuilder()
             .setMin(
                 MinAggregation.newBuilder()
-                    .setScript(
-                        Script.newBuilder()
-                            .setInline(
-                                InlineScript.newBuilder()
-                                    .setSource("doc['price'].value * 2")
-                                    .build()
-                            )
-                            .build()
-                    )
+                    .setScript(Script.newBuilder().setInline(InlineScript.newBuilder().setSource("doc['price'].value * 2").build()).build())
                     .build()
             )
             .build();
@@ -115,10 +96,7 @@ public class MinAggregationBuilderProtoConverterTests extends OpenSearchTestCase
     public void testContainerWithoutMin() {
         AggregationContainer container = AggregationContainer.newBuilder().build();
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> converter.fromProto("test", container)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> converter.fromProto("test", container));
         assertTrue(
             "Exception should mention missing Min aggregation",
             exception.getMessage().contains("Container does not contain Min aggregation")

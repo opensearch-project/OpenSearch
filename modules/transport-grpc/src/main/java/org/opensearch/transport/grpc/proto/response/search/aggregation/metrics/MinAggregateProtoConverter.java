@@ -16,7 +16,6 @@ import java.io.IOException;
 
 /**
  * Converter for {@link InternalMin} aggregations to Protocol Buffer Aggregate messages.
- * Delegates the actual conversion logic to {@link MinAggregateProtoUtils}.
  */
 public class MinAggregateProtoConverter implements AggregateProtoConverter {
 
@@ -32,7 +31,6 @@ public class MinAggregateProtoConverter implements AggregateProtoConverter {
 
     @Override
     public Aggregate.Builder toProto(InternalAggregation aggregation) throws IOException {
-        Aggregate aggregate = MinAggregateProtoUtils.toProto((InternalMin) aggregation);
-        return aggregate.toBuilder();
+        return Aggregate.newBuilder().setMin(MinAggregateProtoUtils.toProto((InternalMin) aggregation));
     }
 }

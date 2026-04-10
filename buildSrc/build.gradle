@@ -94,7 +94,6 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
-  mavenLocal()
   mavenCentral()
   gradlePluginPortal()
 }

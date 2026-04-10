@@ -790,18 +790,16 @@ public class SearchSourceBuilderProtoUtilsTests extends OpenSearchTestCase {
     public void testParseProtoWithAggregations() throws IOException {
         // Test that aggregations field is properly parsed from SearchRequestBody
         Map<String, AggregationContainer> aggregationsMap = new HashMap<>();
-        aggregationsMap.put("max_price",
-            AggregationContainer.newBuilder()
-                .setMax(MaxAggregation.newBuilder().setField("price").build())
-                .build());
-        aggregationsMap.put("min_price",
-            AggregationContainer.newBuilder()
-                .setMin(MinAggregation.newBuilder().setField("price").build())
-                .build());
+        aggregationsMap.put(
+            "max_price",
+            AggregationContainer.newBuilder().setMax(MaxAggregation.newBuilder().setField("price").build()).build()
+        );
+        aggregationsMap.put(
+            "min_price",
+            AggregationContainer.newBuilder().setMin(MinAggregation.newBuilder().setField("price").build()).build()
+        );
 
-        SearchRequestBody protoRequest = SearchRequestBody.newBuilder()
-            .putAllAggregations(aggregationsMap)
-            .build();
+        SearchRequestBody protoRequest = SearchRequestBody.newBuilder().putAllAggregations(aggregationsMap).build();
 
         // Parse proto
         SearchSourceBuilder builder = new SearchSourceBuilder();

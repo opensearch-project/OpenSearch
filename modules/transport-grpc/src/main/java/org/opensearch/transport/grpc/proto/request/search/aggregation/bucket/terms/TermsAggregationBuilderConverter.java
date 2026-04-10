@@ -1,3 +1,10 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
 package org.opensearch.transport.grpc.proto.request.search.aggregation.bucket.terms;
 
 import org.opensearch.core.xcontent.XContentParser;
@@ -165,8 +172,7 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
                 String[] includeTerms = include.getTerms().getStringArrayList().toArray(new String[0]);
                 yield new IncludeExclude(includeTerms, null);
             }
-            case PARTITION ->
-                    new IncludeExclude(include.getPartition().getPartition(), include.getPartition().getNumPartitions());
+            case PARTITION -> new IncludeExclude(include.getPartition().getPartition(), include.getPartition().getNumPartitions());
             default -> throw new IllegalArgumentException("Unsupported include type: " + include.getTermsIncludeCase());
         };
     }
