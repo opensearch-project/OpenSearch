@@ -14,18 +14,15 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.common.metrics.MeanMetric;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -34,8 +31,9 @@ import java.util.function.BiConsumer;
  * Schedules and coordinates segment merge operations for a shard.
  * <p>
  * This scheduler delegates merge selection to a {@link MergeHandler} and controls
- * concurrency via configurable thread and merge count limits sourced from
- * {@link MergeSchedulerConfig}.
+ * concurrency via configurable merge count limits sourced from
+ * {@link MergeSchedulerConfig}. Merge tasks are submitted to the OpenSearch
+ * {@link ThreadPool} using the {@link ThreadPool.Names#FORCE_MERGE} executor.
  *
  * @opensearch.experimental
  */
@@ -44,17 +42,13 @@ public class MergeScheduler {
 
     private final Logger logger;
     private final MergeHandler mergeHandler;
-    /** Counter used to generate unique merge thread names. */
-    protected int mergeThreadCounter = 0;
     private final BiConsumer<MergeResult, OneMerge> applyMergeChanges;
-    private final List<MergeThread> mergeThreads = new CopyOnWriteArrayList<>();
+    private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
-    private final ShardId shardId;
     private final MergeSchedulerConfig mergeSchedulerConfig;
-    private final Settings indexSettings;
 
     private final MeanMetric totalMerges = new MeanMetric();
     private final CounterMetric totalMergesNumDocs = new CounterMetric();
@@ -81,18 +75,19 @@ public class MergeScheduler {
      * @param applyMergeChanges callback to apply merge results (e.g., update the catalog)
      * @param shardId           the shard this scheduler is associated with
      * @param indexSettings     the index settings providing merge scheduler configuration
+     * @param threadPool        the OpenSearch thread pool for executing merge tasks
      */
     public MergeScheduler(
         MergeHandler mergeHandler,
         BiConsumer<MergeResult, OneMerge> applyMergeChanges,
         ShardId shardId,
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        ThreadPool threadPool
     ) {
         this.mergeHandler = mergeHandler;
         this.applyMergeChanges = applyMergeChanges;
+        this.threadPool = threadPool;
         logger = Loggers.getLogger(getClass(), shardId);
-        this.shardId = shardId;
-        this.indexSettings = indexSettings.getSettings();
         this.mergeSchedulerConfig = indexSettings.getMergeSchedulerConfig();
         refreshConfig();
     }
@@ -141,11 +136,12 @@ public class MergeScheduler {
 
     /**
      * Forces a merge down to at most {@code maxNumSegment} segments.
+     * Runs synchronously on the calling thread.
      *
      * @param maxNumSegment the maximum number of segments after the force merge
      */
     public void forceMerge(int maxNumSegment) {
-        if (!mergeThreads.isEmpty()) {
+        if (activeMerges.get() > 0) {
             logger.warn("Cannot force merge while background merges are active");
             throw new IllegalStateException("Cannot force merge while background merges are active");
         }
@@ -180,6 +176,13 @@ public class MergeScheduler {
     }
 
     /**
+     * Shuts down this merge scheduler, preventing new merges from being submitted.
+     */
+    public void shutdown() {
+        isShutdown.set(true);
+    }
+
+    /**
      * Returns the current merge statistics for this scheduler.
      *
      * @return the merge stats
@@ -203,70 +206,10 @@ public class MergeScheduler {
     }
 
     /**
-     * Daemon thread that executes a single {@link OneMerge} operation.
-     * On completion (success or failure) the thread decrements active-merge
-     * counters and re-triggers {@link #executeMerge()} to drain any remaining
-     * pending merges.
-     */
-    private class MergeThread extends Thread {
-        private final OneMerge oneMerge;
-
-        MergeThread(OneMerge oneMerge) {
-            super();
-            this.oneMerge = oneMerge;
-            setDaemon(true);
-        }
-
-        @Override
-        public void run() {
-            long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
-            long totalNumDocs = oneMerge.getTotalNumDocs();
-            long timeNS = System.nanoTime();
-            long tookMS = 0;
-            try {
-                if (isShutdown.get()) {
-                    logger.debug("[{}] MergeScheduler is shutdown, skipping merge", getName());
-                    return;
-                }
-
-                currentMerges.inc();
-                currentMergesNumDocs.inc(totalNumDocs);
-                currentMergesSizeInBytes.inc(totalSizeInBytes);
-
-                MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
-                applyMergeChanges.accept(mergeResult, oneMerge);
-                mergeHandler.onMergeFinished(oneMerge);
-
-                tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
-                logger.info("[{}] Merge completed in {}ms", getName(), tookMS);
-
-            } catch (Exception e) {
-                logger.error(new ParameterizedMessage("[{}] Unexpected error during merge for: {}", getName(), oneMerge), e);
-                mergeHandler.onMergeFailure(oneMerge);
-            } finally {
-
-                currentMerges.dec();
-                currentMergesNumDocs.dec(totalNumDocs);
-                currentMergesSizeInBytes.dec(totalSizeInBytes);
-
-                totalMergesNumDocs.inc(totalNumDocs);
-                totalMergesSizeInBytes.inc(totalSizeInBytes);
-                totalMerges.inc(tookMS);
-
-                activeMerges.decrementAndGet();
-                mergeThreads.remove(this);
-                // triggering merge at the end
-                executeMerge();
-            }
-        }
-    }
-
-    /**
      * Drains the pending-merge queue up to {@link #maxConcurrentMerges},
-     * submitting each merge as a new {@link MergeThread}.
+     * submitting each merge as a task to the thread pool.
      */
     private void executeMerge() {
-        // Submit merges up to available capacity
         while (activeMerges.get() < maxConcurrentMerges && mergeHandler.hasPendingMerges()) {
             OneMerge oneMerge = mergeHandler.getNextMerge();
             if (oneMerge == null) {
@@ -281,20 +224,49 @@ public class MergeScheduler {
     }
 
     /**
-     * Creates and starts a daemon {@link MergeThread} for the given merge.
+     * Submits a merge task to the thread pool's force merge executor.
      *
-     * @param oneMerge the merge to execute in a new thread
+     * @param oneMerge the merge to execute
      */
     private void submitMergeTask(OneMerge oneMerge) {
         activeMerges.incrementAndGet();
-        MergeThread thread = new MergeThread(oneMerge);
-        thread.setName(
-            OpenSearchExecutors.threadName(
-                indexSettings,
-                "[" + shardId.getIndexName() + "][" + shardId.id() + "]: Merge thread #" + mergeThreadCounter++
-            )
-        );
-        mergeThreads.add(thread);
-        thread.start();
+        threadPool.executor(ThreadPool.Names.MERGE).execute(() -> {
+            long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
+            long totalNumDocs = oneMerge.getTotalNumDocs();
+            long timeNS = System.nanoTime();
+            long tookMS = 0;
+            try {
+                if (isShutdown.get()) {
+                    logger.debug("MergeScheduler is shutdown, skipping merge");
+                    return;
+                }
+
+                currentMerges.inc();
+                currentMergesNumDocs.inc(totalNumDocs);
+                currentMergesSizeInBytes.inc(totalSizeInBytes);
+
+                MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
+                applyMergeChanges.accept(mergeResult, oneMerge);
+                mergeHandler.onMergeFinished(oneMerge);
+
+                tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
+                logger.info("Merge completed in {}ms", tookMS);
+
+            } catch (Exception e) {
+                logger.error(new ParameterizedMessage("Unexpected error during merge for: {}", oneMerge), e);
+                mergeHandler.onMergeFailure(oneMerge);
+            } finally {
+                currentMerges.dec();
+                currentMergesNumDocs.dec(totalNumDocs);
+                currentMergesSizeInBytes.dec(totalSizeInBytes);
+
+                totalMergesNumDocs.inc(totalNumDocs);
+                totalMergesSizeInBytes.inc(totalSizeInBytes);
+                totalMerges.inc(tookMS);
+
+                activeMerges.decrementAndGet();
+                executeMerge();
+            }
+        });
     }
 }

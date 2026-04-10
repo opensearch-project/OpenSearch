@@ -15,43 +15,51 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.MergeResult;
-import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Abstract handler responsible for managing segment merge operations.
  * <p>
- * Subclasses define the merge policy by implementing {@link #findMerges()} and
- * {@link #findForceMerges(int)}, while this base class manages the pending merge
- * queue and lifecycle callbacks.
+ * Manages the pending merge queue, lifecycle callbacks, and merge candidate
+ * selection via {@link DataFormatAwareMergePolicy}. Subclasses implement
+ * {@link #doMerge(OneMerge)} to define how the actual merge is executed.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public abstract class MergeHandler {
 
-    private final Deque<OneMerge> mergingSegments = new ArrayDeque<>();
+    private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
-    private final Indexer indexer;
+    private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
+    private final DataFormatAwareMergePolicy mergePolicy;
     private final Logger logger;
 
     /**
      * Creates a new merge handler.
      *
-     * @param indexer  the indexer used to acquire catalog snapshots for segment validation
-     * @param shardId  the shard this handler is associated with (used for logging)
+     * @param snapshotSupplier supplier for acquiring catalog snapshots for segment validation
+     * @param mergePolicy      the merge policy for selecting merge candidates
+     * @param shardId          the shard this handler is associated with (used for logging)
      */
-    public MergeHandler(Indexer indexer, ShardId shardId) {
+    public MergeHandler(
+        Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
+        DataFormatAwareMergePolicy mergePolicy,
+        ShardId shardId
+    ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.indexer = indexer;
+        this.snapshotSupplier = snapshotSupplier;
+        this.mergePolicy = mergePolicy;
     }
 
     /**
@@ -59,7 +67,20 @@ public abstract class MergeHandler {
      *
      * @return a collection of merges to execute, or an empty collection if none are needed
      */
-    public abstract Collection<OneMerge> findMerges();
+    public Collection<OneMerge> findMerges() {
+        List<OneMerge> oneMerges = new ArrayList<>();
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
+            List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
+            List<List<Segment>> mergeCandidates = mergePolicy.findMergeCandidates(segmentList);
+            for (List<Segment> mergeGroup : mergeCandidates) {
+                oneMerges.add(new OneMerge(mergeGroup));
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to acquire snapshots", e);
+            throw new RuntimeException(e);
+        }
+        return oneMerges;
+    }
 
     /**
      * Finds merges required to reduce the number of segments to at most {@code maxSegmentCount}.
@@ -67,7 +88,20 @@ public abstract class MergeHandler {
      * @param maxSegmentCount the maximum number of segments allowed after merging
      * @return a collection of merges to execute
      */
-    public abstract Collection<OneMerge> findForceMerges(int maxSegmentCount);
+    public Collection<OneMerge> findForceMerges(int maxSegmentCount) {
+        List<OneMerge> oneMerges = new ArrayList<>();
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
+            List<Segment> segmentList = catalogSnapshotRef.get().getSegments();
+            List<List<Segment>> mergeCandidates = mergePolicy.findForceMergeCandidates(segmentList, maxSegmentCount);
+            for (List<Segment> mergeGroup : mergeCandidates) {
+                oneMerges.add(new OneMerge(mergeGroup));
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to acquire snapshots", e);
+            throw new RuntimeException(e);
+        }
+        return oneMerges;
+    }
 
     /**
      * Updates the set of pending merges. Called to refresh the merge queue
@@ -95,9 +129,8 @@ public abstract class MergeHandler {
      * @param merge the merge to register
      */
     public synchronized void registerMerge(OneMerge merge) {
-        try (GatedCloseable<CatalogSnapshot> catalogSnapshotReleasableRef = indexer.acquireSnapshot()) {
-            // Validate segments exist in catalog
-            List<Segment> catalogSegments = catalogSnapshotReleasableRef.get().getSegments();
+        try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = snapshotSupplier.get()) {
+            List<Segment> catalogSegments = catalogSnapshotRef.get().getSegments();
             for (Segment mergeSegment : merge.getSegmentsToMerge()) {
                 if (!catalogSegments.contains(mergeSegment)) {
                     return;
@@ -107,9 +140,10 @@ public abstract class MergeHandler {
             logger.warn("Failed to acquire snapshots", e);
             throw new RuntimeException(e);
         }
-        mergingSegments.add(merge);
+        pendingMerges.add(merge);
         currentlyMergingSegments.addAll(merge.getSegmentsToMerge());
-        logger.debug(() -> new ParameterizedMessage("Registered merge [{}], mergingSegments: [{}]", merge, mergingSegments));
+        mergePolicy.addMergingSegment(merge.getSegmentsToMerge());
+        logger.debug(() -> new ParameterizedMessage("Registered merge [{}], pendingMerges: [{}]", merge, pendingMerges));
     }
 
     /**
@@ -118,7 +152,7 @@ public abstract class MergeHandler {
      * @return {@code true} if there are pending merges
      */
     public synchronized boolean hasPendingMerges() {
-        return !mergingSegments.isEmpty();
+        return !pendingMerges.isEmpty();
     }
 
     /**
@@ -127,10 +161,10 @@ public abstract class MergeHandler {
      * @return the next merge to execute, or {@code null} if the queue is empty
      */
     public synchronized OneMerge getNextMerge() {
-        if (mergingSegments.isEmpty()) {
+        if (pendingMerges.isEmpty()) {
             return null;
         }
-        return mergingSegments.removeFirst();
+        return pendingMerges.removeFirst();
     }
 
     /**
@@ -161,15 +195,9 @@ public abstract class MergeHandler {
      */
     public abstract MergeResult doMerge(OneMerge oneMerge);
 
-    /**
-     * Removes the segments belonging to the given merge from the currently-merging set
-     * and from the pending queue.
-     *
-     * @param oneMerge the merge whose segments should be removed
-     */
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
-        mergingSegments.remove(oneMerge);
+        pendingMerges.remove(oneMerge);
         oneMerge.getSegmentsToMerge().forEach(currentlyMergingSegments::remove);
+        mergePolicy.removeMergingSegment(oneMerge.getSegmentsToMerge());
     }
-
 }
