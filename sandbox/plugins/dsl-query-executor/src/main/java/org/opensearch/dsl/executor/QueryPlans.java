@@ -106,7 +106,7 @@ public final class QueryPlans {
             return this;
         }
 
-        /** Builds the plans. May be empty (e.g. size=0, no aggs — only metadata response). */
+        /** Builds the plans */
         public QueryPlans build() {
             return new QueryPlans(plans);
         }

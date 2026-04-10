@@ -8,7 +8,10 @@
 
 package org.opensearch.dsl.query;
 
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -24,15 +27,17 @@ public class QueryRegistryTests extends OpenSearchTestCase {
     public void testResolvesTermQuery() throws ConversionException {
         RexNode result = registry.convert(QueryBuilders.termQuery("name", "laptop"), ctx);
 
-        assertNotNull(result);
-        assertFalse(result instanceof UnresolvedQueryCall);
+        // term query translates to an EQUALS call
+        assertTrue(result instanceof RexCall);
+        assertEquals(SqlKind.EQUALS, (result).getKind());
     }
 
     public void testResolvesMatchAllQuery() throws ConversionException {
         RexNode result = registry.convert(QueryBuilders.matchAllQuery(), ctx);
 
-        assertNotNull(result);
-        assertFalse(result instanceof UnresolvedQueryCall);
+        // match_all translates to boolean TRUE literal
+        assertTrue(result instanceof RexLiteral);
+        assertTrue(RexLiteral.booleanValue(result));
     }
 
     public void testUnknownQueryTypeReturnsUnresolved() throws ConversionException {

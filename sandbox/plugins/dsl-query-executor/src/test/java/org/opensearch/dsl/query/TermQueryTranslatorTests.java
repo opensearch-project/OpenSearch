@@ -10,6 +10,7 @@ package org.opensearch.dsl.query;
 
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlKind;
 import org.opensearch.dsl.TestUtils;
@@ -27,13 +28,13 @@ public class TermQueryTranslatorTests extends OpenSearchTestCase {
     public void testConvertsTermQueryToEquals() throws ConversionException {
         RexNode result = translator.convert(QueryBuilders.termQuery("name", "laptop"), ctx);
 
-        assertTrue(result instanceof RexCall);
         RexCall call = (RexCall) result;
         assertEquals(SqlKind.EQUALS, call.getKind());
-        assertEquals(2, call.getOperands().size());
-        assertTrue(call.getOperands().get(0) instanceof RexInputRef);
-        // assertTrue(call.getOperands().get(1) instanceof RexLiteral);
-        // assertEquals("laptop", RexLiteral.stringValue(call.getOperands().get(1)));
+        // name is the 1st field (index 0) in TestUtils schema: name, price, brand, rating
+        assertEquals(0, ((RexInputRef) call.getOperands().get(0)).getIndex());
+        // makeLiteral wraps nullable VARCHAR in a CAST, so unwrap to get the inner literal
+        RexCall cast = (RexCall) call.getOperands().get(1);
+        assertEquals("laptop", ((RexLiteral) cast.getOperands().get(0)).getValueAs(String.class));
     }
 
     public void testResolvesCorrectFieldIndex() throws ConversionException {
