@@ -11,6 +11,7 @@ package org.opensearch.dsl.aggregation;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.util.List;
 
@@ -30,6 +31,39 @@ public class AggregationMetadata {
     private final RexNode filterCondition;
     private final String bucketKey;
     private final String aggregationName;
+    private final List<PipelineAggregationBuilder> pipelineBuilders;
+
+    /**
+     * Creates aggregation metadata.
+     *
+     * @param groupByBitSet column indices for GROUP BY
+     * @param groupByFieldNames field names for GROUP BY columns
+     * @param aggregateCalls Calcite aggregate calls (AVG, SUM, etc.)
+     * @param aggregateFieldNames output names for aggregate results
+     * @param filterCondition filter condition from a filter bucket, or null if no filter applies
+     * @param bucketKey bucket key for response assembly, or null if no bucket key applies
+     * @param aggregationName the DSL aggregation name for response assembly, or null
+     * @param pipelineBuilders pipeline aggregation builders collected during tree walk
+     */
+    public AggregationMetadata(
+        ImmutableBitSet groupByBitSet,
+        List<String> groupByFieldNames,
+        List<AggregateCall> aggregateCalls,
+        List<String> aggregateFieldNames,
+        RexNode filterCondition,
+        String bucketKey,
+        String aggregationName,
+        List<PipelineAggregationBuilder> pipelineBuilders
+    ) {
+        this.groupByBitSet = groupByBitSet;
+        this.groupByFieldNames = List.copyOf(groupByFieldNames);
+        this.aggregateCalls = List.copyOf(aggregateCalls);
+        this.aggregateFieldNames = List.copyOf(aggregateFieldNames);
+        this.filterCondition = filterCondition;
+        this.bucketKey = bucketKey;
+        this.aggregationName = aggregationName;
+        this.pipelineBuilders = pipelineBuilders != null ? List.copyOf(pipelineBuilders) : List.of();
+    }
 
     /**
      * Creates aggregation metadata.
@@ -51,13 +85,8 @@ public class AggregationMetadata {
         String bucketKey,
         String aggregationName
     ) {
-        this.groupByBitSet = groupByBitSet;
-        this.groupByFieldNames = List.copyOf(groupByFieldNames);
-        this.aggregateCalls = List.copyOf(aggregateCalls);
-        this.aggregateFieldNames = List.copyOf(aggregateFieldNames);
-        this.filterCondition = filterCondition;
-        this.bucketKey = bucketKey;
-        this.aggregationName = aggregationName;
+        this(groupByBitSet, groupByFieldNames, aggregateCalls, aggregateFieldNames,
+            filterCondition, bucketKey, aggregationName, List.of());
     }
 
     /**
@@ -78,7 +107,8 @@ public class AggregationMetadata {
         RexNode filterCondition,
         String bucketKey
     ) {
-        this(groupByBitSet, groupByFieldNames, aggregateCalls, aggregateFieldNames, filterCondition, bucketKey, null);
+        this(groupByBitSet, groupByFieldNames, aggregateCalls, aggregateFieldNames,
+            filterCondition, bucketKey, null, List.of());
     }
 
     /** Returns the GROUP BY column indices. */
@@ -114,5 +144,10 @@ public class AggregationMetadata {
     /** Returns the DSL aggregation name for response assembly, or null if not set. */
     public String getAggregationName() {
         return aggregationName;
+    }
+
+    /** Returns the pipeline aggregation builders collected during tree walk. */
+    public List<PipelineAggregationBuilder> getPipelineBuilders() {
+        return pipelineBuilders;
     }
 }

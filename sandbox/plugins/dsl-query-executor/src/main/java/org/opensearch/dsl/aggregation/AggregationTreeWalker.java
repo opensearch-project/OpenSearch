@@ -15,9 +15,11 @@ import org.opensearch.dsl.aggregation.bucket.BucketTranslator;
 import org.opensearch.dsl.aggregation.bucket.FilterBucketTranslator;
 import org.opensearch.dsl.aggregation.bucket.FiltersBucketTranslator;
 import org.opensearch.dsl.aggregation.metric.MetricTranslator;
+import org.opensearch.dsl.aggregation.pipeline.BucketsPathResolver;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 
@@ -66,10 +68,27 @@ public class AggregationTreeWalker {
         Collection<AggregationBuilder> aggs,
         ConversionContext ctx
     ) throws ConversionException {
+        return walk(aggs, List.of(), ctx);
+    }
+
+    /**
+     * Walks the aggregation tree and returns one AggregationMetadata per granularity level.
+     *
+     * @param aggs the top-level aggregation builders
+     * @param pipelineAggs the top-level pipeline aggregation builders
+     * @param ctx the conversion context providing row type, type factory, and RexBuilder
+     * @return metadata list, one per granularity (only levels with metrics or implicit count)
+     * @throws ConversionException if any aggregation fails to convert
+     */
+    public List<AggregationMetadata> walk(
+        Collection<AggregationBuilder> aggs,
+        Collection<PipelineAggregationBuilder> pipelineAggs,
+        ConversionContext ctx
+    ) throws ConversionException {
         RelDataType rowType = ctx.getRowType();
         RelDataTypeFactory typeFactory = ctx.getCluster().getTypeFactory();
         Map<String, AggregationMetadataBuilder> granularities = new LinkedHashMap<>();
-        walkRecursive(aggs, new ArrayList<>(), null, null, granularities, ctx);
+        walkRecursive(aggs, pipelineAggs, new ArrayList<>(), null, null, granularities, ctx);
 
         List<AggregationMetadata> result = new ArrayList<>();
         for (AggregationMetadataBuilder builder : granularities.values()) {
@@ -95,6 +114,7 @@ public class AggregationTreeWalker {
     @SuppressWarnings("unchecked")
     private void walkRecursive(
         Collection<AggregationBuilder> aggs,
+        Collection<PipelineAggregationBuilder> pipelineAggs,
         List<GroupingInfo> currentGroupings,
         RexNode currentFilterCondition,
         String currentFilterKey,
@@ -127,6 +147,23 @@ public class AggregationTreeWalker {
                 );
             } else {
                 throw new ConversionException("Unsupported aggregation type: " + aggBuilder.getClass().getSimpleName());
+            }
+        }
+
+        // Collect pipeline aggregation builders into the current granularity builder.
+        // Sibling pipeline aggs (e.g., avg_bucket) operate on the output of their parent
+        // bucket aggregation. The buckets_path may reference metrics in deeper granularities,
+        // so we use BucketsPathResolver to find the correct builder based on the full path.
+        if (pipelineAggs != null && !pipelineAggs.isEmpty()) {
+            for (PipelineAggregationBuilder pipelineBuilder : pipelineAggs) {
+                AggregationMetadataBuilder builder;
+                if (currentFilterKey != null) {
+                    builder = granularities.get(currentFilterKey);
+                } else {
+                    builder = BucketsPathResolver.findBuilderForPipeline(
+                        pipelineBuilder, currentGroupings, granularities);
+                }
+                builder.addPipelineBuilder(pipelineBuilder);
             }
         }
     }
@@ -175,14 +212,23 @@ public class AggregationTreeWalker {
         if (translator.getWalkStrategy() == BucketTranslator.WalkStrategy.FILTER) {
             AggregationMetadataBuilder builder = getOrCreateBuilder(filterKey, accumulatedGroupings, granularities);
             builder.setFilterCondition(combinedFilter);
+            builder.addAggNameMapping(aggBuilder.getName(), "__filter__" + aggBuilder.getName());
         } else {
-            getOrCreateBuilder(accumulatedGroupings, granularities);
+            AggregationMetadataBuilder builder = getOrCreateBuilder(accumulatedGroupings, granularities);
+            builder.addAggNameMapping(aggBuilder.getName(), String.join(",", grouping.getFieldNames()));
         }
 
-        // Recurse into sub-aggregations
+        // Recurse into sub-aggregations and pipeline sub-aggregations
         Collection<AggregationBuilder> subAggs = translator.getSubAggregations(aggBuilder);
-        if (subAggs != null && !subAggs.isEmpty()) {
-            walkRecursive(subAggs, accumulatedGroupings, combinedFilter, filterKey, granularities, ctx);
+        Collection<PipelineAggregationBuilder> pipelineSubAggs = aggBuilder.getPipelineAggregations();
+        boolean hasSubAggs = subAggs != null && !subAggs.isEmpty();
+        boolean hasPipelineSubAggs = pipelineSubAggs != null && !pipelineSubAggs.isEmpty();
+        if (hasSubAggs || hasPipelineSubAggs) {
+            walkRecursive(
+                hasSubAggs ? subAggs : List.of(),
+                hasPipelineSubAggs ? pipelineSubAggs : List.of(),
+                accumulatedGroupings, combinedFilter, filterKey, granularities, ctx
+            );
         }
     }
 
@@ -225,9 +271,13 @@ public class AggregationTreeWalker {
             builder.setFilterCondition(plan.condition());
             builder.setBucketKey(plan.bucketKey());
             builder.setAggregationName(aggBuilder.getName());
+            builder.addAggNameMapping(aggBuilder.getName(),
+                "__filter__" + aggBuilder.getName() + "/" + plan.bucketKey());
 
             if (subAggs != null && subAggs.isEmpty() == false) {
-                walkRecursive(subAggs, accumulatedGroupings, plan.condition(), granKey, granularities, ctx);
+                walkRecursive(subAggs, aggBuilder.getPipelineAggregations(), accumulatedGroupings, plan.condition(), granKey, granularities, ctx);
+            } else if (aggBuilder.getPipelineAggregations() != null && !aggBuilder.getPipelineAggregations().isEmpty()) {
+                walkRecursive(List.of(), aggBuilder.getPipelineAggregations(), accumulatedGroupings, plan.condition(), granKey, granularities, ctx);
             }
         }
     }
@@ -327,9 +377,8 @@ public class AggregationTreeWalker {
     }
 
     /**
-     * Builds a bucket-scoped granularity key: {@code <fields>__<bucketType>__<aggName>}.
-     * Used by bucket aggregations that produce separate plans without field-based grouping
-     * (e.g., singular filter bucket).
+     * Builds a bucket-scoped granularity key: {@code <fields>,__<bucketType>__<aggName>}.
+     * Uses comma separation consistent with field-based keys.
      *
      * @param groupings the accumulated groupings from parent buckets
      * @param bucketType the bucket type identifier (e.g., "filter", "adjacency")
@@ -337,13 +386,14 @@ public class AggregationTreeWalker {
      * @return the granularity key
      */
     static String buildBucketGranularityKey(List<GroupingInfo> groupings, String bucketType, String aggName) {
-        return groupingFieldsBase(groupings) + "__" + bucketType + "__" + aggName;
+        String base = groupingFieldsBase(groupings);
+        String suffix = "__" + bucketType + "__" + aggName;
+        return base.isEmpty() ? suffix : base + "," + suffix;
     }
 
     /**
-     * Builds a bucket-scoped granularity key with a sub-key: {@code <fields>__<bucketType>__<aggName>/<subKey>}.
-     * Used by bucket aggregations that expand into multiple plans, each identified by a sub-key
-     * (e.g., each keyed filter in a filters aggregation, or each range in a range aggregation).
+     * Builds a bucket-scoped granularity key with a sub-key: {@code <fields>,__<bucketType>__<aggName>/<subKey>}.
+     * Uses comma separation consistent with field-based keys.
      *
      * @param groupings the accumulated groupings from parent buckets
      * @param bucketType the bucket type identifier (e.g., "filter", "range")
@@ -357,7 +407,9 @@ public class AggregationTreeWalker {
         String aggName,
         String subKey
     ) {
-        return groupingFieldsBase(groupings) + "__" + bucketType + "__" + aggName + "/" + subKey;
+        String base = groupingFieldsBase(groupings);
+        String suffix = "__" + bucketType + "__" + aggName + "/" + subKey;
+        return base.isEmpty() ? suffix : base + "," + suffix;
     }
 
     /**

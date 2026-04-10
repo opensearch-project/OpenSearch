@@ -13,6 +13,7 @@ import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator;
@@ -20,11 +21,17 @@ import org.opensearch.search.aggregations.bucket.histogram.HistogramAggregationB
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
+import org.opensearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Collection;
 
 public class AggregationTreeWalkerTests extends OpenSearchTestCase {
 
@@ -412,7 +419,183 @@ public class AggregationTreeWalkerTests extends OpenSearchTestCase {
         assertEquals(Set.of("0", "1"), keys);
     }
 
-    // --- buildBucketGranularityKey tests ---
+    public void testPipelineAttachedToCorrectGranularityTopLevel() throws ConversionException {
+        // terms(brand) → sum(price), top-level avg_bucket(by_brand>total)
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(new SumAggregationBuilder("total").field("price"))
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_total", "by_brand>total")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        // The brand granularity should have the pipeline builder
+        AggregationMetadata brandMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().contains("brand"))
+            .findFirst().orElseThrow();
+        assertEquals(1, brandMeta.getPipelineBuilders().size());
+        assertEquals("avg_total", brandMeta.getPipelineBuilders().get(0).getName());
+    }
+
+    public void testPipelineAttachedToDeepGranularityMultiLevel() throws ConversionException {
+        // terms(brand) → terms(name) → sum(price), top-level avg_bucket(by_brand>by_name>total)
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(
+                    new TermsAggregationBuilder("by_name").field("name")
+                        .subAggregation(new SumAggregationBuilder("total").field("price"))
+                )
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_total", "by_brand>by_name>total")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        // The brand+name granularity should have the pipeline
+        AggregationMetadata deepMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().equals(List.of("brand", "name")))
+            .findFirst().orElseThrow();
+        assertEquals(1, deepMeta.getPipelineBuilders().size());
+    }
+
+    public void testNestedPipelineAttachedToCorrectGranularity() throws ConversionException {
+        // terms(brand) → [terms(name) → sum(price), max_bucket(by_name>total)]
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(
+                    new TermsAggregationBuilder("by_name").field("name")
+                        .subAggregation(new SumAggregationBuilder("total").field("price"))
+                )
+                .subAggregation(new MaxBucketPipelineAggregationBuilder("max_total", "by_name>total"))
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, ctx);
+
+        // The brand+name granularity should have the nested pipeline
+        AggregationMetadata deepMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().equals(List.of("brand", "name")))
+            .findFirst().orElseThrow();
+        assertEquals(1, deepMeta.getPipelineBuilders().size());
+        assertEquals("max_total", deepMeta.getPipelineBuilders().get(0).getName());
+    }
+
+    public void testMultiplePipelinesAttachedToSameGranularity() throws ConversionException {
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(new SumAggregationBuilder("total").field("price"))
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_total", "by_brand>total"),
+            new MaxBucketPipelineAggregationBuilder("max_total", "by_brand>total")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        AggregationMetadata brandMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().contains("brand"))
+            .findFirst().orElseThrow();
+        assertEquals(2, brandMeta.getPipelineBuilders().size());
+    }
+
+    public void testPipelineOnCountPath() throws ConversionException {
+        // avg_bucket on _count — single-level path at current groupings
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_count", "by_brand>_count")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(0).getPipelineBuilders().size());
+    }
+
+    public void testBucketSortPipelineAttachedToParentGranularity() throws ConversionException {
+        // terms(brand) → [sum(price), bucket_sort(sort by total_revenue)]
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(new SumAggregationBuilder("total_revenue").field("price"))
+                .subAggregation(new BucketSortPipelineAggregationBuilder("sort",
+                    List.of(new FieldSortBuilder("total_revenue").order(SortOrder.DESC))).size(2))
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, ctx);
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(0).getPipelineBuilders().size());
+        assertEquals("sort", result.get(0).getPipelineBuilders().get(0).getName());
+    }
+
+    public void testBucketSortOnlyPipelineSubAgg() throws ConversionException {
+        // terms(brand) with only bucket_sort (no regular sub-aggs besides the implicit count)
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(new BucketSortPipelineAggregationBuilder("sort",
+                    List.of(new FieldSortBuilder("_count").order(SortOrder.DESC))).size(2))
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, ctx);
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(0).getPipelineBuilders().size());
+    }
+
+    public void testBucketSortAndSiblingPipelineOnSameGranularity() throws ConversionException {
+        // terms(brand) → [sum(price), bucket_sort], top-level avg_bucket
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(new SumAggregationBuilder("total_revenue").field("price"))
+                .subAggregation(new BucketSortPipelineAggregationBuilder("sort",
+                    List.of(new FieldSortBuilder("total_revenue").order(SortOrder.DESC))).size(2))
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_rev", "by_brand>total_revenue")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        assertEquals(1, result.size());
+        // Both bucket_sort and avg_bucket attached to the brand granularity
+        assertEquals(2, result.get(0).getPipelineBuilders().size());
+    }
+
+    public void testBucketSortNestedWithSiblingAtTopLevel() throws ConversionException {
+        // terms(brand) → [terms(name) → sum(price), bucket_sort on _count]
+        // top-level: avg_bucket(by_brand>by_name>total)
+        List<AggregationBuilder> aggs = List.of(
+            new TermsAggregationBuilder("by_brand").field("brand")
+                .subAggregation(
+                    new TermsAggregationBuilder("by_name").field("name")
+                        .subAggregation(new SumAggregationBuilder("total").field("price"))
+                )
+                .subAggregation(new BucketSortPipelineAggregationBuilder("sort",
+                    List.of(new FieldSortBuilder("_count").order(SortOrder.DESC))).size(2))
+        );
+        Collection<PipelineAggregationBuilder> pipelineAggs = List.of(
+            new AvgBucketPipelineAggregationBuilder("avg_total", "by_brand>by_name>total")
+        );
+
+        List<AggregationMetadata> result = walker.walk(aggs, pipelineAggs, ctx);
+
+        // brand granularity has bucket_sort
+        AggregationMetadata brandMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().equals(List.of("brand")))
+            .findFirst().orElseThrow();
+        assertEquals(1, brandMeta.getPipelineBuilders().size());
+        assertEquals("sort", brandMeta.getPipelineBuilders().get(0).getName());
+
+        // brand+name granularity has avg_bucket
+        AggregationMetadata deepMeta = result.stream()
+            .filter(m -> m.getGroupByFieldNames().equals(List.of("brand", "name")))
+            .findFirst().orElseThrow();
+        assertEquals(1, deepMeta.getPipelineBuilders().size());
+        assertEquals("avg_total", deepMeta.getPipelineBuilders().get(0).getName());
+    }
 
     public void testBuildBucketGranularityKeyNoGroupingsNoSubKey() {
         String key = AggregationTreeWalker.buildBucketGranularityKey(List.of(), "filter", "active");
@@ -422,7 +605,7 @@ public class AggregationTreeWalkerTests extends OpenSearchTestCase {
     public void testBuildBucketGranularityKeyWithGroupingsNoSubKey() {
         GroupingInfo grouping = new FieldGrouping(List.of("brand"));
         String key = AggregationTreeWalker.buildBucketGranularityKey(List.of(grouping), "filter", "active");
-        assertEquals("brand__filter__active", key);
+        assertEquals("brand,__filter__active", key);
     }
 
     public void testBuildBucketGranularityKeyWithSubKey() {
@@ -433,14 +616,14 @@ public class AggregationTreeWalkerTests extends OpenSearchTestCase {
     public void testBuildBucketGranularityKeyWithGroupingsAndSubKey() {
         GroupingInfo grouping = new FieldGrouping(List.of("brand"));
         String key = AggregationTreeWalker.buildBucketGranularityKey(List.of(grouping), "filter", "messages", "errors");
-        assertEquals("brand__filter__messages/errors", key);
+        assertEquals("brand,__filter__messages/errors", key);
     }
 
     public void testBuildBucketGranularityKeyMultipleGroupings() {
         GroupingInfo g1 = new FieldGrouping(List.of("brand"));
         GroupingInfo g2 = new FieldGrouping(List.of("name"));
         String key = AggregationTreeWalker.buildBucketGranularityKey(List.of(g1, g2), "filter", "status", "active");
-        assertEquals("brand,name__filter__status/active", key);
+        assertEquals("brand,name,__filter__status/active", key);
     }
 
     public void testBuildBucketGranularityKeyDifferentBucketTypes() {

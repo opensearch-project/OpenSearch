@@ -60,7 +60,17 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     private boolean keyed = true;
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
-    InternalPercentilesBucket(
+    /**
+     * Creates an InternalPercentilesBucket aggregation.
+     *
+     * @param name the name of the aggregation
+     * @param percents the percentile thresholds requested
+     * @param percentiles the computed percentile values
+     * @param keyed whether the response should be keyed
+     * @param formatter the doc value format
+     * @param metadata the metadata associated with this aggregation, or null
+     */
+    public InternalPercentilesBucket(
         String name,
         double[] percents,
         double[] percentiles,
