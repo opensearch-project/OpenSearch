@@ -33,7 +33,7 @@ jobs:
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - name: Run sandbox check
-        run: ./gradlew check -p sandbox
+        run: ./gradlew check -p sandbox -Dsandbox.enabled=true
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

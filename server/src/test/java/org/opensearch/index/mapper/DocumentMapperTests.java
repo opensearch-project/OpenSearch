@@ -40,6 +40,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DocumentMapperTests extends MapperServiceTestCase {
 
@@ -290,5 +292,92 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(mergedMapper.meta(), equalTo(expected));
+    }
+
+    public void testParseWithoutDocumentInputReturnsNullDocumentInput() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
+
+        assertThat(doc.getDocumentInput(), nullValue());
+    }
+
+    public void testParseWithDocumentInputPropagatesInput() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+        DocumentInput<Map<String, Object>> mockInput = new MockDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+    }
+
+    public void testParseWithNullDocumentInputExplicitly() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "text").endObject()));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")), null);
+
+        assertThat(doc.getDocumentInput(), nullValue());
+    }
+
+    public void testParseWithDocumentInputMultipleFields() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("name").field("type", "text").endObject();
+            b.startObject("age").field("type", "integer").endObject();
+        }));
+        DocumentInput<Map<String, Object>> mockInput = new MockDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("name", "test");
+            b.field("age", 25);
+        }), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+        assertThat(doc.rootDoc().getField("name"), notNullValue());
+        assertThat(doc.rootDoc().getField("age"), notNullValue());
+    }
+
+    public void testParseWithDocumentInputNestedObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("obj");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("field").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        DocumentInput<Map<String, Object>> mockInput = new MockDocumentInput();
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("obj");
+            b.field("field", "value");
+            b.endObject();
+        }), mockInput);
+
+        assertThat(doc.getDocumentInput(), sameInstance(mockInput));
+    }
+
+    private static class MockDocumentInput implements DocumentInput<Map<String, Object>> {
+        private final Map<String, Object> fields = new HashMap<>();
+
+        @Override
+        public Map<String, Object> getFinalInput() {
+            return Collections.unmodifiableMap(fields);
+        }
+
+        @Override
+        public void addField(MappedFieldType fieldType, Object value) {
+            fields.put(fieldType != null ? fieldType.name() : "field_" + fields.size(), value);
+        }
+
+        @Override
+        public void setRowId(String rowIdFieldName, long rowId) {
+            fields.put(rowIdFieldName, rowId);
+        }
+
+        @Override
+        public void close() {}
     }
 }
