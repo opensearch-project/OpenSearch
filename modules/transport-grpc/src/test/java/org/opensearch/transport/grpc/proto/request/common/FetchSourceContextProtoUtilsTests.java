@@ -8,7 +8,6 @@
 
 package org.opensearch.transport.grpc.proto.request.common;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.protobufs.BulkRequest;
 import org.opensearch.protobufs.SearchRequest;
@@ -368,7 +367,7 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Exception when attempting to convert to FetchSourceContext
-        final OpenSearchException e = expectThrows(OpenSearchException.class, () -> FetchSourceContextProtoUtils.fromProto(sourceConfig));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchSourceContextProtoUtils.fromProto(sourceConfig));
 
         assertEquals("The same entry [theSameEntry] cannot be both included and excluded in _source.", e.getMessage());
     }

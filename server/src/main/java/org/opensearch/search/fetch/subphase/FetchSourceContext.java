@@ -32,7 +32,6 @@
 
 package org.opensearch.search.fetch.subphase;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -43,6 +42,7 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.common.logging.LoggerMessageFormat;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -104,7 +104,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         Set<String> includeSet = new HashSet<>(Arrays.asList(this.includes));
         for (String exclude : this.excludes) {
             if (includeSet.contains(exclude)) {
-                throw new OpenSearchException(AMBIGUOUS_FIELD_MESSAGE, exclude);
+                String msg = LoggerMessageFormat.format(null, AMBIGUOUS_FIELD_MESSAGE, exclude);
+                throw new IllegalArgumentException(msg);
             }
         }
     }
