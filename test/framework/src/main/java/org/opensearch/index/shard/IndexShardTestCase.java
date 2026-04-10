@@ -1557,10 +1557,15 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     /**
-     * Helper method to access (package-protected) engine from tests
+     * Helper method to access (package-protected) engine from tests.
+     * Returns null if the indexer is not engine-backed (e.g., DataFormatAwareEngine).
      */
     public static Engine getEngine(IndexShard indexShard) {
-        return ((EngineBackedIndexer) indexShard.getIndexer()).getEngine();
+        Indexer indexer = indexShard.getIndexer();
+        if (indexer instanceof EngineBackedIndexer engineBackedIndexer) {
+            return engineBackedIndexer.getEngine();
+        }
+        return null;
     }
 
     public static Indexer getIndexer(IndexShard indexShard) {
