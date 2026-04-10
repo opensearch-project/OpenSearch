@@ -129,6 +129,7 @@ import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineBackedIndexer;
@@ -144,6 +145,7 @@ import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -241,6 +243,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
@@ -316,11 +319,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     private final Object engineMutex = new Object(); // lock ordering: engineMutex -> mutex
     private final AtomicReference<Indexer> currentEngineReference = new AtomicReference<>();
+    private final AtomicReference<DataFormatAwareEngine> currentCompositeEngineReference = new AtomicReference<>();
     final EngineFactory engineFactory;
     final EngineConfigFactory engineConfigFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
+    private final ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache = new ConcurrentHashMap<>();
+    private final Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -404,6 +410,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Used to limit the number of concurrent translog tasks. When the semaphore is exhausted, serial recovery is used.
     private static final Semaphore translogConcurrentRecoverySemaphore = new Semaphore(1000);
 
+    private final DataFormatRegistry dataFormatRegistry;
+
     @InternalApi
     public IndexShard(
         final ShardRouting shardRouting,
@@ -443,7 +451,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Object refreshMutex,
         final ClusterApplierService clusterApplierService,
         @Nullable final MergedSegmentPublisher mergedSegmentPublisher,
-        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher
+        @Nullable final ReferencedSegmentsPublisher referencedSegmentsPublisher,
+        @Nullable final DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -539,6 +548,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             readerWrapper = indexReaderWrapper;
         }
+
+        nonClosingReaderWrapperSupplier = directoryReader -> {
+            int[] fromCache = new int[] { 0 };
+            try {
+                // To prevent instantiating a new NonClosingReaderWrapper per query/get/update request,
+                // the wrapper can be shared across all uses of the same NonClosingReaderWrapper.
+                return nonClosingReaderWrapperCache.computeIfAbsent(directoryReader, key -> {
+                    try {
+                        NonClosingReaderWrapper closingReaderWrapper = new NonClosingReaderWrapper(key);
+                        fromCache[0] = 1;
+                        return closingReaderWrapper;
+                    } catch (IOException e) {
+                        fromCache[0] = 2;
+                        throw new OpenSearchException("failed to wrap searcher", e);
+                    }
+                });
+            } finally {
+                if (fromCache[0] == 1) {
+                    OpenSearchDirectoryReader.addReaderCloseListener(
+                        directoryReader,
+                        cacheKey -> nonClosingReaderWrapperCache.remove(directoryReader)
+                    );
+                } else if (fromCache[0] == 2) {
+                    nonClosingReaderWrapperCache.remove(directoryReader);
+                }
+            }
+        };
+
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
         persistMetadata(path, indexSettings, shardRouting, null, logger);
@@ -568,6 +605,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (shardLevelRefreshEnabled) {
                 startRefreshTask();
             }
+        }
+        this.dataFormatRegistry = dataFormatRegistry;
+        if (dataFormatRegistry != null) {
+            // TODO: Wire the Committer from EnginePlugin discovery and pass it here.
+            // For now, reader managers are created without a committer — the Lucene reader manager
+            // will fail if used before the committer is wired at engine construction time.
+            DataFormatAwareEngine dfaEngine = new DataFormatAwareEngine(
+                dataFormatRegistry.getReaderManagers(Optional.empty(), mapperService, indexSettings, path)
+            );
+            this.currentCompositeEngineReference.set(dfaEngine);
         }
     }
 
@@ -2204,6 +2251,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return acquireSearcher(source, Engine.SearcherScope.EXTERNAL);
     }
 
+    /**
+     * Returns the current CompositeEngine, or null if no optimized index is active.
+     */
+    public DataFormatAwareEngine getCompositeEngine() {
+        return currentCompositeEngineReference.get();
+    }
+
+    /**
+     * Sets the CompositeEngine for this shard (called during shard initialization for optimized indexes).
+     */
+    public void setCompositeEngine(DataFormatAwareEngine dataFormatAwareEngine) {
+        currentCompositeEngineReference.set(dataFormatAwareEngine);
+    }
+
     private void markSearcherAccessed() {
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
@@ -2226,7 +2287,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             : "DirectoryReader must be an instance or OpenSearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = readerWrapper == null
+                ? searcher
+                : wrapSearcher(searcher, readerWrapper, nonClosingReaderWrapperSupplier);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -2246,14 +2309,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.Searcher engineSearcher,
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper
     ) throws IOException {
+        return wrapSearcher(engineSearcher, readerWrapper, null);
+    }
+
+    public static Engine.Searcher wrapSearcher(
+        Engine.Searcher engineSearcher,
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
+        Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier
+    ) throws IOException {
         assert readerWrapper != null;
-        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(
-            engineSearcher.getDirectoryReader()
-        );
+        DirectoryReader directoryReader = engineSearcher.getDirectoryReader();
+        final OpenSearchDirectoryReader openSearchDirectoryReader = OpenSearchDirectoryReader.getOpenSearchDirectoryReader(directoryReader);
         if (openSearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non opensearch directory reader");
         }
-        NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
+
+        DirectoryReader nonClosingReaderWrapper;
+        if (nonClosingReaderWrapperSupplier == null) {
+            nonClosingReaderWrapper = new NonClosingReaderWrapper(directoryReader);
+        } else {
+            nonClosingReaderWrapper = nonClosingReaderWrapperSupplier.apply(directoryReader);
+            assert nonClosingReaderWrapper instanceof NonClosingReaderWrapper;
+        }
         DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
         if (reader != nonClosingReaderWrapper) {
             if (reader.getReaderCacheHelper() != openSearchDirectoryReader.getReaderCacheHelper()) {
@@ -2350,6 +2427,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.CLOSED, reason);
                 }
             } finally {
+                nonClosingReaderWrapperCache.clear();
                 final Indexer engine = this.currentEngineReference.getAndSet(null);
                 try {
                     if (engine != null && flushEngine) {
@@ -6014,5 +6092,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             throw new IllegalStateException("Cannot apply function on indexer " + indexer.getClass() + " directly on IndexShard");
         }
+    }
+
+    // Visible for testing
+    Function<DirectoryReader, DirectoryReader> nonClosingReaderWrapperSupplier() {
+        return nonClosingReaderWrapperSupplier;
+    }
+
+    // Visible for testing
+    ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache() {
+        return nonClosingReaderWrapperCache;
     }
 }

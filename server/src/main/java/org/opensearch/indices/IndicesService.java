@@ -123,6 +123,7 @@ import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.engine.ReadOnlyEngine;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.get.GetStats;
@@ -424,6 +425,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile int defaultMaxMergeAtOnce;
     private final StatusCounterStats statusCounterStats;
     private final ClusterMergeSchedulerConfig clusterMergeSchedulerConfig;
+    private final DataFormatRegistry dataFormatRegistry;
 
     @Override
     protected void doStart() {
@@ -609,6 +611,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 MergeSchedulerConfig.CLUSTER_MAX_FORCE_MERGE_MB_PER_SEC_SETTING,
                 this::onClusterLevelForceMergeMBPerSecUpdate
             );
+        this.dataFormatRegistry = new DataFormatRegistry(pluginsService);
     }
 
     @InternalApi
@@ -1109,6 +1112,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
+
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
@@ -1136,7 +1140,8 @@ public class IndicesService extends AbstractLifecycleComponent
             replicator,
             segmentReplicationStatsProvider,
             this::getClusterDefaultMaxMergeAtOnce,
-            clusterMergeSchedulerConfig
+            clusterMergeSchedulerConfig,
+            dataFormatRegistry
         );
     }
 

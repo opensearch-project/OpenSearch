@@ -45,8 +45,8 @@ import static org.opensearch.action.index.IndexRequest.UNSET_AUTO_GENERATED_TIME
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
- *  A class to process messages from the ingestion stream. It extracts the payload from the message and creates an
- *  engine operation.
+ * A class to process messages from the ingestion stream. It extracts the payload from the message and creates an
+ * engine operation.
  */
 public class MessageProcessorRunnable implements Runnable, Closeable {
     public static final String ID = "_id";
@@ -73,18 +73,20 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     /**
      * Constructor.
      *
-     * @param blockingQueue the blocking queue to poll messages from
-     * @param engine the ingestion engine
-     * @param errorStrategy the error strategy/policy to use
+     * @param blockingQueue    the blocking queue to poll messages from
+     * @param engine           the ingestion engine
+     * @param errorStrategy    the error strategy/policy to use
+     * @param pipelineExecutor the pipeline executor for ingest pipeline execution
      */
     public MessageProcessorRunnable(
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
         IngestionEngine engine,
-        IngestionErrorStrategy errorStrategy
+        IngestionErrorStrategy errorStrategy,
+        IngestPipelineExecutor pipelineExecutor
     ) {
         this(
             blockingQueue,
-            new MessageProcessor(engine),
+            new MessageProcessor(engine, pipelineExecutor),
             errorStrategy,
             engine.config().getShardId().getIndexName(),
             engine.config().getShardId().getId()
@@ -93,11 +95,12 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
 
     /**
      * Constructor visible for testing.
-     * @param blockingQueue the blocking queue to poll messages from
+     *
+     * @param blockingQueue    the blocking queue to poll messages from
      * @param messageProcessor the message processor
-     * @param errorStrategy the error strategy/policy to use
-     * @param indexName the index name
-     * @param shardId the shard ID
+     * @param errorStrategy    the error strategy/policy to use
+     * @param indexName        the index name
+     * @param shardId          the shard ID
      */
     MessageProcessorRunnable(
         BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> blockingQueue,
@@ -116,28 +119,34 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
     static class MessageProcessor {
         private final IngestionEngine engine;
         private final String index;
+        private final IngestPipelineExecutor pipelineExecutor;
 
-        MessageProcessor(IngestionEngine engine) {
-            this(engine, engine.config().getIndexSettings().getIndex().getName());
+        MessageProcessor(IngestionEngine engine, IngestPipelineExecutor pipelineExecutor) {
+            this.engine = engine;
+            this.index = engine.config().getIndexSettings().getIndex().getName();
+            this.pipelineExecutor = pipelineExecutor;
         }
 
         /**
-         *  visible for testing
-         * @param engine the ingestion engine
-         * @param index the index name
+         * Visible for testing.
+         *
+         * @param engine           the ingestion engine
+         * @param index            the index name
+         * @param pipelineExecutor the pipeline executor for ingest pipeline execution
          */
-        MessageProcessor(IngestionEngine engine, String index) {
+        MessageProcessor(IngestionEngine engine, String index, IngestPipelineExecutor pipelineExecutor) {
             this.engine = engine;
             this.index = index;
+            this.pipelineExecutor = pipelineExecutor;
         }
 
         /**
          * Visible for testing. Process the message and create an engine operation.
-         *
+         * <p>
          * Process the message and create an engine operation. It also records the offset in the document as (1) a point
          * field used for range search, (2) a stored field for retrieval.
          *
-         * @param shardUpdateMessage contains the message to process
+         * @param shardUpdateMessage      contains the message to process
          * @param messageProcessorMetrics message processor metrics
          */
         protected void process(ShardUpdateMessage shardUpdateMessage, MessageProcessorMetrics messageProcessorMetrics) {
@@ -169,12 +178,14 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
 
         /**
          * Visible for testing. Get the engine operation from the message.
-         * @param shardUpdateMessage an update message containing payload and pointer for the update
+         *
+         * @param shardUpdateMessage      an update message containing payload and pointer for the update
          * @param messageProcessorMetrics message processor metrics
          * @return the message operation
          */
         protected MessageOperation getOperation(ShardUpdateMessage shardUpdateMessage, MessageProcessorMetrics messageProcessorMetrics)
             throws IOException {
+            @SuppressWarnings("unchecked")
             Map<String, Object> payloadMap = shardUpdateMessage.parsedPayloadMap();
             IngestionShardPointer pointer = shardUpdateMessage.pointer();
 
@@ -226,7 +237,30 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
                         throw new IllegalArgumentException(errorMessage);
                     }
 
-                    BytesReference source = convertToBytes(payloadMap.get(SOURCE));
+                    Map<String, Object> sourceMap = (Map<String, Object>) payloadMap.get(SOURCE);
+
+                    // Execute ingest pipelines
+                    try {
+                        Map<String, Object> transformedSource = pipelineExecutor.executePipelines(id, sourceMap);
+                        if (transformedSource == null) {
+                            // Document dropped by pipeline
+                            operation = new Engine.NoOp(
+                                0,
+                                1,
+                                Engine.Operation.Origin.PRIMARY,
+                                System.nanoTime(),
+                                "Document dropped by ingest pipeline"
+                            );
+                            return new MessageOperation(operation, opType);
+                        }
+                        sourceMap = transformedSource;
+                    } catch (IllegalStateException e) {
+                        throw e; // guardrail violations (e.g., _id mutation) — don't wrap, allow skip-retry
+                    } catch (Exception e) {
+                        throw new RuntimeException("Ingest pipeline execution failed", e);
+                    }
+
+                    BytesReference source = convertToBytes(sourceMap);
                     SourceToParse sourceToParse = new SourceToParse(index, id, source, MediaTypeRegistry.xContentType(source), null);
                     ParsedDocument doc = engine.getDocumentMapperForType().getDocumentMapper().parse(sourceToParse);
                     ParseContext.Document document = doc.rootDoc();
@@ -361,8 +395,11 @@ public class MessageProcessorRunnable implements Runnable, Closeable {
             return true;
         }
 
-        // Don't retry validation/parsing errors
-        return e instanceof IllegalArgumentException || e instanceof MapperParsingException;
+        return isNonRetryable(e);
+    }
+
+    private static boolean isNonRetryable(Exception e) {
+        return e instanceof IllegalArgumentException || e instanceof MapperParsingException || e instanceof IllegalStateException;
     }
 
     public MessageProcessorMetrics getMessageProcessorMetrics() {

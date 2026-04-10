@@ -331,6 +331,7 @@ import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.extensions.rest.RestInitializeExtensionAction;
 import org.opensearch.extensions.rest.RestSendToExtensionAction;
+import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
@@ -616,6 +617,11 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController.setRequestIdMaxLength(HttpTransportSettings.SETTING_HTTP_REQUEST_ID_MAX_LENGTH.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(
+            HttpTransportSettings.SETTING_HTTP_REQUEST_ID_MAX_LENGTH,
+            restController::setRequestIdMaxLength
+        );
         responseLimitSettings = new ResponseLimitSettings(clusterSettings, settings);
     }
 

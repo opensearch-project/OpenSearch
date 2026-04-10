@@ -9,9 +9,6 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.IndexSettings;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 
 /**
  * Plugin interface for providing custom data format implementations.
@@ -33,16 +30,8 @@ public interface DataFormatPlugin {
     /**
      * Creates the indexing engine for the data format. This should be instantiated per shard.
      *
-     * @param mapperService the mapper service for field mapping resolution
-     * @param shardPath the shard path for file storage
-     * @param indexSettings the index settings
-     * @param <T> the data format type
-     * @param <P> the document input type
+     * @param settings the engine initialization settings
      * @return the indexing execution engine instance
      */
-    <T extends DataFormat, P extends DocumentInput<?>> IndexingExecutionEngine<T, P> indexingEngine(
-        MapperService mapperService,
-        ShardPath shardPath,
-        IndexSettings indexSettings
-    );
+    IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings);
 }

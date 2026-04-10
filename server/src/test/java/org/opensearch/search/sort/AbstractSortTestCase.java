@@ -134,7 +134,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends Ope
 
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                builder.prettyPrint();
+                builder = builder.prettyPrint();
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);

@@ -4,6 +4,7 @@
     - [Install Prerequisites](#install-prerequisites)
       - [JDK](#jdk)
       - [Custom Runtime JDK](#custom-runtime-jdk)
+      - [Rust and Protoc](#rust-and-protoc)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -91,6 +92,20 @@ By default, the test tasks use bundled JDK runtime, configured in version catalo
 #### Custom Runtime JDK
 
 Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Rust and Protoc
+
+Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
+
+1. **Rust toolchain**: Install via [rustup](https://rustup.rs/):
+   ```
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+   ```
+
+2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
+    - macOS: `brew install protobuf`
+    - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+    - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
 
 #### Windows
 
@@ -298,11 +313,11 @@ Another example is the `discovery-gce` plugin. It is *vital* to folks running in
 
 ### `sandbox`
 
-This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` will be automatically included in the **snapshot** distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` can be included in the **snapshot** distributions when sandbox is enabled. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
 
-To exclude the modules from snapshot distributions, use the `sandbox.enabled` system property.
+To include sandbox modules in snapshot distributions, use the `sandbox.enabled` system property.
 
-    ./gradlew assemble -Dsandbox.enabled=false
+    ./gradlew assemble -Dsandbox.enabled=true
 
 ### `qa`
 
@@ -598,8 +613,7 @@ The User API consists of integration specifications (e.g., [Query Domain Specifi
 [`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
-users of any changes by adding the `>breaking` label on Pull Requests, adding an entry to the [CHANGELOG](https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md)
-and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
+users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
 
 #### Experimental Development
 

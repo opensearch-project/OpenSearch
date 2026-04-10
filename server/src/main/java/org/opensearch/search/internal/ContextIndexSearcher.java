@@ -527,6 +527,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         collector.setScorer(scorer);
         // ConjunctionDISI uses the DocIdSetIterator#cost() to order the iterators, so if roleBits has the lowest cardinality it should
         // be used first:
+        // acceptDocs.approximateCardinality() scorer.iterator().cost()
         DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
             Arrays.asList(new BitSetIterator(acceptDocs, acceptDocs.approximateCardinality()), scorer.iterator())
         );

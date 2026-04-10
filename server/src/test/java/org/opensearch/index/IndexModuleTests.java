@@ -85,6 +85,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.Uid;
@@ -281,7 +282,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             s -> {},
             null,
             () -> TieredMergePolicyProvider.DEFAULT_MAX_MERGE_AT_ONCE,
-            mockClusterMergeSchedulerConfig
+            mockClusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
         );
     }
 
