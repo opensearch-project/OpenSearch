@@ -563,34 +563,50 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        XContentParser ctxParser = context.parser();
-        if (fieldType().isSearchable() == false && fieldType().isStored() == false && fieldType().hasDocValues() == false) {
-            ctxParser.skipChildren();
-            return;
-        }
-
-        if (ctxParser.currentToken() != XContentParser.Token.VALUE_NULL) {
-            if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(
-                    ctxParser.getTokenLocation(),
-                    "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
-                );
-            }
-            parseObject(ctxParser, context);
+        HashSet<String> pathParts = parseObjectPathParts(context);
+        if (pathParts != null) {
+            createPathFields(context, pathParts);
         }
     }
 
-    private void parseObject(XContentParser parser, ParseContext context) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-        parser.nextToken(); // Skip the outer START_OBJECT. Need to return on END_OBJECT.
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        HashSet<String> pathParts = parseObjectPathParts(context);
+        if (pathParts != null) {
+            createPathFieldsForPluggableFormat(context, pathParts);
+        }
+    }
+
+    /**
+     * Parses the flat_object field value and returns the collected path parts,
+     * or {@code null} if the field should be skipped (null value or not searchable/stored/docvalues).
+     */
+    private HashSet<String> parseObjectPathParts(ParseContext context) throws IOException {
+        XContentParser ctxParser = context.parser();
+        if (fieldType().isSearchable() == false && fieldType().isStored() == false && fieldType().hasDocValues() == false) {
+            ctxParser.skipChildren();
+            return null;
+        }
+
+        if (ctxParser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+        if (ctxParser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(
+                ctxParser.getTokenLocation(),
+                "[" + this.name() + "] unexpected token [" + ctxParser.currentToken() + "] in flat_object field value"
+            );
+        }
+
+        assert ctxParser.currentToken() == XContentParser.Token.START_OBJECT;
+        ctxParser.nextToken();
 
         LinkedList<String> path = new LinkedList<>(Collections.singleton(fieldType().name()));
         HashSet<String> pathParts = new HashSet<>();
-        while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            parseToken(parser, context, path, pathParts);
+        while (ctxParser.currentToken() != XContentParser.Token.END_OBJECT) {
+            parseToken(ctxParser, context, path, pathParts);
         }
-
-        createPathFields(context, pathParts);
+        return pathParts;
     }
 
     private void createPathFields(ParseContext context, HashSet<String> pathParts) {
@@ -604,6 +620,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             } else {
                 createFieldNamesField(context);
             }
+        }
+    }
+
+    private void createPathFieldsForPluggableFormat(ParseContext context, HashSet<String> pathParts) {
+        for (String part : pathParts) {
+            final BytesRef value = new BytesRef(name() + DOT_SYMBOL + part);
+            context.documentInput().addField(fieldType(), value);
         }
     }
 
