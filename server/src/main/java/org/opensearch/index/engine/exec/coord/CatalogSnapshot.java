@@ -13,7 +13,6 @@ import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -202,6 +201,4 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @return a new {@link CatalogSnapshot} with the same logical state
      */
     public abstract CatalogSnapshot clone();
-
-    public abstract Object getReader(DataFormat dataFormat);
 }

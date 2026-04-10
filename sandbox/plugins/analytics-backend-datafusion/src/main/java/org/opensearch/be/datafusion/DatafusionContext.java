@@ -9,7 +9,7 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.search.SearchExecutionContext;
