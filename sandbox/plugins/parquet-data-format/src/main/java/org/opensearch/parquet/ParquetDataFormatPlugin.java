@@ -17,12 +17,10 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -88,13 +86,13 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig engineSettings) {
         return new ParquetIndexingEngine(
             settings,
             dataFormat,
-            shardPath,
-            () -> ArrowSchemaBuilder.getSchema(mapperService),
-            indexSettings,
+            engineSettings.shardPath(),
+            () -> ArrowSchemaBuilder.getSchema(engineSettings.mapperService()),
+            engineSettings.indexSettings(),
             threadPool
         );
     }
