@@ -39,7 +39,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -125,15 +125,13 @@ public interface EnginePlugin {
      * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the settings to determine
      * whether or not to provide a {@link Committer} for the given index. A plugin that does not provide a Committer should return
      * {@link Optional#empty()}.
-     * <p>
-     * The returned Committer is fully initialized — there is no separate {@code init()} call.
      *
-     * @param committerConfig the committer settings (shard path, index settings, engine config)
-     * @return an optional committer
+     * @param indexSettings index settings to detect whether a committer should be passed or not.
+     * @return an optional committer factory
      * @throws IOException if committer initialization fails
      */
     @ExperimentalApi
-    default Optional<Committer> getCommitter(CommitterConfig committerConfig) throws IOException {
+    default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) throws IOException {
         return Optional.empty();
     }
 }

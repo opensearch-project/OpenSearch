@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -25,6 +24,8 @@ import org.opensearch.index.store.Store;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Lucene-specific {@link Committer} that owns the {@link IndexWriter} lifecycle.
@@ -41,22 +42,24 @@ public class LuceneCommitter implements Committer {
 
     private final Store store;
     private final IndexWriter indexWriter;
-    private final SetOnce<Boolean> isClosed = new SetOnce<>();
+    private final AtomicBoolean isClosed = new AtomicBoolean();
 
     /**
      * Creates a new LuceneCommitter and opens the IndexWriter.
      *
-     * @param settings the committer settings (shard path, index settings, engine config, store)
+     * @param committerConfig the committer committerConfig (shard path, index committerConfig, engine config, store)
      * @throws IOException if opening the IndexWriter fails
      */
-    public LuceneCommitter(CommitterConfig settings) throws IOException {
-        this.store = settings.store();
+    public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
+        this.store = Objects.requireNonNull(committerConfig.store());
         this.store.incRef();
-        if (this.store == null) {
-            throw new IllegalArgumentException("CommitterSettings must provide a non-null Store");
+        try {
+            IndexWriterConfig iwc = createIndexWriterConfig(committerConfig.engineConfig());
+            this.indexWriter = new IndexWriter(store.directory(), iwc);
+        } catch (Exception e) {
+            store.decRef();
+            throw e;
         }
-        IndexWriterConfig iwc = createIndexWriterConfig(settings.engineConfig());
-        this.indexWriter = new IndexWriter(store.directory(), iwc);
     }
 
     private IndexWriterConfig createIndexWriterConfig(EngineConfig engineConfig) {
@@ -66,7 +69,9 @@ public class LuceneCommitter implements Committer {
         // TODO:: Merge Config needs to be wired in
         IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCodec(engineConfig.getCodec());
-        iwc.setSimilarity(engineConfig.getSimilarity());
+        if (engineConfig.getSimilarity() != null) {
+            iwc.setSimilarity(engineConfig.getSimilarity());
+        }
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setUseCompoundFile(engineConfig.useCompoundFile());
         if (engineConfig.getIndexSort() != null) {
@@ -86,19 +91,15 @@ public class LuceneCommitter implements Committer {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.get() != null) {
-            return;
+        if (isClosed.compareAndSet(false, true)) {
+            indexWriter.close();
+            this.store.decRef();
         }
-        this.store.decRef();
-        isClosed.set(Boolean.TRUE);
-        indexWriter.close();
     }
 
     @Override
     public Map<String, String> getLastCommittedData() throws IOException {
-        if (isClosed()) {
-            return Map.of();
-        }
+        ensureOpen();
         Iterable<Map.Entry<String, String>> liveCommitData = indexWriter.getLiveCommitData();
         if (liveCommitData == null) {
             return Map.of();
@@ -112,9 +113,7 @@ public class LuceneCommitter implements Committer {
 
     @Override
     public CommitStats getCommitStats() {
-        if (isClosed()) {
-            return null;
-        }
+        ensureOpen();
         try {
             SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
             return new CommitStats(segmentInfos);
@@ -129,8 +128,6 @@ public class LuceneCommitter implements Committer {
         throw new UnsupportedOperationException("TODO:: with index deleter");
     }
 
-    // --- IndexWriter access (package-private for LuceneIndexingExecutionEngine) ---
-
     /**
      * Returns the underlying IndexWriter.
      * Visible to other classes in this package (e.g., LuceneIndexingExecutionEngine).
@@ -142,12 +139,8 @@ public class LuceneCommitter implements Committer {
         return indexWriter;
     }
 
-    private boolean isClosed() {
-        return isClosed.get() != null;
-    }
-
     private void ensureOpen() {
-        if (isClosed()) {
+        if (isClosed.get()) {
             throw new IllegalStateException("LuceneCommitter is closed");
         }
     }

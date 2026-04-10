@@ -11,27 +11,28 @@ package org.opensearch.be.lucene;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 
 import java.io.IOException;
 
 /**
- * Static helpers for creating Lucene-based engine components.
+ * Factory for creating Lucene-based engine components.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-final class LuceneEnginePlugin {
+final class LuceneCommitterFactory implements CommitterFactory {
 
-    private LuceneEnginePlugin() {}
+    LuceneCommitterFactory() {}
 
     /**
      * Creates a new {@link LuceneCommitter} for the given settings.
      *
-     * @param committerSettings the committer settings
+     * @param committerConfig the committer config
      * @return a new committer
      * @throws IOException if committer initialization fails
      */
-    static Committer createCommitter(CommitterConfig committerSettings) throws IOException {
-        return new LuceneCommitter(committerSettings);
+    public Committer getCommitter(CommitterConfig committerConfig) throws IOException {
+        return new LuceneCommitter(committerConfig);
     }
 }

@@ -10,11 +10,11 @@ package org.opensearch.be.lucene;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.engine.exec.commit.Committer;
-import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -28,7 +28,7 @@ import java.util.Optional;
  * for the composite engine.
  * <p>
  * Delegates to {@link LuceneSearchBackEnd} for reader management
- * and {@link LuceneEnginePlugin} for committer creation.
+ * and {@link LuceneCommitterFactory} for committer creation.
  *
  * @opensearch.experimental
  */
@@ -54,7 +54,7 @@ public class LucenePlugin extends Plugin implements SearchBackEndPlugin<Director
     }
 
     @Override
-    public Optional<Committer> getCommitter(CommitterConfig committerConfig) throws IOException {
-        return Optional.of(LuceneEnginePlugin.createCommitter(committerConfig));
+    public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) throws IOException {
+        return Optional.of(new LuceneCommitterFactory());
     }
 }

@@ -23,12 +23,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 /**
- * Tests for {@link LucenePlugin}.
+ * Tests for {@link LuceneCommitterFactory}.
  */
-public class LucenePluginTests extends OpenSearchTestCase {
+public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
 
     /**
      * Test that getCommitter() returns a non-empty Optional containing
@@ -43,15 +42,18 @@ public class LucenePluginTests extends OpenSearchTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
 
+        Committer committer = null;
         try {
-            LucenePlugin plugin = new LucenePlugin();
-            CommitterConfig settings = new CommitterConfig(indexSettings, null, store);
-            Optional<Committer> committer = plugin.getCommitter(settings);
+            LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();
+            CommitterConfig settings = new CommitterConfig(indexSettings, null, store, null);
+            committer = committerFactory.getCommitter(settings);
 
-            assertTrue("getCommitter() should return a non-empty Optional", committer.isPresent());
-            assertTrue("getCommitter() should return a LuceneCommitter instance", committer.get() instanceof LuceneCommitter);
-            committer.get().close();
+            assertTrue("getCommitter() should return a LuceneCommitter instance", committer instanceof LuceneCommitter);
         } finally {
+            if (committer != null) {
+                committer.close();
+                ;
+            }
             store.close();
         }
     }
