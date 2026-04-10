@@ -8,58 +8,154 @@
 
 package org.opensearch.parquet.bridge;
 
-import org.opensearch.nativebridge.spi.PlatformHelper;
+import org.opensearch.nativebridge.spi.NativeCall;
+import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
 import java.io.IOException;
+import java.lang.foreign.FunctionDescriptor;
+import java.lang.foreign.Linker;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
+import java.nio.charset.StandardCharsets;
 
-/**
- * JNI bridge to the native Rust Parquet writer library ({@code parquet_dataformat_jni}).
- *
- * <p>Provides static native methods that operate on Arrow C Data Interface memory addresses.
- * The native library is loaded from the classpath resource at
- * {@code /native/{os}-{arch}/libparquet_dataformat_jni.{so|dylib|dll}}, falling back to
- * {@link System#loadLibrary(String)} if the resource is not found.
- *
- * <p>Writer lifecycle methods are package-private and should only be called through
- * {@link NativeParquetWriter}.
- */
 public class RustBridge {
 
-    private static final String LIB_NAME = "parquet_dataformat_jni";
+    private static final MethodHandle CREATE_WRITER;
+    private static final MethodHandle WRITE;
+    private static final MethodHandle FINALIZE_WRITER;
+    private static final MethodHandle SYNC_TO_DISK;
+    private static final MethodHandle GET_FILE_METADATA;
+    private static final MethodHandle GET_FILTERED_BYTES;
 
     static {
-        PlatformHelper.loadNativeLibrary(LIB_NAME, RustBridge.class);
+        SymbolLookup lib = NativeLibraryLoader.symbolLookup();
+        Linker linker = Linker.nativeLinker();
+        CREATE_WRITER = linker.downcallHandle(
+            lib.find("parquet_create_writer").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+        WRITE = linker.downcallHandle(
+            lib.find("parquet_write").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+        FINALIZE_WRITER = linker.downcallHandle(
+            lib.find("parquet_finalize_writer").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+        SYNC_TO_DISK = linker.downcallHandle(
+            lib.find("parquet_sync_to_disk").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        GET_FILE_METADATA = linker.downcallHandle(
+            lib.find("parquet_get_file_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+        GET_FILTERED_BYTES = linker.downcallHandle(
+            lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
     }
 
-    /** Initializes the native Rust logger. */
-    public static native void initLogger();
+    public static void initLogger() {}
 
-    // Writer lifecycle methods — package-private, controlled by NativeParquetWriter
-    static native void createWriter(String file, long schemaAddress) throws IOException;
+    static void createWriter(String file, long schemaAddress) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            call.invokeIO(CREATE_WRITER, f.segment(), f.len(), schemaAddress);
+        }
+    }
 
-    static native void write(String file, long arrayAddress, long schemaAddress) throws IOException;
+    static void write(String file, long arrayAddress, long schemaAddress) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            call.invokeIO(WRITE, f.segment(), f.len(), arrayAddress, schemaAddress);
+        }
+    }
 
-    static native ParquetFileMetadata finalizeWriter(String file) throws IOException;
+    static ParquetFileMetadata finalizeWriter(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var out = call.outBuffer(1024);
+            long rc = call.invokeIO(
+                FINALIZE_WRITER,
+                f.segment(),
+                f.len(),
+                versionOut,
+                numRowsOut,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
+            if (rc == 1) return null;
+            int createdByLen = out.actualLength();
+            return new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null
+            );
+        }
+    }
 
-    static native void syncToDisk(String file) throws IOException;
+    static void syncToDisk(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            call.invokeIO(SYNC_TO_DISK, f.segment(), f.len());
+        }
+    }
 
-    // Public utility methods
-    /**
-     * Returns metadata for the specified Parquet file.
-     *
-     * @param file the path to the Parquet file
-     * @return the file metadata
-     * @throws IOException if the metadata cannot be read
-     */
-    public static native ParquetFileMetadata getFileMetadata(String file) throws IOException;
+    public static ParquetFileMetadata getFileMetadata(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var out = call.outBuffer(1024);
+            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
+            int createdByLen = out.actualLength();
+            return new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null
+            );
+        }
+    }
 
-    /**
-     * Returns the native memory bytes used by files matching the given path prefix.
-     *
-     * @param pathPrefix the path prefix to filter by
-     * @return the number of native bytes used
-     */
-    public static native long getFilteredNativeBytesUsed(String pathPrefix);
+    public static long getFilteredNativeBytesUsed(String pathPrefix) {
+        try (var call = new NativeCall()) {
+            var p = call.str(pathPrefix);
+            return call.invoke(GET_FILTERED_BYTES, p.segment(), p.len());
+        }
+    }
 
     private RustBridge() {}
 }

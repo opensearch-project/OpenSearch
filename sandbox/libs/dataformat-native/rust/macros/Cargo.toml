@@ -1,0 +1,13 @@
+[package]
+name = "native-bridge-macros"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1"
+syn = { version = "2", features = ["full"] }
+proc-macro2 = "1"

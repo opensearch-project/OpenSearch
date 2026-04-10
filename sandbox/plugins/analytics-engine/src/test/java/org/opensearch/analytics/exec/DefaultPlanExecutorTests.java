@@ -295,11 +295,6 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
         public void setUserData(Map<String, String> userData) {}
 
         @Override
-        public Object getReader(DataFormat dataFormat) {
-            return null;
-        }
-
-        @Override
         public MockCatalogSnapshot clone() {
             return new MockCatalogSnapshot(generation, segments, format);
         }

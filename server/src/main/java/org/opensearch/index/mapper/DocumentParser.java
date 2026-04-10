@@ -49,6 +49,7 @@ import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.opensearch.script.ContextAwareGroupingScript;
 
@@ -82,6 +83,11 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
+        return parseDocument(source, metadataFieldsMappers, null);
+    }
+
+    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers, DocumentInput documentInput)
+        throws MapperParsingException {
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
         final MediaType mediaType = source.getMediaType();
@@ -94,7 +100,7 @@ final class DocumentParser {
                 mediaType
             )
         ) {
-            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser, documentInput);
             validateStart(parser);
             internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
@@ -108,7 +114,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
+        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()), documentInput);
     }
 
     private static boolean containsDisabledObjectMapper(ObjectMapper objectMapper, String[] subfields) {
@@ -182,7 +188,12 @@ final class DocumentParser {
         return false;
     }
 
-    private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
+    private static ParsedDocument parsedDocument(
+        SourceToParse source,
+        ParseContext.InternalParseContext context,
+        Mapping update,
+        DocumentInput documentInput
+    ) {
         return new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -191,7 +202,8 @@ final class DocumentParser {
             context.docs(),
             context.sourceToParse().source(),
             context.sourceToParse().getMediaType(),
-            update
+            update,
+            documentInput
         );
     }
 

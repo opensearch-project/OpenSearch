@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -88,4 +89,14 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      * @return a new document input instance
      */
     P newDocumentInput();
+
+    /**
+     * Returns the {@link IndexStoreProvider} for this engine, giving search backends
+     * access to the shard's {@link org.opensearch.index.store.Store} for opening readers.
+     * <p>
+     * Engines that do not manage a store (e.g., Parquet) may return {@code null}.
+     *
+     * @return the store provider, or null if this engine does not expose one
+     */
+    IndexStoreProvider getProvider();
 }
