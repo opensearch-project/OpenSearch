@@ -413,7 +413,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
         );
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.V_3_6_0);
+        out.setVersion(Version.V_3_7_0);
         bulkRequest.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();

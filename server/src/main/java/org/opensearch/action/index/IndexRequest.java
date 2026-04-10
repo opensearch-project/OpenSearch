@@ -155,7 +155,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
             extraFieldValues = Objects.requireNonNullElse(in.readOptionalWriteable(ExtraFieldValues::new), ExtraFieldValues.EMPTY);
         } else {
             extraFieldValues = ExtraFieldValues.EMPTY;
@@ -701,7 +701,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeBytesReference(source);
-        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             out.writeOptionalWriteable(extraFieldValues.isEmpty() ? null : extraFieldValues);
         }
         out.writeByte(opType.getId());
