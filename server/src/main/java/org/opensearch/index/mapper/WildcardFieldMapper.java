@@ -193,18 +193,7 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
-        }
-
+        String value = parseWildcardValue(context);
         if (value == null || value.length() > ignoreAbove) {
             return;
         }
@@ -226,6 +215,26 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
                 createFieldNamesField(context);
             }
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value = parseWildcardValue(context);
+        if (value == null || value.length() > ignoreAbove) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String parseWildcardValue(ParseContext context) throws IOException {
+        if (context.externalValueSet()) {
+            return context.externalValue().toString();
+        }
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return nullValue;
+        }
+        return parser.textOrNull();
     }
 
     /**

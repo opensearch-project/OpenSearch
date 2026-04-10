@@ -194,7 +194,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             aggReduceContextBuilder,
             performFinalReduce
         );
-        if (hasAggs) {
+        if (hasAggs && reducePhase.aggregations != null) {
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
             pendingReduces.addWithoutBreaking(finalSize);

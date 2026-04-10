@@ -2175,6 +2175,15 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Number numericValue = getFieldValue(context);
+        if (numericValue == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), numericValue);
+    }
+
+    @Override
     protected Number getFieldValue(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Number value;

@@ -20,8 +20,8 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.be.datafusion.jni.NativeBridge;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 

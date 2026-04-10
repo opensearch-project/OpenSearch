@@ -9,8 +9,8 @@
 package org.opensearch.plugins;
 
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,12 +38,11 @@ public interface SearchBackEndPlugin<R> {
     List<DataFormat> getSupportedFormats();
 
     /**
-     * Creates a reader manager for the given format and shard.
+     * Creates a reader manager for the given settings.
      *
-     * @param format the data format
-     * @param shardPath the shard path
-     * @return a reader manager that produces readers of type {@code R}
-     * @throws IOException if creation fails
+     * @param settings the reader manager initialization settings
+     * @return the reader manager
+     * @throws IOException if reader creation fails
      */
-    EngineReaderManager<R> createReaderManager(DataFormat format, ShardPath shardPath) throws IOException;
+    EngineReaderManager<?> createReaderManager(ReaderManagerConfig settings) throws IOException;
 }

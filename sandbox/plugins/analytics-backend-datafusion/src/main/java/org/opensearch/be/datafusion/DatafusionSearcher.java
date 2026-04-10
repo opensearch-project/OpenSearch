@@ -8,9 +8,9 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.be.datafusion.jni.NativeBridge;
-import org.opensearch.be.datafusion.jni.ReaderHandle;
-import org.opensearch.be.datafusion.jni.StreamHandle;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.EngineSearcher;
