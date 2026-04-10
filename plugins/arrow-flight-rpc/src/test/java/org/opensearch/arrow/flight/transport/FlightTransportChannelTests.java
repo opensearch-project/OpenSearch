@@ -168,7 +168,6 @@ public class FlightTransportChannelTests extends OpenSearchTestCase {
             false,
             true,
             false,
-            null,
             null
         );
         completeTask.close();
