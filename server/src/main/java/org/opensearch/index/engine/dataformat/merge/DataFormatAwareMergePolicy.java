@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.composite.merge;
+package org.opensearch.index.engine.dataformat.merge;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -28,17 +28,17 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
- * Adapts a Lucene {@link MergePolicy} to work with the composite segment model.
+ * Adapts a Lucene {@link MergePolicy} to work with the data-format-aware segment model.
  * <p>
- * Converts composite {@link Segment} instances into Lucene {@link SegmentCommitInfo}
+ * Converts {@link Segment} instances into Lucene {@link SegmentCommitInfo}
  * wrappers so the underlying merge policy can select merge candidates. Also implements
  * {@link MergePolicy.MergeContext} to supply merging-segment tracking and info-stream
  * logging to the Lucene merge policy.
@@ -46,7 +46,7 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeMergePolicy implements MergePolicy.MergeContext {
+public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
     private final MergePolicy luceneMergePolicy;
     private final InfoStream infoStream;
     private final Logger logger;
@@ -55,19 +55,19 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     private final Directory sharedDirectory;
 
     /**
-     * Constructs a CompositeMergePolicy.
+     * Constructs a DataFormatAwareMergePolicy.
      *
      * @param mergePolicy the Lucene merge policy to delegate candidate selection to
      * @param shardId     the shard ID for logging context
      */
-    public CompositeMergePolicy(MergePolicy mergePolicy, ShardId shardId) {
+    public DataFormatAwareMergePolicy(MergePolicy mergePolicy, ShardId shardId) {
         this.luceneMergePolicy = mergePolicy;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.sharedDirectory = new ByteBuffersDirectory();
         this.infoStream = new InfoStream() {
             @Override
             public void message(String component, String message) {
-                logger.debug(() -> new ParameterizedMessage("[COMPOSITE_DEBUG] Merge [{}]: {}", component, message));
+                logger.debug(() -> new ParameterizedMessage("[DF_MERGE_POLICY] Merge [{}]: {}", component, message));
             }
 
             @Override
@@ -167,14 +167,14 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     }
 
     @Override
-    public Set<SegmentCommitInfo> getMergingSegments() {
-        return Collections.unmodifiableSet(mergingSegments);
+    public synchronized Set<SegmentCommitInfo> getMergingSegments() {
+        return Set.copyOf(mergingSegments);
     }
 
     /**
-     * Creates a {@link SegmentWrapper} for the given composite segment.
+     * Creates a {@link SegmentWrapper} for the given segment.
      *
-     * @param segment the composite segment to wrap
+     * @param segment the segment to wrap
      * @return a Lucene-compatible {@link SegmentCommitInfo} wrapper
      */
     private SegmentWrapper createWrapper(Segment segment) {
@@ -182,10 +182,10 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
     }
 
     /**
-     * Converts a list of composite {@link Segment} instances into a Lucene {@link SegmentInfos}
+     * Converts a list of {@link Segment} instances into a Lucene {@link SegmentInfos}
      * and populates the reverse mapping from wrapper to original segment.
      *
-     * @param segments   the composite segments to convert
+     * @param segments   the segments to convert
      * @param segmentMap populated with wrapper → original segment mappings
      * @return the Lucene segment infos
      */
@@ -203,7 +203,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
 
     /**
      * Converts a Lucene {@link MergePolicy.MergeSpecification} back into groups of
-     * composite {@link Segment} instances using the reverse mapping.
+     * {@link Segment} instances using the reverse mapping.
      *
      * @param mergeSpecification the Lucene merge specification (may be {@code null})
      * @param segmentMap         the wrapper → original segment mapping
@@ -232,41 +232,36 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
      * Calculates the total document count across all data-format file sets in a segment.
      *
      * @param segment the segment to inspect
-     * @return the total number of documents, or {@code 0} if an error occurs
+     * @return the total number of documents
      */
     private long calculateNumDocs(Segment segment) {
-        try {
-            return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
-        } catch (Exception e) {
-            logger.warn("Error calculating segment doc count", e);
-        }
-        return 0;
+        return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
     }
 
     /**
      * Calculates the total byte size across all data-format file sets in a segment.
      *
      * @param segment the segment to inspect
-     * @return the total size in bytes, or {@code 0} if an error occurs
+     * @return the total size in bytes
      */
     private long calculateTotalSize(Segment segment) {
-        try {
-            return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::getTotalSize).sum();
-        } catch (Exception e) {
-            logger.warn("Error calculating segment size", e);
-        }
-        return 0;
+        return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::getTotalSize).sum();
     }
 
     /**
-     * Lucene {@link SegmentCommitInfo} wrapper that exposes composite segment
+     * Lucene {@link SegmentCommitInfo} wrapper that exposes segment
      * size and doc-count information to the underlying merge policy.
+     * <p>
+     * Identity is based on segment generation so that wrappers created
+     * from the same {@link Segment} are equal, enabling correct
+     * {@link HashSet} add/remove behaviour.
      */
     private static class SegmentWrapper extends SegmentCommitInfo {
         private static final byte[] DUMMY_ID = new byte[16];
         private static final Map<String, String> EMPTY_DIAGNOSTICS = Map.of();
         private static final Map<String, String> EMPTY_ATTRIBUTES = Map.of();
 
+        private final long generation;
         private final long totalSizeBytes;
 
         public SegmentWrapper(Directory directory, Segment segment, long totalSizeBytes, long totalNumDocs) {
@@ -276,7 +271,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                     Version.LATEST,
                     Version.LATEST,
                     "segment_" + segment.generation(),
-                    (int) totalNumDocs,
+                    (int) Math.min(totalNumDocs, Integer.MAX_VALUE),
                     false,
                     false,
                     Codec.getDefault(),
@@ -292,6 +287,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                 -1,
                 DUMMY_ID
             );
+            this.generation = segment.generation();
             this.totalSizeBytes = totalSizeBytes;
         }
 
@@ -303,6 +299,20 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
         @Override
         public int getDelCount() {
             return 0;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o instanceof SegmentWrapper other) {
+                return generation == other.generation;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(generation);
         }
     }
 }
