@@ -393,7 +393,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             source = null;
         }
 
-        if (source != null && get.isFromTranslog()) {
+        if (source != null && (get.isFromTranslog() || indexSettings.isDerivedSourceEnabled())) {
             // reapply source filters from mapping (possibly also nulling the source)
             try {
                 source = docMapper.sourceMapper().applyFilters(source, null);
