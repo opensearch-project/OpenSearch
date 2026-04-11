@@ -26,14 +26,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Tests for {@link LuceneCommitter}.
  */
 public class LuceneCommitterTests extends OpenSearchTestCase {
 
-    private CommitterConfig createCommitterSettings() throws IOException {
+    private CommitterConfig createCommitterConfig() throws IOException {
         Path baseDir = createTempDir();
         ShardId shardId = new ShardId("test", "_na_", 0);
         Path dataPath = baseDir.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
@@ -48,11 +47,11 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
             Store.OnClose.EMPTY,
             shardPath
         );
-        return new CommitterConfig(indexSettings, null, store, Optional.of(CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY));
+        return new CommitterConfig(indexSettings, null, store, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY);
     }
 
     public void testConstructorOpensIndexWriter() throws IOException {
-        CommitterConfig settings = createCommitterSettings();
+        CommitterConfig settings = createCommitterConfig();
         LuceneCommitter committer = new LuceneCommitter(settings);
         try {
             IndexWriter writer = committer.getIndexWriter();
@@ -65,7 +64,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
     }
 
     public void testCloseReleasesIndexWriter() throws IOException {
-        CommitterConfig settings = createCommitterSettings();
+        CommitterConfig settings = createCommitterConfig();
         LuceneCommitter committer = new LuceneCommitter(settings);
         assertNotNull(committer.getIndexWriter());
 
@@ -75,7 +74,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
     }
 
     public void testCommitRoundTrip() throws IOException {
-        CommitterConfig settings = createCommitterSettings();
+        CommitterConfig settings = createCommitterConfig();
         LuceneCommitter committer = new LuceneCommitter(settings);
         try {
             Map<String, String> commitData = Map.of("key1", "value1", "key2", "value2", "_snapshot_", "serialized-data");
@@ -96,7 +95,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
     }
 
     public void testCommitWithEmptyData() throws IOException {
-        CommitterConfig settings = createCommitterSettings();
+        CommitterConfig settings = createCommitterConfig();
         LuceneCommitter committer = new LuceneCommitter(settings);
         try {
             committer.commit(Map.of());
@@ -114,7 +113,7 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
     }
 
     public void testCommitAfterCloseThrows() throws IOException {
-        CommitterConfig settings = createCommitterSettings();
+        CommitterConfig settings = createCommitterConfig();
         LuceneCommitter committer = new LuceneCommitter(settings);
         committer.close();
 

@@ -21,6 +21,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.shard.ShardPath;
@@ -49,12 +50,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        CommitterConfig settings = new CommitterConfig(
-            indexSettings,
-            null,
-            store,
-            java.util.Optional.of(org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY)
-        );
+        CommitterConfig settings = new CommitterConfig(indexSettings, null, store, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY);
         return new LuceneCommitter(settings);
     }
 

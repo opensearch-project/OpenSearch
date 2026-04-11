@@ -20,6 +20,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -67,47 +68,6 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         } catch (Exception e) {
             store.decRef();
             throw e;
-        }
-    }
-
-    // --- SafeBootstrapCommitter abstract methods ---
-
-    @Override
-    protected List<CatalogSnapshot> discoverCommits(CommitterConfig config) throws IOException {
-        Store s = config.store();
-        if (s == null) {
-            return List.of();
-        }
-        return deserializeCatalogSnapshots(s);
-    }
-
-    @Override
-    protected void rewriteAtSafeCommit(CommitterConfig config, List<CatalogSnapshot> commits, CatalogSnapshot safeCommit)
-        throws IOException {
-        Store s = config.store();
-        Function<String, String> resolver = fn -> s.shardPath().getDataPath().resolve(fn).toString();
-        // TODO - s.directory() is being written at index/.. location but should be one level up
-        List<IndexCommit> indexCommits = DirectoryReader.listCommits(s.directory());
-        IndexCommit safeIndexCommit = null;
-        for (IndexCommit ic : indexCommits) {
-            String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
-            if (serialized != null && serialized.isEmpty() == false) {
-                CatalogSnapshot cs = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
-                if (cs.getGeneration() == safeCommit.getGeneration()) {
-                    safeIndexCommit = ic;
-                    break;
-                }
-            }
-        }
-        if (safeIndexCommit == null) {
-            return;
-        }
-        IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            .setCommitOnClose(false)
-            .setIndexCommit(safeIndexCommit);
-        try (IndexWriter tempWriter = new IndexWriter(s.directory(), iwc)) {
-            tempWriter.setLiveCommitData(safeIndexCommit.getUserData().entrySet());
-            tempWriter.commit();
         }
     }
 
@@ -204,6 +164,44 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private void ensureOpen() {
         if (isClosed.get()) {
             throw new IllegalStateException("LuceneCommitter is closed");
+        }
+    }
+
+    // --- SafeBootstrapCommitter abstract method ---
+
+    @Override
+    protected void discoverAndTrimUnsafeCommits(Store store, CatalogSnapshotDeletionPolicy policy) throws IOException {
+        List<CatalogSnapshot> commits = deserializeCatalogSnapshots(store);
+        if (commits.isEmpty()) {
+            return;
+        }
+        CatalogSnapshot safeCommit = policy.findSafeCommit(commits);
+        if (commits.size() <= 1) {
+            return;
+        }
+        // Rewrite at the safe commit point
+        Function<String, String> resolver = fn -> store.shardPath().getDataPath().resolve(fn).toString();
+        List<IndexCommit> indexCommits = DirectoryReader.listCommits(store.directory());
+        IndexCommit safeIndexCommit = null;
+        for (IndexCommit ic : indexCommits) {
+            String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            if (serialized != null && serialized.isEmpty() == false) {
+                CatalogSnapshot cs = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
+                if (cs.getGeneration() == safeCommit.getGeneration()) {
+                    safeIndexCommit = ic;
+                    break;
+                }
+            }
+        }
+        if (safeIndexCommit == null) {
+            return;
+        }
+        IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+            .setCommitOnClose(false)
+            .setIndexCommit(safeIndexCommit);
+        try (IndexWriter tempWriter = new IndexWriter(store.directory(), iwc)) {
+            tempWriter.setLiveCommitData(safeIndexCommit.getUserData().entrySet());
+            tempWriter.commit();
         }
     }
 

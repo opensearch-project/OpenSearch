@@ -10,22 +10,22 @@ package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Abstract {@link Committer} that enforces safe commit trimming during construction.
  * <p>
- * When a {@link CatalogSnapshotDeletionPolicy} is present in the {@link CommitterConfig},
- * the constructor discovers existing commits via {@link #discoverCommits}, finds the safe
- * commit, and rewrites at that point if the last commit is unsafe. This guarantees the
- * backing store is in a safe state before the subclass opens it.
+ * The constructor validates that the {@link CommitterConfig} contains a non-null
+ * {@link Store} and {@link CatalogSnapshotDeletionPolicy}, then delegates to
+ * {@link #discoverAndTrimUnsafeCommits} which discovers existing commits, finds the
+ * safe commit, and rewrites at that point if the last commit is unsafe. This guarantees
+ * the backing store is in a safe state before the subclass opens it.
  * <p>
  * Subclass constructors must call {@code super(config)} as their first statement.
- * The abstract methods receive {@link CommitterConfig} as a parameter because subclass
- * instance fields are not yet initialized when they are called.
+ * The abstract method receives {@link Store} and {@link CatalogSnapshotDeletionPolicy}
+ * as parameters because subclass instance fields are not yet initialized when it is called.
  *
  * @opensearch.experimental
  */
@@ -33,47 +33,33 @@ import java.util.List;
 public abstract class SafeBootstrapCommitter implements Committer {
 
     /**
-     * Constructs the committer, trimming unsafe commits if a deletion policy is configured.
+     * Constructs the committer, validating config and trimming unsafe commits.
      *
      * @param config the committer configuration
      * @throws IOException if commit discovery or rewriting fails
      */
     protected SafeBootstrapCommitter(CommitterConfig config) throws IOException {
-        CatalogSnapshotDeletionPolicy policy = config.deletionPolicy()
-            .orElseThrow(() -> new IllegalArgumentException("SafeBootstrapCommitter requires a CatalogSnapshotDeletionPolicy in config"));
-        List<CatalogSnapshot> commits = discoverCommits(config);
-        if (commits == null) {
-            throw new IllegalStateException("discoverCommits must not return null");
+        Store store = config.store();
+        CatalogSnapshotDeletionPolicy policy = config.deletionPolicy();
+        if (store == null) {
+            throw new IllegalArgumentException("SafeBootstrapCommitter requires a non-null Store in config");
         }
-        if (commits.isEmpty() == false) { // should it be ever empty?
-            CatalogSnapshot safe = policy.findSafeCommit(commits);
-            if (commits.size() > 1) {
-                rewriteAtSafeCommit(config, commits, safe);
-            }
+        if (policy == null) {
+            throw new IllegalArgumentException("SafeBootstrapCommitter requires a non-null CatalogSnapshotDeletionPolicy in config");
         }
+        discoverAndTrimUnsafeCommits(store, policy);
     }
 
     /**
-     * Discover committed catalog snapshots from the backing store.
+     * Discover committed catalog snapshots from the backing store and, if the last
+     * commit is unsafe, rewrite at the safe commit point discarding unsafe commits.
+     * <p>
      * Called from the {@code SafeBootstrapCommitter} constructor — subclass instance fields
-     * are NOT yet initialized. Use only the provided config.
+     * are NOT yet initialized. Use only the provided parameters.
      *
-     * @param config the committer configuration
-     * @return committed snapshots ordered oldest-first, or empty list if none
-     * @throws IOException if reading commits fails
+     * @param store  the shard's store providing the Lucene directory
+     * @param policy the deletion policy used to find the safe commit
+     * @throws IOException if reading or rewriting commits fails
      */
-    protected abstract List<CatalogSnapshot> discoverCommits(CommitterConfig config) throws IOException;
-
-    /**
-     * Rewrite the backing store at the safe commit point, discarding unsafe commits.
-     * Called from the {@code SafeBootstrapCommitter} constructor — subclass instance fields
-     * are NOT yet initialized. Use only the provided config.
-     *
-     * @param config the committer configuration
-     * @param commits all discovered commits
-     * @param safeCommit the safe commit to rewrite at
-     * @throws IOException if rewriting fails
-     */
-    protected abstract void rewriteAtSafeCommit(CommitterConfig config, List<CatalogSnapshot> commits, CatalogSnapshot safeCommit)
-        throws IOException;
+    protected abstract void discoverAndTrimUnsafeCommits(Store store, CatalogSnapshotDeletionPolicy policy) throws IOException;
 }
