@@ -255,9 +255,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             switch (token) {
                 case XContentParser.Token.START_ARRAY -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = parseSourceFieldArray(parser, INCLUDES_FIELD, excludes);
+                        includes = parseSourceFieldArray(parser, INCLUDES_FIELD);
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = parseSourceFieldArray(parser, EXCLUDES_FIELD, includes);
+                        excludes = parseSourceFieldArray(parser, EXCLUDES_FIELD);
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -267,17 +267,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        String includeEntry = parser.text();
-                        if (excludes.contains(includeEntry)) {
-                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, includeEntry);
-                        }
-                        includes = Collections.singleton(includeEntry);
+                        includes = Collections.singleton(parser.text());
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        String excludeEntry = parser.text();
-                        if (includes.contains(excludeEntry)) {
-                            throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, excludeEntry);
-                        }
-                        excludes = Collections.singleton(excludeEntry);
+                        excludes = Collections.singleton(parser.text());
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -304,16 +296,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
     }
 
-    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField, Set<String> opposite)
+    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField)
         throws IOException {
         Set<String> sourceArr = new LinkedHashSet<>(); // include or exclude lists, LinkedHashSet preserves the order of fields
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                String entry = parser.text();
-                if (opposite != null && opposite.contains(entry)) {
-                    throw new ParsingException(parser.getTokenLocation(), AMBIGUOUS_FIELD_MESSAGE, entry);
-                }
-                sourceArr.add(entry);
+                sourceArr.add(parser.text());
             } else {
                 throw new ParsingException(
                     parser.getTokenLocation(),

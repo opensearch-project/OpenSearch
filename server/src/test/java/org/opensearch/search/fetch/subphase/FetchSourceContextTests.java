@@ -202,7 +202,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
+            IllegalArgumentException result = expectThrows(IllegalArgumentException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -221,7 +221,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
+            IllegalArgumentException result = expectThrows(IllegalArgumentException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -240,7 +240,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
+            IllegalArgumentException result = expectThrows(IllegalArgumentException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [AAA] cannot be both included and excluded in _source.", result.getMessage());
         }
         {
@@ -262,7 +262,7 @@ public class FetchSourceContextTests extends OpenSearchTestCase {
                 .endObject();
             final XContentParser parser = createSourceParser(source);
 
-            ParsingException result = expectThrows(ParsingException.class, () -> FetchSourceContext.fromXContent(parser));
+            IllegalArgumentException result = expectThrows(IllegalArgumentException.class, () -> FetchSourceContext.fromXContent(parser));
             assertEquals("The same entry [BBB] cannot be both included and excluded in _source.", result.getMessage());
         }
     }
