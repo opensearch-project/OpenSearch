@@ -10,7 +10,7 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.be.datafusion.jni.ReaderHandle;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -46,6 +46,15 @@ public class DatafusionReader implements Closeable {
             fileNames = files.stream().flatMap(writerFileSet -> writerFileSet.files().stream()).toArray(String[]::new);
         }
         readerHandle = new ReaderHandle(directoryPath, fileNames);
+    }
+
+    /**
+     * Wraps a pre-existing native reader pointer (test only).
+     * The caller retains ownership — this reader will NOT close the handle.
+     */
+    DatafusionReader(long nativePtr) {
+        this.directoryPath = "";
+        this.readerHandle = ReaderHandle.wrap(nativePtr);
     }
 
     @Override

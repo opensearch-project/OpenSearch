@@ -8,70 +8,61 @@
 
 package org.opensearch.be.datafusion;
 
+import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.annotation.ExperimentalApi;
 
-import java.io.Closeable;
-
 /**
- * Thread-safe wrapper around a native runtime pointer.
+ * Type-safe handle for the native DataFusion global runtime.
  * <p>
- * Encapsulates the raw {@code long} so it cannot be copied or used after
- * the runtime is destroyed. All consumers obtain the pointer via {@link #get()}
- * which performs a liveness check on every call.
+ * Extends {@link NativeHandle} to get automatic resource management, Cleaner-based
+ * GC safety net, stale pointer tracking, and double-close prevention.
  * <p>
- * Implements {@link Closeable} so it integrates with try-with-resources,
- * {@code IOUtils.close()}, and leak detection infrastructure.
+ * The runtime pointer lives until {@link #close()} is called, which invokes
+ * {@link NativeBridge#closeGlobalRuntime(long)}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class NativeRuntimeHandle implements Closeable {
-
-    private volatile long pointer;
+public class NativeRuntimeHandle extends NativeHandle {
 
     /**
-     * Creates a handle wrapping the given native pointer.
+     * Creates a handle wrapping the given native runtime pointer.
      *
      * @param pointer the native runtime pointer (must be non-zero)
      * @throws IllegalArgumentException if pointer is zero
      */
     public NativeRuntimeHandle(long pointer) {
-        if (pointer == 0L) {
-            throw new IllegalArgumentException("Cannot create NativeRuntimeHandle with null pointer");
-        }
-        this.pointer = pointer;
+        super(pointer);
     }
 
     /**
      * Returns the native runtime pointer, checking that it is still live.
+     * <p>
+     * This method preserves backward compatibility with callers that use
+     * {@code handle.get()} instead of {@code handle.getPointer()}.
      *
+     * @return the native runtime pointer
      * @throws IllegalStateException if the handle has been closed
      */
     public long get() {
-        long ptr = pointer;
-        if (ptr == 0L) {
-            throw new IllegalStateException("Native runtime handle has been closed");
-        }
-        return ptr;
+        return getPointer();
     }
 
     /**
      * Returns true if the handle has not been closed.
      */
     public boolean isOpen() {
-        return pointer != 0L;
+        try {
+            ensureOpen();
+            return true;
+        } catch (IllegalStateException e) {
+            return false;
+        }
     }
 
-    /**
-     * Releases the native runtime. Idempotent and thread-safe.
-     * After this call, {@link #get()} will throw.
-     */
     @Override
-    public synchronized void close() {
-        long ptr = pointer;
-        if (ptr != 0L) {
-            // TODO: NativeBridge.closeGlobalRuntime(ptr);
-            pointer = 0L;
-        }
+    protected void doClose() {
+        NativeBridge.closeGlobalRuntime(ptr);
     }
 }

@@ -21,6 +21,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
+      - name: Install protoc (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          if [ "$(uname -m)" = "x86_64" ]; then \
+              curl -SfL https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-x86_64.zip -o protoc.zip; \
+          else \
+              curl -SfL https://github.com/protocolbuffers/protobuf/releases/download/v33.0/protoc-33.0-linux-aarch_64.zip -o protoc.zip; \
+          fi; \
+          unzip protoc.zip -d $HOME/.local && rm -v protoc.zip && protoc --version
+      - name: Install protoc (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        uses: MinoruSekine/setup-scoop@v4.0.2
+        with:
+          scoop_update: false
+          buckets: extras
+          apps: protobuf
+      - name: Install protoc (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        run: brew install protobuf
       - name: Remove unnecessary files Linux
         if: ${{ runner.os == 'Linux' }}
         run: |

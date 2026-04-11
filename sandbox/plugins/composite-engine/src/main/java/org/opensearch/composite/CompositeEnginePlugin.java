@@ -12,12 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -137,8 +135,14 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
-        return new CompositeIndexingExecutionEngine(dataFormatPlugins, indexSettings, mapperService, shardPath);
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+        return new CompositeIndexingExecutionEngine(
+            dataFormatPlugins,
+            settings.indexSettings(),
+            settings.mapperService(),
+            settings.shardPath(),
+            settings.committer()
+        );
     }
 
     /**

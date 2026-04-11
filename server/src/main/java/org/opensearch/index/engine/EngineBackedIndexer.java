@@ -14,8 +14,8 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.index.VersionType;
-import org.opensearch.index.engine.exec.CatalogSnapshot;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -385,6 +385,13 @@ public class EngineBackedIndexer implements Indexer {
         // TODO: Replace with a SegmentInfosCatalogSnapshot
         // For now we throw an exception as this is not yet implemented
         throw new UnsupportedOperationException("acquireSnapshot is not supported in EngineBackedIndexer");
+    }
+
+    @Override
+    public GatedCloseable<Reader> acquireReader() throws IOException {
+        // TODO: Replace with a reader backed by segment infos catalog snapshot and Lucene's Directory reader.
+        // For now we throw an exception as this is not yet implemented
+        throw new UnsupportedOperationException("acquireReader is not supported in EngineBackedIndexer");
     }
 
     public Engine getEngine() {
