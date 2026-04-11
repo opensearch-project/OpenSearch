@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use object_store::azure::MicrosoftAzureBuilder;
+use object_store::azure::{AzureCredentialProvider, MicrosoftAzureBuilder};
 use object_store::ObjectStore;
 use serde::Deserialize;
 
@@ -36,7 +36,12 @@ pub struct AzureConfig {
 }
 
 /// Build an Azure [`ObjectStore`] from config.
-pub fn build(config_json: &str) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
+///
+/// If `credentials` is `Some`, it overrides any static credentials in the config.
+pub fn build(
+    config_json: &str,
+    credentials: Option<AzureCredentialProvider>,
+) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
     let config: AzureConfig =
         serde_json::from_str(config_json).map_err(|e| StoreFactoryError::ConfigParse {
             store_type: "azure".to_string(),
@@ -47,26 +52,29 @@ pub fn build(config_json: &str) -> Result<Arc<dyn ObjectStore>, StoreFactoryErro
         .with_account(&config.account)
         .with_container_name(&config.container);
 
-    if let Some(ref key) = config.access_key {
-        builder = builder.with_access_key(key);
-    }
-    if let Some(ref sas) = config.sas_token {
-        // Parse SAS token string into key-value pairs for the builder
-        let pairs: Vec<(String, String)> = sas
-            .trim_start_matches('?')
-            .split('&')
-            .filter_map(|pair| {
-                let mut parts = pair.splitn(2, '=');
-                match (parts.next(), parts.next()) {
-                    (Some(k), Some(v)) => Some((k.to_string(), v.to_string())),
-                    _ => None,
-                }
-            })
-            .collect();
-        builder = builder.with_sas_authorization(pairs);
-    }
-    if config.use_azure_cli == Some(true) {
-        builder = builder.with_use_azure_cli(true);
+    if let Some(creds) = credentials {
+        builder = builder.with_credentials(creds);
+    } else {
+        if let Some(ref key) = config.access_key {
+            builder = builder.with_access_key(key);
+        }
+        if let Some(ref sas) = config.sas_token {
+            let pairs: Vec<(String, String)> = sas
+                .trim_start_matches('?')
+                .split('&')
+                .filter_map(|pair| {
+                    let mut parts = pair.splitn(2, '=');
+                    match (parts.next(), parts.next()) {
+                        (Some(k), Some(v)) => Some((k.to_string(), v.to_string())),
+                        _ => None,
+                    }
+                })
+                .collect();
+            builder = builder.with_sas_authorization(pairs);
+        }
+        if config.use_azure_cli == Some(true) {
+            builder = builder.with_use_azure_cli(true);
+        }
     }
     if let Some(retry) = build_retry_config(config.max_retries, config.retry_timeout_ms) {
         builder = builder.with_retry(retry);

@@ -20,7 +20,7 @@
 //!
 //! // With custom credentials:
 //! let store = StoreFactory::new("s3", config_json, "repo-1")
-//!     .with_s3_credentials(provider)
+//!     .with_credentials(CloudCredentials::Aws(provider))
 //!     .build()?;
 //! ```
 //!
@@ -31,7 +31,6 @@
 
 use std::sync::Arc;
 
-use object_store::aws::AwsCredentialProvider;
 use object_store::ObjectStore;
 
 use crate::backends::{azure, fs, gcs, s3};
@@ -53,12 +52,26 @@ pub enum StoreFactoryError {
     BuildFailed { store_type: String, reason: String },
 }
 
+/// Custom credential provider for cloud backends.
+///
+/// Each variant wraps the provider type for its respective cloud. The factory
+/// matches the variant against the store type and passes it to the builder.
+/// Mismatched variants (e.g. `Aws` for a `"gcs"` store) are silently ignored.
+pub enum CloudCredentials {
+    /// AWS credential provider (for `"s3"` stores).
+    Aws(object_store::aws::AwsCredentialProvider),
+    /// GCP credential provider (for `"gcs"` stores).
+    Gcp(object_store::gcp::GcpCredentialProvider),
+    /// Azure credential provider (for `"azure"` stores).
+    Azure(object_store::azure::AzureCredentialProvider),
+}
+
 /// Builder for creating remote [`ObjectStore`] backends.
 pub struct StoreFactory<'a> {
     store_type: &'a str,
     config_json: &'a str,
     repo_key: &'a str,
-    s3_credentials: Option<AwsCredentialProvider>,
+    credentials: Option<CloudCredentials>,
 }
 
 impl<'a> StoreFactory<'a> {
@@ -69,14 +82,16 @@ impl<'a> StoreFactory<'a> {
             store_type,
             config_json,
             repo_key,
-            s3_credentials: None,
+            credentials: None,
         }
     }
 
-    /// Set a custom S3 credential provider (overrides static creds in config).
+    /// Set a custom credential provider (overrides static creds in config).
+    ///
+    /// The variant must match the store type. Mismatched variants are ignored.
     #[must_use]
-    pub fn with_s3_credentials(mut self, credentials: AwsCredentialProvider) -> Self {
-        self.s3_credentials = Some(credentials);
+    pub fn with_credentials(mut self, credentials: CloudCredentials) -> Self {
+        self.credentials = Some(credentials);
         self
     }
 
@@ -91,14 +106,26 @@ impl<'a> StoreFactory<'a> {
         let raw: Arc<dyn ObjectStore> = match self.store_type {
             "fs" => fs::build(self.config_json)?,
             "s3" => {
-                if let Some(creds) = self.s3_credentials {
-                    s3::build_with_credentials(self.config_json, creds)?
-                } else {
-                    s3::build(self.config_json)?
-                }
+                let creds = self.credentials.and_then(|c| match c {
+                    CloudCredentials::Aws(p) => Some(p),
+                    _ => None,
+                });
+                s3::build(self.config_json, creds)?
             }
-            "gcs" => gcs::build(self.config_json)?,
-            "azure" => azure::build(self.config_json)?,
+            "gcs" => {
+                let creds = self.credentials.and_then(|c| match c {
+                    CloudCredentials::Gcp(p) => Some(p),
+                    _ => None,
+                });
+                gcs::build(self.config_json, creds)?
+            }
+            "azure" => {
+                let creds = self.credentials.and_then(|c| match c {
+                    CloudCredentials::Azure(p) => Some(p),
+                    _ => None,
+                });
+                azure::build(self.config_json, creds)?
+            }
             other => return Err(StoreFactoryError::UnknownType(other.to_string())),
         };
 
@@ -147,8 +174,6 @@ pub fn build_retry_config(
 mod tests {
     use super::*;
 
-    // -- Basic factory tests ------------------------------------------------
-
     #[test]
     fn test_create_fs_store_succeeds() {
         let dir = tempfile::tempdir().unwrap();
@@ -194,8 +219,6 @@ mod tests {
         let store = create("fs", &config, "my-repo").unwrap();
         assert!(format!("{}", store).contains("my-repo"));
     }
-
-    // -- S3 tests -----------------------------------------------------------
 
     fn s3_base_config() -> String {
         r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"x","secret_access_key":"y"}"#.to_string()
@@ -254,11 +277,11 @@ mod tests {
             secret_key: "SECRET".to_string(),
             token: None,
         };
-        let provider: AwsCredentialProvider = Arc::new(StaticCredentialProvider::new(cred));
+        let provider = Arc::new(StaticCredentialProvider::new(cred));
         let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000"}"#;
 
         let result = StoreFactory::new("s3", config, "r")
-            .with_s3_credentials(provider)
+            .with_credentials(CloudCredentials::Aws(provider))
             .build();
         assert!(result.is_ok());
     }
@@ -273,18 +296,17 @@ mod tests {
             secret_key: "SECRET".to_string(),
             token: None,
         };
-        let provider: AwsCredentialProvider = Arc::new(StaticCredentialProvider::new(cred));
-        // Config has static creds, but provider should override.
+        let provider = Arc::new(StaticCredentialProvider::new(cred));
         let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"WRONG","secret_access_key":"WRONG"}"#;
 
         let result = StoreFactory::new("s3", config, "r")
-            .with_s3_credentials(provider)
+            .with_credentials(CloudCredentials::Aws(provider))
             .build();
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_s3_credentials_ignored_for_non_s3_type() {
+    fn test_mismatched_credentials_ignored() {
         use object_store::aws::AwsCredential;
         use object_store::client::StaticCredentialProvider;
 
@@ -293,18 +315,16 @@ mod tests {
             secret_key: "SECRET".to_string(),
             token: None,
         };
-        let provider: AwsCredentialProvider = Arc::new(StaticCredentialProvider::new(cred));
+        let provider = Arc::new(StaticCredentialProvider::new(cred));
         let dir = tempfile::tempdir().unwrap();
         let config = format!(r#"{{"base_path":"{}"}}"#, dir.path().display());
 
-        // s3_credentials set but type is "fs" — should be silently ignored.
+        // Aws credentials on an "fs" store — silently ignored.
         let result = StoreFactory::new("fs", &config, "r")
-            .with_s3_credentials(provider)
+            .with_credentials(CloudCredentials::Aws(provider))
             .build();
         assert!(result.is_ok());
     }
-
-    // -- GCS tests ----------------------------------------------------------
 
     #[test]
     fn test_gcs_with_retry_config() {
@@ -314,8 +334,6 @@ mod tests {
             assert!(!e.to_string().contains("parse"), "should not be a parse error: {}", e);
         }
     }
-
-    // -- Azure tests --------------------------------------------------------
 
     #[test]
     fn test_azure_with_retry_config() {

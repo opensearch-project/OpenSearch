@@ -71,22 +71,8 @@ pub struct S3Config {
 
 /// Build an S3 [`ObjectStore`] from JSON config.
 ///
-/// For custom credential providers, use [`build_with_credentials`] instead.
-pub fn build(config_json: &str) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
-    build_inner(config_json, None)
-}
-
-/// Build an S3 [`ObjectStore`] from JSON config with a custom credential provider.
-///
-/// The provider overrides any static credentials in the config.
-pub fn build_with_credentials(
-    config_json: &str,
-    credentials: AwsCredentialProvider,
-) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
-    build_inner(config_json, Some(credentials))
-}
-
-fn build_inner(
+/// If `credentials` is `Some`, it overrides any static credentials in the config.
+pub fn build(
     config_json: &str,
     credentials: Option<AwsCredentialProvider>,
 ) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {

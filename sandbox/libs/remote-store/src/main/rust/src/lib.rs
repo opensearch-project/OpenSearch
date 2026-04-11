@@ -41,6 +41,7 @@ pub mod factory;
 pub mod remote_object_store;
 
 pub use factory::create;
+pub use factory::CloudCredentials;
 pub use factory::StoreFactory;
 pub use factory::StoreFactoryError;
 pub use remote_object_store::RemoteObjectStore;

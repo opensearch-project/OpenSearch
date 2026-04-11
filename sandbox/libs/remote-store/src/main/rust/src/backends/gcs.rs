@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use object_store::gcp::GoogleCloudStorageBuilder;
+use object_store::gcp::{GcpCredentialProvider, GoogleCloudStorageBuilder};
 use object_store::ObjectStore;
 use serde::Deserialize;
 
@@ -30,7 +30,12 @@ pub struct GcsConfig {
 }
 
 /// Build a GCS [`ObjectStore`] from config.
-pub fn build(config_json: &str) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
+///
+/// If `credentials` is `Some`, it overrides any static credentials in the config.
+pub fn build(
+    config_json: &str,
+    credentials: Option<GcpCredentialProvider>,
+) -> Result<Arc<dyn ObjectStore>, StoreFactoryError> {
     let config: GcsConfig =
         serde_json::from_str(config_json).map_err(|e| StoreFactoryError::ConfigParse {
             store_type: "gcs".to_string(),
@@ -39,7 +44,9 @@ pub fn build(config_json: &str) -> Result<Arc<dyn ObjectStore>, StoreFactoryErro
 
     let mut builder = GoogleCloudStorageBuilder::new().with_bucket_name(&config.bucket);
 
-    if let Some(ref key_path) = config.service_account_key {
+    if let Some(creds) = credentials {
+        builder = builder.with_credentials(creds);
+    } else if let Some(ref key_path) = config.service_account_key {
         builder = builder.with_service_account_key(key_path);
     }
     if let Some(retry) = build_retry_config(config.max_retries, config.retry_timeout_ms) {
