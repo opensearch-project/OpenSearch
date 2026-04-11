@@ -367,7 +367,10 @@ public class FetchSourceContextProtoUtilsTests extends OpenSearchTestCase {
             .build();
 
         // Exception when attempting to convert to FetchSourceContext
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> FetchSourceContextProtoUtils.fromProto(sourceConfig));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> FetchSourceContextProtoUtils.fromProto(sourceConfig)
+        );
 
         assertEquals("The same entry [theSameEntry] cannot be both included and excluded in _source.", e.getMessage());
     }

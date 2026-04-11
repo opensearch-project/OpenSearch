@@ -50,7 +50,6 @@ import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -283,7 +282,6 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             }
         }
         if (includes.length == 0 && excludes.length == 0) {
-            // no valid field names -> empty or unrecognized fields; deprecated
             deprecationLogger.deprecate(
                 "empty_source_object",
                 "An empty object was provided as [_source]. Provide at least one of ["
@@ -296,8 +294,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static String[] parseSourceFieldArray(XContentParser parser, ParseField parseField)
-        throws IOException {
+    private static String[] parseSourceFieldArray(XContentParser parser, ParseField parseField) throws IOException {
         Set<String> sourceArr = new LinkedHashSet<>(); // preserves the order, removes the duplicates
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
