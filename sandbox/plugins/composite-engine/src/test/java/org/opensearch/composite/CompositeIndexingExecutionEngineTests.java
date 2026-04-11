@@ -285,6 +285,9 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
 
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
@@ -311,6 +314,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             Map.of(),
             Map.of(),
             List.of(),
+            null,
             null
         );
         engine.setCatalogSnapshotManager(csm);
@@ -349,6 +353,9 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
 
         Map<String, DataFormatPlugin> plugins = new HashMap<>();
@@ -363,6 +370,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
             Map.of(),
             Map.of(),
             List.of(),
+            null,
             null
         );
         engine.setCatalogSnapshotManager(csm);
@@ -416,6 +424,9 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
             return java.util.List.of();
         }
+
+        @Override
+        public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
     }
 
     private IndexSettings createIndexSettings(String primaryFormat) {

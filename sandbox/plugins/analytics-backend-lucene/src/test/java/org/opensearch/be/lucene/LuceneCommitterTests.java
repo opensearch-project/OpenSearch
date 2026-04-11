@@ -15,6 +15,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.test.DummyShardLock;
@@ -119,5 +121,41 @@ public class LuceneCommitterTests extends OpenSearchTestCase {
 
         expectThrows(IllegalStateException.class, () -> committer.commit(Map.of("key", "value")));
         settings.store().close();
+    }
+
+    public void testDeleteCommitRemovesSegmentsFile() throws IOException {
+        CommitterConfig settings = createCommitterConfig();
+        LuceneCommitter committer = new LuceneCommitter(settings);
+        try {
+            // Create two commits with distinct userData
+            committer.commit(Map.of("key", "v1"));
+            committer.commit(Map.of("key", "v2"));
+
+            // Verify 2 segments_N files exist
+            long commitCountBefore = org.apache.lucene.index.DirectoryReader.listCommits(settings.store().directory()).size();
+            assertEquals(2, commitCountBefore);
+
+            // Build a snapshot whose userData matches the first commit
+            org.apache.lucene.index.IndexCommit firstCommit = org.apache.lucene.index.DirectoryReader.listCommits(
+                settings.store().directory()
+            ).get(0);
+            CatalogSnapshot toDelete = CatalogSnapshotManager.createInitialSnapshot(
+                1L,
+                1L,
+                0L,
+                java.util.List.of(),
+                0L,
+                firstCommit.getUserData()
+            );
+
+            committer.deleteCommit(toDelete);
+
+            // Only 1 commit should remain
+            long commitCountAfter = org.apache.lucene.index.DirectoryReader.listCommits(settings.store().directory()).size();
+            assertEquals(1, commitCountAfter);
+        } finally {
+            committer.close();
+            settings.store().close();
+        }
     }
 }

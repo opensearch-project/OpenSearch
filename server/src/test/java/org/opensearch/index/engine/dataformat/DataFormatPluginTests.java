@@ -262,6 +262,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -359,6 +360,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             Map.of(),
             List.of(),
+            null,
             null
         );
 

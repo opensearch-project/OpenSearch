@@ -197,6 +197,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 Map.of(),
                 Map.of(),
                 List.of(),
+                null,
                 null
             );
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -310,6 +311,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of("parquet", tracker),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -362,6 +364,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of("parquet", tracker),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -416,6 +419,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of("parquet", tracker),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -481,6 +485,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of("parquet", tracker),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -541,6 +546,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of("parquet", tracker),
             Map.of(),
             List.of(),
+            null,
             null
         );
 
@@ -632,6 +638,6 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         Map<String, FileDeleter> fileDeleters
     ) throws IOException {
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, segments, 1L, userData);
-        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleters, Map.of(), List.of(), null);
+        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleters, Map.of(), List.of(), null, null);
     }
 }

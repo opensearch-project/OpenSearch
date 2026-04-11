@@ -84,6 +84,9 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
+        public void deleteCommit(CatalogSnapshot snapshot) {}
+
+        @Override
         public void close() {}
     }
 

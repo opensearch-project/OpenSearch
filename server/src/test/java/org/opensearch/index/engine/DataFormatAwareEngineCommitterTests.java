@@ -52,6 +52,9 @@ public class DataFormatAwareEngineCommitterTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
         engine.setCommitter(committer);
         assertSame(committer, engine.getCommitter());

@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec.coord;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CommitDeleter;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.shard.ShardPath;
@@ -55,19 +56,22 @@ public class IndexFileDeleter {
     private final Map<String, FileDeleter> fileDeleters;
     private final Map<String, FilesListener> filesListeners;
     private final List<CatalogSnapshot> committedSnapshots;
+    private final CommitDeleter commitDeleter;
 
     public IndexFileDeleter(
         CatalogSnapshotDeletionPolicy deletionPolicy,
         Map<String, FileDeleter> fileDeleters,
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshot> initialCommittedSnapshots,
-        ShardPath shardPath
+        ShardPath shardPath,
+        CommitDeleter commitDeleter
     ) throws IOException {
         this.deletionPolicy = deletionPolicy;
         this.fileDeleters = fileDeleters;
         this.filesListeners = filesListeners;
         this.fileRefCounts = new HashMap<>();
         this.committedSnapshots = new ArrayList<>();
+        this.commitDeleter = commitDeleter;
 
         for (CatalogSnapshot cs : initialCommittedSnapshots) {
             if (cs.tryIncRef() == false) {
@@ -128,6 +132,9 @@ public class IndexFileDeleter {
         if (filesToDelete.isEmpty() == false) {
             deleteFiles(filesToDelete);
             notifyFilesDeleted(filesToDelete);
+        }
+        if (commitDeleter != null) {
+            commitDeleter.deleteCommit(snapshot);
         }
     }
 

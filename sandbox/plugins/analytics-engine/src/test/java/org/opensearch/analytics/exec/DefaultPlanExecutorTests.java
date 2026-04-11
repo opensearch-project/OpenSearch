@@ -114,6 +114,7 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
             Map.of(),
             Map.of(),
             List.of(),
+            null,
             null
         );
 

@@ -48,6 +48,9 @@ public class CommitterTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
     }
 
@@ -85,6 +88,9 @@ public class CommitterTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
         committer.close();
         assertTrue("close() should have been called", closed.get());
@@ -120,6 +126,9 @@ public class CommitterTests extends OpenSearchTestCase {
             public java.util.List<org.opensearch.index.engine.exec.coord.CatalogSnapshot> listCommittedSnapshots() {
                 return java.util.List.of();
             }
+
+            @Override
+            public void deleteCommit(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {}
         };
         committer.commit(Map.of());
         assertTrue("commit() should have been called", committed.get());

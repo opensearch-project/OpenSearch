@@ -125,6 +125,18 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         throw new UnsupportedOperationException("TODO:: with index deleter");
     }
 
+    @Override
+    public void deleteCommit(CatalogSnapshot snapshot) throws IOException {
+        ensureOpen();
+        List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+        for (IndexCommit ic : commits) {
+            if (ic.getUserData().equals(snapshot.getUserData())) {
+                store.directory().deleteFile(ic.getSegmentsFileName());
+                return;
+            }
+        }
+    }
+
     /**
      * Returns the underlying IndexWriter.
      * Visible to other classes in this package (e.g., LuceneIndexingExecutionEngine).
