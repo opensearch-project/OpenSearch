@@ -113,6 +113,7 @@ pub async fn execute_query_with_cross_rt_stream(
     target_partitions: usize,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    cached_schema: Option<SchemaRef>,
 ) -> Result<jlong, DataFusionError> {
     let object_meta: Arc<Vec<ObjectMeta>> = Arc::new(
         files_meta
@@ -137,7 +138,7 @@ pub async fn execute_query_with_cross_rt_stream(
                 .with_file_metadata_cache(Some(runtimeEnv.cache_manager.get_file_metadata_cache()))
                 .with_files_statistics_cache(runtimeEnv.cache_manager.get_file_statistic_cache()),
         )
-        .with_metadata_cache_limit(250 * 1024 * 1024) // 250 MB
+        .with_metadata_cache_limit(runtimeEnv.cache_manager.get_file_metadata_cache().cache_limit())
         .build() {
         Ok(env) => env,
         Err(e) => {
@@ -147,7 +148,8 @@ pub async fn execute_query_with_cross_rt_stream(
     };
 
     let mut config = SessionConfig::new();
-    config.options_mut().execution.parquet.pushdown_filters = false;
+    config.options_mut().execution.parquet.pushdown_filters = true;
+    config.options_mut().execution.parquet.reorder_filters = true;
     config.options_mut().execution.target_partitions = 4;
     config.options_mut().execution.batch_size = 8192;
 
@@ -173,13 +175,16 @@ pub async fn execute_query_with_cross_rt_stream(
         // the AbsoluteRowIdOptimizer to convert relative row IDs to absolute ones
         .with_table_partition_cols(vec![(ROW_BASE_FIELD_NAME.to_string(), DataType::Int64)]);
 
-    let resolved_schema = match listing_options
-        .infer_schema(&ctx.state(), &table_path)
-        .await {
-        Ok(schema) => schema,
-        Err(e) => {
-            error!("Failed to infer schema: {}", e);
-            return Err(e);
+    let resolved_schema = match cached_schema {
+        Some(schema) => schema,
+        None => {
+            match listing_options.infer_schema(&ctx.state(), &table_path).await {
+                Ok(schema) => schema,
+                Err(e) => {
+                    error!("Failed to infer schema: {}", e);
+                    return Err(e);
+                }
+            }
         }
     };
 
@@ -188,7 +193,10 @@ pub async fn execute_query_with_cross_rt_stream(
         .with_schema(resolved_schema);
 
     let provider = match ListingTable::try_new(table_config) {
-        Ok(table) => Arc::new(table),
+        Ok(table) => {
+            let table = table.with_cache(runtimeEnv.cache_manager.get_file_statistic_cache());
+            Arc::new(table)
+        },
         Err(e) => {
             error!("Failed to create listing table: {}", e);
             return Err(e);
@@ -199,7 +207,7 @@ pub async fn execute_query_with_cross_rt_stream(
         error!("Failed to register table: {}", e);
         return Err(e);
     }
-
+    
     // Decode substrait
     let substrait_plan = match Plan::decode(plan_bytes_vec.as_slice()) {
         Ok(plan) => plan,
@@ -352,6 +360,7 @@ pub async fn execute_fetch_phase(
     exclude_fields: Vec<String>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
+    cached_schema: Option<SchemaRef>,
 ) -> Result<jlong, DataFusionError> {
     // Create optimized Parquet access plans for targeted row retrieval
     // This converts absolute row IDs back to file-relative positions and creates
@@ -396,7 +405,10 @@ pub async fn execute_fetch_phase(
     let file_format = ParquetFormat::new();
     let listing_options = ListingOptions::new(Arc::new(file_format)).with_file_extension(".parquet").with_collect_stat(true);
 
-    let parquet_schema = listing_options.infer_schema(&ctx.state(), &table_path).await?;
+    let parquet_schema = match cached_schema {
+        Some(schema) => schema,
+        None => listing_options.infer_schema(&ctx.state(), &table_path).await?,
+    };
     let projections = create_projections(include_fields, exclude_fields, parquet_schema.clone());
 
     let partitioned_files: Vec<PartitionedFile> = files_metadata
