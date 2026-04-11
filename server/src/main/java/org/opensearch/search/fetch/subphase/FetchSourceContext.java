@@ -231,8 +231,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     static FetchSourceContext parseSourceObject(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        Set<String> includes = Collections.emptySet();
-        Set<String> excludes = Collections.emptySet();
+        String[] includes = Strings.EMPTY_ARRAY;
+        String[] excludes = Strings.EMPTY_ARRAY;
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(
@@ -267,9 +267,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
                 case XContentParser.Token.VALUE_STRING -> {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = Collections.singleton(parser.text());
+                        includes = new String[] { parser.text() };
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = Collections.singleton(parser.text());
+                        excludes = new String[] { parser.text() };
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -282,7 +282,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 }
             }
         }
-        if (includes.isEmpty() && excludes.isEmpty()) {
+        if (includes.length == 0 && excludes.length == 0) {
             // no valid field names -> empty or unrecognized fields; deprecated
             deprecationLogger.deprecate(
                 "empty_source_object",
@@ -293,12 +293,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                     + "] or use `_source: true` to fetch the entire source."
             );
         }
-        return new FetchSourceContext(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
+        return new FetchSourceContext(true, includes, excludes);
     }
 
-    private static Set<String> parseSourceFieldArray(XContentParser parser, ParseField parseField)
+    private static String[] parseSourceFieldArray(XContentParser parser, ParseField parseField)
         throws IOException {
-        Set<String> sourceArr = new LinkedHashSet<>(); // include or exclude lists, LinkedHashSet preserves the order of fields
+        Set<String> sourceArr = new LinkedHashSet<>(); // preserves the order, removes the duplicates
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
                 sourceArr.add(parser.text());
@@ -315,7 +315,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 "Expected at least one value for an array of [" + parseField.getPreferredName() + "]"
             );
         }
-        return sourceArr;
+        return sourceArr.toArray(new String[0]);
     }
 
     @Override
