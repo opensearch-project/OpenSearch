@@ -23,6 +23,7 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.dataformat.merge.MergeHandler;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -102,7 +103,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenReturn(secondaryResult);
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         MergeResult result = handler.doMerge(oneMerge);
 
         assertNotNull(result);
@@ -131,7 +132,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs));
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        CompositeMergeHandler handler = new CompositeMergeHandler(
+        MergeHandler handler = CompositeMergeHandler.create(
             engineNoSecondary,
             primaryOnlyFormat,
             snapshotSupplier,
@@ -156,7 +157,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
 
         when(primaryMerger.merge(any())).thenThrow(new IOException("primary disk error"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
         assertEquals("Merge failed for shard", ex.getMessage());
         assertNotNull(ex.getCause());
@@ -177,7 +178,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary disk error"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
         assertEquals("Merge failed for shard", ex.getMessage());
         assertEquals("secondary disk error", ex.getCause().getMessage());
@@ -215,7 +216,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenThrow(new IOException("parquet error"));
         when(secondaryMerger2.merge(any())).thenThrow(new IOException("arrow error"));
 
-        CompositeMergeHandler handler = new CompositeMergeHandler(
+        MergeHandler handler = CompositeMergeHandler.create(
             multiEngine,
             multiFormat,
             snapshotSupplier,
@@ -243,7 +244,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedPrimaryWfs));
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         // IllegalStateException is not IOException — it propagates out of the secondary loop catch,
         // through the outer try, and is wrapped by the catch(IOException) only if it's an IOException.
         // Since it's not, it escapes as a raw IllegalStateException.
@@ -271,7 +272,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary fail"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
 
         assertFalse("Stale merged file should be deleted on failure", Files.exists(staleFile));
@@ -292,7 +293,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("fail"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         // Should not throw during cleanup even though file doesn't exist
         expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
     }
@@ -308,7 +309,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
 
         when(primaryMerger.merge(any())).thenThrow(new IOException("primary fail"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         UncheckedIOException ex = expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
         assertEquals("primary fail", ex.getCause().getMessage());
     }
@@ -334,7 +335,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenReturn(secondaryResult);
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         MergeResult result = handler.doMerge(oneMerge);
 
         assertNotNull(result);
@@ -368,7 +369,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs), STUB_ROW_ID_MAPPING);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        CompositeMergeHandler handler = new CompositeMergeHandler(dupEngine, dupFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        MergeHandler handler = CompositeMergeHandler.create(dupEngine, dupFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
 
         MergeResult result = handler.doMerge(oneMerge);
         assertNotNull(result);
@@ -381,7 +382,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(Collections.emptyList());
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         Collection<OneMerge> merges = handler.findMerges();
         assertNotNull(merges);
         assertTrue(merges.isEmpty());
@@ -390,7 +391,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
     public void testFindMergesThrowsOnSnapshotFailure() {
         snapshotSupplier = () -> { throw new RuntimeException("snapshot unavailable"); };
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         RuntimeException ex = expectThrows(RuntimeException.class, handler::findMerges);
         assertTrue(ex.getMessage().contains("snapshot unavailable"));
     }
@@ -401,7 +402,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(Collections.emptyList());
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         Collection<OneMerge> merges = handler.findForceMerges(1);
         assertNotNull(merges);
         assertTrue(merges.isEmpty());
@@ -410,7 +411,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
     public void testFindForceMergesThrowsOnSnapshotFailure() {
         snapshotSupplier = () -> { throw new RuntimeException("snapshot unavailable"); };
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         RuntimeException ex = expectThrows(RuntimeException.class, () -> handler.findForceMerges(1));
         assertTrue(ex.getMessage().contains("snapshot unavailable"));
     }
@@ -425,7 +426,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(List.of(segment));
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         handler.registerMerge(oneMerge);
@@ -442,7 +443,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(List.of(segment));
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         handler.registerMerge(oneMerge);
@@ -453,7 +454,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
     }
 
     public void testGetNextMergeReturnsNullWhenEmpty() {
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         assertNull(handler.getNextMerge());
         assertFalse(handler.hasPendingMerges());
     }
@@ -466,7 +467,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(List.of(segment));
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         OneMerge oneMerge = new OneMerge(List.of(segment));
 
         handler.registerMerge(oneMerge);
@@ -492,7 +493,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(segments);
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         Collection<OneMerge> merges = handler.findMerges();
         assertNotNull(merges);
         // TieredMergePolicy should find merge candidates with 15 small segments
@@ -517,7 +518,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         CatalogSnapshot catalogSnapshot = mockCatalogSnapshot(segments);
         snapshotSupplier = () -> new GatedCloseable<>(catalogSnapshot, () -> {});
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         // Force merge down to 1 segment should produce candidates
         Collection<OneMerge> merges = handler.findForceMerges(1);
         assertNotNull(merges);
@@ -545,7 +546,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
         when(secondaryMerger.merge(any())).thenThrow(new IOException("secondary fail"));
 
-        CompositeMergeHandler handler = createHandler();
+        MergeHandler handler = createHandler();
         // The merge fails due to secondary, cleanup tries to delete "mp.dat" (a non-empty dir)
         // which throws DirectoryNotEmptyException — caught and logged, not re-thrown
         expectThrows(UncheckedIOException.class, () -> handler.doMerge(oneMerge));
@@ -556,7 +557,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
     // ========== Helper methods ==========
 
     private CompositeMergeHandler createHandler() {
-        return new CompositeMergeHandler(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        return CompositeMergeHandler.create(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
     }
 
     private static IndexSettings createIndexSettings() {
