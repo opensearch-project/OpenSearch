@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -86,5 +87,19 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
                 containsString("Field [_routing] is a metadata field and cannot be added inside a document")
             );
         }
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatMetadataFieldThrows() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().endObject().toString();
+        DocumentMapper docMapper = createIndex("test_pluggable").mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        RoutingFieldMapper routingMapper = docMapper.metadataMapper(RoutingFieldMapper.class);
+        assertNotNull(routingMapper);
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> routingMapper.parseCreateFieldForPluggableFormat(null)
+        );
+        assertThat(ex.getMessage(), containsString("metadata field and cannot be added inside a document"));
     }
 }

@@ -6,11 +6,6 @@
  * compatible open source license.
  */
 
-use mimalloc::MiMalloc;
-
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
-
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
 
@@ -18,6 +13,6 @@ pub mod test_utils;
 mod tests;
 
 pub mod writer;
-mod jni;
+pub mod ffm;
 
-pub use native_bridge_spi::{log_info, log_error, log_debug};
+pub use native_bridge_common::{log_info, log_error, log_debug};

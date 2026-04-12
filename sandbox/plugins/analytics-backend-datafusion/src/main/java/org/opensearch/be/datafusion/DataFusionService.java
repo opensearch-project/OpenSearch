@@ -12,7 +12,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 
 import java.io.IOException;

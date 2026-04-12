@@ -5322,4 +5322,52 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(primary);
     }
+
+    public void testCacheWrapperReader() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexSettings.INDEX_PERIODIC_FLUSH_INTERVAL_SETTING.getKey(), "1s")
+            .build();
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1)
+            .build();
+
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> reader;
+
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, wrapper);
+        recoverShardFromStore(primary);
+        indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
+        primary.flush(new FlushRequest());
+
+        try (
+            Engine.SearcherSupplier searcherSupplier = primary.acquireSearcherSupplier();
+            Engine.Searcher searcher = searcherSupplier.acquireSearcher("foo")
+        ) {
+            DirectoryReader directoryReader = searcher.getDirectoryReader();
+            Engine.Searcher wrap = IndexShard.wrapSearcher(searcher, wrapper, primary.nonClosingReaderWrapperSupplier());
+            wrap.close();
+            assertEquals(1, primary.nonClosingReaderWrapperCache().size());
+            DirectoryReader nonClosingReaderWrapper = primary.nonClosingReaderWrapperCache().get(directoryReader);
+            assertNotNull(nonClosingReaderWrapper);
+
+            // use the cache
+            wrap = IndexShard.wrapSearcher(searcher, wrapper, primary.nonClosingReaderWrapperSupplier());
+            wrap.close();
+            assertEquals(1, primary.nonClosingReaderWrapperCache().size());
+            DirectoryReader newNonClosingReaderWrapper = primary.nonClosingReaderWrapperCache().get(directoryReader);
+            assertEquals(nonClosingReaderWrapper, newNonClosingReaderWrapper);
+
+            // not use the cache
+            wrap = IndexShard.wrapSearcher(searcher, wrapper, null);
+            assertNotEquals(wrap, newNonClosingReaderWrapper);
+            wrap.close();
+        }
+        closeShards(primary);
+        assertTrue(primary.nonClosingReaderWrapperCache().isEmpty());
+    }
 }

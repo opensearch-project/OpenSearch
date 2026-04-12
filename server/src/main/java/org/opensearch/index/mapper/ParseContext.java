@@ -36,9 +36,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -264,6 +266,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
+        public DocumentInput documentInput() {
+            return in.documentInput();
+        }
+
+        @Override
         protected void addDoc(Document doc) {
             in.addDoc(doc);
         }
@@ -427,6 +434,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
 
         private final Set<String> ignoredFields = new HashSet<>();
 
+        private DocumentInput documentInput;
+
         public InternalParseContext(
             IndexSettings indexSettings,
             DocumentMapperParser docMapperParser,
@@ -434,12 +443,24 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
             SourceToParse source,
             XContentParser parser
         ) {
+            this(indexSettings, docMapperParser, docMapper, source, parser, null);
+        }
+
+        public InternalParseContext(
+            IndexSettings indexSettings,
+            DocumentMapperParser docMapperParser,
+            DocumentMapper docMapper,
+            SourceToParse source,
+            XContentParser parser,
+            DocumentInput documentInput
+        ) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
             this.path = new ContentPath(0);
             this.parser = parser;
             this.document = new Document();
+            this.documentInput = documentInput;
             this.documents = new ArrayList<>();
             this.documents.add(document);
             this.version = null;
@@ -490,6 +511,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         @Override
         public Document doc() {
             return this.document;
+        }
+
+        @Override
+        public DocumentInput documentInput() {
+            return this.documentInput;
         }
 
         @Override
@@ -771,6 +797,9 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
     public abstract Document rootDoc();
 
     public abstract Document doc();
+
+    @ExperimentalApi
+    public abstract DocumentInput<?> documentInput();
 
     protected abstract void addDoc(Document doc);
 

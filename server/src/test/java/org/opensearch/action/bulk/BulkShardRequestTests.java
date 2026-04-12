@@ -35,10 +35,14 @@ package org.opensearch.action.bulk;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -110,25 +114,65 @@ public class BulkShardRequestTests extends OpenSearchTestCase {
                 items[i] = null;
                 continue;
             }
-            final DocWriteRequest<?> request;
-            switch (randomFrom(DocWriteRequest.OpType.values())) {
-                case INDEX:
-                    request = new IndexRequest("index").id("id_" + i);
-                    break;
-                case CREATE:
-                    request = new IndexRequest("index").id("id_" + i).create(true);
-                    break;
-                case UPDATE:
-                    request = new UpdateRequest("index", "id_" + i);
-                    break;
-                case DELETE:
-                    request = new DeleteRequest("index", "id_" + i);
-                    break;
-                default:
-                    throw new AssertionError("unknown type");
-            }
+            final DocWriteRequest<?> request = switch (randomFrom(DocWriteRequest.OpType.values())) {
+                case INDEX -> new IndexRequest("index").id("id_" + i);
+                case CREATE -> new IndexRequest("index").id("id_" + i).create(true);
+                case UPDATE -> new UpdateRequest("index", "id_" + i);
+                case DELETE -> new DeleteRequest("index", "id_" + i);
+            };
             items[i] = new BulkItemRequest(i, request);
         }
         return items;
+    }
+
+    public void testSetPrimaryResponses() {
+        final String index = randomSimpleString(random(), 1, 10);
+        final int count = between(2, 100);
+        final ShardId shardId = new ShardId(index, randomAlphaOfLength(10), randomIntBetween(0, 5));
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+
+        final BulkItemRequest[] items = generateBulkItemRequests(count);
+
+        final BulkShardRequest original = new BulkShardRequest(shardId, refreshPolicy, items);
+
+        // Set random mutable properties from ReplicationRequest
+        original.timeout(TimeValue.timeValueMillis(randomLongBetween(1, 60000)));
+        original.waitForActiveShards(ActiveShardCount.from(randomIntBetween(0, 10)));
+        original.routedBasedOnClusterVersion(randomNonNegativeLong());
+        original.setParentTask(new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+
+        // Build primary responses for each item
+        final BulkItemResponse[] primaryResponses = new BulkItemResponse[count];
+        for (int i = 0; i < count; i++) {
+            if (items[i] != null) {
+                primaryResponses[i] = new BulkItemResponse(
+                    i,
+                    items[i].request().opType(),
+                    new IndexResponse(shardId, "id_" + i, 1, 1, 1, true)
+                );
+            }
+        }
+
+        final BulkShardRequest cloned = original.setPrimaryResponses(primaryResponses);
+
+        // Verify all cloned properties match
+        assertEquals(original.shardId(), cloned.shardId());
+        assertEquals(original.getRefreshPolicy(), cloned.getRefreshPolicy());
+        assertEquals(original.timeout(), cloned.timeout());
+        assertEquals(original.waitForActiveShards(), cloned.waitForActiveShards());
+        assertEquals(original.routedBasedOnClusterVersion(), cloned.routedBasedOnClusterVersion());
+        assertEquals(original.getParentTask(), cloned.getParentTask());
+
+        // Verify items have primary responses attached
+        assertEquals(count, cloned.items().length);
+        for (int i = 0; i < count; i++) {
+            if (items[i] == null) {
+                assertNull(cloned.items()[i]);
+            } else {
+                assertEquals(items[i].id(), cloned.items()[i].id());
+                assertEquals(items[i].request().opType(), cloned.items()[i].request().opType());
+                assertSame(primaryResponses[i], cloned.items()[i].primaryResponse());
+            }
+        }
     }
 }
