@@ -20,6 +20,9 @@ import java.util.List;
  *
  * <p>A multi-level aggregation tree (e.g., terms → terms → avg) produces
  * multiple metadata instances — one per distinct GROUP BY key set.
+ *
+ * <p>TODO: Add tree structure (parent-child links between granularity levels) and pipeline
+ * aggregation support.
  */
 public class AggregationMetadata {
 

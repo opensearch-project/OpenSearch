@@ -8,9 +8,6 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
-import org.opensearch.dsl.TestUtils;
-import org.opensearch.dsl.converter.ConversionContext;
-import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalOrder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -22,17 +19,10 @@ import java.util.List;
 public class TermsBucketTranslatorTests extends OpenSearchTestCase {
 
     private final TermsBucketTranslator translator = new TermsBucketTranslator();
-    private final ConversionContext ctx = TestUtils.createContext();
     private final TermsAggregationBuilder brandAgg = new TermsAggregationBuilder("by_brand").field("brand");
 
     public void testGetGrouping() {
         assertEquals(List.of("brand"), translator.getGrouping(brandAgg).getFieldNames());
-    }
-
-    public void testResolveGroupByIndices() throws ConversionException {
-        List<Integer> indices = translator.getGrouping(brandAgg).resolveIndices(ctx.getRowType());
-
-        assertEquals(List.of(2), indices); // brand is index 2
     }
 
     public void testGetSubAggregations() {
@@ -50,10 +40,11 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
         assertEquals(TermsAggregationBuilder.class, translator.getAggregationType());
     }
 
-    public void testThrowsForUnknownField() {
+    public void testGroupingReturnsFieldNameAsIs() {
         TermsAggregationBuilder badAgg = new TermsAggregationBuilder("by_bad").field("nonexistent");
 
-        expectThrows(ConversionException.class, () -> translator.getGrouping(badAgg).resolveIndices(ctx.getRowType()));
+        // Translator just captures the field name; validation happens at build time in the builder
+        assertEquals(List.of("nonexistent"), translator.getGrouping(badAgg).getFieldNames());
     }
 
     public void testGetBucketOrderReturnsDefault() {

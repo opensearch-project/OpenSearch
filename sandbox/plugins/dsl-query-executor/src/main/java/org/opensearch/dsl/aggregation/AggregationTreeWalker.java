@@ -75,7 +75,7 @@ public class AggregationTreeWalker {
         RelDataType rowType
     ) throws ConversionException {
         for (AggregationBuilder aggBuilder : aggs) {
-            AggregationType<?> type = registry.get(aggBuilder.getClass());
+            AggregationTranslator<?> type = registry.get(aggBuilder.getClass());
 
             if (type == null) {
                 throw new ConversionException("No translator registered for aggregation type: " + aggBuilder.getClass().getSimpleName());

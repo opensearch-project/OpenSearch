@@ -10,7 +10,7 @@ package org.opensearch.dsl.aggregation.metric;
 
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
-import org.opensearch.dsl.aggregation.AggregationType;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.converter.ConversionException;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -19,7 +19,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
  * Translates a metric aggregation (AVG, SUM, MIN, MAX, etc.) to a Calcite AggregateCall,
  * and converts raw result values back to OpenSearch InternalAggregation for response building.
  */
-public interface MetricTranslator<T extends AggregationBuilder> extends AggregationType<T> {
+public interface MetricTranslator<T extends AggregationBuilder> extends AggregationTranslator<T> {
 
     /**
      * Converts the metric aggregation to a Calcite AggregateCall.
@@ -39,6 +39,9 @@ public interface MetricTranslator<T extends AggregationBuilder> extends Aggregat
      */
     String getAggregateFieldName(T agg);
 
+    // TODO: Revisit signature — accept a stream/iterator of <String,Object> for bulk conversion
+    // to avoid per-row virtual dispatch overhead, and use Arrow-native types once Analytics Core
+    // exposes them.
     /**
      * Converts a raw result value from execution into an OpenSearch InternalAggregation.
      *

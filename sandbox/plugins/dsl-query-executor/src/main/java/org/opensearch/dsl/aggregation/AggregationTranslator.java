@@ -15,7 +15,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
  * Provides type identification for the {@link AggregationRegistry}.
  * Bucket and metric subtypes define their own contracts.
  */
-public interface AggregationType<T extends AggregationBuilder> {
+public interface AggregationTranslator<T extends AggregationBuilder> {
 
     /** Returns the concrete AggregationBuilder class this type handles. */
     Class<T> getAggregationType();

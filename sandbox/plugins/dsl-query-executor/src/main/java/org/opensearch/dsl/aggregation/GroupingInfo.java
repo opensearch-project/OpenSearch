@@ -8,9 +8,6 @@
 
 package org.opensearch.dsl.aggregation;
 
-import org.apache.calcite.rel.type.RelDataType;
-import org.opensearch.dsl.converter.ConversionException;
-
 import java.util.List;
 
 /**
@@ -22,13 +19,4 @@ public interface GroupingInfo {
 
     /** Returns the logical field names this grouping contributes. */
     List<String> getFieldNames();
-
-    /**
-     * Resolves this grouping to column indices in the input schema.
-     *
-     * @param inputRowType the schema before aggregation
-     * @return column indices for the GROUP BY bit set
-     * @throws ConversionException if field lookup fails
-     */
-    List<Integer> resolveIndices(RelDataType inputRowType) throws ConversionException;
 }

@@ -12,6 +12,7 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
@@ -103,7 +104,7 @@ public class AggregationMetadataBuilder {
         List<Integer> allGroupIndices = new ArrayList<>();
         List<String> allGroupFieldNames = new ArrayList<>();
         for (GroupingInfo g : groupings) {
-            allGroupIndices.addAll(g.resolveIndices(inputRowType));
+            allGroupIndices.addAll(resolveFieldIndices(g, inputRowType));
             allGroupFieldNames.addAll(g.getFieldNames());
         }
 
@@ -151,5 +152,26 @@ public class AggregationMetadataBuilder {
         }
 
         return new AggregationMetadata(ImmutableBitSet.of(allGroupIndices), allGroupFieldNames, allCalls, allFieldNames, bucketOrders);
+    }
+
+    /**
+     * Resolves field-based grouping names to column indices in the input schema.
+     *
+     * @param grouping the grouping info containing field names
+     * @param inputRowType the schema before aggregation
+     * @return column indices for each field name
+     * @throws ConversionException if a field name is not found in the schema
+     */
+    private static List<Integer> resolveFieldIndices(GroupingInfo grouping, RelDataType inputRowType) throws ConversionException {
+        List<String> fieldNames = grouping.getFieldNames();
+        List<Integer> indices = new ArrayList<>(fieldNames.size());
+        for (String name : fieldNames) {
+            RelDataTypeField field = inputRowType.getField(name, false, false);
+            if (field == null) {
+                throw new ConversionException("Group-by field '" + name + "' not found in schema");
+            }
+            indices.add(field.getIndex());
+        }
+        return indices;
     }
 }

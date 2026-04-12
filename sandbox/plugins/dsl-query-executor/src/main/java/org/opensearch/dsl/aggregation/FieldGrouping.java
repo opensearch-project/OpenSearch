@@ -8,11 +8,6 @@
 
 package org.opensearch.dsl.aggregation;
 
-import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeField;
-import org.opensearch.dsl.converter.ConversionException;
-
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -35,18 +30,5 @@ public class FieldGrouping implements GroupingInfo {
     @Override
     public List<String> getFieldNames() {
         return fieldNames;
-    }
-
-    @Override
-    public List<Integer> resolveIndices(RelDataType inputRowType) throws ConversionException {
-        List<Integer> indices = new ArrayList<>(fieldNames.size());
-        for (String name : fieldNames) {
-            RelDataTypeField field = inputRowType.getField(name, false, false);
-            if (field == null) {
-                throw new ConversionException("Group-by field '" + name + "' not found in schema");
-            }
-            indices.add(field.getIndex());
-        }
-        return indices;
     }
 }

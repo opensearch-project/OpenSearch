@@ -8,7 +8,7 @@
 
 package org.opensearch.dsl.aggregation.bucket;
 
-import org.opensearch.dsl.aggregation.AggregationType;
+import org.opensearch.dsl.aggregation.AggregationTranslator;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.result.BucketEntry;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -16,13 +16,12 @@ import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.util.Collection;
-import java.util.List;
 
 /**
  * Translates a bucket aggregation (terms, multi_terms, etc.) to a {@link GroupingInfo}
  * for GROUP BY resolution, and converts results back to InternalAggregation for response building.
  */
-public interface BucketTranslator<T extends AggregationBuilder> extends AggregationType<T> {
+public interface BucketTranslator<T extends AggregationBuilder> extends AggregationTranslator<T> {
 
     /**
      * Returns the grouping contribution for this bucket.
@@ -55,5 +54,5 @@ public interface BucketTranslator<T extends AggregationBuilder> extends Aggregat
      * @param buckets the bucket entries with keys, doc counts, and sub-aggs
      * @return the InternalAggregation
      */
-    InternalAggregation toBucketAggregation(T agg, List<BucketEntry> buckets);
+    InternalAggregation toBucketAggregation(T agg, Iterable<BucketEntry> buckets);
 }

@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public class AggregationRegistry {
 
-    private final Map<Class<? extends AggregationBuilder>, AggregationType<?>> translators = new HashMap<>();
+    private final Map<Class<? extends AggregationBuilder>, AggregationTranslator<?>> translators = new HashMap<>();
 
     /** Creates an empty registry. */
     public AggregationRegistry() {}
@@ -32,7 +32,7 @@ public class AggregationRegistry {
      *
      * @param translator the translator to register
      */
-    public void register(AggregationType<?> translator) {
+    public void register(AggregationTranslator<?> translator) {
         translators.put(translator.getAggregationType(), translator);
     }
 
@@ -43,7 +43,7 @@ public class AggregationRegistry {
      * @param aggClass the aggregation builder class
      * @return the translator, or null
      */
-    public AggregationType<?> get(Class<? extends AggregationBuilder> aggClass) {
+    public AggregationTranslator<?> get(Class<? extends AggregationBuilder> aggClass) {
         return translators.get(aggClass);
     }
 
@@ -55,7 +55,7 @@ public class AggregationRegistry {
      */
     @SuppressWarnings("unchecked")
     public <T extends AggregationBuilder> MetricTranslator<T> getMetric(Class<? extends AggregationBuilder> aggClass) {
-        AggregationType<?> translator = translators.get(aggClass);
+        AggregationTranslator<?> translator = translators.get(aggClass);
         return translator instanceof MetricTranslator ? (MetricTranslator<T>) translator : null;
     }
 
@@ -67,7 +67,7 @@ public class AggregationRegistry {
      */
     @SuppressWarnings("unchecked")
     public <T extends AggregationBuilder> BucketTranslator<T> getBucket(Class<? extends AggregationBuilder> aggClass) {
-        AggregationType<?> translator = translators.get(aggClass);
+        AggregationTranslator<?> translator = translators.get(aggClass);
         return translator instanceof BucketTranslator ? (BucketTranslator<T>) translator : null;
     }
 }

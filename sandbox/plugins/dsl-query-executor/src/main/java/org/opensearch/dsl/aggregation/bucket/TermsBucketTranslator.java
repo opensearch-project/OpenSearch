@@ -50,7 +50,7 @@ public class TermsBucketTranslator implements BucketTranslator<TermsAggregationB
 
     // TODO: implement response conversion
     @Override
-    public InternalAggregation toBucketAggregation(TermsAggregationBuilder agg, List<BucketEntry> buckets) {
+    public InternalAggregation toBucketAggregation(TermsAggregationBuilder agg, Iterable<BucketEntry> buckets) {
         throw new UnsupportedOperationException("toBucketAggregation not yet implemented");
     }
 }
