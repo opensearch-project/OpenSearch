@@ -80,22 +80,12 @@ public class MergeTests extends OpenSearchTestCase {
 
     private MergeHandler createNoopHandler(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier) {
         DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        return new MergeHandler(snapshotSupplier, policy, SHARD_ID) {
-            @Override
-            public MergeResult doMerge(OneMerge oneMerge) {
-                return new MergeResult(Map.of());
-            }
-        };
+        return new MergeHandler(snapshotSupplier, policy, oneMerge -> new MergeResult(Map.of()), SHARD_ID);
     }
 
     private MergeHandler createHandlerWithResult(Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier, MergeResult result) {
         DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
-        return new MergeHandler(snapshotSupplier, policy, SHARD_ID) {
-            @Override
-            public MergeResult doMerge(OneMerge oneMerge) {
-                return result;
-            }
-        };
+        return new MergeHandler(snapshotSupplier, policy, oneMerge -> result, SHARD_ID);
     }
 
     private static Supplier<GatedCloseable<CatalogSnapshot>> emptySnapshotSupplier() {
@@ -384,13 +374,10 @@ public class MergeTests extends OpenSearchTestCase {
             return Collections.emptyList();
         });
 
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, SHARD_ID) {
-            @Override
-            public MergeResult doMerge(OneMerge oneMerge) {
-                latch.countDown();
-                return mergeResult;
-            }
-        };
+        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> {
+            latch.countDown();
+            return mergeResult;
+        }, SHARD_ID);
 
         AtomicReference<MergeResult> captured = new AtomicReference<>();
         Settings settings = Settings.builder()
@@ -423,13 +410,10 @@ public class MergeTests extends OpenSearchTestCase {
             return Collections.emptyList();
         });
 
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, SHARD_ID) {
-            @Override
-            public MergeResult doMerge(OneMerge oneMerge) {
-                latch.countDown();
-                throw new RuntimeException("merge boom");
-            }
-        };
+        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> {
+            latch.countDown();
+            throw new RuntimeException("merge boom");
+        }, SHARD_ID);
 
         Settings settings = Settings.builder()
             .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
@@ -454,12 +438,7 @@ public class MergeTests extends OpenSearchTestCase {
         DataFormatAwareMergePolicy policy = mock(DataFormatAwareMergePolicy.class);
         when(policy.findForceMergeCandidates(any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of(List.of(seg)));
 
-        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, SHARD_ID) {
-            @Override
-            public MergeResult doMerge(OneMerge oneMerge) {
-                return mergeResult;
-            }
-        };
+        MergeHandler handler = new MergeHandler(snapshotSupplier, policy, oneMerge -> mergeResult, SHARD_ID);
 
         AtomicReference<MergeResult> captured = new AtomicReference<>();
         Settings settings = Settings.builder()

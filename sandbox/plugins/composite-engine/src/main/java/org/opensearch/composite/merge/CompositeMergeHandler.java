@@ -8,32 +8,19 @@
 
 package org.opensearch.composite.merge;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
-import org.opensearch.common.logging.Loggers;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.engine.dataformat.MergeInput;
-import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
-import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
-import org.opensearch.index.engine.dataformat.merge.OneMerge;
-import org.opensearch.index.engine.exec.Segment;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,117 +28,89 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * {@link MergeHandler} implementation for composite data formats.
+ * Factory for creating a {@link MergeHandler} configured for composite data formats.
  * <p>
- * Implements {@link #doMerge(OneMerge)} to merge the primary data format first,
- * then merge each secondary using the row-ID mapping produced by the primary.
+ * Builds the per-format merger map, resolves primary/secondary formats, and creates
+ * a {@link CompositeMergeExecutor} that orchestrates primary-then-secondary merges.
+ * The resulting {@link MergeHandler} owns queue management; the executor owns execution.
+ * <p>
+ * Per-format plugins (Parquet, Lucene) implement {@link Merger} only — they don't
+ * know about multi-format orchestration.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeMergeHandler extends MergeHandler {
+public final class CompositeMergeHandler {
 
-    private final CompositeIndexingExecutionEngine compositeIndexingExecutionEngine;
-    private final DataFormat primaryDataFormat;
-    private final Map<DataFormat, Merger> dataFormatMergerMap;
-    private final Logger logger;
+    private CompositeMergeHandler() {}
 
     /**
-     * Constructs a CompositeMergeHandler.
+     * Creates a {@link MergeHandler} for composite multi-format merges.
      *
-     * @param compositeIndexingExecutionEngine the composite engine providing primary and secondary delegates
-     * @param compositeDataFormat              the composite data format with primary format reference
-     * @param snapshotSupplier                 supplier for acquiring catalog snapshots
-     * @param indexSettings                    the index settings containing merge policy configuration
-     * @param shardId                          the shard ID for logging context
+     * @param engine             the composite engine providing primary and secondary delegates
+     * @param compositeDataFormat the composite data format with primary format reference
+     * @param snapshotSupplier   supplier for acquiring catalog snapshots
+     * @param indexSettings      the index settings containing merge policy configuration
+     * @param shardId            the shard ID for logging context
+     * @return a configured MergeHandler
      */
-    public CompositeMergeHandler(
-        CompositeIndexingExecutionEngine compositeIndexingExecutionEngine,
+    public static MergeHandler create(
+        CompositeIndexingExecutionEngine engine,
         CompositeDataFormat compositeDataFormat,
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
         IndexSettings indexSettings,
         ShardId shardId
     ) {
-        super(snapshotSupplier, new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), shardId), shardId);
-        this.logger = Loggers.getLogger(getClass(), shardId);
-        this.compositeIndexingExecutionEngine = compositeIndexingExecutionEngine;
-        this.primaryDataFormat = compositeDataFormat.getPrimaryDataFormat();
-        this.dataFormatMergerMap = buildMergerMap(compositeIndexingExecutionEngine);
+        DataFormat primaryFormat = compositeDataFormat.getPrimaryDataFormat();
+        List<DataFormat> secondaryFormats = resolveSecondaryFormats(engine, primaryFormat);
+        Map<DataFormat, Merger> mergers = buildMergerMap(engine);
+        CompositeMergeExecutor executor = new CompositeMergeExecutor(mergers);
+
+        MergeHandler.MergeExecutor mergeExecutor = oneMerge -> {
+            MergePlan plan = MergePlan.from(oneMerge, primaryFormat, secondaryFormats, engine.getNextWriterGeneration());
+            return executor.execute(plan);
+        };
+
+        return new MergeHandler(
+            snapshotSupplier,
+            new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), shardId),
+            mergeExecutor,
+            shardId
+        );
     }
 
-    @Override
-    public MergeResult doMerge(OneMerge oneMerge) {
-        long mergedWriterGeneration = compositeIndexingExecutionEngine.getNextWriterGeneration();
-        Map<DataFormat, WriterFileSet> mergedWriterFileSet = new HashMap<>();
-        boolean mergeSuccessful = false;
-        try {
-            List<WriterFileSet> primaryFiles = getFilesToMerge(oneMerge, primaryDataFormat);
-            MergeResult primaryMergeResult = dataFormatMergerMap.get(primaryDataFormat)
-                .merge(new MergeInput(primaryFiles, null, mergedWriterGeneration));
-
-            mergedWriterFileSet.put(primaryDataFormat, primaryMergeResult.getMergedWriterFileSetForDataformat(primaryDataFormat));
-
-            boolean hasSecondaries = compositeIndexingExecutionEngine.getSecondaryDelegates()
-                .stream()
-                .anyMatch(engine -> engine.getDataFormat().equals(primaryDataFormat) == false);
-
-            RowIdMapping rowIdMapping = null;
-            if (hasSecondaries) {
-                rowIdMapping = primaryMergeResult.rowIdMapping()
-                    .orElseThrow(
-                        () -> new IllegalStateException("Primary merge did not produce a row-ID mapping required by secondary formats")
-                    );
-            }
-
-            for (IndexingExecutionEngine<?, ?> secondaryEngine : compositeIndexingExecutionEngine.getSecondaryDelegates()) {
-                DataFormat secondaryDataFormat = secondaryEngine.getDataFormat();
-                if (secondaryDataFormat.equals(primaryDataFormat)) {
-                    continue;
-                }
-
-                List<WriterFileSet> secondaryFiles = getFilesToMerge(oneMerge, secondaryDataFormat);
-                MergeResult secondaryMergeResult = dataFormatMergerMap.get(secondaryDataFormat)
-                    .merge(new MergeInput(secondaryFiles, rowIdMapping, mergedWriterGeneration));
-
-                mergedWriterFileSet.put(secondaryDataFormat, secondaryMergeResult.getMergedWriterFileSetForDataformat(secondaryDataFormat));
-            }
-
-            mergeSuccessful = true;
-            return new MergeResult(mergedWriterFileSet, rowIdMapping);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Merge failed for shard", e);
-        } finally {
-            if (mergeSuccessful == false && mergedWriterFileSet.isEmpty() == false) {
-                cleanupStaleMergedFiles(mergedWriterFileSet);
+    private static List<DataFormat> resolveSecondaryFormats(
+        CompositeIndexingExecutionEngine engine, DataFormat primaryFormat
+    ) {
+        List<DataFormat> secondaries = new ArrayList<>();
+        for (IndexingExecutionEngine<?, ?> e : engine.getSecondaryDelegates()) {
+            if (e.getDataFormat().equals(primaryFormat) == false) {
+                secondaries.add(e.getDataFormat());
             }
         }
+        return List.copyOf(secondaries);
     }
 
-    private List<WriterFileSet> getFilesToMerge(OneMerge oneMerge, DataFormat dataFormat) {
-        List<WriterFileSet> writerFileSets = new ArrayList<>();
-        for (Segment segment : oneMerge.getSegmentsToMerge()) {
-            writerFileSets.add(segment.dfGroupedSearchableFiles().get(dataFormat.name()));
-        }
-        return writerFileSets;
-    }
-
-    private void cleanupStaleMergedFiles(Map<DataFormat, WriterFileSet> mergedWriterFileSet) {
-        for (WriterFileSet wfs : mergedWriterFileSet.values()) {
-            for (String file : wfs.files()) {
-                Path path = Path.of(wfs.directory(), file);
-                try {
-                    Files.deleteIfExists(path);
-                } catch (Exception exception) {
-                    logger.error(new ParameterizedMessage("Failed to delete stale merged file [{}]", path), exception);
-                }
-            }
-        }
-    }
-
-    private static Map<DataFormat, Merger> buildMergerMap(CompositeIndexingExecutionEngine compositeEngine) {
+    private static Map<DataFormat, Merger> buildMergerMap(CompositeIndexingExecutionEngine engine) {
         Map<DataFormat, Merger> map = new HashMap<>();
-        map.put(compositeEngine.getPrimaryDelegate().getDataFormat(), compositeEngine.getPrimaryDelegate().getMerger());
-        compositeEngine.getSecondaryDelegates().forEach(engine -> map.put(engine.getDataFormat(), engine.getMerger()));
+
+        Merger primaryMerger = engine.getPrimaryDelegate().getMerger();
+        if (primaryMerger == null) {
+            throw new IllegalStateException(
+                "Primary format [" + engine.getPrimaryDelegate().getDataFormat().name() + "] does not provide a Merger"
+            );
+        }
+        map.put(engine.getPrimaryDelegate().getDataFormat(), primaryMerger);
+
+        for (IndexingExecutionEngine<?, ?> secondary : engine.getSecondaryDelegates()) {
+            Merger merger = secondary.getMerger();
+            if (merger == null) {
+                throw new IllegalStateException(
+                    "Secondary format [" + secondary.getDataFormat().name() + "] does not provide a Merger"
+                );
+            }
+            map.put(secondary.getDataFormat(), merger);
+        }
         return Map.copyOf(map);
     }
 }
