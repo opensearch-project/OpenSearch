@@ -24,6 +24,29 @@ import java.util.List;
 public interface BucketTranslator<T extends AggregationBuilder> extends AggregationType<T> {
 
     /**
+     * Determines how the {@link org.opensearch.dsl.aggregation.AggregationTreeWalker}
+     * processes this bucket translator during tree traversal.
+     */
+    enum WalkStrategy {
+        /** Standard bucket walk — adds grouping columns (e.g., terms). */
+        STANDARD,
+        /** Single filter walk — produces one plan with a filter condition (e.g., filter). */
+        FILTER,
+        /** Multi-filter walk — produces N plans, one per filter, plus optional other bucket (e.g., filters). */
+        MULTI_FILTER
+    }
+
+    /**
+     * Returns the walk strategy for this bucket translator.
+     * Defaults to {@link WalkStrategy#STANDARD}.
+     *
+     * @return the walk strategy
+     */
+    default WalkStrategy getWalkStrategy() {
+        return WalkStrategy.STANDARD;
+    }
+
+    /**
      * Returns the grouping contribution for this bucket.
      *
      * @param agg the bucket aggregation builder

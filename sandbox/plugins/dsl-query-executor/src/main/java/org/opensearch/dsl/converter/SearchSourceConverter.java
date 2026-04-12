@@ -23,11 +23,14 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.type.SqlTypeFactoryImpl;
 import org.opensearch.dsl.aggregation.AggregationMetadata;
+import org.opensearch.dsl.aggregation.AggregationRegistry;
 import org.opensearch.dsl.aggregation.AggregationRegistryFactory;
 import org.opensearch.dsl.aggregation.AggregationTreeWalker;
+import org.opensearch.dsl.aggregation.pipeline.PipelineTranslator;
 import org.opensearch.dsl.executor.QueryPlans;
 import org.opensearch.dsl.query.QueryRegistryFactory;
 import org.opensearch.search.SearchService;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.util.Collections;
@@ -49,6 +52,7 @@ public class SearchSourceConverter {
     private final SortConverter sortConverter;
     private final AggregateConverter aggregateConverter;
     private final AggregationTreeWalker treeWalker;
+    private final AggregationRegistry aggRegistry;
 
     /**
      * Initializes planning infrastructure from the given schema.
@@ -73,7 +77,7 @@ public class SearchSourceConverter {
         this.sortConverter = new SortConverter();
         this.aggregateConverter = new AggregateConverter();
 
-        var aggRegistry = AggregationRegistryFactory.create();
+        this.aggRegistry = AggregationRegistryFactory.create();
         this.treeWalker = new AggregationTreeWalker(aggRegistry);
     }
 
@@ -110,15 +114,35 @@ public class SearchSourceConverter {
         }
 
         // Aggregation path: Scan → Filter → Aggregate (one per granularity level)
+        // Pipeline operators are chained on top of the base LogicalAggregate
         if (hasAggs) {
             List<AggregationMetadata> metadataList = treeWalker.walk(
                 searchSource.aggregations().getAggregatorFactories(),
-                table.getRowType(),
-                cluster.getTypeFactory()
+                searchSource.aggregations().getPipelineAggregatorFactories(),
+                ctx
             );
             for (AggregationMetadata metadata : metadataList) {
-                RelNode aggs = aggregateConverter.convert(base, metadata);
-                builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, aggs));
+                RelNode agg = aggregateConverter.convert(base, metadata);
+                RelNode basePlan = agg;
+
+                // Parent pipelines modify the base plan (e.g., bucket_sort adds sort/limit)
+                for (PipelineAggregationBuilder pipelineBuilder : metadata.getPipelineBuilders()) {
+                    PipelineTranslator<PipelineAggregationBuilder> translator = resolvePipelineTranslator(pipelineBuilder);
+                    if (translator.type() == PipelineTranslator.Type.PARENT) {
+                        agg = translator.translate(pipelineBuilder, agg, ctx);
+                    }
+                }
+
+                builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, agg));
+
+                // Sibling pipelines operate on the original base (before parent modifications)
+                for (PipelineAggregationBuilder pipelineBuilder : metadata.getPipelineBuilders()) {
+                    PipelineTranslator<PipelineAggregationBuilder> translator = resolvePipelineTranslator(pipelineBuilder);
+                    if (translator.type() == PipelineTranslator.Type.SIBLING) {
+                        RelNode pipelinePlan = translator.translate(pipelineBuilder, basePlan, ctx);
+                        builder.add(new QueryPlans.QueryPlan(QueryPlans.Type.AGGREGATION, pipelinePlan));
+                    }
+                }
             }
         }
 
@@ -129,5 +153,15 @@ public class SearchSourceConverter {
         return searchSource.aggregations() != null
             && searchSource.aggregations().getAggregatorFactories() != null
             && !searchSource.aggregations().getAggregatorFactories().isEmpty();
+    }
+
+    private PipelineTranslator<PipelineAggregationBuilder> resolvePipelineTranslator(
+        PipelineAggregationBuilder pipelineBuilder
+    ) throws ConversionException {
+        PipelineTranslator<PipelineAggregationBuilder> translator = aggRegistry.getPipeline(pipelineBuilder.getClass());
+        if (translator == null) {
+            throw new ConversionException("Unsupported pipeline aggregation: " + pipelineBuilder.getType());
+        }
+        return translator;
     }
 }

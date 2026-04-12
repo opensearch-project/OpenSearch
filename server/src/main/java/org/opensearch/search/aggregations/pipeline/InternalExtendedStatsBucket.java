@@ -47,7 +47,20 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class InternalExtendedStatsBucket extends InternalExtendedStats implements ExtendedStatsBucket {
-    InternalExtendedStatsBucket(
+    /**
+     * Creates an InternalExtendedStatsBucket aggregation.
+     *
+     * @param name the name of the aggregation
+     * @param count the document count
+     * @param sum the sum of values
+     * @param min the minimum value
+     * @param max the maximum value
+     * @param sumOfSqrs the sum of squared values
+     * @param sigma the sigma value for bounds computation
+     * @param formatter the doc value format
+     * @param metadata the metadata associated with this aggregation, or null
+     */
+    public InternalExtendedStatsBucket(
         String name,
         long count,
         double sum,

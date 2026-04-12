@@ -70,6 +70,15 @@ public class DslQueryPlanExecutor {
             );
             relNode.getCluster().invalidateMetadataQuery();
             logger.info("Executing RelNode:\n{}", relNode.explain());
+            logRowTypes(relNode, 0);
+        }
+    }
+
+    private void logRowTypes(RelNode node, int depth) {
+        String indent = "  ".repeat(depth);
+        logger.info("{}[{}] rowType: {}", indent, node.getRelTypeName(), node.getRowType());
+        for (RelNode input : node.getInputs()) {
+            logRowTypes(input, depth + 1);
         }
     }
 }

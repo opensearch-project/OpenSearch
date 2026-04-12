@@ -136,6 +136,11 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         return this;
     }
 
+    /** Returns the offset for truncation. */
+    public int from() {
+        return from;
+    }
+
     public BucketSortPipelineAggregationBuilder size(Integer size) {
         if (size != null && size <= 0) {
             throw new IllegalArgumentException("[" + SIZE.getPreferredName() + "] must be a positive integer: [" + size + "]");
@@ -144,12 +149,27 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         return this;
     }
 
+    /** Returns the maximum number of buckets to return, or null for no limit. */
+    public Integer size() {
+        return size;
+    }
+
     public BucketSortPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
         if (gapPolicy == null) {
             throw new IllegalArgumentException("[" + GAP_POLICY.getPreferredName() + "] must not be null: [" + name + "]");
         }
         this.gapPolicy = gapPolicy;
         return this;
+    }
+
+    /** Returns the sort definitions. */
+    public List<FieldSortBuilder> sorts() {
+        return sorts;
+    }
+
+    /** Returns the gap policy. */
+    public GapPolicy gapPolicy() {
+        return gapPolicy;
     }
 
     @Override

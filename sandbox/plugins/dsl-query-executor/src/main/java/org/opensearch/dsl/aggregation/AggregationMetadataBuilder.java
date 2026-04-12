@@ -12,13 +12,17 @@ import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Mutable builder for {@link AggregationMetadata}. Used by {@link AggregationTreeWalker}
@@ -33,7 +37,12 @@ public class AggregationMetadataBuilder {
     private final List<GroupingInfo> groupings = new ArrayList<>();
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
+    private final List<PipelineAggregationBuilder> pipelineBuilders = new ArrayList<>();
+    private final Map<String, String> aggNameToGranularityKeySegment = new HashMap<>();
     private boolean implicitCountRequested = false;
+    private RexNode filterCondition;
+    private String bucketKey;
+    private String aggregationName;
 
     /** Creates a new empty builder. */
     public AggregationMetadataBuilder() {}
@@ -66,9 +75,77 @@ public class AggregationMetadataBuilder {
         this.implicitCountRequested = true;
     }
 
-    /** Returns true if this builder has at least one aggregate call or implicit count. */
+    /**
+     * Sets the filter condition from a filter bucket aggregation.
+     *
+     * @param filterCondition the RexNode filter condition, or null for no filter
+     */
+    public void setFilterCondition(RexNode filterCondition) {
+        this.filterCondition = filterCondition;
+    }
+
+    /**
+     * Sets the bucket key for response assembly (e.g., filter key in a filters aggregation).
+     *
+     * @param bucketKey the bucket key, or null for no bucket key
+     */
+    public void setBucketKey(String bucketKey) {
+        this.bucketKey = bucketKey;
+    }
+
+    /**
+     * Sets the DSL aggregation name for response assembly.
+     *
+     * @param aggregationName the aggregation name from the DSL, or null
+     */
+    public void setAggregationName(String aggregationName) {
+        this.aggregationName = aggregationName;
+    }
+
+    /**
+     * Adds a pipeline aggregation builder collected during tree walk.
+     *
+     * @param pipelineBuilder the pipeline aggregation builder
+     */
+    public void addPipelineBuilder(PipelineAggregationBuilder pipelineBuilder) {
+        pipelineBuilders.add(pipelineBuilder);
+    }
+
+    /**
+     * Records the mapping from a bucket aggregation's DSL name to its granularity key segment.
+     * For standard buckets (terms), the segment is the comma-joined field names (e.g., "brand").
+     * For filter buckets, the segment is the filter key suffix (e.g., "__filter__expensive_only").
+     *
+     * @param aggName the DSL aggregation name (e.g., "by_region" or "filter_expensive")
+     * @param keySegment the granularity key segment this agg contributes
+     */
+    public void addAggNameMapping(String aggName, String keySegment) {
+        aggNameToGranularityKeySegment.put(aggName, keySegment);
+    }
+
+    /**
+     * Copies all agg-name-to-key-segment mappings from this builder into the given map.
+     * Existing entries in the target map are not overwritten.
+     *
+     * @param target the map to populate
+     */
+    public void collectAggNameMappings(Map<String, String> target) {
+        aggNameToGranularityKeySegment.forEach(target::putIfAbsent);
+    }
+
+    /** Returns true if this builder has at least one aggregate call, implicit count, or pipeline builder. */
     public boolean hasAggregateCalls() {
         return !aggregateCalls.isEmpty() || implicitCountRequested;
+    }
+
+    /**
+     * Returns true if this builder contains an aggregate field with the given name.
+     *
+     * @param fieldName the field name to check
+     * @return true if the field exists in the aggregate field names
+     */
+    public boolean containsAggregateField(String fieldName) {
+        return aggregateFieldNames.contains(fieldName);
     }
 
     /**
@@ -126,7 +203,11 @@ public class AggregationMetadataBuilder {
             ImmutableBitSet.of(allGroupIndices),
             allGroupFieldNames,
             allCalls,
-            allFieldNames
+            allFieldNames,
+            filterCondition,
+            bucketKey,
+            aggregationName,
+            pipelineBuilders
         );
     }
 }
