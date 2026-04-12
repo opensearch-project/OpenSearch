@@ -33,15 +33,26 @@ public class ProjectConverter extends AbstractDslConverter {
 
     @Override
     protected boolean isApplicable(ConversionContext ctx) {
-        return ctx.getSearchSource().fetchSource() != null;
+        return ctx.getSearchSource().fetchSource() != null || hasDocValueFields(ctx);
     }
 
     @Override
     protected RelNode doConvert(RelNode input, ConversionContext ctx) throws ConversionException {
         FetchSourceContext fetchSource = ctx.getSearchSource().fetchSource();
+        List<org.opensearch.search.fetch.subphase.FieldAndFormat> docValueFields = ctx.getSearchSource().docValueFields();
 
-        if (!fetchSource.fetchSource()) {
+        // Handle fields parameter (doc_value fields)
+        if (docValueFields != null && !docValueFields.isEmpty()) {
+            return createFieldsProjection(input, docValueFields, ctx.getRexBuilder());
+        }
+
+        // Handle _source parameter
+        if (fetchSource != null && !fetchSource.fetchSource()) {
             return LogicalProject.create(input, List.of(), List.of(), List.of());
+        }
+
+        if (fetchSource == null) {
+            return input;
         }
 
         String[] includes = fetchSource.includes();
@@ -54,6 +65,31 @@ public class ProjectConverter extends AbstractDslConverter {
         }
 
         return createProjection(input, includes, excludes, ctx.getRexBuilder());
+    }
+
+    private boolean hasDocValueFields(ConversionContext ctx) {
+        List<org.opensearch.search.fetch.subphase.FieldAndFormat> fields = ctx.getSearchSource().docValueFields();
+        return fields != null && !fields.isEmpty();
+    }
+
+    private RelNode createFieldsProjection(RelNode input, 
+            List<org.opensearch.search.fetch.subphase.FieldAndFormat> docValueFields, 
+            RexBuilder rexBuilder) throws ConversionException {
+        RelDataType rowType = input.getRowType();
+        List<RexNode> projects = new ArrayList<>();
+        List<String> fieldNames = new ArrayList<>();
+
+        for (org.opensearch.search.fetch.subphase.FieldAndFormat fieldAndFormat : docValueFields) {
+            String fieldName = fieldAndFormat.field;
+            RelDataTypeField field = rowType.getField(fieldName, false, false);
+            if (field == null) {
+                throw new ConversionException("Field '" + fieldName + "' not found in schema");
+            }
+            projects.add(rexBuilder.makeInputRef(field.getType(), field.getIndex()));
+            fieldNames.add(field.getName());
+        }
+
+        return LogicalProject.create(input, List.of(), projects, fieldNames);
     }
 
     private RelNode createProjection(RelNode input, String[] includes, String[] excludes, RexBuilder rexBuilder)

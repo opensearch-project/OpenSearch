@@ -46,4 +46,9 @@ public class DslProjectIT extends DslIntegTestBase {
         createTestIndex();
         assertOk(search(new SearchSourceBuilder().fetchSource(new String[]{}, new String[]{"ra*"})));
     }
+
+    public void testDocValueFields() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().docValueField("name").docValueField("price")));
+    }
 }

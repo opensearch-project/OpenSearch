@@ -112,4 +112,24 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertTrue(result instanceof LogicalProject);
         assertEquals(0, result.getRowType().getFieldCount());
     }
+
+    public void testDocValueFields() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder()
+            .docValueField("name")
+            .docValueField("price");
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        assertTrue(result instanceof LogicalProject);
+        assertEquals(2, result.getRowType().getFieldCount());
+        assertEquals("name", result.getRowType().getFieldNames().get(0));
+        assertEquals("price", result.getRowType().getFieldNames().get(1));
+    }
+
+    public void testDocValueFieldsThrowsForUnknownField() {
+        SearchSourceBuilder source = new SearchSourceBuilder().docValueField("nonexistent");
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+    }
 }

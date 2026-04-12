@@ -102,4 +102,28 @@ public class SortConverterTests extends OpenSearchTestCase {
 
         expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
     }
+
+    public void testSortMissingFirst() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(
+            org.opensearch.search.sort.SortBuilders.fieldSort("price").order(SortOrder.ASC).missing("_first")
+        );
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        LogicalSort sort = (LogicalSort) result;
+        RelFieldCollation fieldCollation = sort.getCollation().getFieldCollations().get(0);
+        assertEquals(RelFieldCollation.NullDirection.FIRST, fieldCollation.nullDirection);
+    }
+
+    public void testSortMissingLast() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().sort(
+            org.opensearch.search.sort.SortBuilders.fieldSort("price").order(SortOrder.DESC).missing("_last")
+        );
+        ConversionContext ctx = TestUtils.createContext(source);
+        RelNode result = converter.convert(scan, ctx);
+
+        LogicalSort sort = (LogicalSort) result;
+        RelFieldCollation fieldCollation = sort.getCollation().getFieldCollations().get(0);
+        assertEquals(RelFieldCollation.NullDirection.LAST, fieldCollation.nullDirection);
+    }
 }
