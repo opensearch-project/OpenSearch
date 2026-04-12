@@ -28,21 +28,34 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Abstract handler responsible for managing segment merge operations.
+ * Manages the segment merge queue, lifecycle callbacks, and merge candidate
+ * selection via {@link DataFormatAwareMergePolicy}.
  * <p>
- * Manages the pending merge queue, lifecycle callbacks, and merge candidate
- * selection via {@link DataFormatAwareMergePolicy}. Subclasses implement
- * {@link #doMerge(OneMerge)} to define how the actual merge is executed.
+ * Merge execution is delegated to a {@link MergeExecutor} provided at construction.
+ * The composite plugin provides a {@link MergeExecutor} that orchestrates
+ * primary-then-secondary merges; single-format setups provide a simpler one.
+ * Per-format plugins (Parquet, Lucene) implement {@link org.opensearch.index.engine.dataformat.Merger}
+ * only — they don't know about multi-format orchestration.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public abstract class MergeHandler {
+public class MergeHandler {
+
+    /**
+     * Functional interface for executing a single merge operation.
+     * Implementations define how the merge is performed (single-format vs composite).
+     */
+    @FunctionalInterface
+    public interface MergeExecutor {
+        MergeResult execute(OneMerge oneMerge);
+    }
 
     private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
     private final DataFormatAwareMergePolicy mergePolicy;
+    private final MergeExecutor mergeExecutor;
     private final Logger logger;
 
     /**
@@ -50,16 +63,19 @@ public abstract class MergeHandler {
      *
      * @param snapshotSupplier supplier for acquiring catalog snapshots for segment validation
      * @param mergePolicy      the merge policy for selecting merge candidates
+     * @param mergeExecutor    the executor that performs the actual merge (single-format or composite)
      * @param shardId          the shard this handler is associated with (used for logging)
      */
     public MergeHandler(
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
         DataFormatAwareMergePolicy mergePolicy,
+        MergeExecutor mergeExecutor,
         ShardId shardId
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
         this.mergePolicy = mergePolicy;
+        this.mergeExecutor = mergeExecutor;
     }
 
     /**
@@ -169,8 +185,16 @@ public abstract class MergeHandler {
 
     /**
      * Callback invoked when a merge completes successfully.
+     * <p>
+     * <b>IMPORTANT:</b> The caller MUST apply the merge result to the catalog
+     * (replacing source segments with the merged segment) BEFORE calling this method.
+     * This method calls {@link #updatePendingMerges()} which reads the catalog to find
+     * new merge candidates. If the catalog still contains the old source segments,
+     * they may be incorrectly selected for another merge.
      *
      * @param oneMerge the merge that finished
+     * @see MergeScheduler — the production caller that enforces this ordering via
+     *      {@code applyMergeChanges.accept(mergeResult, oneMerge)} before this call
      */
     public synchronized void onMergeFinished(OneMerge oneMerge) {
         removeMergingSegments(oneMerge);
@@ -188,12 +212,14 @@ public abstract class MergeHandler {
     }
 
     /**
-     * Executes the given merge operation.
+     * Executes the given merge operation by delegating to the {@link MergeExecutor}.
      *
      * @param oneMerge the merge to execute
      * @return the result of the merge
      */
-    public abstract MergeResult doMerge(OneMerge oneMerge);
+    public MergeResult doMerge(OneMerge oneMerge) {
+        return mergeExecutor.execute(oneMerge);
+    }
 
     private synchronized void removeMergingSegments(OneMerge oneMerge) {
         pendingMerges.remove(oneMerge);
