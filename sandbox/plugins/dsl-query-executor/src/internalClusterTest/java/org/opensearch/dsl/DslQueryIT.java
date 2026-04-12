@@ -54,4 +54,16 @@ public class DslQueryIT extends DslIntegTestBase {
             client().search(new SearchRequest(INDEX, "test-index-2").source(new SearchSourceBuilder())).actionGet()
         );
     }
+
+    public void testExistsQuery() {
+        createTestIndex();
+        assertOk(search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name"))));
+    }
+
+    public void testExistsQueryWithBoostFails() {
+        createTestIndex();
+        expectThrows(Exception.class, () ->
+            search(new SearchSourceBuilder().query(QueryBuilders.existsQuery("name").boost(2.0f)))
+        );
+    }
 }
