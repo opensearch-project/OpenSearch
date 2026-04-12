@@ -12,10 +12,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -44,9 +48,9 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, DataFormatPlugin {
+public class CompositeDataFormatPlugin extends Plugin implements ExtensiblePlugin, DataFormatPlugin {
 
-    private static final Logger logger = LogManager.getLogger(CompositeEnginePlugin.class);
+    private static final Logger logger = LogManager.getLogger(CompositeDataFormatPlugin.class);
 
     /**
      * Index setting that designates the primary data format for an index.
@@ -78,9 +82,10 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
      * {@link DataFormat#priority()} is retained.
      */
     private volatile Map<String, DataFormatPlugin> dataFormatPlugins = Map.of();
+    private volatile Map<String, DataFormatDescriptor> lastDescriptors = Map.of();
 
     /** Creates a new composite engine plugin. */
-    public CompositeEnginePlugin() {}
+    public CompositeDataFormatPlugin() {}
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
@@ -135,14 +140,40 @@ public class CompositeEnginePlugin extends Plugin implements ExtensiblePlugin, D
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
+        Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
+        for (Map.Entry<String, DataFormatDescriptor> entry : lastDescriptors.entrySet()) {
+            strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
+        }
         return new CompositeIndexingExecutionEngine(
             dataFormatPlugins,
             settings.indexSettings(),
             settings.mapperService(),
             settings.shardPath(),
-            settings.committer()
+            settings.committer(),
+            strategies
         );
+    }
+
+    @Override
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        Map<String, DataFormatDescriptor> descriptors = new HashMap<>();
+        DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);
+        if (primaryPlugin != null) {
+            descriptors.putAll(primaryPlugin.getFormatDescriptors(indexSettings));
+        }
+        for (String secondaryName : secondaryFormatNames) {
+            DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
+            if (secondaryPlugin != null) {
+                descriptors.putAll(secondaryPlugin.getFormatDescriptors(indexSettings));
+            }
+        }
+        lastDescriptors = Map.copyOf(descriptors);
+        return lastDescriptors;
     }
 
     /**

@@ -12,6 +12,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.store.FormatChecksumStrategy;
 
 /**
  * A mock {@link DataFormatPlugin} for testing purposes.
@@ -33,7 +34,7 @@ public class MockDataFormatPlugin implements DataFormatPlugin {
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
         return new MockIndexingExecutionEngine(dataFormat);
     }
 }

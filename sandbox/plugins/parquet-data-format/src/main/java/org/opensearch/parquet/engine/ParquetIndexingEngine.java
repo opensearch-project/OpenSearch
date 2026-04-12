@@ -22,6 +22,8 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
@@ -68,16 +70,17 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ArrowBufferPool bufferPool;
     private final Settings settings;
     private final ThreadPool threadPool;
+    private final FormatChecksumStrategy checksumStrategy;
 
     /**
      * Creates a new ParquetIndexingEngine.
      *
-     * @param settings       the node-level settings
-     * @param dataFormat     the Parquet data format descriptor
-     * @param shardPath      the shard path for file storage
-     * @param schemaSupplier supplier for the Arrow schema
-     * @param indexSettings  the index-level settings
-     * @param threadPool     the thread pool for background native writes
+     * @param settings          the node-level settings
+     * @param dataFormat        the Parquet data format descriptor
+     * @param shardPath         the shard path for file storage
+     * @param schemaSupplier    supplier for the Arrow schema
+     * @param indexSettings     the index-level settings
+     * @param threadPool        the thread pool for background native writes
      */
     public ParquetIndexingEngine(
         Settings settings,
@@ -87,12 +90,49 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         IndexSettings indexSettings,
         ThreadPool threadPool
     ) {
+        this(settings, dataFormat, shardPath, schemaSupplier, indexSettings, threadPool, new PrecomputedChecksumStrategy());
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
+     *
+     * <p>Use this constructor when the checksum strategy is shared with the
+     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} so that
+     * pre-computed CRC32 values registered during write are visible to the upload path.
+     *
+     * @param settings          the node-level settings
+     * @param dataFormat        the Parquet data format descriptor
+     * @param shardPath         the shard path for file storage
+     * @param schemaSupplier    supplier for the Arrow schema
+     * @param indexSettings     the index-level settings
+     * @param threadPool        the thread pool for background native writes
+     * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy
+    ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
         this.settings = settings;
         this.threadPool = threadPool;
+        this.checksumStrategy = checksumStrategy;
+    }
+
+    /**
+     * Returns the checksum strategy for this engine's Parquet files.
+     * Used by the upload path to retrieve pre-computed checksums.
+     */
+    @Override
+    public FormatChecksumStrategy getChecksumStrategy() {
+        return checksumStrategy;
     }
 
     @Override
@@ -102,7 +142,16 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             dataFormat.name(),
             FILE_NAME_PREFIX + "_" + writerGeneration + FILE_NAME_EXT
         );
-        return new ParquetWriter(filePath.toString(), writerGeneration, dataFormat, schemaSupplier.get(), bufferPool, settings, threadPool);
+        return new ParquetWriter(
+            filePath.toString(),
+            writerGeneration,
+            dataFormat,
+            schemaSupplier.get(),
+            bufferPool,
+            settings,
+            threadPool,
+            checksumStrategy
+        );
     }
 
     @Override

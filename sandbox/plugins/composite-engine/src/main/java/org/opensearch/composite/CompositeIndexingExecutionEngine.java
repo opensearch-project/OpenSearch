@@ -33,6 +33,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FormatChecksumStrategy;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,11 +86,13 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      * The writer pool is created internally and initialized with a writer supplier
      * that creates {@link CompositeWriter} instances bound to this engine.
      *
-     * @param dataFormatPlugins the discovered data format plugins keyed by format name
-     * @param indexSettings the index settings containing composite configuration
-     * @param mapperService the mapper service for field mapping resolution
-     * @param shardPath the shard path for file storage
-     * @param committer the committer for durable catalog snapshot persistence during flush
+     * @param dataFormatPlugins   the discovered data format plugins keyed by format name
+     * @param indexSettings       the index settings containing composite configuration
+     * @param mapperService       the mapper service for field mapping resolution
+     * @param shardPath           the shard path for file storage
+     * @param committer           the committer for durable catalog snapshot persistence during flush
+     * @param checksumStrategies  per-format checksum strategies from the directory, keyed by format name.
+     *                            May be null or empty if the directory is not yet available.
      * @throws IllegalArgumentException if any configured format is not registered
      * @throws IllegalStateException if committer is null
      */
@@ -98,7 +101,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
         IndexSettings indexSettings,
         MapperService mapperService,
         ShardPath shardPath,
-        Committer committer
+        Committer committer,
+        Map<String, FormatChecksumStrategy> checksumStrategies
     ) {
         Objects.requireNonNull(dataFormatPlugins, "dataFormatPlugins must not be null");
         Objects.requireNonNull(indexSettings, "indexSettings must not be null");
@@ -108,22 +112,23 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         Settings settings = indexSettings.getSettings();
 
-        String primaryFormatName = CompositeEnginePlugin.PRIMARY_DATA_FORMAT.get(settings);
-        List<String> secondaryFormatNames = CompositeEnginePlugin.SECONDARY_DATA_FORMATS.get(settings);
+        String primaryFormatName = CompositeDataFormatPlugin.PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = CompositeDataFormatPlugin.SECONDARY_DATA_FORMATS.get(settings);
 
         validateFormatsRegistered(dataFormatPlugins, primaryFormatName, secondaryFormatNames);
 
+        Map<String, FormatChecksumStrategy> strategies = checksumStrategies != null ? checksumStrategies : Map.of();
         IndexingEngineConfig engineSettings = new IndexingEngineConfig(committer, mapperService, shardPath, indexSettings, null);
 
         List<DataFormat> allFormats = new ArrayList<>();
         DataFormatPlugin primaryPlugin = dataFormatPlugins.get(primaryFormatName);
-        this.primaryEngine = primaryPlugin.indexingEngine(engineSettings);
+        this.primaryEngine = primaryPlugin.indexingEngine(engineSettings, strategies.get(primaryFormatName));
         allFormats.add(primaryPlugin.getDataFormat());
 
         List<IndexingExecutionEngine<?, ?>> secondaries = new ArrayList<>();
         for (String secondaryName : secondaryFormatNames) {
             DataFormatPlugin secondaryPlugin = dataFormatPlugins.get(secondaryName);
-            secondaries.add(secondaryPlugin.indexingEngine(engineSettings));
+            secondaries.add(secondaryPlugin.indexingEngine(engineSettings, strategies.get(secondaryName)));
             allFormats.add(secondaryPlugin.getDataFormat());
         }
         this.secondaryEngines = Set.copyOf(secondaries);

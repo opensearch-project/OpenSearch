@@ -15,6 +15,7 @@ import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
@@ -35,6 +36,9 @@ import java.util.stream.Collectors;
  */
 @ExperimentalApi
 public class DataFormatRegistry {
+
+    /** Index setting name that specifies the active pluggable data format. */
+    public static final String PLUGGABLE_DATAFORMAT_SETTING = "pluggable_dataformat";
 
     /** Map from data format to the plugin that provides its indexing engine. */
     private final Map<DataFormat, DataFormatPlugin> dataFormatPluginRegistry;
@@ -100,7 +104,10 @@ public class DataFormatRegistry {
         if (plugin == null) {
             throw new IllegalArgumentException("No plugin registered for DataFormat [" + format.name() + "]");
         }
-        return plugin.indexingEngine(settings);
+        Map<String, DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(settings.indexSettings());
+        DataFormatDescriptor descriptor = descriptors.get(format.name());
+        FormatChecksumStrategy checksumStrategy = descriptor != null ? descriptor.getChecksumStrategy() : null;
+        return plugin.indexingEngine(settings, checksumStrategy);
     }
 
     public DataFormat format(String name) {
@@ -133,10 +140,32 @@ public class DataFormatRegistry {
     /**
      * Returns an unmodifiable view of all registered data formats and their plugins.
      *
-     * @return unmodifiable map of data formats to plugins
+     * @return unmodifiable set of data formats
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
+    }
+
+    /**
+     * Returns format descriptors for the active data format of the given index.
+     * Resolves the data format from index settings via the {@code pluggable_dataformat} setting,
+     * then delegates to {@link DataFormatPlugin#getFormatDescriptors(IndexSettings)}.
+     *
+     * @param indexSettings the index settings used to determine the active data format
+     * @return unmodifiable map of format name to descriptor, or empty map if no pluggable data format is configured
+     */
+    public Map<String, DataFormatDescriptor> getFormatDescriptors(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.getSettings().get(PLUGGABLE_DATAFORMAT_SETTING);
+        if (dataformatName != null) {
+            DataFormat format = dataFormats.get(dataformatName);
+            if (format != null) {
+                DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+                if (plugin != null) {
+                    return plugin.getFormatDescriptors(indexSettings);
+                }
+            }
+        }
+        return Map.of();
     }
 
     /**

@@ -100,7 +100,7 @@ pub fn create_mismatched_ffi_data() -> Result<(i64, i64), Box<dyn std::error::Er
     Ok((array_ptr, schema_ptr))
 }
 
-pub fn close_writer_and_get_metadata(filename: &str, schema_ptr: i64) -> parquet::format::FileMetaData {
+pub fn close_writer_and_get_metadata(filename: &str, schema_ptr: i64) -> crate::writer::FinalizeResult {
     let result = NativeParquetWriter::finalize_writer(filename.to_string());
     cleanup_ffi_schema(schema_ptr);
     result.unwrap().unwrap()
