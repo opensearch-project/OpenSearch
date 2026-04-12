@@ -10,6 +10,7 @@ package org.opensearch.dsl.converter;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalAggregate;
+import org.apache.calcite.rel.logical.LogicalFilter;
 import org.opensearch.dsl.aggregation.AggregationMetadata;
 
 /**
@@ -29,8 +30,12 @@ public class AggregateConverter {
      * @return the LogicalAggregate node
      */
     public RelNode convert(RelNode input, AggregationMetadata metadata) {
+        RelNode filtered = input;
+        if (metadata.getFilterCondition() != null) {
+            filtered = LogicalFilter.create(input, metadata.getFilterCondition());
+        }
         return LogicalAggregate.create(
-            input,
+            filtered,
             metadata.getGroupByBitSet(),
             null,
             metadata.getAggregateCalls()
