@@ -9,9 +9,28 @@ _search request
   → SearchActionFilter (intercepts SearchAction)
     → TransportDslExecuteAction (resolves index, orchestrates pipeline)
       → SearchSourceConverter (DSL → Calcite RelNode)
+      → FilterConverter (converts query + search_after to LogicalFilter)
       → DslQueryPlanExecutor (delegates to analytics engine)
       → SearchResponseBuilder (builds SearchResponse)
 ```
+
+## Supported Features
+
+- **Query DSL**: `term`, `match_all` (via QueryTranslators)
+- **Pagination**: `search_after` with multi-field sorting (converted to filter conditions via FilterConverter)
+- **Sorting**: Field sorts with `from`/`size`
+- **Aggregations**: Metric and bucket aggregations
+
+## Key Components
+
+### FilterConverter
+
+Converts DSL `query` clauses and `search_after` pagination into Calcite `LogicalFilter` nodes:
+
+- Translates OpenSearch queries to RexNode conditions using QueryRegistry
+- Converts `search_after` values into equivalent filter predicates based on sort order
+- Supports multi-field sorting with proper precedence handling
+- Validates that `search_after` values match sort field count
 
 ## Dependencies
 
