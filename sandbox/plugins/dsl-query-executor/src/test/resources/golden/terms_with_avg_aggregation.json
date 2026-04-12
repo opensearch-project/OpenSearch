@@ -1,0 +1,45 @@
+{
+  "testName": "terms_with_avg_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "by_brand": {
+        "terms": {
+          "field": "brand"
+        },
+        "aggregations": {
+          "avg_price": {
+            "avg": {
+              "field": "price"
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": "LogicalAggregate(group=[{2}], avg_price=[AVG($1)], _count=[COUNT()])\n  LogicalTableScan(table=[[test-index]])",
+  "executionFieldNames": ["brand", "avg_price", "_count"],
+  "executionRows": [
+    ["BrandA", 850.0, 3],
+    ["BrandB", 1100.0, 2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
