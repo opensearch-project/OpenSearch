@@ -37,7 +37,11 @@ public class RecordBatchStream implements Closeable {
      * @param parentAllocator parent allocator to create child from
      */
     public RecordBatchStream(long streamId, long runtimePtr, BufferAllocator parentAllocator) {
-        this.streamHandle = new StreamHandle(streamId, runtimePtr);
+        this(streamId, runtimePtr, 0L, parentAllocator);
+    }
+
+    public RecordBatchStream(long streamId, long runtimePtr, long taskId, BufferAllocator parentAllocator) {
+        this.streamHandle = new StreamHandle(streamId, runtimePtr, taskId);
         this.allocator = parentAllocator.newChildAllocator("stream-" + streamId, 0, Long.MAX_VALUE);
         this.dictionaryProvider = new CDataDictionaryProvider();
         this.schemaFuture = streamHandle.getSchema(allocator, dictionaryProvider)

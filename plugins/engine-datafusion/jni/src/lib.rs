@@ -52,6 +52,7 @@ mod cache_jni;
 mod partial_agg_optimizer;
 mod query_executor;
 mod indexed_query_executor;
+mod cancellation;
 mod indexed_table;
 mod project_row_id_analyzer;
 pub mod logger;
@@ -59,6 +60,8 @@ pub mod logger;
 // Import logger macros from shared crate
 use vectorized_exec_spi::{log_info, log_error, log_debug};
 
+use dashmap::DashMap;
+use tokio_util::sync::CancellationToken;
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global, set_action_listener_ok_global_with_map};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
@@ -112,6 +115,22 @@ static SEGMENT_STATS_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
 static INDEXED_QUERY_EXECUTION_MONITOR: Lazy<TaskMonitor> = Lazy::new(|| {
     TaskMonitor::with_slow_poll_threshold(Duration::from_micros(100)).clone()
 });
+
+/// Per-query context
+pub struct QueryContext {
+    pub cancellation_token: CancellationToken,
+}
+
+impl QueryContext {
+    fn new() -> Self {
+        Self {
+            cancellation_token: CancellationToken::new(),
+        }
+    }
+}
+
+/// Registry of all in-flight queries on this node, keyed by ShardSearchContextId.
+static ACTIVE_QUERIES: Lazy<DashMap<i64, QueryContext>> = Lazy::new(DashMap::new);
 
 // Global runtime manager
 static TOKIO_RUNTIME_MANAGER: OnceLock<Arc<RuntimeManager>> = OnceLock::new();
@@ -321,6 +340,7 @@ fn log_runtime_metrics(metrics: &tokio_metrics::RuntimeMetrics) {
     log_info!("  Total overflow: {}", metrics.total_overflow_count);
     log_info!("  Global queue depth: {}", metrics.global_queue_depth);
     log_info!("  Blocking queue depth: {}", metrics.blocking_queue_depth);
+    log_info!("  Active queries (ACTIVE_QUERIES): {}", ACTIVE_QUERIES.len());
     let query_metrics = QUERY_EXECUTION_MONITOR.cumulative();
     log_task_metrics("Query exec (via CrossRtStream)", &query_metrics);
     let stream_metrics = STREAM_NEXT_MONITOR.cumulative();
@@ -657,6 +677,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     is_query_plan_explain_enabled: jboolean,
     target_partitions: jint,
     runtime_ptr: jlong,
+    task_id: jlong,
     listener: JObject,
 ) {
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
@@ -713,20 +734,34 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_metadata();
 
+    // Register this query before spawning so cancelQuery() can interrupt setup.
+    ACTIVE_QUERIES.insert(task_id, QueryContext::new());
+    let token = ACTIVE_QUERIES.get(&task_id).map(|ctx| ctx.cancellation_token.clone());
+
     spawn_jni_task(
         &io_runtime,
         "executeQueryPhaseAsync",
         listener_ref,
-        QUERY_EXECUTION_MONITOR.instrument(query_executor::execute_query_with_cross_rt_stream(
-            table_path,
-            files_meta,
-            table_name,
-            plan_bytes_vec,
-            is_query_plan_explain_enabled,
-            target_partitions,
-            runtime,
-            cpu_executor,
-        )),
+        async move {
+            let result = cancellation::cancellable(
+                token.as_ref(),
+                task_id,
+                QUERY_EXECUTION_MONITOR.instrument(query_executor::execute_query_with_cross_rt_stream(
+                    table_path,
+                    files_meta,
+                    table_name,
+                    plan_bytes_vec,
+                    is_query_plan_explain_enabled,
+                    target_partitions,
+                    runtime,
+                    cpu_executor,
+                )),
+            ).await;
+            if result.is_err() {
+                ACTIVE_QUERIES.remove(&task_id);
+            }
+            result
+        },
         |env, listener_ref, stream_pointer| set_action_listener_ok_global(env, listener_ref, stream_pointer),
     );
 }
@@ -778,6 +813,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     _class: JClass,
     runtime_ptr: jlong,
     stream: jlong,
+    task_id: jlong,
     listener: JObject,
 ) {
     let manager = match TOKIO_RUNTIME_MANAGER.get() {
@@ -806,6 +842,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
     let stream_ptr = stream;
     let io_runtime = manager.io_runtime.clone();
 
+    // Look up the cancellation token for this query.
+    let token = ACTIVE_QUERIES.get(&task_id).map(|ctx| ctx.cancellation_token.clone());
+
     // Ensure stream_ptr lifetime is guaranteed beyond the spawn boundary
     // (e.g., wrap in Arc<Mutex<...>> or ensure sequential access contract)
     spawn_jni_task(
@@ -815,9 +854,13 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamNex
         STREAM_NEXT_MONITOR.instrument(async move {
             let stream = unsafe { &mut *(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>) };
             // Poll the stream with monitoring
-            let result = stream.try_next().await?;
+            let maybe_batch = cancellation::cancellable_or(
+                token.as_ref(),
+                None,
+                async { stream.try_next().await.map_err(Into::into) },
+            ).await?;
 
-            match result {
+            match maybe_batch {
                 Some(batch) => {
                     log_info!("[RUST streamNext] Batch produced: {} rows, {} columns, schema: {:?}",
                         batch.num_rows(), batch.num_columns(), batch.schema().fields().iter().map(|f| f.name().as_str()).collect::<Vec<_>>());
@@ -880,6 +923,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
     include_fields: JObjectArray,
     exclude_fields: JObjectArray,
     runtime_ptr: jlong,
+    task_id: jlong,
     callback: JObject,
 ) -> jlong {
     let shard_view = unsafe { &*(shard_view_ptr as *const ShardView) };
@@ -887,6 +931,15 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
+
+    // Skip execution if this query was already cancelled before the fetch phase begins.
+    if ACTIVE_QUERIES.get(&task_id).map_or(false, |ctx| ctx.cancellation_token.is_cancelled()) {
+        let _ = env.throw_new(
+            "java/lang/RuntimeException",
+            format!("Fetch phase skipped: query {} cancelled", task_id),
+        );
+        return 0;
+    }
 
     let include_fields: Vec<String> =
         parse_string_arr(&mut env, include_fields).expect("Expected list of files");
@@ -968,7 +1021,9 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_streamClo
     _env: JNIEnv,
     _class: JClass,
     stream: jlong,
+    task_id: jlong,
 ) {
+    ACTIVE_QUERIES.remove(&task_id);
     let _ = unsafe { Box::from_raw(stream as *mut RecordBatchStreamAdapter<CrossRtStream>) };
 }
 
@@ -1138,5 +1193,22 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeIn
             log_error!("Indexed query execution failed: {}", e);
             set_action_listener_error(&mut env, listener, &e);
         }
+    }
+}
+
+/// Signals cancellation for the query registered under the given task ID.
+/// The cancellation token is picked up by the select! in executeQueryPhaseAsync
+/// and streamNext, causing them to return early to Java.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_cancelQuery(
+    _env: JNIEnv,
+    _class: JClass,
+    task_id: jlong,
+) {
+    if let Some(ctx) = ACTIVE_QUERIES.get(&task_id) {
+        ctx.cancellation_token.cancel();
+        log_info!("Cancelled query with task_id={}", task_id);
+    } else {
+        log_debug!("cancelQuery called for unknown/completed task_id={}", task_id);
     }
 }

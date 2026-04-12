@@ -233,6 +233,10 @@ public class DatafusionContext extends SearchContext {
         return null;
     }
 
+    public long getContextId() {
+        return readerContext.id().getId();
+    }
+
     @Override
     public String source() {
         return "";
