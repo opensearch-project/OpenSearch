@@ -1,0 +1,33 @@
+{
+  "testName": "match_all_hits",
+  "indexName": "test-index",
+  "indexMapping": {
+    "name": "VARCHAR",
+    "price": "INTEGER",
+    "brand": "VARCHAR",
+    "rating": "DOUBLE"
+  },
+  "planType": "HITS",
+  "inputDsl": {
+    "query": {
+      "match_all": {}
+    }
+  },
+  "expectedRelNodePlan": "LogicalTableScan(table=[[test-index]])\n",
+  "executionFieldNames": ["name", "price", "brand", "rating"],
+  "executionRows": [
+    ["laptop", 999, "BrandA", 4.5],
+    ["phone", 699, "BrandB", 4.2]
+  ],
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 0,
+        "relation": "eq"
+      },
+      "max_score": 0.0,
+      "hits": []
+    }
+  }
+}
