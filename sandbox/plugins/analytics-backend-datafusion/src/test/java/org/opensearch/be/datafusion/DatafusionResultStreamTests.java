@@ -11,7 +11,8 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
-import org.opensearch.be.datafusion.jni.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -27,19 +28,14 @@ import java.util.concurrent.CompletableFuture;
  */
 public class DatafusionResultStreamTests extends OpenSearchTestCase {
 
-    private long readerPtr;
+    private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
-
-    private static boolean runtimeInitialized = false;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        if (runtimeInitialized == false) {
-            NativeBridge.initTokioRuntimeManager(2);
-            runtimeInitialized = true;
-        }
+        NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("spill");
         long ptr = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir.toString(), 64 * 1024 * 1024);
         runtimeHandle = new NativeRuntimeHandle(ptr);
@@ -48,12 +44,12 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerPtr = NativeBridge.createDatafusionReader(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
     }
 
     @Override
     public void tearDown() throws Exception {
-        NativeBridge.closeDatafusionReader(readerPtr);
+        readerHandle.close();
         runtimeHandle.close();
         testRootAllocator.close();
         super.tearDown();
@@ -142,17 +138,23 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void testNativeQueryFailureDoesNotLeak() {
         // Invalid substrait bytes should cause native failure — verify error propagates and no leak
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerPtr, "test_table", new byte[] { 0, 1, 2 }, runtimeHandle.get(), new ActionListener<>() {
-            @Override
-            public void onResponse(Long ptr) {
-                future.complete(ptr);
-            }
+        NativeBridge.executeQueryAsync(
+            readerHandle.getPointer(),
+            "test_table",
+            new byte[] { 0, 1, 2 },
+            runtimeHandle.get(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Long ptr) {
+                    future.complete(ptr);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                future.completeExceptionally(e);
+                @Override
+                public void onFailure(Exception e) {
+                    future.completeExceptionally(e);
+                }
             }
-        });
+        );
         Exception ex = expectThrows(Exception.class, future::join);
         assertNotNull("Native error should propagate", ex.getCause());
         assertTrue(
@@ -170,9 +172,14 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long ptr2 = NativeBridge.createGlobalRuntime(128 * 1024 * 1024, 0L, spillDir2.toString(), 64 * 1024 * 1024);
         NativeRuntimeHandle tempRuntime = new NativeRuntimeHandle(ptr2);
 
-        byte[] substrait = NativeBridge.sqlToSubstrait(readerPtr, "test_table", "SELECT message FROM test_table", runtimeHandle.get());
+        byte[] substrait = NativeBridge.sqlToSubstrait(
+            readerHandle.getPointer(),
+            "test_table",
+            "SELECT message FROM test_table",
+            runtimeHandle.get()
+        );
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerPtr, "test_table", substrait, tempRuntime.get(), new ActionListener<>() {
+        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, tempRuntime.get(), new ActionListener<>() {
             @Override
             public void onResponse(Long p) {
                 future.complete(p);
@@ -186,7 +193,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         long streamPtr = future.join();
 
         DatafusionResultStream stream = new DatafusionResultStream(
-            new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, tempRuntime),
+            new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, tempRuntime),
             testRootAllocator.newChildAllocator("test-failure", 0, Long.MAX_VALUE)
         );
 
@@ -213,9 +220,9 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     }
 
     private DatafusionResultStream createStream(String sql) {
-        byte[] substrait = NativeBridge.sqlToSubstrait(readerPtr, "test_table", sql, runtimeHandle.get());
+        byte[] substrait = NativeBridge.sqlToSubstrait(readerHandle.getPointer(), "test_table", sql, runtimeHandle.get());
         CompletableFuture<Long> future = new CompletableFuture<>();
-        NativeBridge.executeQueryAsync(readerPtr, "test_table", substrait, runtimeHandle.get(), new ActionListener<>() {
+        NativeBridge.executeQueryAsync(readerHandle.getPointer(), "test_table", substrait, runtimeHandle.get(), new ActionListener<>() {
             @Override
             public void onResponse(Long ptr) {
                 future.complete(ptr);
@@ -228,6 +235,9 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         });
         long streamPtr = future.join();
         BufferAllocator childAllocator = testRootAllocator.newChildAllocator("test-stream", 0, Long.MAX_VALUE);
-        return new DatafusionResultStream(new org.opensearch.be.datafusion.jni.StreamHandle(streamPtr, runtimeHandle), childAllocator);
+        return new DatafusionResultStream(
+            new org.opensearch.be.datafusion.nativelib.StreamHandle(streamPtr, runtimeHandle),
+            childAllocator
+        );
     }
 }

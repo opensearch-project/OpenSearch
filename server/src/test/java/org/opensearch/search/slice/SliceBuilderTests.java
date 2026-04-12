@@ -210,7 +210,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
         SliceBuilder sliceBuilder = randomSliceBuilder();
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder.startObject();
         sliceBuilder.innerToXContent(builder);

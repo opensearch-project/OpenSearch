@@ -14,6 +14,7 @@ use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::file::metadata::ParquetMetaData;
 use parquet::format::FileMetaData as FormatFileMetaData;
 use std::fs::File;
 use std::sync::{Arc, Mutex};
@@ -100,9 +101,21 @@ impl NativeParquetWriter {
             match Arc::try_unwrap(writer_arc) {
                 Ok(mutex) => {
                     let writer = mutex.into_inner().unwrap();
-                    let file_metadata = writer.close()?;
-                    log_debug!("Successfully closed writer for file: {}, num_rows={}", filename, file_metadata.num_rows);
-                    Ok(Some(file_metadata))
+                    let parquet_metadata = writer.close()?;
+                    let file_metadata = parquet_metadata.file_metadata();
+                    log_debug!("Successfully closed writer for file: {}, num_rows={}", filename, file_metadata.num_rows());
+                    let format_metadata = FormatFileMetaData {
+                        version: file_metadata.version(),
+                        num_rows: file_metadata.num_rows(),
+                        created_by: file_metadata.created_by().map(|s| s.to_string()),
+                        schema: vec![],
+                        row_groups: vec![],
+                        key_value_metadata: None,
+                        encryption_algorithm: None,
+                        footer_signing_key_metadata: None,
+                        column_orders: None,
+                    };
+                    Ok(Some(format_metadata))
                 }
                 Err(_) => {
                     log_error!("ERROR: Writer still in use for file: {}", filename);
