@@ -556,7 +556,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
 
     // ========== Helper methods ==========
 
-    private CompositeMergeHandler createHandler() {
+    private MergeHandler createHandler() {
         return CompositeMergeHandler.create(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
     }
 
