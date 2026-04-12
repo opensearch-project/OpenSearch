@@ -22,6 +22,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.datafusion.action.DataFusionAction;
+import org.opensearch.datafusion.action.MemoryPoolAction;
 import org.opensearch.datafusion.action.NodesDataFusionInfoAction;
 import org.opensearch.datafusion.action.TransportNodesDataFusionInfoAction;
 import org.opensearch.datafusion.search.DatafusionContext;
@@ -185,7 +186,12 @@ public class DataFusionPlugin extends Plugin implements ActionPlugin, SearchEngi
         if (!isDataFusionEnabled) {
             return Collections.emptyList();
         }
-        return List.of(new DataFusionAction());
+        List<RestHandler> handlers = new ArrayList<>();
+        handlers.add(new DataFusionAction());
+        if (dataFusionService != null) {
+            handlers.add(new MemoryPoolAction(dataFusionService.getRuntimePointer()));
+        }
+        return handlers;
     }
 
     @Override

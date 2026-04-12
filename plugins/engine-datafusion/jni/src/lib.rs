@@ -61,7 +61,7 @@ use vectorized_exec_spi::{log_info, log_error, log_debug};
 
 use crate::custom_cache_manager::CustomCacheManager;
 use crate::util::{create_file_meta_from_filenames, parse_string_arr, set_action_listener_error, set_action_listener_error_global, set_action_listener_ok, set_action_listener_ok_global, set_action_listener_ok_global_with_map};
-use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
+use datafusion::execution::memory_pool::TrackConsumersPool;
 
 use crate::statistics_cache::CustomStatisticsCache;
 use datafusion::execution::cache::cache_manager::CacheManagerConfig;
@@ -80,7 +80,7 @@ use log::error;
 use once_cell::sync::Lazy;
 use tokio_metrics::TaskMonitor;
 use crate::cross_rt_stream::CrossRtStream;
-use crate::memory::{Monitor, MonitoredMemoryPool};
+use crate::memory::{DynamicLimitHandle, DynamicLimitPool, Monitor, MonitoredMemoryPool};
 use crate::runtime_manager::RuntimeManager;
 
 mod statistics_cache;
@@ -90,6 +90,7 @@ struct DataFusionRuntime {
     runtime_env: RuntimeEnv,
     custom_cache_manager: Option<CustomCacheManager>,
     monitor: Arc<Monitor>,
+    dynamic_limit_handle: DynamicLimitHandle,
 }
 
 // TASK monitorint metrics
@@ -363,9 +364,10 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
     let builder = builder.with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let monitor = Arc::new(Monitor::default());
+    let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
     let memory_pool = Arc::new(MonitoredMemoryPool::new(
         Arc::new(TrackConsumersPool::new(
-            GreedyMemoryPool::new(memory_pool_limit as usize),
+            dynamic_pool,
             NonZeroUsize::new(5).unwrap(),
         )),
         monitor.clone(),
@@ -391,6 +393,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createGlo
         runtime_env,
         custom_cache_manager,
         monitor,
+        dynamic_limit_handle,
     };
 
     Box::into_raw(Box::new(runtime)) as jlong
@@ -405,6 +408,61 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_closeGlob
     if ptr != 0 {
         let _ = unsafe { Box::from_raw(ptr as *mut DataFusionRuntime) };
     }
+}
+
+/// Get current memory pool usage in bytes.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getMemoryPoolCurrentUsage(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong,
+) -> jlong {
+    if runtime_ptr == 0 { return 0; }
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
+    runtime.monitor.get_current_val() as jlong
+}
+
+/// Get peak memory pool usage in bytes.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getMemoryPoolPeakUsage(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong,
+) -> jlong {
+    if runtime_ptr == 0 { return 0; }
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
+    runtime.monitor.max() as jlong
+}
+
+/// Get current memory pool limit in bytes.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_getMemoryPoolLimit(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong,
+) -> jlong {
+    if runtime_ptr == 0 { return 0; }
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
+    runtime.dynamic_limit_handle.limit() as jlong
+}
+
+/// Set memory pool limit at runtime. Takes effect for new allocations only.
+#[no_mangle]
+pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_setMemoryPoolLimit(
+    _env: JNIEnv,
+    _class: JClass,
+    runtime_ptr: jlong,
+    new_limit_bytes: jlong,
+) {
+    if runtime_ptr == 0 { return; }
+    let runtime = unsafe { &*(runtime_ptr as *const DataFusionRuntime) };
+    let old_limit = runtime.dynamic_limit_handle.limit();
+    runtime.dynamic_limit_handle.set_limit(new_limit_bytes as usize);
+    log_info!(
+        "Memory pool limit changed from {}MB to {}MB",
+        old_limit / (1024 * 1024),
+        new_limit_bytes as usize / (1024 * 1024)
+    );
 }
 
 #[no_mangle]
