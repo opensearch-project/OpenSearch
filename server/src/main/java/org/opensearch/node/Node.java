@@ -248,6 +248,8 @@ import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.ratelimitting.admissioncontrol.transport.AdmissionControlTransportInterceptor;
 import org.opensearch.repositories.RepositoriesModule;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.NativeRemoteObjectStoreService;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
 import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
@@ -1373,6 +1375,14 @@ public class Node implements Closeable {
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);
+
+            // Native remote object store service — discovers NativeRemoteObjectStoreProvider plugins
+            // and provides cached native store pointers for consumers like tiered storage.
+            // Created unconditionally; empty providers list on non-sandbox builds → no-op service.
+            final NativeRemoteObjectStoreService nativeRemoteObjectStoreService = new NativeRemoteObjectStoreService(
+                pluginsService.filterPlugins(NativeRemoteObjectStoreProvider.class)
+            );
+
             SnapshotsService snapshotsService = new SnapshotsService(
                 settings,
                 clusterService,
@@ -1647,6 +1657,7 @@ public class Node implements Closeable {
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                 b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                 b.bind(RepositoriesService.class).toInstance(repositoryService);
+                b.bind(NativeRemoteObjectStoreService.class).toInstance(nativeRemoteObjectStoreService);
                 b.bind(SnapshotsService.class).toInstance(snapshotsService);
                 b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
                 b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
@@ -2043,6 +2054,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));
         toClose.add(injector.getInstance(RepositoriesService.class));
+        toClose.add(injector.getInstance(NativeRemoteObjectStoreService.class));
         toClose.add(() -> stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
         toClose.add(() -> stopWatch.stop().start("indices_cluster"));

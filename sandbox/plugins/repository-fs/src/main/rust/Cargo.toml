@@ -1,0 +1,19 @@
+[package]
+name = "opensearch-repository-fs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust local filesystem backend for OpenSearch tiered storage (testing)"
+license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+object_store = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+native-bridge-common = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

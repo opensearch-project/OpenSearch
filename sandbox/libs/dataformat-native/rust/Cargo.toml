@@ -6,8 +6,11 @@ members = [
     "lib",
     "../../../plugins/analytics-backend-datafusion/rust",
     "../../../plugins/parquet-data-format/src/main/rust",
-    "../../../modules/tiered-storage/src/main/rust",
-    "../../../libs/remote-store/src/main/rust",
+    "../../../plugins/repository-s3/src/main/rust",
+    "../../../plugins/repository-gcs/src/main/rust",
+    "../../../plugins/repository-azure/src/main/rust",
+    "../../../plugins/repository-fs/src/main/rust",
+    "../../../libs/tiered-storage/src/main/rust",
 ]
 
 [workspace.dependencies]
@@ -56,7 +59,10 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Internal
 native-bridge-common = { path = "common" }
-opensearch-remote-store = { path = "../../../libs/remote-store/src/main/rust" }
+opensearch-repository-s3 = { path = "../../../plugins/repository-s3/src/main/rust" }
+opensearch-repository-gcs = { path = "../../../plugins/repository-gcs/src/main/rust" }
+opensearch-repository-azure = { path = "../../../plugins/repository-azure/src/main/rust" }
+opensearch-repository-fs = { path = "../../../plugins/repository-fs/src/main/rust" }
 
 [profile.release]
 lto = true
