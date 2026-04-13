@@ -27,15 +27,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class CompositeMergePolicy implements MergePolicy.MergeContext {
     private final MergePolicy luceneMergePolicy;
@@ -210,6 +202,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
 
     private static class SegmentWrapper extends SegmentCommitInfo {
         private final long totalSizeBytes;
+        private final Segment segment;
 
         public SegmentWrapper(Segment segment, long totalSizeBytes, long totalNumDocs) throws IOException {
             super(
@@ -253,6 +246,7 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
                 // id
                 UUID.randomUUID().toString().substring(0,16).getBytes());
             this.totalSizeBytes = totalSizeBytes;
+            this.segment = segment;
         }
 
         @Override
@@ -263,6 +257,21 @@ public class CompositeMergePolicy implements MergePolicy.MergeContext {
         @Override
         public int getDelCount() {
             return 0;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof SegmentWrapper other)) return false;
+
+            if (this.segment.getGeneration() != other.segment.getGeneration()) return false;
+            return Objects.equals(this.segment.getDFGroupedSearchableFiles(),
+                other.segment.getDFGroupedSearchableFiles());
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(segment.getGeneration());
         }
     }
 }
