@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.lucene.engine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FilterMergePolicy;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -18,12 +19,21 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.PrintStreamInfoStream;
+import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.CombinedDeletionPolicy;
+import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.index.engine.EngineException;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.DataFormat;
 import org.opensearch.index.engine.exec.DocumentInput;
 import org.opensearch.index.engine.exec.EngineRole;
@@ -33,13 +43,19 @@ import org.opensearch.index.engine.exec.Merger;
 import org.opensearch.index.engine.exec.RefreshInput;
 import org.opensearch.index.engine.exec.RefreshResult;
 import org.opensearch.index.engine.exec.Writer;
+import org.opensearch.index.engine.exec.commit.CommitPoint;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.Segment;
 import org.opensearch.index.engine.exec.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.exec.lucene.fields.LuceneFieldRegistry;
 import org.opensearch.index.engine.exec.lucene.writer.LuceneWriter;
 import org.opensearch.index.engine.exec.lucene.writer.LuceneWriterCodec;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -48,10 +64,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 import static org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter.ROW_ID;
 
-public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneDataFormat> {
+public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneDataFormat>, Committer {
 
     private final MapperService mapperService;
     private final ShardPath shardPath;
@@ -59,6 +76,7 @@ public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneData
     private final EngineConfig engineConfig;
     private static final Logger logger = LogManager.getLogger(LuceneExecutionEngine.class);
     private final boolean isPrimaryEngine;
+    private LuceneCommitEngine luceneCommitEngine;
 
     public LuceneExecutionEngine(EngineConfig engineConfig, MapperService mapperService, boolean isPrimaryEngine, ShardPath shardPath, IndexSettings indexSettings, FieldAssignments fieldAssignments) {
         this.engineConfig = engineConfig;
@@ -68,6 +86,36 @@ public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneData
         this.shardPath = shardPath;
         // TODO: Add check for Lucene being the primary engine and MapperService has an unknown field, currently
         // in POC it's only a secondary engine so we don't need to have all fields in this.
+    }
+
+    /**
+     * Initializes the commit-time IndexWriter and LuceneCommitEngine.
+     * Must be called before any Committer methods are used.
+     */
+    public void initializeCommitEngine(
+        Store store,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        boolean primaryMode
+    ) throws IOException {
+        Logger commitLogger = Loggers.getLogger(LuceneCommitEngine.class, store.shardId());
+        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(
+            commitLogger, translogDeletionPolicy, null, globalCheckpointSupplier
+        );
+
+        //Use CustomIndexWriter here
+        IndexWriter indexWriter = null;
+        if (primaryMode) {
+            IndexWriterConfig iwc = new IndexWriterConfig();
+            iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            iwc.setMergeScheduler(new SerialMergeScheduler());
+            iwc.setIndexSort(new Sort(new SortField(ROW_ID, SortField.Type.LONG)));
+            iwc.setParentField(null);
+
+            indexWriter = new IndexWriter(store.directory(), iwc);
+        }
+        this.luceneCommitEngine = new LuceneCommitEngine(store, combinedDeletionPolicy, indexWriter);
     }
 
     @Override
@@ -171,8 +219,39 @@ public class LuceneExecutionEngine implements IndexingExecutionEngine<LuceneData
 
     }
 
+    // --- Committer delegation ---
+
+    @Override
+    public void addLuceneIndexes(List<Segment> segments) throws IOException {
+        luceneCommitEngine.addLuceneIndexes(segments);
+    }
+
+    @Override
+    public CommitPoint commit(Iterable<Map.Entry<String, String>> commitData, CatalogSnapshot catalogSnapshot) {
+        return luceneCommitEngine.commit(commitData, catalogSnapshot);
+    }
+
+    @Override
+    public Map<String, String> getLastCommittedData() {
+        return luceneCommitEngine.getLastCommittedData();
+    }
+
+    @Override
+    public CommitStats getCommitStats() {
+        return luceneCommitEngine.getCommitStats();
+    }
+
+    @Override
+    public SafeCommitInfo getSafeCommitInfo() {
+        return luceneCommitEngine.getSafeCommitInfo();
+    }
+
+    public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
+        return luceneCommitEngine.acquireSafeIndexCommit();
+    }
+
     @Override
     public void close() throws IOException {
-
+        IOUtils.close(luceneCommitEngine.acquireSafeIndexCommit());
     }
 }

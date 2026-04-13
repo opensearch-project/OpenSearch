@@ -15,13 +15,18 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.index.engine.exec.FieldCapability;
 import org.opensearch.index.engine.exec.lucene.fields.LuceneField;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class KeywordLuceneField extends LuceneField {
+
+    private static final Map<Long, FieldType> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
 
     @Override
     public void createField(MappedFieldType fieldType, ParseContext.Document document, Object parseValue) {
@@ -32,12 +37,7 @@ public class KeywordLuceneField extends LuceneField {
         boolean shouldStore = fieldType.isStored();
 
         if (shouldIndex || shouldStore) {
-            FieldType luceneFieldType = new FieldType();
-            luceneFieldType.setTokenized(false);
-            luceneFieldType.setStored(shouldStore);
-            luceneFieldType.setOmitNorms(true);
-            luceneFieldType.setIndexOptions(shouldIndex ? IndexOptions.DOCS : IndexOptions.NONE);
-            luceneFieldType.freeze();
+            FieldType luceneFieldType = getFieldType(fieldType);
             document.add(new Field(fieldType.name(), binaryValue, luceneFieldType));
         }
 
@@ -50,4 +50,18 @@ public class KeywordLuceneField extends LuceneField {
     public Set<FieldCapability> getFieldCapabilities() {
         return EnumSet.of(FieldCapability.STORE, FieldCapability.INDEX, FieldCapability.DOC_VALUES);
     }
+
+    private FieldType getFieldType(MappedFieldType fieldType) {
+        long key = (fieldType.isStored() ? 1L : 0L) | (fieldType.isSearchable() ? 2L : 0L);
+        return FIELD_TYPE_CACHE.computeIfAbsent(key, k -> {
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setStored(fieldType.isStored());
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(fieldType.isSearchable() ? IndexOptions.DOCS : IndexOptions.NONE);
+            ft.freeze();
+            return ft;
+        });
+    }
+
 }

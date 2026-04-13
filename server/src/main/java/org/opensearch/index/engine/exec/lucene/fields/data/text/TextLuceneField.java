@@ -17,9 +17,13 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.ParseContext;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TextLuceneField extends LuceneField {
+
+    private static final Map<Long, FieldType> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
 
     @Override
     public void createField(MappedFieldType fieldType, ParseContext.Document document, Object parseValue) {
@@ -29,9 +33,7 @@ public class TextLuceneField extends LuceneField {
         boolean shouldStore = fieldType.isStored();
 
         if (shouldIndex || shouldStore) {
-            FieldType luceneFieldType = new FieldType();
-            luceneFieldType.setStored(shouldStore);
-            luceneFieldType.setIndexOptions(shouldIndex ? IndexOptions.DOCS_AND_FREQS_AND_POSITIONS : IndexOptions.NONE);
+            FieldType luceneFieldType = getFieldType(fieldType);
             Field field = new Field(fieldType.name(), value, luceneFieldType);
             document.add(field);
         }
@@ -40,5 +42,18 @@ public class TextLuceneField extends LuceneField {
     @Override
     public Set<FieldCapability> getFieldCapabilities() {
         return EnumSet.of(FieldCapability.STORE, FieldCapability.INDEX);
+    }
+
+    private FieldType getFieldType(MappedFieldType fieldType) {
+        long key = (fieldType.isStored() ? 1L : 0L) | (fieldType.isSearchable() ? 2L : 0L);
+        return FIELD_TYPE_CACHE.computeIfAbsent(key, k -> {
+            FieldType ft = new FieldType();
+            ft.setTokenized(false);
+            ft.setStored(fieldType.isStored());
+            ft.setOmitNorms(true);
+            ft.setIndexOptions(fieldType.isSearchable() ? IndexOptions.DOCS : IndexOptions.NONE);
+            ft.freeze();
+            return ft;
+        });
     }
 }

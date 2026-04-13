@@ -69,6 +69,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.LuceneCommitEngine;
 import org.opensearch.index.engine.exec.composite.CompositeDataFormatWriter;
 import org.opensearch.index.engine.exec.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.index.engine.exec.lucene.engine.LuceneExecutionEngine;
 import org.opensearch.index.engine.exec.merge.CompositeMergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeHandler;
 import org.opensearch.index.engine.exec.merge.MergeResult;
@@ -320,10 +321,8 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
             this.translogManager = translogManagerRef;
 
             // initialize committer and composite indexing execution engine
-            committerRef = new LuceneCommitEngine(store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint, !config().isReadOnlyReplica());
-            this.compositeEngineCommitter = committerRef;
             final AtomicLong lastCommittedWriterGeneration = new AtomicLong(-1);
-            Map<String, String> lastCommittedData = this.compositeEngineCommitter.getLastCommittedData();
+            Map<String, String> lastCommittedData = store.readLastCommittedSegmentsInfo().getUserData();
             if (lastCommittedData.containsKey(LAST_COMPOSITE_WRITER_GEN_KEY)) {
                 lastCommittedWriterGeneration.set(Long.parseLong(lastCommittedData.get(LAST_COMPOSITE_WRITER_GEN_KEY)));
             }
@@ -337,6 +336,18 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
                 lastCommittedWriterGeneration.incrementAndGet(),
                 indexSettings
             );
+            // Find LuceneExecutionEngine from delegates and initialize its commit engine
+            LuceneExecutionEngine luceneExecutionEngine = this.engine.getDelegates().stream()
+                .filter(d -> d instanceof LuceneExecutionEngine)
+                .map(d -> (LuceneExecutionEngine) d)
+                .findFirst()
+                .orElseThrow(() -> new EngineCreationFailureException(shardId, "LuceneExecutionEngine not found in delegates", null));
+            luceneExecutionEngine.initializeCommitEngine(
+                store, translogDeletionPolicy, translogManager::getLastSyncedGlobalCheckpoint, !config().isReadOnlyReplica()
+            );
+            committerRef = luceneExecutionEngine;
+            this.compositeEngineCommitter = committerRef;
+
             this.catalogSnapshotManager = new CatalogSnapshotManager(this, committerRef, shardPath, deleteUnreferencedFiles);
             // How to bring the Dataformat here? Currently, this means only Text and LuceneFormat can be used
 
@@ -1549,12 +1560,10 @@ public class CompositeEngine implements LifecycleAware, Closeable, Indexer, Chec
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         ensureOpen();
-        if (compositeEngineCommitter instanceof LuceneCommitEngine) {
-            LuceneCommitEngine luceneCommitEngine = (LuceneCommitEngine) compositeEngineCommitter;
-            // Delegate to the LuceneCommitEngine's acquireSafeIndexCommit method
-            return luceneCommitEngine.acquireSafeIndexCommit();
+        if (compositeEngineCommitter instanceof LuceneExecutionEngine) {
+            return ((LuceneExecutionEngine) compositeEngineCommitter).acquireSafeIndexCommit();
         } else {
-            throw new EngineException(shardId, "CompositeEngine committer is not a LuceneCommitEngine");
+            throw new EngineException(shardId, "CompositeEngine committer is not a LuceneExecutionEngine");
         }
     }
 

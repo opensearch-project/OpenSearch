@@ -29,6 +29,7 @@ public class ManagedVSR implements AutoCloseable {
     private final BufferAllocator allocator;
     private VSRState state;
     private final Map<String, Field> fields = new HashMap<>();
+    private final Map<String, FieldVector> vectorCache = new HashMap<>();
 
 
     public ManagedVSR(String id, Schema schema, BufferAllocator allocator) {
@@ -36,8 +37,8 @@ public class ManagedVSR implements AutoCloseable {
         this.vsr = VectorSchemaRoot.create(schema, allocator);
         this.allocator = allocator;
         this.state = VSRState.ACTIVE;
-        for (Field field : vsr.getSchema().getFields()) {
-            fields.put(field.getName(), field);
+        for (FieldVector vector : vsr.getFieldVectors()) {
+            vectorCache.put(vector.getName(), vector);
         }
     }
 
@@ -76,7 +77,7 @@ public class ManagedVSR implements AutoCloseable {
         if (state != VSRState.ACTIVE) {
             throw new IllegalStateException("Cannot access vector in VSR state: " + state + ". VSR must be ACTIVE to access vectors.");
         }
-        return vsr.getVector(fields.get(fieldName));
+        return vectorCache.get(fieldName);
     }
 
     /**
