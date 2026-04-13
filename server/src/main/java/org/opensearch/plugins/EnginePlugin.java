@@ -32,15 +32,19 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
 
+import java.io.IOException;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -114,6 +118,20 @@ public interface EnginePlugin {
      * @return a function that returns an instance of {@link TranslogDeletionPolicy}
      */
     default Optional<TranslogDeletionPolicyFactory> getCustomTranslogDeletionPolicyFactory() {
+        return Optional.empty();
+    }
+
+    /**
+     * When an index is created this method is invoked for each engine plugin. Engine plugins can inspect the settings to determine
+     * whether or not to provide a {@link Committer} for the given index. A plugin that does not provide a Committer should return
+     * {@link Optional#empty()}.
+     *
+     * @param indexSettings index settings to detect whether a committer should be passed or not.
+     * @return an optional committer factory
+     * @throws IOException if committer initialization fails
+     */
+    @ExperimentalApi
+    default Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) throws IOException {
         return Optional.empty();
     }
 }

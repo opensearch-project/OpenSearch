@@ -14,7 +14,6 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.BytesStreamInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -199,10 +198,5 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      */
     public boolean isClosed() {
         return closed.get();
-    }
-
-    @Override
-    public Object getReader(DataFormat dataFormat) {
-        throw new UnsupportedOperationException("Not implemented");
     }
 }

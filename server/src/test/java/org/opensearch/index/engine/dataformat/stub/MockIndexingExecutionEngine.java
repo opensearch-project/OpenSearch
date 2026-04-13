@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -78,5 +79,10 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     @Override
     public MockDocumentInput newDocumentInput() {
         return new MockDocumentInput();
+    }
+
+    @Override
+    public IndexStoreProvider getProvider() {
+        return null;
     }
 }

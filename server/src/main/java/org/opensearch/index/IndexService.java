@@ -357,11 +357,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
-        indexSettings.setDefaultMaxThreadAndMergeCount(
-            clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
-            clusterMergeSchedulerConfig.getClusterMaxMergeCount()
-        );
-        indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
+        if (clusterMergeSchedulerConfig != null) {
+            indexSettings.setDefaultMaxThreadAndMergeCount(
+                clusterMergeSchedulerConfig.getClusterMaxThreadCount(),
+                clusterMergeSchedulerConfig.getClusterMaxMergeCount()
+            );
+            indexSettings.setDefaultAutoThrottleEnabled(clusterMergeSchedulerConfig.getClusterMergeAutoThrottleEnabled());
+        }
         updateFsyncTaskIfNecessary();
         synchronized (refreshMutex) {
             if (shardLevelRefreshEnabled == false) {

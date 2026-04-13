@@ -9,10 +9,10 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Factory that discovers {@link SearchBackEndPlugin}s via
@@ -33,35 +34,46 @@ import java.util.Map;
 @ExperimentalApi
 public class DataFormatAwareEngineFactory {
 
-    private final Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
+    private final List<SearchBackEndPlugin<?>> searchBackEndPlugins;
+    private final ShardPath shardPath;
     private final IndexFileDeleter indexFileDeleter;
 
-    @SuppressWarnings("rawtypes")
-    public DataFormatAwareEngineFactory(
-        PluginsService pluginsService,
-        ShardPath shardPath,
-        MapperService mapperService,
-        IndexSettings indexSettings
-    ) throws IOException {
-        for (SearchBackEndPlugin plugin : pluginsService.filterPlugins(SearchBackEndPlugin.class)) {
-            List<DataFormat> formats = plugin.getSupportedFormats();
-            if (formats == null) {
-                continue;
-            }
-            for (DataFormat format : formats) {
-                // TODO: use mapperService and indexSettings to filter formats relevant to this index
-                readerManagers.put(format, plugin.createReaderManager(format, shardPath));
-            }
-        }
+    @SuppressWarnings("unchecked")
+    public DataFormatAwareEngineFactory(PluginsService pluginsService, ShardPath shardPath) throws IOException {
+        this.searchBackEndPlugins = (List<SearchBackEndPlugin<?>>) (List<?>) pluginsService.filterPlugins(SearchBackEndPlugin.class);
+        this.shardPath = shardPath;
         this.indexFileDeleter = new IndexFileDeleter(null, shardPath);
     }
 
     /**
-     * Creates a new {@link DataFormatAwareEngine} populated with the discovered
-     * reader managers and memoizing suppliers.
+     * Creates reader managers for all discovered search back-end plugins.
+     * The {@link IndexStoreProvider} is passed through so plugins can open readers from the store.
+     * <p>
+     * This is separate from the constructor because the store provider may not be available
+     * at factory construction time.
+     *
+     * @param indexStoreProvider the store provider, or empty if not available
+     * @return a map of data format to reader manager
+     * @throws IOException if reader manager creation fails
+     */
+    public Map<DataFormat, EngineReaderManager<?>> createReaderManagers(Optional<IndexStoreProvider> indexStoreProvider)
+        throws IOException {
+        Map<DataFormat, EngineReaderManager<?>> readerManagers = new HashMap<>();
+        for (SearchBackEndPlugin<?> plugin : searchBackEndPlugins) {
+            for (DataFormat format : plugin.getSupportedFormats()) {
+                // TODO: use mapperService and indexSettings to filter formats relevant to this index
+                readerManagers.put(format, plugin.createReaderManager(new ReaderManagerConfig(indexStoreProvider, format, shardPath)));
+            }
+        }
+        return readerManagers;
+    }
+
+    /**
+     * Creates a new {@link DataFormatAwareEngine} with empty reader managers.
+     * Reader managers should be populated later via {@link #createReaderManagers}.
      */
     public DataFormatAwareEngine create() {
-        return new DataFormatAwareEngine(readerManagers);
+        return new DataFormatAwareEngine(new HashMap<>());
     }
 
     /**
