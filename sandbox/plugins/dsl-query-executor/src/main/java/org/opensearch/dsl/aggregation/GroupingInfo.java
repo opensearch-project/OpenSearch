@@ -8,27 +8,17 @@
 
 package org.opensearch.dsl.aggregation;
 
-import org.apache.calcite.rel.type.RelDataType;
-import org.opensearch.dsl.converter.ConversionException;
-
 import java.util.List;
 
 /**
- * Represents a grouping contribution from a bucket aggregation.
- * Implementations provide field-based grouping (terms) or
- * expression-based grouping (histogram, range) without modifying this interface.
+ * Base interface for bucket aggregation grouping strategies.
+ * Provides field names used by the grouping for dependency tracking.
  */
 public interface GroupingInfo {
 
-    /** Returns the logical field names this grouping contributes. */
-    List<String> getFieldNames();
-
     /**
-     * Resolves this grouping to column indices in the input schema.
-     *
-     * @param inputRowType the schema before aggregation
-     * @return column indices for the GROUP BY bit set
-     * @throws ConversionException if field lookup fails
+     * Returns the field names referenced by this grouping.
+     * Used for tracking dependencies and building child key filters.
      */
-    List<Integer> resolveIndices(RelDataType inputRowType) throws ConversionException;
+    List<String> getFieldNames();
 }

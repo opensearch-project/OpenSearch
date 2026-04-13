@@ -9,6 +9,7 @@
 package org.opensearch.dsl.aggregation.bucket;
 
 import org.opensearch.dsl.TestUtils;
+import org.opensearch.dsl.aggregation.FieldGrouping;
 import org.opensearch.dsl.aggregation.GroupingInfo;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
@@ -29,7 +30,9 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
     }
 
     public void testResolveGroupByIndices() throws ConversionException {
-        List<Integer> indices = translator.getGrouping(brandAgg).resolveIndices(ctx.getRowType());
+        GroupingInfo grouping = translator.getGrouping(brandAgg);
+        assertTrue(grouping instanceof FieldGrouping);
+        List<Integer> indices = ((FieldGrouping) grouping).resolveIndices(ctx.getRowType());
 
         assertEquals(List.of(2), indices); // brand is index 2
     }
@@ -52,7 +55,9 @@ public class TermsBucketTranslatorTests extends OpenSearchTestCase {
     public void testThrowsForUnknownField() {
         TermsAggregationBuilder badAgg = new TermsAggregationBuilder("by_bad").field("nonexistent");
 
-        expectThrows(ConversionException.class, () -> translator.getGrouping(badAgg).resolveIndices(ctx.getRowType()));
+        GroupingInfo grouping = translator.getGrouping(badAgg);
+        assertTrue(grouping instanceof FieldGrouping);
+        expectThrows(ConversionException.class, () -> ((FieldGrouping) grouping).resolveIndices(ctx.getRowType()));
     }
 
     public void testToBucketAggregationNotYetImplemented() {

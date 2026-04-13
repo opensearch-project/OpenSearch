@@ -16,6 +16,8 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.search.aggregations.BucketOrder;
+import org.opensearch.search.aggregations.InternalOrder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +35,7 @@ public class AggregationMetadataBuilder {
     private final List<GroupingInfo> groupings = new ArrayList<>();
     private final List<AggregateCall> aggregateCalls = new ArrayList<>();
     private final List<String> aggregateFieldNames = new ArrayList<>();
+    private final List<BucketOrder> bucketOrders = new ArrayList<>();
     private boolean implicitCountRequested = false;
 
     /** Creates a new empty builder. */
@@ -66,6 +69,20 @@ public class AggregationMetadataBuilder {
         this.implicitCountRequested = true;
     }
 
+    /**
+     * Adds a bucket order for post-aggregation sorting.
+     *
+     * @param order the bucket order to add (may be null or compound)
+     */
+    public void addBucketOrder(BucketOrder order) {
+        if (order == null) return;
+        if (order instanceof InternalOrder.CompoundOrder compound) {
+            bucketOrders.addAll(compound.orderElements());
+        } else {
+            bucketOrders.add(order);
+        }
+    }
+
     /** Returns true if this builder has at least one aggregate call or implicit count. */
     public boolean hasAggregateCalls() {
         return !aggregateCalls.isEmpty() || implicitCountRequested;
@@ -84,9 +101,21 @@ public class AggregationMetadataBuilder {
         // Resolve grouping indices at build time
         List<Integer> allGroupIndices = new ArrayList<>();
         List<String> allGroupFieldNames = new ArrayList<>();
+
+        // Expression groupings (histogram, date_histogram) don't exist in input schema yet.
+        // They will be added as computed columns by LogicalProject before LogicalAggregate.
+        // Assign them indices starting after existing columns.
+        int nextProjectedIndex = inputRowType.getFieldCount();
+
         for (GroupingInfo g : groupings) {
-            allGroupIndices.addAll(g.resolveIndices(inputRowType));
-            allGroupFieldNames.addAll(g.getFieldNames());
+            if (g instanceof ExpressionGrouping expr) {
+                allGroupIndices.add(nextProjectedIndex);
+                nextProjectedIndex++;
+                allGroupFieldNames.add(expr.getProjectedColumnName());
+            } else if (g instanceof FieldGrouping fieldGrouping) {
+                allGroupIndices.addAll(fieldGrouping.resolveIndices(inputRowType));
+                allGroupFieldNames.addAll(g.getFieldNames());
+            }
         }
 
         // For no-GROUP-BY, metric results could be null (e.g., AVG of empty set).
@@ -126,7 +155,9 @@ public class AggregationMetadataBuilder {
             ImmutableBitSet.of(allGroupIndices),
             allGroupFieldNames,
             allCalls,
-            allFieldNames
+            allFieldNames,
+            List.copyOf(bucketOrders),
+            List.copyOf(groupings)
         );
     }
 }

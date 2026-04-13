@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.SearchResponseSections;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.analytics.EngineContext;
@@ -25,12 +27,15 @@ import org.opensearch.core.index.Index;
 import org.opensearch.dsl.converter.SearchSourceConverter;
 import org.opensearch.dsl.executor.DslQueryPlanExecutor;
 import org.opensearch.dsl.executor.QueryPlans;
+import org.opensearch.dsl.result.AggregationResponseBuilder;
 import org.opensearch.dsl.result.ExecutionResult;
-import org.opensearch.dsl.result.SearchResponseBuilder;
+import org.opensearch.search.SearchHits;
+import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Coordinates DSL query execution: converts SearchSourceBuilder to Calcite RelNode plans,
@@ -85,12 +90,57 @@ public class TransportDslExecuteAction extends HandledTransportAction<SearchRequ
             List<ExecutionResult> results = planExecutor.execute(plans);
             long tookInMillis = System.currentTimeMillis() - startTime;
 
-            SearchResponse response = SearchResponseBuilder.build(results, tookInMillis);
+            InternalAggregations aggregations = buildAggregations(results, request, converter);
+
+            // TODO: Build hits from HITS results
+            SearchHits hits = SearchHits.empty(true);
+
+            SearchResponseSections sections = new SearchResponseSections(
+                hits,
+                aggregations,
+                null,
+                false,
+                null,
+                null,
+                0
+            );
+
+            SearchResponse response = new SearchResponse(
+                sections,
+                null,
+                aggregations != null ? 1 : 0,
+                aggregations != null ? 1 : 0,
+                0,
+                tookInMillis,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
+
             listener.onResponse(response);
         } catch (Exception e) {
             logger.error("DSL execution failed", e);
             listener.onFailure(e);
         }
+    }
+
+    private InternalAggregations buildAggregations(
+            List<ExecutionResult> results,
+            SearchRequest request,
+            SearchSourceConverter converter) throws Exception {
+
+        List<ExecutionResult> aggResults = results.stream()
+            .filter(r -> r.getType() == QueryPlans.Type.AGGREGATION)
+            .collect(Collectors.toList());
+
+        if (aggResults.isEmpty() || request.source().aggregations() == null) {
+            return null;
+        }
+
+        AggregationResponseBuilder builder = new AggregationResponseBuilder(
+            converter.getAggregationRegistry(),
+            aggResults
+        );
+        return builder.build(request.source().aggregations().getAggregatorFactories());
     }
 
     // TODO: add multi-index support:

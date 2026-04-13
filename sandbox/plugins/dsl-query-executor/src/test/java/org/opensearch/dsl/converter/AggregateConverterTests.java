@@ -34,7 +34,7 @@ public class AggregateConverterTests extends OpenSearchTestCase {
             scan.getRowType(), scan.getCluster().getTypeFactory()
         );
 
-        RelNode result = converter.convert(scan, metadataList.get(0));
+        RelNode result = converter.convert(scan, metadataList.get(0), scan.getCluster().getRexBuilder());
 
         assertTrue(result instanceof LogicalAggregate);
         LogicalAggregate agg = (LogicalAggregate) result;
@@ -51,7 +51,7 @@ public class AggregateConverterTests extends OpenSearchTestCase {
             scan.getRowType(), scan.getCluster().getTypeFactory()
         );
 
-        RelNode result = converter.convert(scan, metadataList.get(0));
+        RelNode result = converter.convert(scan, metadataList.get(0), scan.getCluster().getRexBuilder());
 
         assertTrue(result instanceof LogicalAggregate);
         LogicalAggregate agg = (LogicalAggregate) result;
@@ -65,7 +65,7 @@ public class AggregateConverterTests extends OpenSearchTestCase {
             scan.getRowType(), scan.getCluster().getTypeFactory()
         );
 
-        RelNode result = converter.convert(scan, metadataList.get(0));
+        RelNode result = converter.convert(scan, metadataList.get(0), scan.getCluster().getRexBuilder());
         LogicalAggregate agg = (LogicalAggregate) result;
 
         assertSame(scan, agg.getInput());
