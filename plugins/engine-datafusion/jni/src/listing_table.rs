@@ -1425,37 +1425,62 @@ impl ListingTable {
         } else {
             return Ok((vec![], Statistics::new_unknown(&self.file_schema)));
         };
-        // list files (with partitions)
-        let table_partition_cols: Vec<(String, DataType)> = vec![]; // Passing empty partition cols as current partition cols are not mapped to directory path
-        let file_list = future::try_join_all(self.table_paths.iter().map(|table_path| {
-            pruned_partition_list(
-                ctx,
-                store.as_ref(),
-                table_path,
-                filters,
-                &self.options.file_extension,
-                &table_partition_cols,
-            )
-        }))
-        .await?;
-        let meta_fetch_concurrency = ctx.config_options().execution.meta_fetch_concurrency;
-        let file_list = stream::iter(file_list).flatten_unordered(meta_fetch_concurrency);
-        // collect the statistics if required by the config
-        let files = file_list
-            .map(|part_file| async {
-                let part_file = part_file?;
-                let statistics = if self.options.collect_stat {
-                    self.do_collect_statistics(ctx, &store, &part_file).await?
-                } else {
-                    Arc::new(Statistics::new_unknown(&self.file_schema))
-                };
-                Ok(part_file.with_statistics(statistics))
-            })
-            .boxed()
-            .buffer_unordered(ctx.config_options().execution.meta_fetch_concurrency);
 
-        let (file_group, inexact_stats) =
-            get_files_with_limit(files, limit, self.options.collect_stat).await?;
+        // build PartitionedFiles directly from pre-cached files_metadata,
+        // avoiding expensive object store LIST calls via pruned_partition_list
+        let (file_group, inexact_stats) = if !self.options.files_metadata.is_empty() {
+            let mut files = Vec::with_capacity(self.options.files_metadata.len());
+            for meta in self.options.files_metadata.iter() {
+                let part_file = PartitionedFile {
+                    object_meta: (*meta.object_meta).clone(),
+                    partition_values: vec![],
+                    range: None,
+                    statistics: None,
+                    extensions: None,
+                    metadata_size_hint: None,
+                };
+                if self.options.collect_stat {
+                    let statistics = self.do_collect_statistics(ctx, &store, &part_file).await?;
+                    files.push(part_file.with_statistics(statistics));
+                } else {
+                    files.push(part_file);
+                }
+            }
+            get_files_with_limit(
+                stream::iter(files.into_iter().map(Ok)),
+                limit,
+                self.options.collect_stat,
+            ).await?
+        } else {
+            let table_partition_cols: Vec<(String, DataType)> = vec![];
+            let file_list = future::try_join_all(self.table_paths.iter().map(|table_path| {
+                pruned_partition_list(
+                    ctx,
+                    store.as_ref(),
+                    table_path,
+                    filters,
+                    &self.options.file_extension,
+                    &table_partition_cols,
+                )
+            }))
+            .await?;
+            let meta_fetch_concurrency = ctx.config_options().execution.meta_fetch_concurrency;
+            let file_list = stream::iter(file_list).flatten_unordered(meta_fetch_concurrency);
+            let files = file_list
+                .map(|part_file| async {
+                    let part_file = part_file?;
+                    let statistics = if self.options.collect_stat {
+                        self.do_collect_statistics(ctx, &store, &part_file).await?
+                    } else {
+                        Arc::new(Statistics::new_unknown(&self.file_schema))
+                    };
+                    Ok(part_file.with_statistics(statistics))
+                })
+                .boxed()
+                .buffer_unordered(ctx.config_options().execution.meta_fetch_concurrency);
+
+            get_files_with_limit(files, limit, self.options.collect_stat).await?
+        };
 
         let file_groups = file_group.split_files(self.options.target_partitions);
         let (mut file_groups, mut stats) = compute_all_files_statistics(

@@ -21,6 +21,7 @@ use std::sync::{Arc, OnceLock};
 use arrow_array::{Array, RecordBatch, StructArray};
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_schema::SchemaRef;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::ListingTableUrl,
@@ -544,7 +545,16 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_createDat
         }
     };
 
-    let shard_view = ShardView::new(table_url, files_metadata);
+    let mut shard_view = ShardView::new(table_url, files_metadata);
+
+    if let Some(first_meta) = shard_view.files_metadata().first() {
+        let file_path = format!("/{}", first_meta.object_meta.location.as_ref().trim_start_matches('/'));
+        if let Ok(file) = std::fs::File::open(&file_path) {
+            if let Ok(builder) = datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(file) {
+                shard_view.set_cached_schema(builder.schema().clone());
+            }
+        }
+    }
 
     Box::into_raw(Box::new(shard_view)) as jlong
 }
@@ -572,6 +582,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_destroyTo
 pub struct ShardView {
     table_path: ListingTableUrl,
     files_metadata: Arc<Vec<CustomFileMeta>>,
+    cached_schema: Option<SchemaRef>,
 }
 
 impl ShardView {
@@ -580,6 +591,7 @@ impl ShardView {
         ShardView {
             table_path,
             files_metadata,
+            cached_schema: None,
         }
     }
 
@@ -589,6 +601,14 @@ impl ShardView {
 
     pub fn files_metadata(&self) -> Arc<Vec<CustomFileMeta>> {
         self.files_metadata.clone()
+    }
+
+    pub fn cached_schema(&self) -> Option<SchemaRef> {
+        self.cached_schema.clone()
+    }
+
+    pub fn set_cached_schema(&mut self, schema: SchemaRef) {
+        self.cached_schema = Some(schema);
     }
 }
 
@@ -712,6 +732,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
 
     let table_path = shard_view.table_path();
     let files_meta = shard_view.files_metadata();
+    let cached_schema = shard_view.cached_schema();
 
     spawn_jni_task(
         &io_runtime,
@@ -726,6 +747,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeQu
             target_partitions,
             runtime,
             cpu_executor,
+            cached_schema,
         )),
         |env, listener_ref, stream_pointer| set_action_listener_ok_global(env, listener_ref, stream_pointer),
     );
@@ -887,6 +909,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
 
     let table_path = shard_view.table_path();
     let files_metadata = shard_view.files_metadata();
+    let cached_schema = shard_view.cached_schema();
 
     let include_fields: Vec<String> =
         parse_string_arr(&mut env, include_fields).expect("Expected list of files");
@@ -950,6 +973,7 @@ pub extern "system" fn Java_org_opensearch_datafusion_jni_NativeBridge_executeFe
             exclude_fields,
             runtime,
             cpu_executor,
+            cached_schema,
         ).await {
             Ok(stream_ptr) => stream_ptr,
             Err(e) => {
