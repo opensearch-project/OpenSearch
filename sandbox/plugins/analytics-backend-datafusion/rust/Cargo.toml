@@ -37,6 +37,9 @@ log = { workspace = true }
 num_cpus = { workspace = true }
 mimalloc = { workspace = true }
 native-bridge-common = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
