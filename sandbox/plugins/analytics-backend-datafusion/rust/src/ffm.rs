@@ -197,6 +197,11 @@ pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
     api::stream_close(stream_ptr);
 }
 
+#[no_mangle]
+pub extern "C" fn df_cancel_query(context_id: i64) {
+    api::cancel_query(context_id);
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_sql_to_substrait(
