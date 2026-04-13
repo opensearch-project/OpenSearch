@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.transport.TransportResponse;
@@ -25,6 +27,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -54,6 +57,8 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
 
         mockFlightChannel = mock(FlightServerChannel.class);
         when(mockFlightChannel.getExecutor()).thenReturn(executor);
+        when(mockFlightChannel.getAllocator()).thenReturn(mock(BufferAllocator.class));
+        when(mockFlightChannel.getRoot()).thenReturn(mock(VectorSchemaRoot.class));
 
         mockListener = mock(TransportMessageListener.class);
         handler.setMessageListener(mockListener);
@@ -72,11 +77,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         ThreadContext threadContext = threadPool.getThreadContext();
         threadContext.putHeader(HEADER_KEY, HEADER_VALUE);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            latch.countDown();
-            return null;
-        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
+        doAnswer(invocation -> null).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
         handler.sendResponseBatch(
             Version.CURRENT,
@@ -140,20 +141,15 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         threadContext.putHeader(HEADER_KEY, HEADER_VALUE);
 
         CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> capturedHeader = new AtomicReference<>();
 
-        // Use a mock executor that runs the preserveContext-wrapped runnable
-        ExecutorService mockExecutor = mock(ExecutorService.class);
+        // Capture the thread context header inside onResponseSent, which runs
+        // within the preserveContext wrapper on the executor thread
         doAnswer(invocation -> {
-            Runnable command = invocation.getArgument(0);
-            executor.execute(() -> {
-                command.run();
-                // After the preserveContext wrapper runs, capture the header
-                // The wrapper stashes the executor thread context, restores caller's, runs, then restores executor's
-                latch.countDown();
-            });
+            capturedHeader.set(threadPool.getThreadContext().getHeader(HEADER_KEY));
+            latch.countDown();
             return null;
-        }).when(mockExecutor).execute(any(Runnable.class));
-        when(mockFlightChannel.getExecutor()).thenReturn(mockExecutor);
+        }).when(mockListener).onResponseSent(anyLong(), anyString(), any(TransportResponse.class));
 
         handler.sendResponseBatch(
             Version.CURRENT,
@@ -168,6 +164,7 @@ public class FlightOutboundHandlerTests extends OpenSearchTestCase {
         );
 
         assertTrue("Executor task should complete", latch.await(5, TimeUnit.SECONDS));
+        assertEquals("Context should be propagated to executor thread", HEADER_VALUE, capturedHeader.get());
     }
 
     public void testMultipleBatchesMaintainCallerContext() throws Exception {
