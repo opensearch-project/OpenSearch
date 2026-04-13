@@ -16,7 +16,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -126,11 +125,6 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     @Override
     public void setUserData(Map<String, String> userData) {
         // No-op for SegmentInfosCatalogSnapshot
-    }
-
-    @Override
-    public Object getReader(DataFormat dataFormat) {
-        throw new UnsupportedOperationException("SegmentInfosCatalogSnapshot does not support getReader()");
     }
 
     @Override

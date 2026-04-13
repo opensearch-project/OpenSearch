@@ -8,12 +8,10 @@
 
 package org.opensearch.index.engine.dataformat.stub;
 
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.ShardPath;
 
 /**
  * A mock {@link DataFormatPlugin} for testing purposes.
@@ -35,7 +33,7 @@ public class MockDataFormatPlugin implements DataFormatPlugin {
     }
 
     @Override
-    public IndexingExecutionEngine<?, ?> indexingEngine(MapperService mapperService, ShardPath shardPath, IndexSettings indexSettings) {
+    public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
         return new MockIndexingExecutionEngine(dataFormat);
     }
 }

@@ -10,7 +10,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
     description = 'OpenSearch plugin providing Lucene-based search execution engine'
-    classname = 'org.opensearch.lucene.LuceneSearchEnginePlugin'
+    classname = 'org.opensearch.be.lucene.LucenePlugin'
 }
 
 dependencies {

@@ -67,6 +67,9 @@ testfixtures_shared/
 # These are generated from .ci/jobs.t
 .ci/jobs/
 
+# native build files
+*.dylib
+
 # build files generated
 doc-tools/missing-doclet/bin/
 **/Cargo.lock

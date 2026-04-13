@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.Mockito.mock;
@@ -142,7 +143,10 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IndexingExecutionEngine<?, ?> engine = registry.getIndexingEngine(format, mapperService, shardPath, indexSettings);
+        IndexingExecutionEngine<?, ?> engine = registry.getIndexingEngine(
+            new IndexingEngineConfig(null, mapperService, shardPath, indexSettings, null),
+            format
+        );
         assertNotNull(engine);
         assertEquals(format, engine.getDataFormat());
     }
@@ -156,7 +160,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> registry.getIndexingEngine(unregistered, mapperService, shardPath, indexSettings)
+            () -> registry.getIndexingEngine(new IndexingEngineConfig(null, mapperService, shardPath, indexSettings, null), unregistered)
         );
         assertTrue(e.getMessage().contains("unknown"));
     }
@@ -261,7 +265,12 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManagers(mapperService, indexSettings, shardPath);
+        Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManagers(
+            Optional.empty(),
+            mapperService,
+            indexSettings,
+            shardPath
+        );
         assertEquals(1, managers.size());
         assertNotNull(managers.get(format));
     }

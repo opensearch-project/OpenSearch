@@ -268,7 +268,7 @@ public final class IndexModule {
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
     private final EngineConfigFactory engineConfigFactory;
-    private SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
+    private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
@@ -653,6 +653,7 @@ public final class IndexModule {
         WARM_TO_HOT;
     }
 
+    @Deprecated(forRemoval = true)
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
@@ -679,11 +680,37 @@ public final class IndexModule {
         RemoteStoreSettings remoteStoreSettings,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        throw new UnsupportedOperationException(
-            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            s -> {},
+            s -> null,
+            clusterDefaultMaxMergeAtOnceSupplier
         );
     }
 
+    @Deprecated(forRemoval = true)
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
@@ -712,15 +739,41 @@ public final class IndexModule {
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
     ) throws IOException {
-        throw new UnsupportedOperationException(
-            "This API is removed in OpenSearch version 3.4.0. " + "Use the new overloaded newIndexService() method instead."
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            null
         );
     }
 
     /**
      * @deprecated Use the overload that accepts a {@code compositeEngineFactorySupplier} parameter.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,

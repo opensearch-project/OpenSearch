@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.dataformat.stub;
 
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -76,11 +75,6 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public void setUserData(Map<String, String> userData) {}
-
-    @Override
-    public Object getReader(DataFormat dataFormat) {
-        return null;
-    }
 
     @Override
     public CatalogSnapshot clone() {
