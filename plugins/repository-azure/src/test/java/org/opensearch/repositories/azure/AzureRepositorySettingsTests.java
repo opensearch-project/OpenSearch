@@ -34,8 +34,10 @@ package org.opensearch.repositories.azure;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -47,6 +49,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.AfterClass;
 
 import java.util.List;
+import java.util.Map;
 
 import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.HttpResources;
@@ -201,5 +204,60 @@ public class AzureRepositorySettingsTests extends OpenSearchTestCase {
         assertTrue(restrictedSettings.contains(BlobStoreRepository.REMOTE_STORE_INDEX_SHALLOW_COPY));
         assertTrue(restrictedSettings.contains(AzureRepository.Repository.BASE_PATH_SETTING));
         assertTrue(restrictedSettings.contains(AzureRepository.Repository.LOCATION_MODE_SETTING));
+    }
+
+    public void testAzureStorageSettingsWithWorkloadIdentity() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", "teststorage");
+
+        Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.default.token_credential_type", "workload_identity")
+            .build();
+
+        Map<String, AzureStorageSettings> clients = AzureStorageSettings.load(settings);
+        AzureStorageSettings settingsObj = clients.get("default");
+
+        assertNotNull(settingsObj);
+        assertEquals("workload_identity", settingsObj.getTokenCredentialType());
+    }
+
+    public void testAzureStorageSettingsWithManagedIdentity() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", "teststorage");
+
+        Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.default.token_credential_type", "managed")
+            .build();
+
+        AzureStorageSettings settingsObj = AzureStorageSettings.load(settings).get("default");
+        assertEquals("managed", settingsObj.getTokenCredentialType());
+    }
+
+    public void testWorkloadIdentityWithKeyThrowsException() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", "teststorage");
+        secureSettings.setString("azure.client.default.key", "any_fake_key");
+
+        Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.default.token_credential_type", "workload_identity")
+            .build();
+
+        expectThrows(SettingsException.class, () -> AzureStorageSettings.load(settings));
+    }
+
+    public void testWorkloadIdentityWithSasTokenThrowsException() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("azure.client.default.account", "teststorage");
+        secureSettings.setString("azure.client.default.sas_token", "any_fake_sas");
+
+        Settings settings = Settings.builder()
+            .setSecureSettings(secureSettings)
+            .put("azure.client.default.token_credential_type", "workload_identity")
+            .build();
+
+        expectThrows(SettingsException.class, () -> AzureStorageSettings.load(settings));
     }
 }

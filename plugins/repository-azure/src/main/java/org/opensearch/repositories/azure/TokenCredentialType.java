@@ -12,7 +12,8 @@ import java.util.Arrays;
 
 // Type of token credentials that the plugin supports
 public enum TokenCredentialType {
-    MANAGED_IDENTITY("managed");
+    MANAGED_IDENTITY("managed"),
+    WORKLOAD_IDENTITY("workload_identity");
 
     private final String type;
 

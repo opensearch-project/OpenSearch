@@ -11,8 +11,8 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
+ * the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
@@ -35,6 +35,7 @@ package org.opensearch.repositories.azure;
 import com.azure.core.util.logging.ClientLogger;
 import com.azure.identity.ManagedIdentityCredential;
 import com.azure.identity.ManagedIdentityCredentialBuilder;
+import com.azure.identity.WorkloadIdentityCredentialBuilder;
 import com.azure.identity.implementation.CredentialBuilderBaseHelper;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.common.implementation.Constants;
@@ -278,7 +279,13 @@ final class AzureStorageSettings {
     ) {
         this.account = account;
         this.tokenCredentialType = tokenCredentialType;
-        if (Strings.hasText(tokenCredentialType) == true) {
+        if (Strings.hasText(tokenCredentialType)) {
+            TokenCredentialType type = TokenCredentialType.valueOfType(tokenCredentialType);
+            if (type == TokenCredentialType.WORKLOAD_IDENTITY) {
+                if (Strings.hasText(key) || Strings.hasText(sasToken)) {
+                    throw new SettingsException("Workload Identity cannot be used with key or sas_token");
+                }
+            }
             this.endpointBuilder = (logger) -> {
                 String tokenCredentialEndpointSuffix = endpointSuffix;
                 if (Strings.hasText(tokenCredentialEndpointSuffix) == false) {
@@ -290,14 +297,21 @@ final class AzureStorageSettings {
                 return new StorageEndpoint(primaryBlobEndpoint, secondaryBlobEndpoint);
             };
 
-            this.clientBuilder = (builder, executor, logger) -> builder.credential(new ManagedIdentityCredentialBuilder() {
-                @Override
-                public ManagedIdentityCredential build() {
-                    // Use the privileged executor with IdentityClient instance
-                    CredentialBuilderBaseHelper.getClientOptions(this).setExecutorService(executor);
-                    return super.build();
+            this.clientBuilder = (builder, executor, logger) -> {
+                if (type == TokenCredentialType.WORKLOAD_IDENTITY) {
+                    return builder.credential(new WorkloadIdentityCredentialBuilder().executorService(executor).build())
+                        .endpoint(endpointBuilder.apply(logger).getPrimaryUri());
+                } else {
+                    return builder.credential(new ManagedIdentityCredentialBuilder() {
+                        @Override
+                        public ManagedIdentityCredential build() {
+                            // Use the privileged executor with IdentityClient instance
+                            CredentialBuilderBaseHelper.getClientOptions(this).setExecutorService(executor);
+                            return super.build();
+                        }
+                    }.build()).endpoint(endpointBuilder.apply(logger).getPrimaryUri());
                 }
-            }.build()).endpoint(endpointBuilder.apply(logger).getPrimaryUri());
+            };
         } else {
             final String connectString = buildConnectString(account, key, sasToken, endpointSuffix);
 
