@@ -46,13 +46,15 @@ use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::memory_pool::{GreedyMemoryPool, TrackConsumersPool};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+use datafusion::execution::cache::cache_manager::CacheManagerConfig;
 use datafusion::execution::RecordBatchStream;
-use datafusion::execution::SessionStateBuilder;
+use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
 
 use crate::cross_rt_stream::CrossRtStream;
+use crate::custom_cache_manager::CustomCacheManager;
 use crate::local_executor::LocalSession;
 use crate::partition_stream::PartitionStreamSender;
 use crate::query_memory_pool_tracker::QueryTrackingContext;
@@ -108,6 +110,7 @@ pub async fn create_object_metas(
 /// Contains the DataFusion RuntimeEnv (memory pool, disk spill, cache).
 pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
+    pub custom_cache_manager: Option<CustomCacheManager>,
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -122,6 +125,7 @@ pub struct ShardView {
 /// Caller must call `close_global_runtime` exactly once to free it.
 pub fn create_global_runtime(
     memory_pool_limit: i64,
+    cache_manager_ptr: i64,
     spill_dir: &str,
     spill_limit: i64,
 ) -> Result<i64, DataFusionError> {
@@ -134,12 +138,20 @@ pub fn create_global_runtime(
         NonZeroUsize::new(5).unwrap(),
     ));
 
+    let (cache_manager_config, custom_cache_manager) = if cache_manager_ptr != 0 {
+        let mgr = unsafe { *Box::from_raw(cache_manager_ptr as *mut CustomCacheManager) };
+        (mgr.build_cache_manager_config(), Some(mgr))
+    } else {
+        (CacheManagerConfig::default(), None)
+    };
+
     let runtime_env = RuntimeEnvBuilder::new()
         .with_memory_pool(memory_pool)
         .with_disk_manager_builder(disk_manager)
+        .with_cache_manager(cache_manager_config)
         .build()?;
 
-    let runtime = DataFusionRuntime { runtime_env };
+    let runtime = DataFusionRuntime { runtime_env, custom_cache_manager };
     Ok(Box::into_raw(Box::new(runtime)) as i64)
 }
 
