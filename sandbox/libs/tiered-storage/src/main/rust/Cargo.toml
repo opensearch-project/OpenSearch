@@ -14,9 +14,9 @@ chrono = { workspace = true }
 dashmap = { workspace = true }
 object_store = { workspace = true }
 futures = { workspace = true }
-thiserror = "1.0"
-async-trait = "0.1"
-bytes = "1"
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
 native-bridge-common = { workspace = true }
 
 [dev-dependencies]
