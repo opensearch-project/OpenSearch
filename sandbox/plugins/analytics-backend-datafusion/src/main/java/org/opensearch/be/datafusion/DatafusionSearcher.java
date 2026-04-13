@@ -58,12 +58,14 @@ public class DatafusionSearcher implements EngineSearcher<DatafusionContext> {
             throw new IllegalStateException("DatafusionQuery must be set before search");
         }
         NativeRuntimeHandle runtimeHandle = context.getNativeRuntime();
+        long contextId = context.task() != null ? context.task().getId() : 0L;
         CompletableFuture<Long> future = new CompletableFuture<>();
         NativeBridge.executeQueryAsync(
             readerHandle.getPointer(),
             query.getIndexName(),
             query.getSubstraitBytes(),
             runtimeHandle.get(),
+            contextId,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long streamPtr) {

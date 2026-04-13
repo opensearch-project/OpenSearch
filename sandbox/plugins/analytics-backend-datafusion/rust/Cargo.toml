@@ -29,6 +29,8 @@ prost = { workspace = true }
 substrait = { workspace = true }
 
 tokio = { workspace = true }
+tokio-util = "0.7"
+dashmap = { workspace = true }
 futures = { workspace = true }
 tokio-stream = { workspace = true }
 parking_lot = { workspace = true }

@@ -51,6 +51,7 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
+    private static final MethodHandle CANCEL_QUERY;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -105,6 +106,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -137,6 +139,8 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS
             )
         );
+
+        CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
     }
 
     private NativeBridge() {}
@@ -195,6 +199,7 @@ public final class NativeBridge {
         String tableName,
         byte[] substraitPlan,
         long runtimePtr,
+        long contextId,
         ActionListener<Long> listener
     ) {
         try {
@@ -213,7 +218,8 @@ public final class NativeBridge {
                 table.len(),
                 call.bytes(substraitPlan),
                 (long) substraitPlan.length,
-                runtimePtr
+                runtimePtr,
+                contextId
             );
             listener.onResponse(result);
         } catch (Throwable t) {
@@ -245,6 +251,13 @@ public final class NativeBridge {
 
     public static void streamClose(long streamPtr) {
         NativeCall.invokeVoid(STREAM_CLOSE, streamPtr);
+    }
+
+    // ---- Cancellation ----
+
+    /** Fires the cancellation token for the given context. No-op if already completed. */
+    public static void cancelQuery(long contextId) {
+        NativeCall.invokeVoid(CANCEL_QUERY, contextId);
     }
 
     // ---- Stubs ----
