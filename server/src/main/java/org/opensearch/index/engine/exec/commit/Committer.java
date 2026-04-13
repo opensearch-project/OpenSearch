@@ -11,6 +11,7 @@ package org.opensearch.index.engine.exec.commit;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.Closeable;
@@ -35,7 +36,7 @@ import java.util.Map;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Committer extends Closeable {
+public interface Committer extends CommitFileManager, Closeable {
 
     /**
      * Durably commits the given data to the backing store's commit metadata.
@@ -77,13 +78,4 @@ public interface Committer extends Closeable {
      * @throws IOException if reading commits fails
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
-
-    /**
-     * Deletes the commit point associated with the given CatalogSnapshot.
-     * For Lucene-backed implementations, this removes the corresponding segments_N file.
-     *
-     * @param snapshot the snapshot whose backing commit should be deleted
-     * @throws IOException if the deletion fails
-     */
-    void deleteCommit(CatalogSnapshot snapshot) throws IOException;
 }

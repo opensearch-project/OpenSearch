@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
@@ -128,13 +130,30 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public void deleteCommit(CatalogSnapshot snapshot) throws IOException {
         ensureOpen();
-        List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-        for (IndexCommit ic : commits) {
-            if (ic.getUserData().equals(snapshot.getUserData())) {
-                store.directory().deleteFile(ic.getSegmentsFileName());
-                return;
+        Map<String, String> snapshotUserData = snapshot.getUserData();
+        // Iterate segments_N files directly instead of DirectoryReader.listCommits(),
+        // which would try to load full SegmentInfos and fail if referenced segment files are missing.
+        for (String fileName : store.directory().listAll()) {
+            if (fileName.startsWith(IndexFileNames.SEGMENTS) == false) {
+                continue;
+            }
+            try {
+                SegmentInfos sis = SegmentInfos.readCommit(store.directory(), fileName);
+                Map<String, String> commitUserData = sis.getUserData();
+                boolean match = snapshotUserData.entrySet().stream().allMatch(e -> e.getValue().equals(commitUserData.get(e.getKey())));
+                if (match) {
+                    store.directory().deleteFile(fileName);
+                    return;
+                }
+            } catch (IOException e) {
+                // Segment file may be corrupt or reference missing files — skip it
             }
         }
+    }
+
+    @Override
+    public boolean isCommitManagedFile(String fileName) {
+        return fileName.startsWith(IndexFileNames.SEGMENTS) || fileName.equals(IndexWriter.WRITE_LOCK_NAME);
     }
 
     /**
@@ -169,6 +188,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
+        // Prevent Lucene from deleting old segments_N files on commit. Our CatalogSnapshotManager
+        // manages commit lifecycle and decides when to delete commits via IndexFileDeleter.
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         return iwc;
     }
@@ -208,6 +229,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         if (safeIndexCommit == null) {
             return;
         }
+        // Open a temp IndexWriter at the safe commit point and re-commit. This causes Lucene's
+        // internal IndexFileDeleter to discard all segments_N files beyond the safe commit,
+        // effectively trimming unsafe commits while preserving the safe commit's segment data.
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND)
             .setCommitOnClose(false)
             .setIndexCommit(safeIndexCommit);
@@ -226,7 +250,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         List<IndexCommit> commits;
         try {
             commits = DirectoryReader.listCommits(store.directory());
-        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+        } catch (IndexNotFoundException e) {
             return List.of();
         }
         List<CatalogSnapshot> result = new ArrayList<>();

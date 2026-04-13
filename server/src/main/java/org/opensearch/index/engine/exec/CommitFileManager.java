@@ -14,18 +14,29 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import java.io.IOException;
 
 /**
- * Functional interface for deleting commit points (e.g., Lucene segments_N files)
- * associated with a {@link CatalogSnapshot}.
+ * Interface for managing commit-level files (e.g., Lucene segments_N, write.lock).
+ * <p>
+ * Implementations know which files in the index directory are managed by the commit
+ * mechanism and should not be treated as orphans by {@code IndexFileDeleter}.
  *
  * @opensearch.experimental
  */
-@FunctionalInterface
 @ExperimentalApi
-public interface CommitDeleter {
+public interface CommitFileManager {
     /**
      * Deletes the commit associated with the given CatalogSnapshot.
      *
      * @param snapshot the snapshot whose backing commit should be deleted
      */
     void deleteCommit(CatalogSnapshot snapshot) throws IOException;
+
+    /**
+     * Returns true if the given file is managed by the commit mechanism
+     * (e.g., segments_N, write.lock) and should not be treated as an orphan.
+     *
+     * @param fileName the file name to check
+     */
+    default boolean isCommitManagedFile(String fileName) {
+        return false;
+    }
 }

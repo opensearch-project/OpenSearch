@@ -8,9 +8,11 @@
 
 package org.opensearch.index.engine.exec.coord;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
-import org.opensearch.index.engine.exec.CommitDeleter;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.shard.ShardPath;
@@ -51,12 +53,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 @ExperimentalApi
 public class IndexFileDeleter {
 
+    private static final Logger logger = LogManager.getLogger(IndexFileDeleter.class);
+
     private final Map<String, Map<String, AtomicInteger>> fileRefCounts;
     private final CatalogSnapshotDeletionPolicy deletionPolicy;
     private final Map<String, FileDeleter> fileDeleters;
     private final Map<String, FilesListener> filesListeners;
     private final List<CatalogSnapshot> committedSnapshots;
-    private final CommitDeleter commitDeleter;
+    private final CommitFileManager commitFileManager;
 
     public IndexFileDeleter(
         CatalogSnapshotDeletionPolicy deletionPolicy,
@@ -64,14 +68,14 @@ public class IndexFileDeleter {
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshot> initialCommittedSnapshots,
         ShardPath shardPath,
-        CommitDeleter commitDeleter
+        CommitFileManager commitFileManager
     ) throws IOException {
         this.deletionPolicy = deletionPolicy;
         this.fileDeleters = fileDeleters;
         this.filesListeners = filesListeners;
         this.fileRefCounts = new HashMap<>();
         this.committedSnapshots = new ArrayList<>();
-        this.commitDeleter = commitDeleter;
+        this.commitFileManager = commitFileManager;
 
         for (CatalogSnapshot cs : initialCommittedSnapshots) {
             if (cs.tryIncRef() == false) {
@@ -129,12 +133,15 @@ public class IndexFileDeleter {
      */
     public synchronized void removeFileReferences(CatalogSnapshot snapshot) throws IOException {
         Map<String, Collection<String>> filesToDelete = decRefFiles(snapshot);
+        // Delete the commit point (segments_N) BEFORE deleting data files,
+        // because deleteCommit may call DirectoryReader.listCommits() which
+        // needs to read segment files that are about to be deleted.
+        if (commitFileManager != null) {
+            commitFileManager.deleteCommit(snapshot);
+        } else {}
         if (filesToDelete.isEmpty() == false) {
             deleteFiles(filesToDelete);
             notifyFilesDeleted(filesToDelete);
-        }
-        if (commitDeleter != null) {
-            commitDeleter.deleteCommit(snapshot);
         }
     }
 
@@ -156,7 +163,7 @@ public class IndexFileDeleter {
             committedSnapshots.remove(old);
             if (old.decRef()) {
                 removeFileReferences(old);
-            }
+            } else {}
         }
     }
 
@@ -251,15 +258,18 @@ public class IndexFileDeleter {
         for (Map.Entry<String, Map<String, AtomicInteger>> entry : fileRefCounts.entrySet()) {
             String formatName = entry.getKey();
             Set<String> knownFiles = entry.getValue().keySet();
-            Path formatDir = shardPath.getDataPath().resolve(formatName);
+            Path formatDir = "lucene".equals(formatName) ? shardPath.resolveIndex() : shardPath.getDataPath().resolve(formatName);
             if (Files.exists(formatDir) == false) {
                 continue;
             }
             Collection<String> orphans = new HashSet<>();
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(formatDir)) {
                 for (Path file : stream) {
-                    if (Files.isRegularFile(file) && knownFiles.contains(file.getFileName().toString()) == false) {
-                        orphans.add(file.getFileName().toString());
+                    String fileName = file.getFileName().toString();
+                    if (Files.isRegularFile(file)
+                        && knownFiles.contains(fileName) == false
+                        && (commitFileManager == null || commitFileManager.isCommitManagedFile(fileName) == false)) {
+                        orphans.add(fileName);
                     }
                 }
             }

@@ -13,7 +13,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.concurrent.GatedConditionalCloseable;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
-import org.opensearch.index.engine.exec.CommitDeleter;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
@@ -79,7 +79,7 @@ public class CatalogSnapshotManager implements Closeable {
      * @param filesListeners       per-format listeners notified on file add/delete
      * @param snapshotListeners    listeners notified on snapshot deletion
      * @param shardPath            for orphan cleanup on init, or null if not needed
-     * @param commitDeleter        deleter for commit points (e.g., segments_N files), or null if not needed
+     * @param commitFileManager    manager for commit-level files (e.g., segments_N), or null if not needed
      */
     public CatalogSnapshotManager(
         List<CatalogSnapshot> committedSnapshots,
@@ -88,7 +88,7 @@ public class CatalogSnapshotManager implements Closeable {
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshotLifecycleListener> snapshotListeners,
         ShardPath shardPath,
-        CommitDeleter commitDeleter
+        CommitFileManager commitFileManager
     ) throws IOException {
         if (committedSnapshots.isEmpty()) {
             throw new IllegalArgumentException("committedSnapshots must not be empty");
@@ -105,7 +105,7 @@ public class CatalogSnapshotManager implements Closeable {
             filesListeners,
             committedSnapshots,
             shardPath,
-            commitDeleter
+            commitFileManager
         );
     }
 

@@ -158,4 +158,41 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         assertNotNull(result);
         assertTrue(result.refreshedSegments().isEmpty());
     }
+
+    /**
+     * deleteFiles removes lucene-format files from the store directory.
+     */
+    public void testDeleteFilesRemovesLuceneFiles() throws IOException {
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+        Directory directory = store.directory();
+
+        // Create dummy files in the index directory
+        directory.createOutput("_0.cfs", org.apache.lucene.store.IOContext.DEFAULT).close();
+        directory.createOutput("_0.cfe", org.apache.lucene.store.IOContext.DEFAULT).close();
+        assertTrue(java.util.Set.of(directory.listAll()).contains("_0.cfs"));
+        assertTrue(java.util.Set.of(directory.listAll()).contains("_0.cfe"));
+
+        engine.deleteFiles(java.util.Map.of("lucene", java.util.List.of("_0.cfs", "_0.cfe")));
+
+        assertFalse(java.util.Set.of(directory.listAll()).contains("_0.cfs"));
+        assertFalse(java.util.Set.of(directory.listAll()).contains("_0.cfe"));
+    }
+
+    /**
+     * deleteFiles ignores non-lucene format keys.
+     */
+    public void testDeleteFilesIgnoresNonLuceneFormat() throws IOException {
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+        // Should not throw for unknown format
+        engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
+    }
+
+    /**
+     * deleteFiles silently ignores files already deleted by Lucene (e.g., during merge).
+     */
+    public void testDeleteFilesSilentlyIgnoresMissingFiles() throws IOException {
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(committer, store);
+        // File doesn't exist — should not throw
+        engine.deleteFiles(java.util.Map.of("lucene", java.util.List.of("_nonexistent.cfs")));
+    }
 }
