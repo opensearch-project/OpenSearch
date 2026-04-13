@@ -114,7 +114,7 @@ setup:
           query: { match_all: {} }
       catch: bad_request
   - match: { status: 400 }
-  - match: { error.type: parsing_exception }
+  - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "The same entry [include.field1] cannot be both included and excluded in _source." }
 
 ---
