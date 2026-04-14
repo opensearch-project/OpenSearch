@@ -1152,7 +1152,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     public void testComputeReplicationCheckpointNullInfosReturnsEmptyCheckpoint() throws Exception {
         try (ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), createTempDir())) {
             final IndexShard primaryShard = shards.getPrimary();
-            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint(null));
+            assertEquals(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard.computeReplicationCheckpoint((SegmentInfos) null));
         }
     }
 

@@ -56,7 +56,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         IndexSettings indexSettings = createIndexSettings("parquet");
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new CompositeTestHelper.StubCommitter())
+            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new CompositeTestHelper.StubCommitter(), null)
         );
         assertTrue(ex.getMessage().contains("parquet"));
     }
@@ -77,7 +77,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new CompositeTestHelper.StubCommitter())
+            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, new CompositeTestHelper.StubCommitter(), null)
         );
         assertTrue(ex.getMessage().contains("parquet"));
     }
@@ -86,7 +86,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         IndexSettings indexSettings = createIndexSettings("lucene");
         expectThrows(
             NullPointerException.class,
-            () -> new CompositeIndexingExecutionEngine(null, indexSettings, null, null, new CompositeTestHelper.StubCommitter())
+            () -> new CompositeIndexingExecutionEngine(null, indexSettings, null, null, new CompositeTestHelper.StubCommitter(), null)
         );
     }
 
@@ -94,7 +94,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         Map<String, DataFormatPlugin> plugins = Map.of("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         expectThrows(
             NullPointerException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, null, null, null, new CompositeTestHelper.StubCommitter())
+            () -> new CompositeIndexingExecutionEngine(plugins, null, null, null, new CompositeTestHelper.StubCommitter(), null)
         );
     }
 
@@ -195,7 +195,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
-            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, null)
+            () -> new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, null, null)
         );
         assertTrue(ex.getMessage().contains("Committer must not be null"));
     }
@@ -214,7 +214,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, tracking);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, tracking, null);
 
         // Reset tracking after construction (init is called during construction)
         tracking.commitCalled = false;
@@ -235,7 +235,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub, null);
         assertNotNull(engine);
     }
 
@@ -245,7 +245,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, stub, null);
         engine.close();
         assertTrue("close() must be called during shutdown", stub.closeCalled);
     }
@@ -285,7 +285,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, failingClose);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(
+            plugins,
+            indexSettings,
+            null,
+            null,
+            failingClose,
+            null
+        );
 
         // close() should not throw — it logs the error and continues
         engine.close();
@@ -297,7 +304,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, tracking);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, tracking, null);
 
         CatalogSnapshotManager csm = new CatalogSnapshotManager(0, 0, 0, List.of(), 0, Map.of());
         engine.setCatalogSnapshotManager(csm);
@@ -337,7 +344,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         plugins.put("lucene", CompositeTestHelper.stubPlugin("lucene", 1));
         IndexSettings indexSettings = createIndexSettings("lucene");
 
-        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(plugins, indexSettings, null, null, failingCommit);
+        CompositeIndexingExecutionEngine engine = new CompositeIndexingExecutionEngine(
+            plugins,
+            indexSettings,
+            null,
+            null,
+            failingCommit,
+            null
+        );
 
         CatalogSnapshotManager csm = new CatalogSnapshotManager(0, 0, 0, List.of(), 0, Map.of());
         engine.setCatalogSnapshotManager(csm);

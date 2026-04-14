@@ -96,6 +96,8 @@ import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
+import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -159,6 +161,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory;
+    private final DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory;
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
@@ -258,7 +261,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
-        DataFormatRegistry dataFormatRegistry
+        DataFormatRegistry dataFormatRegistry,
+        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -327,6 +331,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.nodeEnv = nodeEnv;
         this.directoryFactory = directoryFactory;
         this.compositeDirectoryFactory = compositeDirectoryFactory;
+        this.dataFormatAwareStoreDirectoryFactory = dataFormatAwareStoreDirectoryFactory;
         this.remoteDirectoryFactory = remoteDirectoryFactory;
         this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -461,6 +466,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
+            null,
             null
         );
     }
@@ -769,8 +775,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     fileCache,
                     threadPool
                 );
-            } else {
+            } else if (!this.indexSettings.isPluggableDataFormatEnabled()) {
                 directory = directoryFactory.newDirectory(this.indexSettings, path);
+            } else {
+                // Will be enabled in case of formatAware indices.
+                directory = createDataFormatAwareStoreDirectory(shardId, path);
             }
             store = storeFactory.newStore(
                 shardId,
@@ -1320,6 +1329,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
         });
         rescheduleRefreshTasks();
+    }
+
+    /**
+     * Creates DataFormatAwareStoreDirectory using the factory if available, otherwise fallback to Store's internal creation.
+     * This method centralizes the directory creation logic and enables plugin-based format discovery.
+     */
+    private DataFormatAwareStoreDirectory createDataFormatAwareStoreDirectory(ShardId shardId, ShardPath shardPath) throws IOException {
+        if (dataFormatAwareStoreDirectoryFactory != null) {
+            logger.debug("Using DataFormatAwareStoreDirectoryFactory to create directory for shard path: {}", shardPath);
+            return dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
+                indexSettings,
+                shardId,
+                shardPath,
+                directoryFactory,
+                dataFormatRegistry
+            );
+        }
+
+        logger.debug("No DataFormatAwareStoreDirectoryFactory available, Store will handle internal creation for: {}", shardPath);
+        return null;
     }
 
     private void updateFsyncTaskIfNecessary() {

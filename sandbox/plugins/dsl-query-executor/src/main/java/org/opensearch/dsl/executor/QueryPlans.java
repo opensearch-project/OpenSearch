@@ -106,11 +106,8 @@ public final class QueryPlans {
             return this;
         }
 
-        /** Builds the plans. At least one must have been added. */
+        /** Builds the plans */
         public QueryPlans build() {
-            if (plans.isEmpty()) {
-                throw new IllegalStateException("QueryPlans must have at least one plan");
-            }
             return new QueryPlans(plans);
         }
     }
