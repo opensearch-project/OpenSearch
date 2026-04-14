@@ -25,8 +25,7 @@ import java.util.List;
  * Trait definition for OpenSearch distribution.
  * Called by Volcano (via ExpandConversionRule) when a distribution trait
  * mismatch is detected. Creates an {@link OpenSearchExchangeReducer} for
- * SINGLETON or {@link OpenSearchExchangeWriter} + {@link OpenSearchShuffleReader}
- * for HASH/RANGE, with all capability checks.
+ * SINGLETON exchanges. HASH/RANGE shuffle exchanges are not yet implemented.
  *
  * <p>One instance per query — created by {@link PlannerContext}.
  *
