@@ -49,9 +49,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link CompositeMergeHandler}.
+ * Tests for {@link CompositeMerger}.
  */
-public class CompositeMergeHandlerTests extends OpenSearchTestCase {
+public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
     private static final RowIdMapping STUB_ROW_ID_MAPPING = (oldId, oldGen) -> oldId;
@@ -132,7 +132,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs));
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        MergeHandler handler = CompositeMergeHandler.create(
+        MergeHandler handler = CompositeMerger.create(
             engineNoSecondary,
             primaryOnlyFormat,
             snapshotSupplier,
@@ -216,7 +216,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         when(secondaryMerger.merge(any())).thenThrow(new IOException("parquet error"));
         when(secondaryMerger2.merge(any())).thenThrow(new IOException("arrow error"));
 
-        MergeHandler handler = CompositeMergeHandler.create(
+        MergeHandler handler = CompositeMerger.create(
             multiEngine,
             multiFormat,
             snapshotSupplier,
@@ -369,7 +369,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
         MergeResult primaryResult = new MergeResult(Map.of(primaryFormat, mergedWfs), STUB_ROW_ID_MAPPING);
         when(primaryMerger.merge(any())).thenReturn(primaryResult);
 
-        MergeHandler handler = CompositeMergeHandler.create(dupEngine, dupFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        MergeHandler handler = CompositeMerger.create(dupEngine, dupFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
 
         MergeResult result = handler.doMerge(oneMerge);
         assertNotNull(result);
@@ -557,7 +557,7 @@ public class CompositeMergeHandlerTests extends OpenSearchTestCase {
     // ========== Helper methods ==========
 
     private MergeHandler createHandler() {
-        return CompositeMergeHandler.create(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
+        return CompositeMerger.create(compositeEngine, compositeDataFormat, snapshotSupplier, createIndexSettings(), SHARD_ID);
     }
 
     private static IndexSettings createIndexSettings() {

@@ -181,7 +181,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return primaryEngine.getMerger();
+        return new CompositeMerger(this, compositeDataFormat);
     }
 
     /**
