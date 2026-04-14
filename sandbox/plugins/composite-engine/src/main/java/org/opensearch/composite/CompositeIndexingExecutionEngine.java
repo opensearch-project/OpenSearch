@@ -169,7 +169,7 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
     @Override
     public Merger getMerger() {
-        return primaryEngine.getMerger();
+        return new CompositeMerger(this, compositeDataFormat);
     }
 
     @Override

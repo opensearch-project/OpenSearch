@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 
 /**
  * Manages the segment merge queue, lifecycle callbacks, and merge candidate
- * selection via {@link DataFormatAwareMergePolicy}.
+ * selection via {@link MergePolicyProvider}.
  * <p>
  * Merge execution is delegated to a {@link MergeExecutor} provided at construction.
  * The composite plugin provides a {@link MergeExecutor} that orchestrates
@@ -54,7 +54,7 @@ public class MergeHandler {
     private final Deque<OneMerge> pendingMerges = new ArrayDeque<>();
     private final Set<Segment> currentlyMergingSegments = new HashSet<>();
     private final Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier;
-    private final DataFormatAwareMergePolicy mergePolicy;
+    private final MergePolicyProvider mergePolicy;
     private final MergeExecutor mergeExecutor;
     private final Logger logger;
 
@@ -68,7 +68,7 @@ public class MergeHandler {
      */
     public MergeHandler(
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
-        DataFormatAwareMergePolicy mergePolicy,
+        MergePolicyProvider mergePolicy,
         MergeExecutor mergeExecutor,
         ShardId shardId
     ) {

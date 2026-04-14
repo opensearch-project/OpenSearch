@@ -39,20 +39,16 @@ import java.util.Set;
  * Adapts a Lucene {@link MergePolicy} to work with the data-format-aware segment model.
  * <p>
  * Converts {@link Segment} instances into Lucene {@link SegmentCommitInfo}
- * wrappers so the underlying merge policy can select merge candidates. Also implements
- * {@link MergePolicy.MergeContext} to supply merging-segment tracking and info-stream
- * logging to the Lucene merge policy.
+ * wrappers so the underlying merge policy can select merge candidates.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
+public class DataFormatAwareMergePolicy implements MergePolicyProvider {
     private final MergePolicy luceneMergePolicy;
-    private final InfoStream infoStream;
     private final Logger logger;
-
-    private final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
     private final Directory sharedDirectory;
+    private final DataFormatMergeContext mergeContext;
 
     /**
      * Constructs a DataFormatAwareMergePolicy.
@@ -64,20 +60,7 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
         this.luceneMergePolicy = mergePolicy;
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.sharedDirectory = new ByteBuffersDirectory();
-        this.infoStream = new InfoStream() {
-            @Override
-            public void message(String component, String message) {
-                logger.debug(() -> new ParameterizedMessage("[DF_MERGE_POLICY] Merge [{}]: {}", component, message));
-            }
-
-            @Override
-            public boolean isEnabled(String component) {
-                return logger.isDebugEnabled();
-            }
-
-            @Override
-            public void close() throws IOException {}
-        };
+        this.mergeContext = new DataFormatMergeContext(logger);
     }
 
     /**
@@ -100,7 +83,7 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
                 segmentInfos,
                 maxSegmentCount,
                 segmentsToMerge,
-                this
+                mergeContext
             );
             return convertMergeSpecification(mergeSpec, segmentMap);
         } catch (Exception e) {
@@ -121,7 +104,7 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
         SegmentInfos segmentInfos = convertToSegmentInfos(segments, segmentMap);
 
         try {
-            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findMerges(MergeTrigger.COMMIT, segmentInfos, this);
+            MergePolicy.MergeSpecification mergeSpec = luceneMergePolicy.findMerges(MergeTrigger.COMMIT, segmentInfos, mergeContext);
             return convertMergeSpecification(mergeSpec, segmentMap);
         } catch (Exception e) {
             logger.error("Error finding merge candidates", e);
@@ -134,9 +117,9 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
      *
      * @param segments the segments being merged
      */
-    public synchronized void addMergingSegment(Collection<Segment> segments) {
+    public void addMergingSegment(Collection<Segment> segments) {
         for (Segment segment : segments) {
-            mergingSegments.add(createWrapper(segment));
+            mergeContext.addMergingSegment(createWrapper(segment));
         }
     }
 
@@ -145,30 +128,10 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
      *
      * @param segments the segments to remove
      */
-    public synchronized void removeMergingSegment(Collection<Segment> segments) {
+    public void removeMergingSegment(Collection<Segment> segments) {
         for (Segment segment : segments) {
-            mergingSegments.remove(createWrapper(segment));
+            mergeContext.removeMergingSegment(createWrapper(segment));
         }
-    }
-
-    @Override
-    public int numDeletesToMerge(SegmentCommitInfo segmentCommitInfo) throws IOException {
-        return 0;
-    }
-
-    @Override
-    public int numDeletedDocs(SegmentCommitInfo segmentCommitInfo) {
-        return 0;
-    }
-
-    @Override
-    public InfoStream getInfoStream() {
-        return this.infoStream;
-    }
-
-    @Override
-    public synchronized Set<SegmentCommitInfo> getMergingSegments() {
-        return Set.copyOf(mergingSegments);
     }
 
     /**
@@ -228,24 +191,70 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
         return merges;
     }
 
-    /**
-     * Calculates the total document count across all data-format file sets in a segment.
-     *
-     * @param segment the segment to inspect
-     * @return the total number of documents
-     */
     private long calculateNumDocs(Segment segment) {
         return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::numRows).sum();
     }
 
-    /**
-     * Calculates the total byte size across all data-format file sets in a segment.
-     *
-     * @param segment the segment to inspect
-     * @return the total size in bytes
-     */
     private long calculateTotalSize(Segment segment) {
         return segment.dfGroupedSearchableFiles().values().stream().mapToLong(WriterFileSet::getTotalSize).sum();
+    }
+
+    /**
+     * A {@link MergePolicy.MergeContext} implementation that tracks merging segments
+     * and provides info-stream logging for the Lucene merge policy.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public static class DataFormatMergeContext implements MergePolicy.MergeContext {
+
+        private final HashSet<SegmentCommitInfo> mergingSegments = new HashSet<>();
+        private final InfoStream infoStream;
+
+        public DataFormatMergeContext(Logger logger) {
+            this.infoStream = new InfoStream() {
+                @Override
+                public void message(String component, String message) {
+                    logger.debug(() -> new ParameterizedMessage("[DF_MERGE_POLICY] Merge [{}]: {}", component, message));
+                }
+
+                @Override
+                public boolean isEnabled(String component) {
+                    return logger.isDebugEnabled();
+                }
+
+                @Override
+                public void close() throws IOException {}
+            };
+        }
+
+        @Override
+        public int numDeletesToMerge(SegmentCommitInfo segmentCommitInfo) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int numDeletedDocs(SegmentCommitInfo segmentCommitInfo) {
+            return 0;
+        }
+
+        @Override
+        public InfoStream getInfoStream() {
+            return this.infoStream;
+        }
+
+        @Override
+        public synchronized Set<SegmentCommitInfo> getMergingSegments() {
+            return Set.copyOf(mergingSegments);
+        }
+
+        synchronized void addMergingSegment(SegmentCommitInfo segment) {
+            mergingSegments.add(segment);
+        }
+
+        synchronized void removeMergingSegment(SegmentCommitInfo segment) {
+            mergingSegments.remove(segment);
+        }
     }
 
     /**
@@ -253,8 +262,7 @@ public class DataFormatAwareMergePolicy implements MergePolicy.MergeContext {
      * size and doc-count information to the underlying merge policy.
      * <p>
      * Identity is based on segment generation so that wrappers created
-     * from the same {@link Segment} are equal, enabling correct
-     * {@link HashSet} add/remove behaviour.
+     * from the same {@link Segment} are equal.
      */
     private static class SegmentWrapper extends SegmentCommitInfo {
         private static final byte[] DUMMY_ID = new byte[16];
