@@ -12,6 +12,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.shard.ShardPath;
@@ -45,7 +46,7 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
         Committer committer = null;
         try {
             LuceneCommitterFactory committerFactory = new LuceneCommitterFactory();
-            CommitterConfig settings = new CommitterConfig(indexSettings, null, store, null);
+            CommitterConfig settings = new CommitterConfig(indexSettings, null, store, CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY);
             committer = committerFactory.getCommitter(settings);
 
             assertTrue("getCommitter() should return a LuceneCommitter instance", committer instanceof LuceneCommitter);
