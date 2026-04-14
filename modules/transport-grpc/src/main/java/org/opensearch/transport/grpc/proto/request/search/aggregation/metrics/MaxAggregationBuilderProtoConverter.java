@@ -9,6 +9,7 @@ package org.opensearch.transport.grpc.proto.request.search.aggregation.metrics;
 
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 
 /**
@@ -22,8 +23,8 @@ public class MaxAggregationBuilderProtoConverter implements AggregationBuilderPr
     }
 
     /**
-     * Converts protobuf MaxAggregation to {@link org.opensearch.search.aggregations.metrics.MaxAggregationBuilder}.
-     * Equivalent to REST parsing via {@link org.opensearch.search.aggregations.metrics.MaxAggregationBuilder#PARSER}.
+     * Converts protobuf MaxAggregation to {@link MaxAggregationBuilder}.
+     * Equivalent to REST parsing via {@link MaxAggregationBuilder#PARSER}.
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {

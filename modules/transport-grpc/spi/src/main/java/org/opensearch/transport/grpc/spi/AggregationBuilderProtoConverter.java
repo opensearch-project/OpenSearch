@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.spi;
 
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 
 /**
  * SPI interface for converting protobuf aggregation containers to OpenSearch AggregationBuilders.
@@ -18,7 +19,7 @@ import org.opensearch.search.aggregations.AggregationBuilder;
  * <p>The registry handles metadata and subaggregations. Converters should delegate to existing
  * {@code *ProtoUtils} classes.
  *
- * @see org.opensearch.search.aggregations.AggregatorFactories#parseAggregators
+ * @see AggregatorFactories#parseAggregators
  */
 public interface AggregationBuilderProtoConverter {
 
@@ -29,7 +30,7 @@ public interface AggregationBuilderProtoConverter {
 
     /**
      * Converts a protobuf aggregation container to an AggregationBuilder.
-     * Similar to {@link org.opensearch.search.aggregations.AggregatorFactories.Builder#addAggregator}.
+     * Similar to {@link AggregatorFactories.Builder#addAggregator}.
      *
      * @param name The aggregation name
      * @param container The protobuf container

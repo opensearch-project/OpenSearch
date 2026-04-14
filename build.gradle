@@ -719,7 +719,7 @@ reporting {
   reports {
     testAggregateTestReport(AggregateTestReport) {
       testSuiteName = "test"
-    }
+     }
   }
 }
 

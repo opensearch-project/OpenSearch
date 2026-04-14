@@ -13,6 +13,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.bucket.terms.TermsAggregationBuilderConverter;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MaxAggregationBuilderProtoConverter;
 import org.opensearch.transport.grpc.proto.request.search.aggregation.metrics.MinAggregationBuilderProtoConverter;
@@ -47,9 +48,6 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
         delegate.registerConverter(new MaxAggregationBuilderProtoConverter());
         delegate.registerConverter(new TermsAggregationBuilderConverter());
 
-        // Future: Register bucket aggregation converters here
-        // Example: delegate.registerConverter(new TermsAggregationBuilderProtoConverter());
-
         // Set the registry on all converters so they can access each other
         delegate.setRegistryOnAllConverters(this);
 
@@ -58,7 +56,7 @@ public class AggregationBuilderProtoConverterRegistryImpl implements Aggregation
 
     /**
      * Converts protobuf to AggregationBuilder.
-     * Mirrors {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators}.
+     * Mirrors {@link AggregatorFactories#parseAggregators}.
      *
      * @param name The aggregation name
      * @param container The protobuf container

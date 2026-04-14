@@ -16,6 +16,7 @@ import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.te
 import org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms.UnsignedLongTermsAggregateConverter;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MaxAggregateProtoConverter;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.metrics.MinAggregateProtoConverter;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
@@ -48,11 +49,29 @@ public class AggregateProtoConverterRegistryImpl implements AggregateProtoConver
         spiRegistry.registerConverter(new UnsignedLongTermsAggregateConverter());
         spiRegistry.registerConverter(new StringTermsAggregateConverter());
         spiRegistry.registerConverter(new UnmappedTermsAggregateConverter());
+
+        spiRegistry.setRegistryOnAllConverters(this);
     }
 
     @Override
     public Aggregate toProto(InternalAggregation aggregation) throws IOException {
         return spiRegistry.toProto(aggregation);
+    }
+
+    /**
+     * Registers an external aggregate converter.
+     *
+     * @param converter The converter to register
+     */
+    public void registerConverter(AggregateProtoConverter converter) {
+        spiRegistry.registerConverter(converter);
+    }
+
+    /**
+     * Updates the registry reference on all registered converters.
+     */
+    public void updateRegistryOnAllConverters() {
+        spiRegistry.setRegistryOnAllConverters(this);
     }
 
     /**

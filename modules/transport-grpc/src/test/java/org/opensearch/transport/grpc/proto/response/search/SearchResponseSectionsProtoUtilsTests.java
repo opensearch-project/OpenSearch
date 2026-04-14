@@ -15,6 +15,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.pipeline.ProcessorExecutionDetail;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
+
+    private final AggregateProtoConverterRegistry aggregateRegistry = new AggregateProtoConverterRegistryImpl();
 
     public void testToProtoWithProcessorResults() throws IOException {
         // Create processor execution details
@@ -84,7 +88,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify processor results
@@ -129,7 +133,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify no processor results
@@ -157,7 +161,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify no processor results
@@ -201,7 +205,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify processor result
@@ -253,7 +257,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify processor result - null processor name should not be set
@@ -292,7 +296,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify processor result - null status should not be set
@@ -349,7 +353,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify aggregations are present
@@ -395,7 +399,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
 
         // Call the method under test
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
-        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse);
+        SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry);
         org.opensearch.protobufs.SearchResponse protoResponse = builder.build();
 
         // Verify no aggregations
@@ -415,7 +419,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
+            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry)
         );
         assertEquals("suggest responses are not supported yet", exception.getMessage());
     }
@@ -435,7 +439,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
+            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry)
         );
         assertEquals("profile results are not supported yet", exception.getMessage());
     }
@@ -459,7 +463,7 @@ public class SearchResponseSectionsProtoUtilsTests extends OpenSearchTestCase {
         org.opensearch.protobufs.SearchResponse.Builder builder = org.opensearch.protobufs.SearchResponse.newBuilder();
         UnsupportedOperationException exception = expectThrows(
             UnsupportedOperationException.class,
-            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse)
+            () -> SearchResponseSectionsProtoUtils.toProto(builder, mockResponse, aggregateRegistry)
         );
         assertEquals("ext builder responses are not supported yet", exception.getMessage());
     }

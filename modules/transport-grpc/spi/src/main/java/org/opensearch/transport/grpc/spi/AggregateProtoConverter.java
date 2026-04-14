@@ -29,11 +29,16 @@ public interface AggregateProtoConverter {
     /**
      * Converts an InternalAggregation to its Protocol Buffer Aggregate.Builder representation.
      * Returns a builder to allow the registry to construct the final Aggregate.
-     * Mirrors REST-side {@link org.opensearch.search.aggregations.InternalAggregation#toXContent}
+     * Mirrors REST-side {@link InternalAggregation#toXContent}
      *
      * @param aggregation The InternalAggregation to convert (guaranteed to be of the handled type)
      * @return An Aggregate.Builder with the aggregation-specific fields populated
      * @throws IOException if an error occurs during protobuf conversion
      */
     Aggregate.Builder toProto(InternalAggregation aggregation) throws IOException;
+
+    /**
+     * Sets the registry for nested aggregations. Default no-op for metric aggregations.
+     */
+    default void setRegistry(AggregateProtoConverterRegistry registry) {}
 }

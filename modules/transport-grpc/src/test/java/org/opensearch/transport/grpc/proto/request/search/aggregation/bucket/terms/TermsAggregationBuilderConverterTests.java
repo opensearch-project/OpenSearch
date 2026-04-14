@@ -17,6 +17,7 @@ import org.opensearch.protobufs.TermsAggregation;
 import org.opensearch.protobufs.TermsAggregationCollectMode;
 import org.opensearch.protobufs.TermsAggregationExecutionHint;
 import org.opensearch.protobufs.TermsAggregationFields;
+import org.opensearch.protobufs.TermsExclude;
 import org.opensearch.protobufs.TermsInclude;
 import org.opensearch.protobufs.TermsPartition;
 import org.opensearch.search.aggregations.AggregationBuilder;
@@ -77,7 +78,7 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
                 .setExecutionHint(TermsAggregationExecutionHint.TERMS_AGGREGATION_EXECUTION_HINT_MAP)
                 .setCollectMode(TermsAggregationCollectMode.TERMS_AGGREGATION_COLLECT_MODE_BREADTH_FIRST)
                 .addOrder(SortOrderSingleMap.newBuilder().setField("_count").setSortOrder(SortOrder.SORT_ORDER_ASC).build())
-                .addExclude("other")
+                .setExclude(TermsExclude.newBuilder().setTerms(StringArray.newBuilder().addStringArray("other").build()).build())
                 .build()
         );
 
@@ -147,6 +148,16 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
         );
         assertNotNull(withInclude.includeExclude());
 
+        // include by regex
+        TermsAggregationBuilder withRegexInclude = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder().setField("f").setInclude(TermsInclude.newBuilder().setRegexp("foo.*").build()).build()
+            )
+        );
+        assertNotNull(withRegexInclude.includeExclude());
+        assertTrue(withRegexInclude.includeExclude().isRegexBased());
+
         // include by partition
         TermsAggregationBuilder withPartition = (TermsAggregationBuilder) converter.fromProto(
             "t",
@@ -164,12 +175,43 @@ public class TermsAggregationBuilderConverterTests extends OpenSearchTestCase {
         assertNotNull(withPartition.includeExclude());
         assertTrue(withPartition.includeExclude().isPartitionBased());
 
-        // exclude only
+        // exclude by terms
         TermsAggregationBuilder withExclude = (TermsAggregationBuilder) converter.fromProto(
             "t",
-            buildContainer(TermsAggregationFields.newBuilder().setField("f").addExclude("x").addExclude("y").build())
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .setExclude(
+                        TermsExclude.newBuilder().setTerms(StringArray.newBuilder().addStringArray("x").addStringArray("y").build()).build()
+                    )
+                    .build()
+            )
         );
         assertNotNull(withExclude.includeExclude());
+
+        // exclude by regex
+        TermsAggregationBuilder withRegexExclude = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder().setField("f").setExclude(TermsExclude.newBuilder().setRegexp("bar.*").build()).build()
+            )
+        );
+        assertNotNull(withRegexExclude.includeExclude());
+        assertTrue(withRegexExclude.includeExclude().isRegexBased());
+
+        // both include regex + exclude regex
+        TermsAggregationBuilder withBothRegex = (TermsAggregationBuilder) converter.fromProto(
+            "t",
+            buildContainer(
+                TermsAggregationFields.newBuilder()
+                    .setField("f")
+                    .setInclude(TermsInclude.newBuilder().setRegexp("foo.*").build())
+                    .setExclude(TermsExclude.newBuilder().setRegexp("bar.*").build())
+                    .build()
+            )
+        );
+        assertNotNull(withBothRegex.includeExclude());
+        assertTrue(withBothRegex.includeExclude().isRegexBased());
     }
 
     public void testContainerWithoutTermsAggregation() {

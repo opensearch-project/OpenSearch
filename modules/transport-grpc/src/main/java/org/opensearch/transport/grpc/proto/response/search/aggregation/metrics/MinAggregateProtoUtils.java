@@ -36,6 +36,8 @@ public class MinAggregateProtoUtils {
     public static SingleMetricAggregateBase toProto(InternalMin internalMin) {
         SingleMetricAggregateBase.Builder builder = SingleMetricAggregateBase.newBuilder();
 
+        AggregateProtoUtils.addMetadata(builder::setMeta, internalMin);
+
         double min = internalMin.getValue();
         boolean hasValue = !Double.isInfinite(min);
 
@@ -50,8 +52,6 @@ public class MinAggregateProtoUtils {
         if (hasValue && internalMin.getFormat() != DocValueFormat.RAW) {
             builder.setValueAsString(internalMin.getValueAsString());
         }
-
-        AggregateProtoUtils.addMetadata(builder::setMeta, internalMin);
 
         return builder.build();
     }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.protobufs.Aggregate;
 import org.opensearch.search.aggregations.InternalAggregation;
+import org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterSpiRegistry;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
@@ -20,7 +21,7 @@ import java.util.Map;
 
 /**
  * SPI registry for AggregateProtoConverter implementations.
- * Mirrors the pattern from {@link org.opensearch.transport.grpc.proto.request.search.aggregation.AggregationBuilderProtoConverterSpiRegistry}.
+ * Mirrors the pattern from {@link AggregationBuilderProtoConverterSpiRegistry}.
  */
 public class AggregateProtoConverterSpiRegistry implements AggregateProtoConverterRegistry {
 
@@ -102,6 +103,18 @@ public class AggregateProtoConverterSpiRegistry implements AggregateProtoConvert
         logger.debug("Using converter for {}: {}", aggregation.getClass().getName(), converter.getClass().getName());
 
         return converter.toProto(aggregation).build();
+    }
+
+    /**
+     * Sets the registry on all registered converters.
+     *
+     * @param registry The registry to set
+     */
+    public void setRegistryOnAllConverters(AggregateProtoConverterRegistry registry) {
+        for (AggregateProtoConverter converter : converters.values()) {
+            converter.setRegistry(registry);
+        }
+        logger.info("Set registry on {} aggregate converter(s)", converters.size());
     }
 
     /**

@@ -36,6 +36,8 @@ public class MaxAggregateProtoUtils {
     public static SingleMetricAggregateBase toProto(InternalMax internalMax) {
         SingleMetricAggregateBase.Builder builder = SingleMetricAggregateBase.newBuilder();
 
+        AggregateProtoUtils.addMetadata(builder::setMeta, internalMax);
+
         double max = internalMax.getValue();
         boolean hasValue = !Double.isInfinite(max);
 
@@ -50,8 +52,6 @@ public class MaxAggregateProtoUtils {
         if (hasValue && internalMax.getFormat() != DocValueFormat.RAW) {
             builder.setValueAsString(internalMax.getValueAsString());
         }
-
-        AggregateProtoUtils.addMetadata(builder::setMeta, internalMax);
 
         return builder.build();
     }

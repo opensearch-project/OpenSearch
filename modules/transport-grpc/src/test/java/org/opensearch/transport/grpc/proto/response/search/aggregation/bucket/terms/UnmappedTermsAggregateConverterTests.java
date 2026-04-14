@@ -8,6 +8,7 @@
 package org.opensearch.transport.grpc.proto.response.search.aggregation.bucket.terms;
 
 import org.opensearch.protobufs.Aggregate;
+import org.opensearch.protobufs.UnmappedTermsAggregate;
 import org.opensearch.search.aggregations.BucketOrder;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
@@ -15,6 +16,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Tests for {@link UnmappedTermsAggregateConverter}.
@@ -28,16 +31,57 @@ public class UnmappedTermsAggregateConverterTests extends OpenSearchTestCase {
     }
 
     public void testToProtoWrapsAsUmterms() throws IOException {
-        UnmappedTerms unmappedTerms = new UnmappedTerms(
-            "unmapped_field",
-            BucketOrder.count(false),
-            new TermsAggregator.BucketCountThresholds(1, 0, 10, -1),
-            Collections.emptyMap()
-        );
+        UnmappedTerms unmappedTerms = createUnmappedTerms("unmapped_field", null);
 
-        Aggregate.Builder result = converter.toProto(unmappedTerms);
-        Aggregate aggregate = result.build();
+        Aggregate aggregate = converter.toProto(unmappedTerms).build();
 
         assertTrue("Should have umterms set", aggregate.hasUmterms());
+    }
+
+    public void testToProtoReturnsZeroCounts() throws IOException {
+        UnmappedTerms unmappedTerms = createUnmappedTerms("unmapped_field", null);
+
+        UnmappedTermsAggregate result = converter.toProto(unmappedTerms).build().getUmterms();
+
+        assertEquals(0, result.getDocCountErrorUpperBound());
+        assertEquals(0, result.getSumOtherDocCount());
+        assertFalse("Should not have metadata for null", result.hasMeta());
+    }
+
+    public void testWithMetadata() throws IOException {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("reason", "unmapped");
+
+        UnmappedTerms unmappedTerms = createUnmappedTerms("unmapped_field", metadata);
+
+        UnmappedTermsAggregate result = converter.toProto(unmappedTerms).build().getUmterms();
+
+        assertTrue("Should have metadata", result.hasMeta());
+        assertTrue("Metadata should contain reason", result.getMeta().getFieldsMap().containsKey("reason"));
+    }
+
+    public void testWithEmptyMetadata() throws IOException {
+        UnmappedTerms unmappedTerms = createUnmappedTerms("unmapped_field", new HashMap<>());
+
+        UnmappedTermsAggregate result = converter.toProto(unmappedTerms).build().getUmterms();
+
+        assertFalse("Should not have metadata for empty map", result.hasMeta());
+    }
+
+    public void testWithNullMetadata() throws IOException {
+        UnmappedTerms unmappedTerms = createUnmappedTerms("unmapped_field", null);
+
+        UnmappedTermsAggregate result = converter.toProto(unmappedTerms).build().getUmterms();
+
+        assertFalse("Should not have metadata for null", result.hasMeta());
+    }
+
+    private static UnmappedTerms createUnmappedTerms(String name, Map<String, Object> metadata) {
+        return new UnmappedTerms(
+            name,
+            BucketOrder.count(false),
+            new TermsAggregator.BucketCountThresholds(1, 0, 10, -1),
+            metadata != null ? metadata : Collections.emptyMap()
+        );
     }
 }

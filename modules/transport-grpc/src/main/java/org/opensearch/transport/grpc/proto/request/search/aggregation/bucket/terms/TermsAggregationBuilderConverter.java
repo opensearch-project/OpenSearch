@@ -15,6 +15,7 @@ import org.opensearch.protobufs.TermsAggregation;
 import org.opensearch.protobufs.TermsAggregationCollectMode;
 import org.opensearch.protobufs.TermsAggregationExecutionHint;
 import org.opensearch.protobufs.TermsAggregationFields;
+import org.opensearch.protobufs.TermsExclude;
 import org.opensearch.protobufs.TermsInclude;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -111,10 +112,8 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
         if (terms.hasInclude()) {
             includeExclude = convertInclude(terms.getInclude());
         }
-        if (terms.getExcludeCount() > 0) {
-            // See IncludeExclude::parseExclude
-            String[] excludeValues = terms.getExcludeList().toArray(new String[0]);
-            IncludeExclude excludeIE = new IncludeExclude(null, excludeValues);
+        if (terms.hasExclude()) {
+            IncludeExclude excludeIE = convertExclude(terms.getExclude());
             includeExclude = IncludeExclude.merge(includeExclude, excludeIE);
         }
         if (includeExclude != null) {
@@ -168,12 +167,27 @@ public class TermsAggregationBuilderConverter implements AggregationBuilderProto
      */
     private static IncludeExclude convertInclude(TermsInclude include) {
         return switch (include.getTermsIncludeCase()) {
+            case REGEXP -> new IncludeExclude(include.getRegexp(), null);
             case TERMS -> {
                 String[] includeTerms = include.getTerms().getStringArrayList().toArray(new String[0]);
                 yield new IncludeExclude(includeTerms, null);
             }
             case PARTITION -> new IncludeExclude(include.getPartition().getPartition(), include.getPartition().getNumPartitions());
             default -> throw new IllegalArgumentException("Unsupported include type: " + include.getTermsIncludeCase());
+        };
+    }
+
+    /**
+     * See {@link IncludeExclude#parseExclude(XContentParser)}
+     */
+    private static IncludeExclude convertExclude(TermsExclude exclude) {
+        return switch (exclude.getTermsExcludeCase()) {
+            case REGEXP -> new IncludeExclude(null, exclude.getRegexp());
+            case TERMS -> {
+                String[] excludeTerms = exclude.getTerms().getStringArrayList().toArray(new String[0]);
+                yield new IncludeExclude(null, excludeTerms);
+            }
+            default -> throw new IllegalArgumentException("Unsupported exclude type: " + exclude.getTermsExcludeCase());
         };
     }
 

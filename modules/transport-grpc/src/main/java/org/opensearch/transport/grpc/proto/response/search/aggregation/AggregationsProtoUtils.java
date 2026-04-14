@@ -10,6 +10,7 @@ package org.opensearch.transport.grpc.proto.response.search.aggregation;
 
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 
@@ -30,16 +31,21 @@ public class AggregationsProtoUtils {
      *
      * @param aggregations The aggregations collection (can be null)
      * @param builder The SearchResponse builder to populate
+     * @param registry The converter registry for dispatching to the appropriate converter
      * @throws IOException if an error occurs during conversion
      * @see Aggregations#toXContentInternal
      */
-    public static void toProto(Aggregations aggregations, org.opensearch.protobufs.SearchResponse.Builder builder) throws IOException {
+    public static void toProto(
+        Aggregations aggregations,
+        org.opensearch.protobufs.SearchResponse.Builder builder,
+        AggregateProtoConverterRegistry registry
+    ) throws IOException {
         if (aggregations == null) {
             return;
         }
 
         for (Aggregation agg : aggregations.asList()) {
-            builder.putAggregations(agg.getName(), AggregateProtoUtils.toProto(agg));
+            builder.putAggregations(agg.getName(), AggregateProtoUtils.toProto(agg, registry));
         }
     }
 }

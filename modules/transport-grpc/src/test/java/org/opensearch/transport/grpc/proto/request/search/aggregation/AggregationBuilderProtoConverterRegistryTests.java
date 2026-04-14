@@ -12,6 +12,7 @@ import org.opensearch.protobufs.MaxAggregation;
 import org.opensearch.protobufs.MinAggregation;
 import org.opensearch.protobufs.ObjectMap;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -274,7 +275,7 @@ public class AggregationBuilderProtoConverterRegistryTests extends OpenSearchTes
     /**
      * Test that invalid aggregation names are rejected.
      * Verifies that aggregation name validation matches REST API behavior.
-     * See {@link org.opensearch.search.aggregations.AggregatorFactories#parseAggregators}.
+     * See {@link AggregatorFactories#parseAggregators}.
      */
     public void testInvalidAggregationNames() {
         AggregationBuilderProtoConverterRegistryImpl registry = new AggregationBuilderProtoConverterRegistryImpl();

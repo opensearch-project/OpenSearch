@@ -16,6 +16,7 @@ import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,6 +24,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class AggregationsProtoUtilsTests extends OpenSearchTestCase {
+
+    private final AggregateProtoConverterRegistry registry = new AggregateProtoConverterRegistryImpl();
 
     public void testToProtoWithMultipleAggregations() throws IOException {
         InternalMin minAgg = new InternalMin("min_price", 10.0, DocValueFormat.RAW, Collections.emptyMap());
@@ -34,7 +37,7 @@ public class AggregationsProtoUtilsTests extends OpenSearchTestCase {
         Aggregations aggregations = InternalAggregations.from(aggList);
 
         SearchResponse.Builder builder = SearchResponse.newBuilder();
-        AggregationsProtoUtils.toProto(aggregations, builder);
+        AggregationsProtoUtils.toProto(aggregations, builder, registry);
 
         assertEquals("Should have 2 aggregations", 2, builder.getAggregationsCount());
         assertTrue("Should have min_price", builder.containsAggregations("min_price"));
@@ -46,7 +49,7 @@ public class AggregationsProtoUtilsTests extends OpenSearchTestCase {
         Aggregations aggregations = InternalAggregations.from(Collections.singletonList(minAgg));
 
         SearchResponse.Builder builder = SearchResponse.newBuilder();
-        AggregationsProtoUtils.toProto(aggregations, builder);
+        AggregationsProtoUtils.toProto(aggregations, builder, registry);
 
         assertEquals("Should have 1 aggregation", 1, builder.getAggregationsCount());
         assertTrue("Should have single_min", builder.containsAggregations("single_min"));
@@ -56,14 +59,14 @@ public class AggregationsProtoUtilsTests extends OpenSearchTestCase {
         Aggregations aggregations = InternalAggregations.EMPTY;
 
         SearchResponse.Builder builder = SearchResponse.newBuilder();
-        AggregationsProtoUtils.toProto(aggregations, builder);
+        AggregationsProtoUtils.toProto(aggregations, builder, registry);
 
         assertEquals("Should have 0 aggregations", 0, builder.getAggregationsCount());
     }
 
     public void testToProtoWithNullAggregations() throws IOException {
         SearchResponse.Builder builder = SearchResponse.newBuilder();
-        AggregationsProtoUtils.toProto(null, builder);
+        AggregationsProtoUtils.toProto(null, builder, registry);
 
         assertEquals("Should have 0 aggregations", 0, builder.getAggregationsCount());
     }

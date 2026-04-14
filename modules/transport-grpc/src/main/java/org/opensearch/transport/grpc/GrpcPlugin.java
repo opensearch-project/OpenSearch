@@ -37,7 +37,6 @@ import org.opensearch.transport.grpc.proto.request.search.aggregation.Aggregatio
 import org.opensearch.transport.grpc.proto.request.search.query.AbstractQueryBuilderProtoUtils;
 import org.opensearch.transport.grpc.proto.request.search.query.QueryBuilderProtoConverterRegistryImpl;
 import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoConverterRegistryImpl;
-import org.opensearch.transport.grpc.proto.response.search.aggregation.AggregateProtoUtils;
 import org.opensearch.transport.grpc.services.DocumentServiceImpl;
 import org.opensearch.transport.grpc.services.SearchServiceImpl;
 import org.opensearch.transport.grpc.spi.AggregateProtoConverter;
@@ -237,7 +236,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(
                     new DocumentServiceImpl(client, circuitBreakerService),
-                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, circuitBreakerService)
+                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
                 )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
@@ -291,7 +290,7 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
             List<BindableService> grpcServices = new ArrayList<>(
                 List.of(
                     new DocumentServiceImpl(client, circuitBreakerService),
-                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, circuitBreakerService)
+                    new SearchServiceImpl(client, queryUtils, aggregationRegistry, aggregateRegistry, circuitBreakerService)
                 )
             );
             for (GrpcServiceFactory serviceFac : servicesFactory) {
@@ -456,9 +455,6 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
         // Create the aggregate registry (response-side)
         this.aggregateRegistry = new AggregateProtoConverterRegistryImpl();
 
-        // Set the global aggregate registry for response serialization
-        AggregateProtoUtils.setRegistry(aggregateRegistry);
-
         // Create the query utils instance
         this.queryUtils = new AbstractQueryBuilderProtoUtils(queryRegistry);
 
@@ -532,6 +528,10 @@ public final class GrpcPlugin extends Plugin implements NetworkPlugin, Extensibl
                 logger.info("Registered aggregate converter: {}", converter.getClass().getName());
             }
             logger.info("Successfully registered all {} external aggregate converters", aggregateConverters.size());
+
+            // Update the registry on all converters (including built-in ones) so they can access external converters
+            aggregateRegistry.updateRegistryOnAllConverters();
+            logger.info("Updated aggregate registry on all converters to include external converters");
         } else {
             logger.info("No external AggregateProtoConverter(s) to register");
         }

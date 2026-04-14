@@ -14,6 +14,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.metrics.InternalMax;
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.transport.grpc.spi.AggregateProtoConverterRegistry;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,10 +28,12 @@ import java.util.Map;
  */
 public class AggregateProtoUtilsTests extends OpenSearchTestCase {
 
+    private final AggregateProtoConverterRegistry registry = new AggregateProtoConverterRegistryImpl();
+
     public void testToProtoWithInternalMin() throws IOException {
         InternalMin internalMin = new InternalMin("min_price", 10.5, DocValueFormat.RAW, Collections.emptyMap());
 
-        Aggregate result = AggregateProtoUtils.toProto(internalMin);
+        Aggregate result = AggregateProtoUtils.toProto(internalMin, registry);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Should have min set", result.hasMin());
@@ -42,7 +45,7 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
     public void testToProtoWithInternalMax() throws IOException {
         InternalMax internalMax = new InternalMax("max_price", 99.9, DocValueFormat.RAW, Collections.emptyMap());
 
-        Aggregate result = AggregateProtoUtils.toProto(internalMax);
+        Aggregate result = AggregateProtoUtils.toProto(internalMax, registry);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Should have max set", result.hasMax());
@@ -52,7 +55,7 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
     }
 
     public void testToProtoWithNullThrowsException() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AggregateProtoUtils.toProto(null));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AggregateProtoUtils.toProto(null, registry));
         assertTrue("Exception message should mention null", ex.getMessage().contains("must not be null"));
     }
 
@@ -90,7 +93,10 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
             protected void doWriteTo(org.opensearch.core.common.io.stream.StreamOutput out) throws IOException {}
         };
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> AggregateProtoUtils.toProto(unsupported));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AggregateProtoUtils.toProto(unsupported, registry)
+        );
         assertTrue("Exception message should mention unsupported", ex.getMessage().contains("Unsupported"));
     }
 
@@ -101,7 +107,7 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
 
         InternalMin internalMin = new InternalMin("min_with_meta", 15.5, DocValueFormat.RAW, metadata);
 
-        Aggregate result = AggregateProtoUtils.toProto(internalMin);
+        Aggregate result = AggregateProtoUtils.toProto(internalMin, registry);
 
         assertNotNull("Result should not be null", result);
         assertTrue("Should have metadata", result.getMin().hasMeta());
@@ -113,7 +119,7 @@ public class AggregateProtoUtilsTests extends OpenSearchTestCase {
     public void testToProtoWithEmptyMetadataDoesNotSetMeta() throws IOException {
         InternalMin internalMin = new InternalMin("min_no_meta", 20.0, DocValueFormat.RAW, Collections.emptyMap());
 
-        Aggregate result = AggregateProtoUtils.toProto(internalMin);
+        Aggregate result = AggregateProtoUtils.toProto(internalMin, registry);
 
         assertNotNull("Result should not be null", result);
         assertFalse("Should not have metadata for empty map", result.getMin().hasMeta());

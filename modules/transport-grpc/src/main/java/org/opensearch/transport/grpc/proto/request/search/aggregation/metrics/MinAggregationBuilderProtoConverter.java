@@ -9,6 +9,7 @@ package org.opensearch.transport.grpc.proto.request.search.aggregation.metrics;
 
 import org.opensearch.protobufs.AggregationContainer;
 import org.opensearch.search.aggregations.AggregationBuilder;
+import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.transport.grpc.spi.AggregationBuilderProtoConverter;
 
 /**
@@ -22,8 +23,8 @@ public class MinAggregationBuilderProtoConverter implements AggregationBuilderPr
     }
 
     /**
-     * Converts protobuf MinAggregation to {@link org.opensearch.search.aggregations.metrics.MinAggregationBuilder}.
-     * Equivalent to REST parsing via {@link org.opensearch.search.aggregations.metrics.MinAggregationBuilder#PARSER}.
+     * Converts protobuf MinAggregation to {@link MinAggregationBuilder}.
+     * Equivalent to REST parsing via {@link MinAggregationBuilder#PARSER}.
      */
     @Override
     public AggregationBuilder fromProto(String name, AggregationContainer container) {
