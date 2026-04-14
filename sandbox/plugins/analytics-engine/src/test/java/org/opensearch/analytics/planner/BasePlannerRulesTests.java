@@ -37,7 +37,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -308,7 +308,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         }
 
         @Override
-        public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+        public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
             return null;
         }
     }

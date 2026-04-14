@@ -10,9 +10,6 @@ package org.opensearch.be.datafusion;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.analytics.backend.EngineResultStream;
-import org.opensearch.analytics.backend.ExecutionContext;
-import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;

@@ -18,7 +18,7 @@ import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.HashSet;
@@ -152,7 +152,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     }
 
     @Override
-    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+    public EngineReaderManager<Object> createReaderManager(ReaderManagerConfig settings) {
         return null;
     }
 }
