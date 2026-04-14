@@ -634,7 +634,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public boolean isUTC() {
-            return "Z".equals(timeZone.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+            return "Z".equals(timeZone.normalized().getDisplayName(TextStyle.FULL, Locale.ENGLISH));
         }
 
         private abstract class TimeUnitPreparedRounding extends PreparedRounding {
@@ -1007,7 +1007,7 @@ public abstract class Rounding implements Writeable {
 
         @Override
         public boolean isUTC() {
-            return "Z".equals(timeZone.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
+            return "Z".equals(timeZone.normalized().getDisplayName(TextStyle.FULL, Locale.ENGLISH));
         }
 
         private long roundKey(long value, long interval) {
