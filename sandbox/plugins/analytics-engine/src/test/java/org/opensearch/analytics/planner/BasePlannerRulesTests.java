@@ -26,10 +26,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
-import org.opensearch.analytics.spi.AggregateCapability;
-import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -44,10 +41,8 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -104,6 +99,28 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         List<AnalyticsSearchBackendPlugin> backends
     ) {
         return buildContext(primaryFormat, 2, fieldMappings, backends);
+    }
+
+    /**
+     * Builds a PlannerContext with explicit per-field storage — for hybrid index tests
+     * where a field has doc values in multiple formats (e.g. parquet + lucene).
+     */
+    protected PlannerContext buildContextWithExplicitStorage(
+        int shardCount,
+        Map<String, FieldStorageInfo> fieldStorage,
+        List<AnalyticsSearchBackendPlugin> backends
+    ) {
+        ClusterState clusterState = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        IndexMetadata indexMetadata = mock(IndexMetadata.class);
+        when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
+        when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
+        when(metadata.index("test_index")).thenReturn(indexMetadata);
+        when(clusterState.metadata()).thenReturn(metadata);
+
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = idx -> new FieldStorageResolver(fieldStorage);
+
+        return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
     }
 
     protected PlannerContext buildContext(String primaryFormat, int shardCount, Map<String, Map<String, Object>> fieldMappings) {

@@ -24,4 +24,5 @@ public interface SearchExecEngineProvider {
      * Creates a search execution engine bound to the given execution context.
      * The context carries the reader snapshot and task metadata.
      */
-    SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx);}
+    SearchExecEngine<ExecutionContext, EngineResultStream> createSearchExecEngine(ExecutionContext ctx);
+}

@@ -40,6 +40,18 @@ public class FieldStorageResolver {
 
     private final Map<String, FieldStorageInfo> fieldStorage;
 
+    /**
+     * Test constructor — explicit per-field storage, bypasses IndexMetadata inference.
+     * Allows tests to declare hybrid fields (e.g. doc values in both parquet and lucene)
+     * without needing actual IndexMetadata.
+     *
+     * TODO: remove once FieldStorageResolver is integrated with actual per-field format
+     * metadata from MappingMetadata — tests should use real mappings at that point.
+     */
+    FieldStorageResolver(Map<String, FieldStorageInfo> fieldStorage) {
+        this.fieldStorage = new HashMap<>(fieldStorage);
+    }
+
     @SuppressWarnings("unchecked")
     public FieldStorageResolver(IndexMetadata indexMetadata) {
         String indexName = indexMetadata.getIndex().getName();
@@ -79,11 +91,9 @@ public class FieldStorageResolver {
         return result;
     }
 
-    private static FieldStorageInfo resolveField(String fieldName, String fieldType,
-                                                  Map<String, Object> fieldProps, String primaryFormat) {
+    private static FieldStorageInfo resolveField(String fieldName, String fieldType, Map<String, Object> fieldProps, String primaryFormat) {
         // Doc values: present for all types except text, unless explicitly disabled
-        boolean hasDocValues = !"text".equals(fieldType)
-            && !Boolean.FALSE.equals(fieldProps.get("doc_values"));
+        boolean hasDocValues = !"text".equals(fieldType) && !Boolean.FALSE.equals(fieldProps.get("doc_values"));
 
         // Index: only when explicitly set to true in mapping
         boolean isIndexed = Boolean.TRUE.equals(fieldProps.get("index"));
@@ -99,7 +109,14 @@ public class FieldStorageResolver {
             throw new IllegalStateException("Field [" + fieldName + "] has no storage in any format");
         }
 
-        return new FieldStorageInfo(fieldName, fieldType, FieldType.fromMappingType(fieldType),
-            docValueFormats, indexFormats, storedFieldFormats, false);
+        return new FieldStorageInfo(
+            fieldName,
+            fieldType,
+            FieldType.fromMappingType(fieldType),
+            docValueFormats,
+            indexFormats,
+            storedFieldFormats,
+            false
+        );
     }
 }

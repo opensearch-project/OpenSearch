@@ -18,11 +18,14 @@ import java.util.Set;
 public sealed interface ScanCapability {
 
     Set<String> formats();
+
     Set<FieldType> supportedFieldTypes();
 
     /** Columnar doc values (e.g. Parquet, Lucene doc values). */
-    record DocValues(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {}
+    record DocValues(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
+    }
 
     /** Row-oriented stored fields (e.g. Lucene _source, stored fields). */
-    record StoredFields(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {}
+    record StoredFields(Set<String> formats, Set<FieldType> supportedFieldTypes) implements ScanCapability {
+    }
 }

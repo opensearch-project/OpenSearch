@@ -27,7 +27,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -115,7 +114,7 @@ public class OpenSearchAggregateRule extends RelOptRule {
         );
     }
 
-    private List<String> resolveViableBackendsForCall(AggregateCall aggCall, List<FieldStorageInfo> childFieldStorage) {
+    private List<String> resolveViableBackendsForCall(AggregateCall aggCall, List<FieldStorageInfo> childFieldStorageInfos) {
         AggregateFunction func = AggregateFunction.fromSqlKind(aggCall.getAggregation().getKind());
         if (func == null) {
             func = AggregateFunction.fromNameOrError(aggCall.getAggregation().getName());
@@ -129,16 +128,24 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         List<String> callViable = null;
         for (int fieldIndex : aggCall.getArgList()) {
-            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(childFieldStorage, fieldIndex);
+            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(childFieldStorageInfos, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
 
             Set<String> perFieldBackends = new HashSet<>();
             if (storageInfo.isDerived()) {
                 perFieldBackends.addAll(registry.aggregateBackendsAnyFormat(func, fieldType));
             } else {
-                // Format-aware + format-agnostic delegation targets
+                // Format-aware: backends that can read this field's doc values and aggregate
                 perFieldBackends.addAll(registry.aggregateBackendsForField(func, storageInfo));
-                perFieldBackends.addAll(registry.aggregateBackendsAnyFormat(func, fieldType));
+                // Delegation targets: backends that declared acceptedDelegations(AGGREGATE) and
+                // can aggregate this function — they receive data via Arrow batch, not field storage.
+                // TODO: once DelegationType split (NATIVE_INDEX vs ARROW_BATCH) is designed,
+                // restrict this to ARROW_BATCH delegation acceptors only.
+                for (String name : registry.aggregateBackendsAnyFormat(func, fieldType)) {
+                    if (registry.delegationAcceptors(DelegationType.AGGREGATE).contains(name)) {
+                        perFieldBackends.add(name);
+                    }
+                }
             }
 
             if (callViable == null) {

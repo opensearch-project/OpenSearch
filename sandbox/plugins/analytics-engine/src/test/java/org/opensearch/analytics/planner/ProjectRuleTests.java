@@ -43,13 +43,21 @@ import java.util.Set;
 public class ProjectRuleTests extends BasePlannerRulesTests {
 
     private static final SqlFunction PAINLESS = new SqlFunction(
-        "painless", SqlKind.OTHER_FUNCTION, ReturnTypes.VARCHAR_2000,
-        null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION
+        "painless",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.VARCHAR_2000,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
     private static final SqlFunction HIGHLIGHT = new SqlFunction(
-        "highlight", SqlKind.OTHER_FUNCTION, ReturnTypes.VARCHAR_2000,
-        null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION
+        "highlight",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.VARCHAR_2000,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
     // ---- Simple projection ----
@@ -82,8 +90,11 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             typeFactory.createSqlType(SqlTypeName.VARCHAR),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
         );
-        RelOptTable table = mockTable("test_index",
-            new String[]{"name", "value"}, new SqlTypeName[]{SqlTypeName.VARCHAR, SqlTypeName.INTEGER});
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "name", "value" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(castExpr), List.of("casted"));
         PlannerContext context = buildContext("parquet", nameValueFields());
 
@@ -94,7 +105,9 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Delegation ----
 
     public void testPainlessDelegationFromDataFusionToLucene() {
-        OpenSearchProject result = runProject("parquet", delegationBackends("painless"),
+        OpenSearchProject result = runProject(
+            "parquet",
+            delegationBackends("painless"),
             rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0))
         );
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -105,22 +118,28 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     public void testPainlessErrorsWithoutDelegation() {
         // Lucene supports painless but no delegation configured
         MockLuceneBackend luceneWithPainless = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
         };
-        RelOptTable table = mockTable("test_index", new String[]{"name"}, new SqlTypeName[]{SqlTypeName.VARCHAR});
+        RelOptTable table = mockTable("test_index", new String[] { "name" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(painlessExpr), List.of("scripted_field"));
-        PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(DATAFUSION, luceneWithPainless));
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword")),
+            List.of(DATAFUSION, luceneWithPainless)
+        );
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
     }
 
     public void testMixedFieldAndPainlessWithDelegation() {
-        OpenSearchProject result = runProject("parquet", delegationBackends("painless"),
+        OpenSearchProject result = runProject(
+            "parquet",
+            delegationBackends("painless"),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0),
             rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0))
         );
@@ -130,7 +149,9 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     public void testHighlightDelegation() {
-        OpenSearchProject result = runProject("parquet", delegationBackends("painless", "highlight"),
+        OpenSearchProject result = runProject(
+            "parquet",
+            delegationBackends("painless", "highlight"),
             rexBuilder.makeCall(HIGHLIGHT, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0))
         );
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -141,12 +162,17 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     public void testOpaqueOperationSupportedNatively() {
         MockDataFusionBackend dfWithPainless = new MockDataFusionBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
-                return combine(scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class)),
-                    opaqueCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), "painless"));
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
+                return combine(
+                    scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class)),
+                    opaqueCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), "painless")
+                );
             }
         };
-        OpenSearchProject result = runProject("parquet", List.of(dfWithPainless, LUCENE),
+        OpenSearchProject result = runProject(
+            "parquet",
+            List.of(dfWithPainless, LUCENE),
             rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0))
         );
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -156,10 +182,15 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     // ---- Nested expressions ----
 
     public void testNestedScalarFunctions() {
-        RexNode castExpr = rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.INTEGER),
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
-        RexNode plusExpr = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, castExpr,
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1));
+        RexNode castExpr = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.INTEGER),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0)
+        );
+        RexNode plusExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.PLUS,
+            castExpr,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
         OpenSearchProject result = runProject(plusExpr);
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertAnnotation(result.getProjects().get(0), MockDataFusionBackend.NAME);
@@ -169,25 +200,42 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     public void testMixedBackendsInProjection() {
         MockDataFusionBackend dfWithScalarsAndDelegation = new MockDataFusionBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
-            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
 
         RexNode fieldRef = rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0);
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
-        RexNode castExpr = rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.VARCHAR),
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1));
+        RexNode castExpr = rexBuilder.makeCast(
+            typeFactory.createSqlType(SqlTypeName.VARCHAR),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
 
-        OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting),
-            fieldRef, painlessExpr, castExpr);
+        OpenSearchProject result = runProject(
+            "parquet",
+            List.of(dfWithScalarsAndDelegation, luceneAccepting),
+            fieldRef,
+            painlessExpr,
+            castExpr
+        );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
         assertFalse("Field ref should not be annotated", result.getProjects().get(0) instanceof AnnotatedProjectExpression);
@@ -197,22 +245,34 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     public void testScalarWrappingOpaqueOp() {
         MockDataFusionBackend dfWithScalarsAndDelegation = new MockDataFusionBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
-            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
 
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
-        RexNode plusExpr = rexBuilder.makeCall(SqlStdOperatorTable.PLUS,
+        RexNode plusExpr = rexBuilder.makeCall(
+            SqlStdOperatorTable.PLUS,
             rexBuilder.makeCast(typeFactory.createSqlType(SqlTypeName.INTEGER), painlessExpr),
-            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1));
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 1)
+        );
 
         OpenSearchProject result = runProject("parquet", List.of(dfWithScalarsAndDelegation, luceneAccepting), plusExpr);
 
@@ -233,29 +293,51 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     public void testDelegationFailsWhenAcceptorLacksOpaqueOp() {
         MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         MockLuceneBackend luceneAccepting = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless", "highlight");
             }
-            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         // Third backend declares "suggest" so isOpaqueOperation returns true, but no acceptor handles it
         MockLuceneBackend thirdBackend = new MockLuceneBackend() {
-            @Override public String name() { return "mock-third"; }
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            public String name() {
+                return "mock-third";
+            }
+
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "suggest");
             }
         };
 
-        SqlFunction suggest = new SqlFunction("suggest", SqlKind.OTHER_FUNCTION, ReturnTypes.VARCHAR_2000,
-            null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
-        RelOptTable table = mockTable("test_index", new String[]{"name"}, new SqlTypeName[]{SqlTypeName.VARCHAR});
+        SqlFunction suggest = new SqlFunction(
+            "suggest",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_2000,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
+        RelOptTable table = mockTable("test_index", new String[] { "name" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
         RexNode suggestExpr = rexBuilder.makeCall(suggest, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(suggestExpr), List.of("sg"));
-        PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(dfWithDelegation, luceneAccepting, thirdBackend));
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword")),
+            List.of(dfWithDelegation, luceneAccepting, thirdBackend)
+        );
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
@@ -263,20 +345,27 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     public void testDelegationFailsWhenAcceptorRejectsDelegationType() {
         MockDataFusionBackend dfWithDelegation = new MockDataFusionBackend() {
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         // Lucene supports painless but doesn't accept PROJECT delegation
         MockLuceneBackend luceneWithPainlessNoAccept = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), "painless");
             }
         };
 
-        RelOptTable table = mockTable("test_index", new String[]{"name"}, new SqlTypeName[]{SqlTypeName.VARCHAR});
+        RelOptTable table = mockTable("test_index", new String[] { "name" }, new SqlTypeName[] { SqlTypeName.VARCHAR });
         RexNode painlessExpr = rexBuilder.makeCall(PAINLESS, rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.VARCHAR), 0));
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(painlessExpr), List.of("scripted"));
-        PlannerContext context = buildContext("parquet", Map.of("name", Map.of("type", "keyword")),
-            List.of(dfWithDelegation, luceneWithPainlessNoAccept));
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("name", Map.of("type", "keyword")),
+            List.of(dfWithDelegation, luceneWithPainlessNoAccept)
+        );
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(project, context));
         assertTrue(exception.getMessage().contains("no delegation path exists"));
@@ -289,8 +378,10 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     private void assertAnnotation(RexNode expr, String expectedBackend) {
-        assertTrue("Expected AnnotatedProjectExpression, got " + expr.getClass().getSimpleName(),
-            expr instanceof AnnotatedProjectExpression);
+        assertTrue(
+            "Expected AnnotatedProjectExpression, got " + expr.getClass().getSimpleName(),
+            expr instanceof AnnotatedProjectExpression
+        );
         assertTrue(((AnnotatedProjectExpression) expr).getViableBackends().contains(expectedBackend));
     }
 
@@ -299,10 +390,14 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     private OpenSearchProject runProject(String format, List<AnalyticsSearchBackendPlugin> backends, RexNode... exprs) {
-        RelOptTable table = mockTable("test_index",
-            new String[]{"name", "value"}, new SqlTypeName[]{SqlTypeName.VARCHAR, SqlTypeName.INTEGER});
+        RelOptTable table = mockTable(
+            "test_index",
+            new String[] { "name", "value" },
+            new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.INTEGER }
+        );
         List<String> fieldNames = new ArrayList<>();
-        for (int i = 0; i < exprs.length; i++) fieldNames.add("col_" + i);
+        for (int i = 0; i < exprs.length; i++)
+            fieldNames.add("col_" + i);
         LogicalProject project = LogicalProject.create(stubScan(table), List.of(), List.of(exprs), fieldNames);
         PlannerContext context = buildContext(format, nameValueFields(), backends);
         RelNode result = unwrapExchange(runPlanner(project, context));
@@ -314,7 +409,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     /** DF backend with all scalar functions declared. */
     private MockDataFusionBackend dfWithScalarFunctions() {
         return new MockDataFusionBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
         };
@@ -323,16 +419,26 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     /** DF (with PROJECT delegation) + Lucene (accepting, with given opaque ops). */
     private List<AnalyticsSearchBackendPlugin> delegationBackends(String... opaqueOps) {
         MockDataFusionBackend df = new MockDataFusionBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return scalarCaps(Set.of(MockDataFusionBackend.PARQUET_DATA_FORMAT), EnumSet.allOf(ScalarFunction.class));
             }
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         MockLuceneBackend lucene = new MockLuceneBackend() {
-            @Override protected Set<ProjectCapability> projectCapabilities() {
+            @Override
+            protected Set<ProjectCapability> projectCapabilities() {
                 return opaqueCaps(Set.of(MockLuceneBackend.LUCENE_DATA_FORMAT), opaqueOps);
             }
-            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.PROJECT); }
+
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.PROJECT);
+            }
         };
         return List.of(df, lucene);
     }
@@ -340,7 +446,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     @SafeVarargs
     private static Set<ProjectCapability> combine(Set<ProjectCapability>... sets) {
         Set<ProjectCapability> result = new HashSet<>();
-        for (Set<ProjectCapability> set : sets) result.addAll(set);
+        for (Set<ProjectCapability> set : sets)
+            result.addAll(set);
         return result;
     }
 
@@ -356,7 +463,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
 
     private static Set<ProjectCapability> opaqueCaps(Set<String> formats, String... names) {
         Set<ProjectCapability> caps = new HashSet<>();
-        for (String name : names) caps.add(new ProjectCapability.Opaque(name, formats));
+        for (String name : names)
+            caps.add(new ProjectCapability.Opaque(name, formats));
         return caps;
     }
 }

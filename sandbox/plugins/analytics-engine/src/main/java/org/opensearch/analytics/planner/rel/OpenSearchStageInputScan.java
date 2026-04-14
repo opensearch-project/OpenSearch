@@ -38,9 +38,13 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
     private final RelDataType rowType;
     private final List<String> viableBackends;
 
-    public OpenSearchStageInputScan(RelOptCluster cluster, RelTraitSet traitSet,
-                                    int childStageId, RelDataType rowType,
-                                    List<String> viableBackends) {
+    public OpenSearchStageInputScan(
+        RelOptCluster cluster,
+        RelTraitSet traitSet,
+        int childStageId,
+        RelDataType rowType,
+        List<String> viableBackends
+    ) {
         super(cluster, traitSet);
         this.childStageId = childStageId;
         this.rowType = rowType;
@@ -62,8 +66,8 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
         throw new UnsupportedOperationException(
-            "getOutputFieldStorage should not be called on StageInputScan — "
-                + "this node is created after marking, not during it");
+            "getOutputFieldStorage should not be called on StageInputScan — " + "this node is created after marking, not during it"
+        );
     }
 
     @Override
@@ -83,8 +87,6 @@ public class OpenSearchStageInputScan extends AbstractRelNode implements OpenSea
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw)
-            .item("childStageId", childStageId)
-            .item("viableBackends", viableBackends);
+        return super.explainTerms(pw).item("childStageId", childStageId).item("viableBackends", viableBackends);
     }
 }

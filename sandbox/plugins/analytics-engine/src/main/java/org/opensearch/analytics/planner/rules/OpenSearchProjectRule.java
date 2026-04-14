@@ -23,7 +23,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
-import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 
 import java.util.ArrayList;

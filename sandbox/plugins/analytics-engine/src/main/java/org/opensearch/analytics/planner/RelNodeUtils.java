@@ -13,12 +13,12 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
+import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 
@@ -116,13 +116,12 @@ public class RelNodeUtils {
                 List<String> backends = leafNode.getViableBackends();
                 if (backends.size() != 1) {
                     throw new IllegalStateException(
-                        "Expected exactly 1 viable backend on resolved leaf ["
-                            + node.getClass().getSimpleName() + "], got " + backends);
+                        "Expected exactly 1 viable backend on resolved leaf [" + node.getClass().getSimpleName() + "], got " + backends
+                    );
                 }
                 return backends.getFirst();
             }
-            throw new IllegalStateException(
-                "Leaf node [" + node.getClass().getSimpleName() + "] is not an OpenSearchRelNode");
+            throw new IllegalStateException("Leaf node [" + node.getClass().getSimpleName() + "] is not an OpenSearchRelNode");
         }
         for (RelNode input : node.getInputs()) {
             String backend = extractLeafBackendFromResolvedFragment(input);

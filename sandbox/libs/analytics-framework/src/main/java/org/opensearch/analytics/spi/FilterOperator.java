@@ -75,17 +75,19 @@ public enum FilterOperator {
         return type;
     }
 
-    public SqlKind getSqlKind() {
-        return sqlKind;
-    }
-
     /**
      * Returns a Calcite {@link SqlFunction} for this full-text operator.
      * Only valid for operators of type {@link Type#FULL_TEXT}.
      */
     public SqlFunction toSqlFunction() {
-        return new SqlFunction(name(), SqlKind.OTHER_FUNCTION, ReturnTypes.BOOLEAN,
-            null, OperandTypes.ANY, SqlFunctionCategory.USER_DEFINED_FUNCTION);
+        return new SqlFunction(
+            name(),
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.BOOLEAN,
+            null,
+            OperandTypes.ANY,
+            SqlFunctionCategory.USER_DEFINED_FUNCTION
+        );
     }
 
     /** Maps a Calcite SqlKind to a standard FilterOperator, or null if not recognized. */

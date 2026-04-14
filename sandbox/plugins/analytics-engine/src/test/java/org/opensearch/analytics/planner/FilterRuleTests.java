@@ -21,7 +21,6 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
-import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FilterOperator;
@@ -42,7 +41,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testNativePredicateAnnotatedWithBothBackends() {
         OpenSearchFilter result = runFilter(
             "parquet",
-            Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")),
+            Map.of("status", Map.of("type", "integer", "index", true), "size", Map.of("type", "integer", "index", true)),
             new String[] { "status", "size" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.INTEGER },
             makeEquals(0, SqlTypeName.INTEGER, 200)
@@ -59,7 +58,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testKeywordEqualsAnnotatedWithBothBackends() {
         OpenSearchFilter result = runFilter(
             "parquet",
-            Map.of("country_name", Map.of("type", "keyword")),
+            Map.of("country_name", Map.of("type", "keyword", "index", true)),
             new String[] { "country_name" },
             new SqlTypeName[] { SqlTypeName.VARCHAR },
             makeEquals(0, SqlTypeName.VARCHAR, "US")
@@ -79,7 +78,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testFullTextViableWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation(
             "parquet",
-            Map.of("message", Map.of("type", "keyword")),
+            Map.of("message", Map.of("type", "keyword", "index", true)),
             new String[] { "message" },
             new SqlTypeName[] { SqlTypeName.VARCHAR },
             makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 0, "hello world")
@@ -99,10 +98,13 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testAndWithDelegationBothViable() {
         OpenSearchFilter result = runFilterWithDelegation(
             "parquet",
-            Map.of("status", Map.of("type", "integer"), "message", Map.of("type", "keyword")),
+            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true)),
             new String[] { "status", "message" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "timeout error"))
+            makeAnd(
+                makeEquals(0, SqlTypeName.INTEGER, 200),
+                makeFullTextCall(FilterOperator.MATCH_PHRASE.toSqlFunction(), 1, "timeout error")
+            )
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -120,10 +122,14 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testOrAcrossBackendsWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation(
             "parquet",
-            Map.of("status", Map.of("type", "integer"), "message", Map.of("type", "keyword")),
+            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true)),
             new String[] { "status", "message" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            makeCall(SqlStdOperatorTable.OR, makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 1, "error"))
+            makeCall(
+                SqlStdOperatorTable.OR,
+                makeEquals(0, SqlTypeName.INTEGER, 200),
+                makeFullTextCall(FilterOperator.MATCH.toSqlFunction(), 1, "error")
+            )
         );
 
         assertTrue(result.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -141,7 +147,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     public void testMultipleFullTextOrWithDelegation() {
         OpenSearchFilter result = runFilterWithDelegation(
             "parquet",
-            Map.of("title", Map.of("type", "keyword"), "body", Map.of("type", "keyword")),
+            Map.of("title", Map.of("type", "keyword", "index", true), "body", Map.of("type", "keyword", "index", true)),
             new String[] { "title", "body" },
             new SqlTypeName[] { SqlTypeName.VARCHAR, SqlTypeName.VARCHAR },
             makeCall(
@@ -173,7 +179,7 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         PlannerContext context = buildContext("parquet", Map.of("message", Map.of("type", "keyword")));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
-        assertTrue(exception.getMessage().contains("No backend can execute filter"));
+        assertTrue(exception.getMessage().contains("No backend can evaluate filter predicate"));
     }
 
     /** Unsupported field type for operator — errors. */
@@ -186,8 +192,10 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         LogicalFilter filter = LogicalFilter.create(stubScan(table), condition);
 
         // doc_values=false, index=false, store=false → no storage in any format → error
-        PlannerContext context = buildContext("parquet",
-            Map.of("location", Map.of("type", "geo_point", "doc_values", false, "index", false, "store", false)));
+        PlannerContext context = buildContext(
+            "parquet",
+            Map.of("location", Map.of("type", "geo_point", "doc_values", false, "index", false, "store", false))
+        );
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> runPlanner(filter, context));
         assertTrue(exception.getMessage().contains("has no storage"));
@@ -229,14 +237,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
         LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
 
-        UnsupportedOperationException ex = expectThrows(
-            UnsupportedOperationException.class,
-            () -> runPlanner(having, context)
-        );
-        assertTrue(
-            "Expected message about derived column, got: " + ex.getMessage(),
-            ex.getMessage().contains("derived column")
-        );
+        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> runPlanner(having, context));
+        assertTrue("Expected message about derived column, got: " + ex.getMessage(), ex.getMessage().contains("derived column"));
     }
 
     // ---- Helpers ----
@@ -280,10 +282,16 @@ public class FilterRuleTests extends BasePlannerRulesTests {
 
     private List<AnalyticsSearchBackendPlugin> delegationBackends() {
         MockDataFusionBackend df = new MockDataFusionBackend() {
-            @Override protected Set<DelegationType> supportedDelegations() { return Set.of(DelegationType.FILTER); }
+            @Override
+            protected Set<DelegationType> supportedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
         };
         MockLuceneBackend lucene = new MockLuceneBackend() {
-            @Override protected Set<DelegationType> acceptedDelegations() { return Set.of(DelegationType.FILTER); }
+            @Override
+            protected Set<DelegationType> acceptedDelegations() {
+                return Set.of(DelegationType.FILTER);
+            }
         };
         return List.of(df, lucene);
     }

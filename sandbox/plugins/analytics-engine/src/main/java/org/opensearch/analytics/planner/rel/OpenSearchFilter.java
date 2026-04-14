@@ -53,10 +53,7 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
     }
 
     @Override
-    public RelOptCost computeSelfCost(
-        RelOptPlanner planner,
-        RelMetadataQuery mq
-    ) {
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
         return planner.getCostFactory().makeTinyCost();
     }
 

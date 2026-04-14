@@ -11,7 +11,6 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -41,16 +40,24 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     private static final Set<String> LUCENE_FORMATS = Set.of(LUCENE_DATA_FORMAT);
 
     private static final Set<FilterOperator> STANDARD_OPS = Set.of(
-        FilterOperator.EQUALS, FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN, FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN, FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL, FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN, FilterOperator.LIKE
+        FilterOperator.EQUALS,
+        FilterOperator.NOT_EQUALS,
+        FilterOperator.GREATER_THAN,
+        FilterOperator.GREATER_THAN_OR_EQUAL,
+        FilterOperator.LESS_THAN,
+        FilterOperator.LESS_THAN_OR_EQUAL,
+        FilterOperator.IS_NULL,
+        FilterOperator.IS_NOT_NULL,
+        FilterOperator.IN,
+        FilterOperator.LIKE
     );
 
     private static final Set<FilterOperator> FULL_TEXT_OPS = Set.of(
-        FilterOperator.MATCH, FilterOperator.MATCH_PHRASE,
-        FilterOperator.FUZZY, FilterOperator.WILDCARD, FilterOperator.REGEXP
+        FilterOperator.MATCH,
+        FilterOperator.MATCH_PHRASE,
+        FilterOperator.FUZZY,
+        FilterOperator.WILDCARD,
+        FilterOperator.REGEXP
     );
 
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();
@@ -84,18 +91,33 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
         FILTER_CAPS = caps;
     }
 
-    @Override public String name() { return NAME; }
+    @Override
+    public String name() {
+        return NAME;
+    }
 
-    @Override protected Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
+    @Override
+    protected Set<FilterCapability> filterCapabilities() {
+        return FILTER_CAPS;
+    }
 
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
     public List<DataFormat> getSupportedFormats() {
         return List.of(new DataFormat() {
-            @Override public String name() { return LUCENE_DATA_FORMAT; }
-            @Override public long priority() { return 0; }
-            @Override public Set<FieldTypeCapabilities> supportedFields() {
+            @Override
+            public String name() {
+                return LUCENE_DATA_FORMAT;
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
                 return Set.of(
                     new FieldTypeCapabilities("integer", Set.of(POINT_RANGE, STORED_FIELDS)),
                     new FieldTypeCapabilities("long", Set.of(POINT_RANGE, STORED_FIELDS)),
@@ -109,5 +131,7 @@ public class MockLuceneBackend extends MockBackend implements SearchBackEndPlugi
     }
 
     @Override
-    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) { return null; }
+    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+        return null;
+    }
 }

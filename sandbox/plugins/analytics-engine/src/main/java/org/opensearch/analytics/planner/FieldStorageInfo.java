@@ -90,16 +90,16 @@ public class FieldStorageInfo {
     }
 
     /**
-     * Resolves a field by index from a storage list, validating bounds and field type.
+     * Resolves a field by index from a fieldStorageInfos list, validating bounds and field type.
      * Throws if the index is out of bounds or the field type is unrecognized.
      */
-    public static FieldStorageInfo resolve(List<FieldStorageInfo> storage, int fieldIndex) {
-        if (fieldIndex >= storage.size()) {
+    public static FieldStorageInfo resolve(List<FieldStorageInfo> fieldStorageInfos, int fieldIndex) {
+        if (fieldIndex >= fieldStorageInfos.size()) {
             throw new IllegalStateException(
-                "Field index [" + fieldIndex + "] out of bounds for storage of size [" + storage.size() + "]"
+                "Field index [" + fieldIndex + "] out of bounds for fieldStorageInfos of size [" + fieldStorageInfos.size() + "]"
             );
         }
-        FieldStorageInfo info = storage.get(fieldIndex);
+        FieldStorageInfo info = fieldStorageInfos.get(fieldIndex);
         if (info.getFieldType() == null) {
             throw new IllegalStateException(
                 "Unrecognized field type [" + info.getMappingType() + "] for field [" + info.getFieldName() + "]"

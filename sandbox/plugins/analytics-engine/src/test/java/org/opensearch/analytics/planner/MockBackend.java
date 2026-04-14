@@ -12,8 +12,8 @@ import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
-import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScanCapability;
 
@@ -32,22 +32,69 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     public final BackendCapabilityProvider getCapabilityProvider() {
         MockBackend self = this;
         return new BackendCapabilityProvider() {
-            @Override public Set<EngineCapability> supportedEngineCapabilities() { return self.supportedEngineCapabilities(); }
-            @Override public Set<ScanCapability> scanCapabilities() { return self.scanCapabilities(); }
-            @Override public Set<FilterCapability> filterCapabilities() { return self.filterCapabilities(); }
-            @Override public Set<AggregateCapability> aggregateCapabilities() { return self.aggregateCapabilities(); }
-            @Override public Set<ProjectCapability> projectCapabilities() { return self.projectCapabilities(); }
-            @Override public Set<DelegationType> supportedDelegations() { return self.supportedDelegations(); }
-            @Override public Set<DelegationType> acceptedDelegations() { return self.acceptedDelegations(); }
+            @Override
+            public Set<EngineCapability> supportedEngineCapabilities() {
+                return self.supportedEngineCapabilities();
+            }
+
+            @Override
+            public Set<ScanCapability> scanCapabilities() {
+                return self.scanCapabilities();
+            }
+
+            @Override
+            public Set<FilterCapability> filterCapabilities() {
+                return self.filterCapabilities();
+            }
+
+            @Override
+            public Set<AggregateCapability> aggregateCapabilities() {
+                return self.aggregateCapabilities();
+            }
+
+            @Override
+            public Set<ProjectCapability> projectCapabilities() {
+                return self.projectCapabilities();
+            }
+
+            @Override
+            public Set<DelegationType> supportedDelegations() {
+                return self.supportedDelegations();
+            }
+
+            @Override
+            public Set<DelegationType> acceptedDelegations() {
+                return self.acceptedDelegations();
+            }
         };
     }
 
     // Overridable capability methods — defaults return empty (no capability declared)
-    protected Set<EngineCapability> supportedEngineCapabilities() { return Set.of(); }
-    protected Set<ScanCapability> scanCapabilities() { return Set.of(); }
-    protected Set<FilterCapability> filterCapabilities() { return Set.of(); }
-    protected Set<AggregateCapability> aggregateCapabilities() { return Set.of(); }
-    protected Set<ProjectCapability> projectCapabilities() { return Set.of(); }
-    protected Set<DelegationType> supportedDelegations() { return Set.of(); }
-    protected Set<DelegationType> acceptedDelegations() { return Set.of(); }
+    protected Set<EngineCapability> supportedEngineCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<ScanCapability> scanCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<FilterCapability> filterCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<AggregateCapability> aggregateCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<ProjectCapability> projectCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<DelegationType> supportedDelegations() {
+        return Set.of();
+    }
+
+    protected Set<DelegationType> acceptedDelegations() {
+        return Set.of();
+    }
 }

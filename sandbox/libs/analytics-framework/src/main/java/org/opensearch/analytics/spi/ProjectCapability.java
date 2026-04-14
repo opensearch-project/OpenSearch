@@ -19,8 +19,7 @@ import java.util.Set;
 public sealed interface ProjectCapability {
 
     /** Standard scalar function (CAST, PLUS, UPPER, etc.) on a field type in given formats. */
-    record Scalar(ScalarFunction function, FieldType fieldType,
-                  Set<String> formats) implements ProjectCapability {
+    record Scalar(ScalarFunction function, FieldType fieldType, Set<String> formats) implements ProjectCapability {
         public Scalar {
             formats = Set.copyOf(formats);
         }

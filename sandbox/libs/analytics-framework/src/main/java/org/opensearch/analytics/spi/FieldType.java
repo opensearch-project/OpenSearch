@@ -69,8 +69,7 @@ public enum FieldType {
 
     /** All numeric field types. */
     public static Set<FieldType> numeric() {
-        return EnumSet.of(INTEGER, LONG, SHORT, BYTE, FLOAT, DOUBLE,
-            HALF_FLOAT, SCALED_FLOAT, UNSIGNED_LONG);
+        return EnumSet.of(INTEGER, LONG, SHORT, BYTE, FLOAT, DOUBLE, HALF_FLOAT, SCALED_FLOAT, UNSIGNED_LONG);
     }
 
     /** All keyword-like field types. */

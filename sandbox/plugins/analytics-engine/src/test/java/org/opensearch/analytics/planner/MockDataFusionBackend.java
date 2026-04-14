@@ -10,10 +10,10 @@ package org.opensearch.analytics.planner;
 
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AggregateFunction;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
@@ -41,10 +41,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     public static final String PARQUET_DATA_FORMAT = "parquet";
     private static final Set<String> DATAFUSION_FORMATS = Set.of(PARQUET_DATA_FORMAT);
 
-    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(
-        EngineCapability.SORT,
-        EngineCapability.COORDINATOR_REDUCE
-    );
+    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT, EngineCapability.COORDINATOR_REDUCE);
 
     private static final Set<FieldType> SUPPORTED_TYPES = new HashSet<>();
     static {
@@ -55,17 +52,25 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     }
 
     private static final Set<FilterOperator> STANDARD_OPS = Set.of(
-        FilterOperator.EQUALS, FilterOperator.NOT_EQUALS,
-        FilterOperator.GREATER_THAN, FilterOperator.GREATER_THAN_OR_EQUAL,
-        FilterOperator.LESS_THAN, FilterOperator.LESS_THAN_OR_EQUAL,
-        FilterOperator.IS_NULL, FilterOperator.IS_NOT_NULL,
-        FilterOperator.IN, FilterOperator.LIKE
+        FilterOperator.EQUALS,
+        FilterOperator.NOT_EQUALS,
+        FilterOperator.GREATER_THAN,
+        FilterOperator.GREATER_THAN_OR_EQUAL,
+        FilterOperator.LESS_THAN,
+        FilterOperator.LESS_THAN_OR_EQUAL,
+        FilterOperator.IS_NULL,
+        FilterOperator.IS_NOT_NULL,
+        FilterOperator.IN,
+        FilterOperator.LIKE
     );
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
-        AggregateFunction.SUM, AggregateFunction.SUM0,
-        AggregateFunction.MIN, AggregateFunction.MAX,
-        AggregateFunction.COUNT, AggregateFunction.AVG
+        AggregateFunction.SUM,
+        AggregateFunction.SUM0,
+        AggregateFunction.MIN,
+        AggregateFunction.MAX,
+        AggregateFunction.COUNT,
+        AggregateFunction.AVG
     );
 
     private static final Set<FilterCapability> FILTER_CAPS;
@@ -90,25 +95,50 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         AGG_CAPS = caps;
     }
 
-    private static final Set<ScanCapability> SCAN_CAPS = Set.of(
-        new ScanCapability.DocValues(DATAFUSION_FORMATS, SUPPORTED_TYPES)
-    );
+    private static final Set<ScanCapability> SCAN_CAPS = Set.of(new ScanCapability.DocValues(DATAFUSION_FORMATS, SUPPORTED_TYPES));
 
-    @Override public String name() { return NAME; }
+    @Override
+    public String name() {
+        return NAME;
+    }
 
-    @Override protected Set<EngineCapability> supportedEngineCapabilities() { return OPERATOR_CAPS; }
-    @Override protected Set<ScanCapability> scanCapabilities() { return SCAN_CAPS; }
-    @Override protected Set<FilterCapability> filterCapabilities() { return FILTER_CAPS; }
-    @Override protected Set<AggregateCapability> aggregateCapabilities() { return AGG_CAPS; }
+    @Override
+    protected Set<EngineCapability> supportedEngineCapabilities() {
+        return OPERATOR_CAPS;
+    }
+
+    @Override
+    protected Set<ScanCapability> scanCapabilities() {
+        return SCAN_CAPS;
+    }
+
+    @Override
+    protected Set<FilterCapability> filterCapabilities() {
+        return FILTER_CAPS;
+    }
+
+    @Override
+    protected Set<AggregateCapability> aggregateCapabilities() {
+        return AGG_CAPS;
+    }
 
     // ---- SearchBackEndPlugin (storage) ----
 
     @Override
     public List<DataFormat> getSupportedFormats() {
         return List.of(new DataFormat() {
-            @Override public String name() { return PARQUET_DATA_FORMAT; }
-            @Override public long priority() { return 0; }
-            @Override public Set<FieldTypeCapabilities> supportedFields() {
+            @Override
+            public String name() {
+                return PARQUET_DATA_FORMAT;
+            }
+
+            @Override
+            public long priority() {
+                return 0;
+            }
+
+            @Override
+            public Set<FieldTypeCapabilities> supportedFields() {
                 return Set.of(
                     new FieldTypeCapabilities("integer", Set.of(COLUMNAR_STORAGE)),
                     new FieldTypeCapabilities("long", Set.of(COLUMNAR_STORAGE)),
@@ -122,5 +152,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     }
 
     @Override
-    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) { return null; }
+    public EngineReaderManager<Object> createReaderManager(DataFormat format, ShardPath shardPath) {
+        return null;
+    }
 }

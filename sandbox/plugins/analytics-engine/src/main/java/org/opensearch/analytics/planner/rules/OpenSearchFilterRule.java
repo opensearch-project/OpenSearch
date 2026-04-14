@@ -12,7 +12,6 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Filter;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
@@ -30,7 +29,6 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterOperator;
-import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -116,22 +114,18 @@ public class OpenSearchFilterRule extends RelOptRule {
      * preserved — we recurse into their children. Leaf predicates are wrapped in
      * {@link AnnotatedPredicate} with viable backends resolved from child's field storage.
      */
-    private RexNode annotateCondition(
-        RexNode condition,
-        List<FieldStorageInfo> fieldStorage,
-        List<String> childViableBackends
-    ) {
+    private RexNode annotateCondition(RexNode condition, List<FieldStorageInfo> fieldStorageInfos, List<String> childViableBackends) {
         if (!(condition instanceof RexCall rexCall)) {
             return condition;
         }
         if (rexCall.getKind() == SqlKind.AND || rexCall.getKind() == SqlKind.OR || rexCall.getKind() == SqlKind.NOT) {
             List<RexNode> annotatedOperands = new ArrayList<>();
             for (RexNode operand : rexCall.getOperands()) {
-                annotatedOperands.add(annotateCondition(operand, fieldStorage, childViableBackends));
+                annotatedOperands.add(annotateCondition(operand, fieldStorageInfos, childViableBackends));
             }
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
-        List<String> viableBackends = resolveViableBackends(rexCall, fieldStorage, childViableBackends);
+        List<String> viableBackends = resolveViableBackends(rexCall, fieldStorageInfos, childViableBackends);
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
@@ -143,7 +137,7 @@ public class OpenSearchFilterRule extends RelOptRule {
      */
     private List<String> resolveViableBackends(
         RexCall predicate,
-        List<FieldStorageInfo> fieldStorage,
+        List<FieldStorageInfo> fieldStorageInfos,
         List<String> childViableBackends
     ) {
         Set<Integer> fieldIndices = new HashSet<>();
@@ -170,7 +164,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
 
         for (int fieldIndex : fieldIndices) {
-            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorage, fieldIndex);
+            FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
             FieldType fieldType = storageInfo.getFieldType();
 
             // TODO: for FULL_TEXT operators, extract required params from RexCall
@@ -185,10 +179,11 @@ public class OpenSearchFilterRule extends RelOptRule {
                         + "a implementation for delegation model."
                 );
             }
-            // Format-aware: backends that can access the field's data
+            // Format-aware: backends that can access this field's storage (doc values + index).
+            // A backend is viable only if it has the field in its own storage formats — ensuring
+            // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
+            // field only when the field has indexFormats=[lucene] set in the mapping).
             Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(operator, storageInfo));
-            // Format-agnostic: delegation targets that can evaluate but don't need data access
-            fieldViable.addAll(registry.filterBackendsAnyFormat(operator, fieldType));
 
             viableSet.retainAll(fieldViable);
         }
@@ -199,8 +194,8 @@ public class OpenSearchFilterRule extends RelOptRule {
                     + predicate.getKind()
                     + "] on fields "
                     + fieldIndices.stream()
-                        .filter(i -> i < fieldStorage.size())
-                        .map(i -> fieldStorage.get(i).getFieldName() + ":" + fieldStorage.get(i).getMappingType())
+                        .filter(i -> i < fieldStorageInfos.size())
+                        .map(i -> fieldStorageInfos.get(i).getFieldName() + ":" + fieldStorageInfos.get(i).getMappingType())
                         .toList()
             );
         }

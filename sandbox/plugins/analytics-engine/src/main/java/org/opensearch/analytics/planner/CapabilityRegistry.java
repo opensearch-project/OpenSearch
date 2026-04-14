@@ -152,10 +152,21 @@ public class CapabilityRegistry {
 
     // ---- Capable-backend sets ----
 
-    public Set<String> scanCapableBackends() { return scanCapableBackends; }
-    public Set<String> filterCapableBackends() { return filterCapableBackends; }
-    public Set<String> aggregateCapableBackends() { return aggregateCapableBackends; }
-    public Set<String> projectCapableBackends() { return projectCapableBackends; }
+    public Set<String> scanCapableBackends() {
+        return scanCapableBackends;
+    }
+
+    public Set<String> filterCapableBackends() {
+        return filterCapableBackends;
+    }
+
+    public Set<String> aggregateCapableBackends() {
+        return aggregateCapableBackends;
+    }
+
+    public Set<String> projectCapableBackends() {
+        return projectCapableBackends;
+    }
 
     // ---- Scan lookups ----
 
@@ -171,18 +182,6 @@ public class CapabilityRegistry {
 
     public List<String> aggregateBackends(AggregateFunction function, FieldType fieldType, String format) {
         return aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
-    }
-
-    public List<String> scalarBackends(ScalarFunction function, FieldType fieldType, String format) {
-        return scalarIndex.getOrDefault(new ScalarKey(function, fieldType), Map.of()).getOrDefault(format, List.of());
-    }
-
-    public List<String> opaqueBackends(String name, String format) {
-        return opaqueIndex.getOrDefault(name, Map.of()).getOrDefault(format, List.of());
-    }
-
-    public Set<String> fullTextParams(FilterOperator operator, FieldType fieldType, String backendName) {
-        return fullTextParamIndex.getOrDefault(new FullTextParamKey(operator, fieldType, backendName), Set.of());
     }
 
     public boolean isOpaqueOperation(String name) {
@@ -225,10 +224,6 @@ public class CapabilityRegistry {
     }
 
     // ---- Any-format lookups ----
-
-    public List<String> filterBackendsAnyFormat(FilterOperator operator, FieldType fieldType) {
-        return allBackends(filterIndex.getOrDefault(new FilterKey(operator, fieldType), Map.of()));
-    }
 
     public List<String> aggregateBackendsAnyFormat(AggregateFunction function, FieldType fieldType) {
         return allBackends(aggregateIndex.getOrDefault(new AggregateKey(function, fieldType), Map.of()));
@@ -292,9 +287,18 @@ public class CapabilityRegistry {
 
     // ---- Keys ----
 
-    private record ScanKey(Class<? extends ScanCapability> kind, FieldType fieldType) {}
-    private record FilterKey(FilterOperator operator, FieldType fieldType) {}
-    private record AggregateKey(AggregateFunction function, FieldType fieldType) {}
-    private record ScalarKey(ScalarFunction function, FieldType fieldType) {}
-    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {}
+    private record ScanKey(Class<? extends ScanCapability> kind, FieldType fieldType) {
+    }
+
+    private record FilterKey(FilterOperator operator, FieldType fieldType) {
+    }
+
+    private record AggregateKey(AggregateFunction function, FieldType fieldType) {
+    }
+
+    private record ScalarKey(ScalarFunction function, FieldType fieldType) {
+    }
+
+    private record FullTextParamKey(FilterOperator operator, FieldType fieldType, String backendName) {
+    }
 }
