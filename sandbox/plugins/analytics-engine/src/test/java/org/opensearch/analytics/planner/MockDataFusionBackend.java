@@ -17,8 +17,8 @@ import org.opensearch.analytics.spi.FilterOperator;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
-import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.util.HashSet;
