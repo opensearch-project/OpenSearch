@@ -129,20 +129,6 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     }
 
     /**
-     * Package-private constructor for testing. Allows direct injection of engines
-     * without requiring a DataFormatRegistry.
-     */
-    CompositeIndexingExecutionEngine(
-        IndexingExecutionEngine<?, ?> primaryEngine,
-        Set<IndexingExecutionEngine<?, ?>> secondaryEngines,
-        CompositeDataFormat compositeDataFormat
-    ) {
-        this.primaryEngine = primaryEngine;
-        this.secondaryEngines = secondaryEngines;
-        this.compositeDataFormat = compositeDataFormat;
-    }
-
-    /**
      * Validates that the primary and all secondary data format plugins are registered.
      *
      * @param registry the discovered data format plugins keyed by format name

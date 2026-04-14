@@ -122,7 +122,7 @@ public final class EngineConfig {
     private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
     private final DataFormatRegistry dataFormatRegistry;
     private final MapperService mapperService;
-    private CommitterFactory committerFactory;
+    private final CommitterFactory committerFactory;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been

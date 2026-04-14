@@ -11,17 +11,12 @@ package org.opensearch.composite;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
-import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,15 +61,20 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = mock(DataFormatRegistry.class);
         when(registry.format("parquet")).thenReturn(CompositeTestHelper.stubFormat("parquet", 2, java.util.Set.of()));
-        when(registry.getFormatDescriptors(indexSettings)).thenReturn(Map.of(
-            "parquet",
-            new org.opensearch.index.engine.dataformat.DataFormatDescriptor(
+        when(registry.getFormatDescriptors(indexSettings)).thenReturn(
+            Map.of(
                 "parquet",
-                new org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler()
+                new org.opensearch.index.engine.dataformat.DataFormatDescriptor(
+                    "parquet",
+                    new org.opensearch.index.store.checksum.GenericCRC32ChecksumHandler()
+                )
             )
-        ));
+        );
 
-        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
+        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(
+            indexSettings,
+            registry
+        );
         assertEquals(1, descriptors.size());
         assertTrue(descriptors.containsKey("parquet"));
         assertEquals("parquet", descriptors.get("parquet").getFormatName());
@@ -94,7 +94,10 @@ public class CompositeDataFormatPluginTests extends OpenSearchTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
 
-        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(indexSettings, registry);
+        Map<String, org.opensearch.index.engine.dataformat.DataFormatDescriptor> descriptors = plugin.getFormatDescriptors(
+            indexSettings,
+            registry
+        );
         assertTrue(descriptors.isEmpty());
     }
 }

@@ -845,7 +845,7 @@ public class DataFormatAwareEngine implements Indexer {
 
     @Override
     public PollingIngestStats pollingIngestStats() {
-        throw new UnsupportedOperationException("polling ingest stats not supported");
+        return null;
     }
 
     @Override

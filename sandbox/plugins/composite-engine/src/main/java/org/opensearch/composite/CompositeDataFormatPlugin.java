@@ -94,7 +94,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
     @Override
     public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings, FormatChecksumStrategy checksumStrategy) {
         Map<String, FormatChecksumStrategy> strategies = new HashMap<>();
-        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry()).entrySet()) {
+        for (Map.Entry<String, DataFormatDescriptor> entry : getFormatDescriptors(settings.indexSettings(), settings.registry())
+            .entrySet()) {
             strategies.put(entry.getKey(), entry.getValue().getChecksumStrategy());
         }
         return new CompositeIndexingExecutionEngine(
