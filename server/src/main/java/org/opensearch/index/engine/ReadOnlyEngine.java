@@ -288,7 +288,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
+    public ReferenceManager<OpenSearchDirectoryReader> getReferenceManager(SearcherScope scope) {
         return readerManager;
     }
 
