@@ -50,8 +50,10 @@ public class QueryPlansTests extends OpenSearchTestCase {
         assertEquals(2, plans.get(QueryPlans.Type.AGGREGATION).size());
     }
 
-    public void testBuilderThrowsOnEmpty() {
-        expectThrows(IllegalStateException.class, () -> new QueryPlans.Builder().build());
+    public void testBuilderAllowsEmpty() {
+        // Empty plans are valid (e.g. size=0, no aggs — metadata-only response)
+        QueryPlans plans = new QueryPlans.Builder().build();
+        assertEquals(0, plans.getAll().size());
     }
 
     public void testGetReturnsEmptyForMissingType() {
