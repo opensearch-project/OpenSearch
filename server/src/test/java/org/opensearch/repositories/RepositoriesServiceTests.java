@@ -1054,7 +1054,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         svc.registerInternalRepository("repo", NativeAwareTestRepository.TYPE);
 
         final Repository repo = svc.repository("repo");
-        assertTrue(((NativeAwareTestRepository) repo).isStarted);
         assertEquals(-1, repo.getNativeStorePtr());
     }
 

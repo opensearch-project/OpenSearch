@@ -8,10 +8,13 @@
 
 //! Amazon S3 backend configuration and builder.
 //!
-//! Supports: bucket, region, endpoint, static credentials, custom credential
-//! provider, virtual-hosted-style, unsigned payload, skip signature, allow HTTP,
-//! proxy (with CA cert), IMDSv1 fallback, S3 Express One Zone, SSE-KMS,
-//! DSSE-KMS, bucket key, checksum algorithm, and retry config.
+//! Supports: bucket, region, endpoint, custom credential provider,
+//! virtual-hosted-style, unsigned payload, allow HTTP, proxy (with CA cert),
+//! IMDSv1 fallback, S3 Express One Zone, SSE-KMS, DSSE-KMS, bucket key,
+//! checksum algorithm, and retry config.
+//!
+//! Credentials are NOT accepted via config JSON — use the default credential
+//! chain (IAM roles, env vars, IMDS) or pass a custom `AwsCredentialProvider`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,6 +27,10 @@ use serde::Deserialize;
 ///
 /// All fields except `bucket` are optional. Unknown JSON fields are
 /// silently ignored by serde's default behavior.
+///
+/// Credentials are intentionally excluded — authentication is handled
+/// via the default credential chain or a custom `AwsCredentialProvider`
+/// passed to [`build`].
 #[derive(Debug, Deserialize)]
 pub struct S3Config {
     /// S3 bucket name (required).
@@ -32,18 +39,10 @@ pub struct S3Config {
     pub region: Option<String>,
     /// Custom endpoint URL (for S3-compatible stores like MinIO).
     pub endpoint: Option<String>,
-    /// Access key ID. If not set, uses default credential chain.
-    pub access_key_id: Option<String>,
-    /// Secret access key.
-    pub secret_access_key: Option<String>,
-    /// Session token for temporary credentials.
-    pub session_token: Option<String>,
     /// Enable virtual-hosted-style requests.
     pub virtual_hosted_style: Option<bool>,
     /// Allow unsigned payload.
     pub unsigned_payload: Option<bool>,
-    /// Skip request signing entirely (for public buckets).
-    pub skip_signature: Option<bool>,
     /// Allow HTTP (non-TLS) connections.
     pub allow_http: Option<bool>,
     /// Proxy URL.
@@ -70,8 +69,8 @@ pub struct S3Config {
 
 /// Build an S3 [`ObjectStore`] from JSON config.
 ///
-/// If `credentials` is `Some`, it overrides any static credentials in the config.
-/// Pass `None` to use static creds from config or the default credential chain.
+/// If `credentials` is `Some`, it is used for authentication.
+/// If `None`, the default credential chain is used (env vars, IMDS, etc.).
 pub fn build(
     config_json: &str,
     credentials: Option<AwsCredentialProvider>,
@@ -83,17 +82,11 @@ pub fn build(
     if let Some(ref e) = config.endpoint { builder = builder.with_endpoint(e); }
 
     if let Some(creds) = credentials {
-        // Custom credential provider overrides all static creds
         builder = builder.with_credentials(creds);
-    } else {
-        if let Some(ref k) = config.access_key_id { builder = builder.with_access_key_id(k); }
-        if let Some(ref s) = config.secret_access_key { builder = builder.with_secret_access_key(s); }
-        if let Some(ref t) = config.session_token { builder = builder.with_token(t); }
     }
 
     if config.virtual_hosted_style == Some(true) { builder = builder.with_virtual_hosted_style_request(true); }
     if config.unsigned_payload == Some(true) { builder = builder.with_unsigned_payload(true); }
-    if config.skip_signature == Some(true) { builder = builder.with_skip_signature(true); }
     if config.allow_http == Some(true) { builder = builder.with_allow_http(true); }
     if let Some(ref p) = config.proxy_url { builder = builder.with_proxy_url(p); }
     if let Some(ref c) = config.proxy_ca_certificate { builder = builder.with_proxy_ca_certificate(c); }
@@ -127,7 +120,7 @@ mod tests {
 
     #[test]
     fn test_build_with_valid_config() {
-        let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"x","secret_access_key":"y"}"#;
+        let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000"}"#;
         assert!(build(config, None).is_ok());
     }
 
@@ -145,8 +138,7 @@ mod tests {
     fn test_build_with_all_optional_fields() {
         let config = r#"{
             "bucket":"b","region":"us-west-2","endpoint":"http://localhost:9000",
-            "access_key_id":"AKID","secret_access_key":"SECRET","session_token":"TOKEN",
-            "virtual_hosted_style":false,"unsigned_payload":true,"skip_signature":false,
+            "virtual_hosted_style":false,"unsigned_payload":true,
             "allow_http":true,"proxy_url":"http://proxy:8080","imdsv1_fallback":false,
             "s3_express":false,"sse_kms_key_id":"arn:aws:kms:us-east-1:123:key/abc",
             "bucket_key":true,"checksum_algorithm":"sha256","max_retries":5,"retry_timeout_ms":30000
@@ -156,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_build_unknown_checksum_returns_error() {
-        let config = r#"{"bucket":"b","region":"us-east-1","checksum_algorithm":"md5","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"x","secret_access_key":"y"}"#;
+        let config = r#"{"bucket":"b","region":"us-east-1","checksum_algorithm":"md5","allow_http":true,"endpoint":"http://localhost:9000"}"#;
         assert!(build(config, None).is_err());
     }
 
@@ -177,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_extra_unknown_fields_ignored() {
-        let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","access_key_id":"x","secret_access_key":"y","unknown_field":"value"}"#;
+        let config = r#"{"bucket":"b","region":"us-east-1","allow_http":true,"endpoint":"http://localhost:9000","unknown_field":"value"}"#;
         assert!(build(config, None).is_ok());
     }
 }

@@ -7,6 +7,9 @@
  */
 
 //! Google Cloud Storage backend configuration and builder.
+//!
+//! Credentials are NOT accepted via config JSON — use Application Default
+//! Credentials (ADC) or pass a custom `GcpCredentialProvider`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,12 +19,14 @@ use object_store::{ObjectStore, RetryConfig};
 use serde::Deserialize;
 
 /// Configuration for a Google Cloud Storage remote store.
+///
+/// Credentials are intentionally excluded — authentication is handled
+/// via Application Default Credentials (ADC) or a custom `GcpCredentialProvider`
+/// passed to [`build`].
 #[derive(Debug, Deserialize)]
 pub struct GcsConfig {
     /// GCS bucket name (required).
     pub bucket: String,
-    /// Path to service account JSON key file.
-    pub service_account_key: Option<String>,
     /// Maximum number of retries for failed requests.
     pub max_retries: Option<usize>,
     /// Retry timeout in milliseconds.
@@ -30,7 +35,8 @@ pub struct GcsConfig {
 
 /// Build a GCS [`ObjectStore`] from JSON config.
 ///
-/// If `credentials` is `Some`, it overrides any static credentials in the config.
+/// If `credentials` is `Some`, it is used for authentication.
+/// If `None`, Application Default Credentials (ADC) are used.
 pub fn build(
     config_json: &str,
     credentials: Option<GcpCredentialProvider>,
@@ -40,9 +46,8 @@ pub fn build(
 
     if let Some(creds) = credentials {
         builder = builder.with_credentials(creds);
-    } else if let Some(ref k) = config.service_account_key {
-        builder = builder.with_service_account_key(k);
     }
+
     if config.max_retries.is_some() || config.retry_timeout_ms.is_some() {
         let mut retry = RetryConfig::default();
         if let Some(m) = config.max_retries { retry.max_retries = m; }

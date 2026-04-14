@@ -7,6 +7,10 @@
  */
 
 //! Azure Blob Storage backend configuration and builder.
+//!
+//! Credentials are NOT accepted via config JSON — use the default Azure
+//! credential chain (managed identity, CLI, env vars) or pass a custom
+//! `AzureCredentialProvider`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,18 +20,16 @@ use object_store::{ObjectStore, RetryConfig};
 use serde::Deserialize;
 
 /// Configuration for an Azure Blob Storage remote store.
+///
+/// Credentials are intentionally excluded — authentication is handled
+/// via the default Azure credential chain or a custom `AzureCredentialProvider`
+/// passed to [`build`].
 #[derive(Debug, Deserialize)]
 pub struct AzureConfig {
     /// Azure storage account name (required).
     pub account: String,
     /// Azure container name (required).
     pub container: String,
-    /// Access key for authentication.
-    pub access_key: Option<String>,
-    /// SAS token for authentication (query string format: "sv=...&sig=...").
-    pub sas_token: Option<String>,
-    /// Use Azure CLI credentials.
-    pub use_azure_cli: Option<bool>,
     /// Maximum number of retries for failed requests.
     pub max_retries: Option<usize>,
     /// Retry timeout in milliseconds.
@@ -36,7 +38,8 @@ pub struct AzureConfig {
 
 /// Build an Azure [`ObjectStore`] from JSON config.
 ///
-/// If `credentials` is `Some`, it overrides any static credentials in the config.
+/// If `credentials` is `Some`, it is used for authentication.
+/// If `None`, the default Azure credential chain is used.
 pub fn build(
     config_json: &str,
     credentials: Option<AzureCredentialProvider>,
@@ -48,24 +51,8 @@ pub fn build(
 
     if let Some(creds) = credentials {
         builder = builder.with_credentials(creds);
-    } else {
-        if let Some(ref k) = config.access_key { builder = builder.with_access_key(k); }
-        if let Some(ref sas) = config.sas_token {
-            let pairs: Vec<(String, String)> = sas
-                .trim_start_matches('?')
-                .split('&')
-                .filter_map(|p| {
-                    let mut parts = p.splitn(2, '=');
-                    match (parts.next(), parts.next()) {
-                        (Some(k), Some(v)) => Some((k.to_string(), v.to_string())),
-                        _ => None,
-                    }
-                })
-                .collect();
-            builder = builder.with_sas_authorization(pairs);
-        }
-        if config.use_azure_cli == Some(true) { builder = builder.with_use_azure_cli(true); }
     }
+
     if config.max_retries.is_some() || config.retry_timeout_ms.is_some() {
         let mut retry = RetryConfig::default();
         if let Some(m) = config.max_retries { retry.max_retries = m; }
@@ -86,20 +73,16 @@ mod tests {
     }
 
     #[test]
-    fn test_build_with_access_key() {
-        let config = r#"{"account":"a","container":"c","access_key":"dGVzdGtleQ=="}"#;
-        assert!(build(config, None).is_ok());
-    }
-
-    #[test]
-    fn test_build_with_sas_token() {
-        let config = r#"{"account":"a","container":"c","sas_token":"sv=2020-08-04&ss=b&sig=abc"}"#;
+    fn test_build_minimal_config() {
+        // Default credential chain — will fail at runtime without real Azure creds,
+        // but the builder construction should succeed.
+        let config = r#"{"account":"a","container":"c"}"#;
         assert!(build(config, None).is_ok());
     }
 
     #[test]
     fn test_build_with_retry_config() {
-        let config = r#"{"account":"a","container":"c","access_key":"dGVzdGtleQ==","max_retries":5,"retry_timeout_ms":20000}"#;
+        let config = r#"{"account":"a","container":"c","max_retries":5,"retry_timeout_ms":20000}"#;
         assert!(build(config, None).is_ok());
     }
 }
